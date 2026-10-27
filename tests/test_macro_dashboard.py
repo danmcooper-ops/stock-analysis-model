@@ -12,7 +12,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from scripts.macro_dashboard import (
     yoy, mom_diff, percentile_rank, zscore, downsample, recession_bands,
     build_macro_payload, make_narrative_client, _sector_facts,
-    MACRO_SERIES, OVERVIEW_IDS, DAILY_HISTORY_YEARS,
+    MACRO_SERIES, OVERVIEW_IDS, DAILY_HISTORY_YEARS, REGIONS,
+    STALE_AFTER_DAYS, MIN_SERIES_FOR_DASHBOARD,
 )
 
 
@@ -31,6 +32,32 @@ class TestYoY:
         obs = {date(2025, 1, 1): 200.0, date(2026, 1, 15): 210.0}
         out = yoy(obs)
         assert out[date(2026, 1, 15)] == pytest.approx(5.0)
+
+    def test_bisect_matches_the_old_scan(self):
+        # yoy() used to scan every date for each point; the bisect must
+        # pick the same base, ties to the earlier date included.
+        import random
+        rnd = random.Random(7)
+        obs, d = {}, date(2010, 1, 1)
+        while d < date(2014, 1, 1):
+            d += timedelta(days=rnd.choice([1, 1, 1, 3, 7, 30, 60]))
+            obs[d] = rnd.uniform(50, 150)
+
+        def scan(obs, tol=45):
+            dates, out = sorted(obs), {}
+            for x in dates:
+                t = x - timedelta(days=365)
+                best, gap0 = None, tol + 1
+                for e in dates:
+                    g = abs((e - t).days)
+                    if g < gap0:
+                        best, gap0 = e, g
+                    elif e > t + timedelta(days=tol):
+                        break
+                if best is not None and obs[best]:
+                    out[x] = (obs[x] / obs[best] - 1.0) * 100.0
+            return out
+        assert yoy(obs) == scan(obs)
 
     def test_gap_beyond_tolerance_is_dropped(self):
         obs = {date(2024, 1, 1): 100.0, date(2026, 1, 1): 120.0}
@@ -207,7 +234,8 @@ class TestBuildMacroPayload:
         assert sc['keyed'] is True
         assert sc['recessions'] == [['2020-02-01', '2020-04-01']]
         assert {s['k'] for s in sc['sections']} == \
-            {'rates', 'inflation', 'growth', 'credit', 'housing', 'commodities'}
+            {'rates', 'inflation', 'growth', 'credit', 'housing', 'commodities',
+             'intl'}
         # every declared series made it in with the stub's full data
         assert set(sc['series']) == {m['id'] for m in MACRO_SERIES}
         entry = sc['series']['UNRATE']
@@ -234,9 +262,60 @@ class TestBuildMacroPayload:
         rec = _StartRecordingFRED(fred.table)
         sc = build_macro_payload(rec, as_of=as_of)['sidecar']
         yf_ids = {m['id'] for m in MACRO_SERIES if m.get('yf')}
-        assert yf_ids == {'GOLD', 'SILVER'}
+        assert yf_ids == {'GOLD', 'SILVER', 'STOXX50', 'FTSE100', 'NIKKEI',
+                          'MCHI', 'EEM'}
         assert not yf_ids & set(sc['series'])
         assert not yf_ids & set(rec.starts)
+
+    def test_international_series_carry_their_region(self):
+        fred, as_of = full_stub()
+        p = build_macro_payload(fred, as_of=as_of, yahoo=_stub_yahoo(fred))
+        sc = p['sidecar']
+        intl = [m for m in MACRO_SERIES if m['sec'] == 'intl']
+        keys = {r['k'] for r in REGIONS}
+        assert intl and all(m.get('region') in keys for m in intl)
+        assert all(sc['series'][m['id']]['region'] == m['region']
+                   for m in intl)
+        assert not any('region' in s for s in sc['series'].values()
+                       if s['sec'] != 'intl')
+        # the summary's grid: regions in card order, each series once
+        grid = p['summary']['intl']
+        assert [r['k'] for r in grid] == [r['k'] for r in REGIONS]
+        assert sorted(i['id'] for r in grid for i in r['items']) == \
+            sorted(m['id'] for m in intl)
+        assert all('hist' not in i for r in grid for i in r['items'])
+        # an equity row is a 1-year return already: no change-of-a-return
+        yf = {m['id'] for m in intl if m.get('yf')}
+        items = {i['id']: i for r in grid for i in r['items']}
+        assert all(items[k]['chg_1y'] is None for k in yf)
+        assert items['ECBDFR']['chg_1y'] is not None
+
+    def test_stale_series_are_stamped(self):
+        fred, as_of = full_stub()
+        # The German bund stopped ~6 months ago; the ECB rate is current.
+        fred.table['IRLTLT01DEM156N'] = {
+            d: v for d, v in fred.table['IRLTLT01DEM156N'].items()
+            if d <= as_of - timedelta(days=STALE_AFTER_DAYS['m'] + 40)}
+        p = build_macro_payload(fred, as_of=as_of, yahoo=_stub_yahoo(fred))
+        sc = p['sidecar']
+        assert sc['series']['IRLTLT01DEM156N'].get('stale') is True
+        assert 'stale' not in sc['series']['ECBDFR']
+        # on schedule is not stale: the stub's monthly series end this month
+        assert not any(s.get('stale') for k, s in sc['series'].items()
+                       if k != 'IRLTLT01DEM156N')
+        ea = [r for r in p['summary']['intl'] if r['k'] == 'ea'][0]
+        assert [i for i in ea['items']
+                if i['id'] == 'IRLTLT01DEM156N'][0]['stale'] is True
+
+    def test_yahoo_alone_is_not_a_dashboard(self):
+        # With FRED down, the seven Yahoo series must not pass for a
+        # dashboard: the re-render falls back to the sidecar it already has.
+        fred, as_of = full_stub()
+        yahoo = _stub_yahoo(fred)
+        assert len([m for m in MACRO_SERIES if m.get('yf')]) >= \
+            MIN_SERIES_FOR_DASHBOARD
+        assert build_macro_payload(StubFRED(), as_of=as_of,
+                                   yahoo=yahoo) is None
 
     def test_yahoo_series_fetched_over_the_daily_window(self):
         fred, as_of = full_stub()
@@ -247,7 +326,8 @@ class TestBuildMacroPayload:
             return _stub_yahoo(fred)(symbol, start)
 
         sc = build_macro_payload(fred, as_of=as_of, yahoo=yahoo)['sidecar']
-        assert set(asked) == {'GC=F', 'SI=F'}
+        assert set(asked) == {'GC=F', 'SI=F', '^STOXX50E', '^FTSE', '^N225',
+                              'MCHI', 'EEM'}
         assert asked['GC=F'] == as_of - timedelta(
             days=int(DAILY_HISTORY_YEARS * 365.25))
         assert {'GOLD', 'SILVER'} <= set(sc['series'])

@@ -4,7 +4,7 @@ Serializes the macro.json sidecar's numeric facts (regime model output,
 FRED series with changes/percentiles, the Treasury curve, credit spreads,
 and per-sector ETF momentum) into a prompt for the Claude API and returns
 a structured narrative: a bottom line, economy-wide paragraphs, what to
-watch, and one entry per GICS sector — an `influence` paragraph, a kicker and a
+watch, the international backdrop, and one entry per GICS sector — an `influence` paragraph, a kicker and a
 stance — which the Overview's "Sectors" chips open as
 full prose. The LLM call is network I/O, so this lives in data/ rather
 than models/.
@@ -68,11 +68,19 @@ REQUEST_TIMEOUT_S = 900
 #     the regime model's label with the data), `watch` (what would change
 #     the call) in place of the economy-wide headwinds/tailwinds, which
 #     restated the sections' bullets, and a rule against repeating figures.
-SCHEMA_VERSION = 7
+# v8: `international` — a lead, one point per region and a spillover line
+#     for the Overview's International Economy card, read from the `intl`
+#     series family the facts now hand over apart from the US series.
+SCHEMA_VERSION = 8
 
 # Ceilings for the v7 fields, in words; counted post-parse, never enforced.
 BOTTOM_LINE_MAX_WORDS = 60
 WATCH_ITEMS = 3
+INTL_SPILLOVER_MAX_WORDS = 25
+
+# The International card's regions, the series' `region` keys, in the order
+# scripts/macro_dashboard.REGIONS draws them (data/ never imports scripts/).
+INTL_REGIONS = ['ea', 'uk', 'jp', 'cn', 'em']
 
 # Advisory floor for a sector's influence paragraph, only ever counted:
 # under it the Overview is back to reading like a kicker, which is what
@@ -80,11 +88,13 @@ WATCH_ITEMS = 3
 MIN_INFLUENCE_WORDS = 20
 
 # Target length of the Overview read (bottom line + paragraphs + what to
-# watch + sector headlines and influences), ~3 minutes. The per-field
-# ceilings in the prompt sum to it: 60 + 3 x (20 + 3 x 20) + 3 x 20 +
-# 11 x (4 + 40) ~= 844 at the ceilings, ~750 as drawn. Influences are drawn at their ceiling:
-# a 45-word one put the v6 Overview at 820 words. Counted post-parse, never enforced.
-OVERVIEW_WORD_BUDGET = 750
+# watch + international + sector headlines and influences), ~3.5 minutes.
+# The per-field ceilings in the prompt sum to it: 60 + 3 x (20 + 3 x 20) +
+# 3 x 20 + (20 + 5 x 20 + 25) + 11 x (4 + 40) ~= 990 at the ceilings, ~860
+# as drawn (v7's ~750 plus ~110 for the international block). Influences are
+# drawn at their ceiling: a 45-word one put the v6 Overview at 820 words.
+# Counted post-parse, never enforced.
+OVERVIEW_WORD_BUDGET = 860
 
 # The 11 GICS sectors under the yfinance naming this repo uses everywhere
 # (rows, SECTOR_CONFIG, sector ETF maps). The narrative must cover all 11.
@@ -133,6 +143,31 @@ NARRATIVE_SCHEMA = {
             'additionalProperties': False,
         },
         'watch': {'type': 'array', 'items': {'type': 'string'}},
+        # The International Economy card: a verdict, one point per region
+        # (the region an enum, so the page can label it), and what the world
+        # means for US equities.
+        'international': {
+            'type': 'object',
+            'properties': {
+                'lead': {'type': 'string'},
+                'regions': {
+                    'type': 'array',
+                    'items': {
+                        'type': 'object',
+                        'properties': {
+                            'region': {'type': 'string',
+                                       'enum': INTL_REGIONS},
+                            'point': {'type': 'string'},
+                        },
+                        'required': ['region', 'point'],
+                        'additionalProperties': False,
+                    },
+                },
+                'spillover': {'type': 'string'},
+            },
+            'required': ['lead', 'regions', 'spillover'],
+            'additionalProperties': False,
+        },
         'sectors': {
             'type': 'array',
             'items': {
@@ -152,16 +187,19 @@ NARRATIVE_SCHEMA = {
             },
         },
     },
-    'required': ['bottom_line', 'paragraphs', 'watch', 'sectors'],
+    'required': ['bottom_line', 'paragraphs', 'watch', 'international',
+                 'sectors'],
     'additionalProperties': False,
 }
 
 SYSTEM_PROMPT = (
     'You are the macro strategist for a fundamental equity research '
-    'report. Write a narrative assessment of the US economy from the '
-    'indicator data provided: regime model output, FRED series with recent '
-    'changes and historical percentiles, the Treasury yield curve, credit '
-    'spreads by rating bucket, and sector ETF momentum.\n'
+    'report. Write a narrative assessment of the US economy and its global '
+    'backdrop from the indicator data provided: regime model output, FRED '
+    'series with recent changes and historical percentiles, the Treasury '
+    'yield curve, credit spreads by rating bucket, sector ETF momentum, and '
+    "an 'international' block of foreign policy rates, yields, inflation, "
+    'equity markets and currencies grouped by region.\n'
     'Rules:\n'
     '- Use ONLY the numbers provided, and cite specific figures inline '
     "(e.g. 'core PCE at 2.8%'). Never invent a data point.\n"
@@ -180,8 +218,8 @@ SYSTEM_PROMPT = (
     f'that read must total about {OVERVIEW_WORD_BUDGET} words. The word '
     'limits below add up to that budget; treat each as a ceiling and '
     'spend the words on meaning, not on more figures.\n'
-    '- Say each figure once. Across the bottom line, the paragraphs and '
-    'what to watch, cite each indicator\'s number at most once; later '
+    '- Say each figure once. Across the bottom line, the paragraphs, '
+    'what to watch and international, cite each indicator\'s number at most once; later '
     'mentions name the indicator without restating the figure. A sector '
     'influence may repeat a number only for the force that drives that '
     'sector.\n'
@@ -191,7 +229,7 @@ SYSTEM_PROMPT = (
     "It must square with the regime model's label and composite in the "
     'data: when the indicators read weaker or stronger than the label, say '
     'so and why the market signals still read as they do. At most two '
-    'figures.\n'
+    'figures. It is about the US: the world goes in international.\n'
     '- paragraphs: three named sections — growth_labor, inflation_rates, '
     'credit_conditions — each a lead and its points. The page sets the '
     'lead as a paragraph and each point as a bullet under it.\n'
@@ -212,6 +250,20 @@ SYSTEM_PROMPT = (
     "above 250,000 would say layoffs have started, ending the labor "
     "story.' Each on a different indicator family; thresholds may be new "
     'numbers, but never restate a current reading already given.\n'
+    "- international: the global backdrop, read from the data's "
+    "'international' block only (region keys: ea euro area, uk United "
+    'Kingdom, jp Japan, cn China, em emerging markets).\n'
+    '  lead: ONE sentence, 20 words maximum, the verdict on the world '
+    'economy as it bears on the US: where growth and policy are '
+    'diverging or moving together.\n'
+    '  regions: one entry per region in the data, in the order ea, uk, '
+    'jp, cn, em; point is ONE sentence of 20 words or fewer with at most '
+    'two figures, saying what its central bank, bond market, currency or '
+    'equity market says about that economy. Equity series are 1-year price '
+    'returns. A series marked stale may be cited only with its month.\n'
+    f'  spillover: ONE sentence, {INTL_SPILLOVER_MAX_WORDS} words maximum, '
+    'what the world means for US equities now, through the dollar, US '
+    'yields, commodity prices or overseas earnings.\n'
     '- sectors: one entry for EVERY GICS sector listed in the data (all '
     '11, including any without ETF metrics), each written in this order:\n'
     '  influence: the read a sector\'s chip opens under the Overview\'s '
@@ -254,7 +306,7 @@ SYSTEM_PROMPT = (
 # housing), which is what lets the model draw a sector's forces from
 # different families instead of restating one rate twice.
 _SERIES_FACT_KEYS = ('l', 'sec', 'latest', 'chg_1m', 'chg_1y', 'pctile',
-                     'pct_win', 'z', 'suffix', 'good')
+                     'pct_win', 'z', 'suffix', 'good', 'stale')
 
 
 def _driver_for(sector):
@@ -267,9 +319,17 @@ def build_macro_facts(sidecar):
     sidecar = sidecar or {}
     series = sidecar.get('series') or {}
     facts_series = {}
+    # The intl family goes in its own block, grouped by region, so the US
+    # sections are written from US series and the International card from
+    # the rest.
+    international = {}
     for sid, s in series.items():
         entry = {k: s[k] for k in _SERIES_FACT_KEYS if s.get(k) not in (None, '')}
-        if entry:
+        if not entry:
+            continue
+        if s.get('sec') == 'intl':
+            international.setdefault(s.get('region') or 'other', {})[sid] = entry
+        else:
             facts_series[sid] = entry
 
     curve = sidecar.get('curve') or None
@@ -300,6 +360,7 @@ def build_macro_facts(sidecar):
         'series': facts_series,
         'yield_curve': curve,
         'credit_oas_by_rating': sidecar.get('oas_buckets'),
+        'international': international,
         'sectors': sectors,
     }
 
@@ -315,6 +376,11 @@ def overview_word_count(narrative):
     total += sum(wc(x) for k in ('paragraphs', 'watch', 'tailwinds',
                                  'headwinds')
                  for x in (n.get(k) or []))
+    intl = n.get('international') or {}
+    if isinstance(intl, dict):
+        total += wc(intl.get('lead')) + wc(intl.get('spillover'))
+        total += sum(wc(r.get('point')) for r in intl.get('regions') or []
+                     if isinstance(r, dict))
     for e in n.get('sectors') or []:
         if isinstance(e, dict):
             total += wc(e.get('headline')) + wc(e.get('influence'))
@@ -494,6 +560,22 @@ class ClaudeNarrativeClient:
         if len(narrative.get('watch') or []) != WATCH_ITEMS:
             logger.warning('macro narrative: %d watch items (expected %d)',
                            len(narrative.get('watch') or []), WATCH_ITEMS)
+        # Regions in the card's order, one entry each (the grammar pins no
+        # array length, so a repeat is possible, as with the sectors).
+        intl = narrative.get('international')
+        if isinstance(intl, dict):
+            by_region = {}
+            for r in intl.get('regions') or []:
+                k = (r or {}).get('region')
+                if k and k not in by_region and str(r.get('point') or '').strip():
+                    by_region[k] = r
+            intl['regions'] = [by_region[k] for k in INTL_REGIONS
+                               if k in by_region]
+            missing = set(facts['international']) & set(INTL_REGIONS) \
+                - set(by_region)
+            if missing:
+                logger.warning('macro narrative: international omits %s',
+                               ', '.join(sorted(missing)))
         if len(str(narrative.get('bottom_line') or '').split()) > \
                 1.25 * BOTTOM_LINE_MAX_WORDS:
             logger.warning('macro narrative: bottom line runs %d words',

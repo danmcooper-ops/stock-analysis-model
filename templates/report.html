@@ -2349,7 +2349,17 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 .mac-sig{flex:1 1 100%;margin-top:6px;padding-top:14px;border-top:1px solid var(--mac-line);}
 .mac-overview>.mac-card{margin:0 0 16px;}
 .mac-overview .mac-narrative{max-width:none;padding:14px 20px;}
-.mac-cond>.sec-label,.mac-watch-card>.sec-label{margin-bottom:12px;}
+.mac-cond>.sec-label,.mac-watch-card>.sec-label,.mac-intl-card>.sec-label{margin-bottom:12px;}
+/* The International Economy (_macIntlHTML): a region per bullet under the
+   narrative's lead, or, with no narrative, a grid of each region's readings. */
+.mac-intl-ul b{font-weight:600;}
+.mac-intl-sp{margin:10px 0 6px;font-size:0.95em;line-height:1.6;}
+.mac-intl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:4px 24px;}
+.mac-intl-grid .mac-nar-k{margin-top:10px;}
+.mac-intl-rows{list-style:none;margin:0 0 6px;padding:0;font-size:0.9em;}
+.mac-intl-rows li{display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-bottom:1px solid var(--mac-line);}
+.mac-intl-rows li>span:last-child{font-variant-numeric:tabular-nums;white-space:nowrap;}
+.mac-intl-rows .mac-delta{margin-left:6px;}
 .mac-sig .mac-meters{margin-top:6px;}
 .mac-read{flex:1 1 100%;margin:8px 0 0;font-size:0.98em;line-height:1.55;color:inherit;}
 .mac-regime-main{flex:1 1 300px;}
@@ -13047,7 +13057,8 @@ var MACRO_TABS=[
   {k:'growth',l:'Growth & Labor'},
   {k:'credit',l:'Credit & Conditions'},
   {k:'housing',l:'Housing & Consumer'},
-  {k:'commodities',l:'Commodities'}
+  {k:'commodities',l:'Commodities'},
+  {k:'intl',l:'International'}
 ];
 /* Formatting is macro-local rather than ftc(): the builder ships values
    already scaled for display (WALCL in $T, ICSA in K), so codes here are
@@ -13149,7 +13160,8 @@ function _macZoomDraw(){
   var h=Math.round(Math.max(220,Math.min(w*0.7,window.innerHeight*0.55,420)));
   var hid=_macHid();
   var vHTML=_mfmt(s.latest?s.latest.v:null,s.fmt,s.suffix);
-  var dHTML='as of '+(s.latest?s.latest.d:'?')+(s.prior?' · prior '+_mfmt(s.prior.v,s.fmt,s.suffix):'');
+  var dHTML='as of '+(s.latest?s.latest.d:'?')+(s.prior?' · prior '+_mfmt(s.prior.v,s.fmt,s.suffix):'')
+    +(s.stale?' · <span class="mac-stale" title="The last observation is further behind than this series\'s release schedule">not updating</span>':'');
   body.innerHTML='<div class="mz-head"><div class="mz-t">'+s.l+'</div>'
     +'<div class="mz-v"><span class="mac-tile-v" id="'+hid+'-v">'+vHTML+'</span>'+_mdelta(s.chg_1m,s,'1M')+_mdelta(s.chg_1y,s,'1Y')+'</div></div>'
     +'<div class="mz-rng">'+btns+'</div>'
@@ -13217,7 +13229,8 @@ var _MAC_SEC_INTRO={
   growth:'Real GDP, industrial production and retail sales gauge output and demand, and a reading below the dashed zero line means contraction. The labor charts read the jobs market from both ends: the unemployment rate and the monthly change in payrolls lag the cycle, while weekly jobless claims and job openings turn first. The Sahm Rule is a recession trigger: once the three-month average unemployment rate rises half a point above its twelve-month low (the red dashed line), a downturn has historically already begun.',
   credit:'Investment-grade and high-yield option-adjusted spreads are the extra yield investors demand over Treasuries to hold corporate debt: they widen when default risk is being priced in and tighten when credit is easy. The Chicago Fed NFCI folds more than a hundred money-market, debt and equity measures into one index, where a reading above zero means conditions are tighter than average. The Fed balance sheet and M2 growth track how much liquidity is in the system, and the broad dollar index shows the currency\u2019s weight on exporters and on multinationals\u2019 overseas earnings. The rating table at the bottom breaks the spreads out from AAA to CCC, where the lowest tiers move first when stress builds.',
   housing:'Housing starts count the homes builders are breaking ground on, the most rate-sensitive corner of the economy, and the 30-year mortgage rate is the cost that governs them. Case\u2013Shiller home prices, year over year, track the largest asset most households own. Consumer sentiment gauges how households feel about their finances and the year ahead, and the personal savings rate shows whether they are building a cushion or spending it down to keep consumption going; sliding sentiment alongside a shrinking savings rate is the classic late-cycle squeeze.',
-  commodities:'These are the price decks Energy and Basic Materials earn on and the input costs much of the rest of the market pays. A producer does not set them, so a move here flows almost straight to revenue and margins. Energy: WTI is the crude price US producers sell into and Brent the global benchmark most of the world\'s oil is priced off; retail gasoline is what consumers pay at the pump, and Gulf Coast jet fuel is the largest variable cost airlines carry. Henry Hub natural gas runs the other way for most of the market: it is the fuel cost of gas-fired power and the feedstock of fertilizer and chemicals makers, as well as the price gas-weighted producers sell at. European gas is the price US LNG exporters arbitrage against. Thermal coal and uranium are the fuel decks of coal miners and of nuclear power, and the average electricity price (the BLS US city average per kilowatt-hour, in cents) is the revenue line of regulated utilities and a power cost for everyone else. Metals: gold and silver are the front-month COMEX futures in dollars an ounce, the price decks of precious-metals miners and the market\'s hedge against inflation, a weak dollar and stress; copper tracks construction, grid and electrification demand worldwide; aluminum, nickel and iron ore are the decks of aluminum smelters, battery and stainless supply chains and steelmakers, and the steel PPI is what autos, machinery and builders pay for it. Farm and forest: the lumber PPI is the homebuilders\' framing cost; wheat, corn and soybeans are the crops grain traders, food makers and farm-equipment and fertilizer suppliers live on, and the IMF food price index (monthly, a few months behind) is the evidence for Consumer Defensive\'s input-cost headwind. The IMF all-commodity index sums the whole complex. Read each against its own range rather than its last move, because all of them swing far more than the economy beneath them. The IMF and PPI series are monthly and run a month or two behind. Gold and silver come from Yahoo, because FRED stopped carrying the London precious-metals prices in 2022.'
+  commodities:'These are the price decks Energy and Basic Materials earn on and the input costs much of the rest of the market pays. A producer does not set them, so a move here flows almost straight to revenue and margins. Energy: WTI is the crude price US producers sell into and Brent the global benchmark most of the world\'s oil is priced off; retail gasoline is what consumers pay at the pump, and Gulf Coast jet fuel is the largest variable cost airlines carry. Henry Hub natural gas runs the other way for most of the market: it is the fuel cost of gas-fired power and the feedstock of fertilizer and chemicals makers, as well as the price gas-weighted producers sell at. European gas is the price US LNG exporters arbitrage against. Thermal coal and uranium are the fuel decks of coal miners and of nuclear power, and the average electricity price (the BLS US city average per kilowatt-hour, in cents) is the revenue line of regulated utilities and a power cost for everyone else. Metals: gold and silver are the front-month COMEX futures in dollars an ounce, the price decks of precious-metals miners and the market\'s hedge against inflation, a weak dollar and stress; copper tracks construction, grid and electrification demand worldwide; aluminum, nickel and iron ore are the decks of aluminum smelters, battery and stainless supply chains and steelmakers, and the steel PPI is what autos, machinery and builders pay for it. Farm and forest: the lumber PPI is the homebuilders\' framing cost; wheat, corn and soybeans are the crops grain traders, food makers and farm-equipment and fertilizer suppliers live on, and the IMF food price index (monthly, a few months behind) is the evidence for Consumer Defensive\'s input-cost headwind. The IMF all-commodity index sums the whole complex. Read each against its own range rather than its last move, because all of them swing far more than the economy beneath them. The IMF and PPI series are monthly and run a month or two behind. Gold and silver come from Yahoo, because FRED stopped carrying the London precious-metals prices in 2022.',
+  intl:'The world economy, region by region: the euro area, the United Kingdom, Japan, China and emerging markets. For each, the central bank\'s policy rate, the 10-year government bond yield, the stock market\'s return over the past year and the currency against the dollar. Policy rates and yields moving apart from the Fed\'s and the Treasury\'s drive the dollar, and a strong dollar shrinks the overseas earnings of US multinationals when they are converted back. The European, UK and Japanese stock indexes are in local currency; China (MSCI China, MCHI) and emerging markets (EEM) are dollar ETFs. EUR/USD and GBP/USD are dollars per euro or pound, so a rise is a weaker dollar; USD/JPY and USD/CNY are yen or yuan per dollar, so a rise is a stronger one. Euro-area HICP is the region\'s inflation; FRED no longer carries current consumer prices for the UK, Japan or China. The Japanese call rate and the German, UK and Japanese 10-year yields are monthly OECD series and land a month or two behind. A card marked not updating has fallen further behind than its schedule. None of this feeds the regime model or any rating.'
 };
 function _macIntroHTML(k){
   var t=_MAC_SEC_INTRO[k];
@@ -13248,7 +13261,7 @@ function _macRegimeHTML(full){
      Watch follow as their own cards (_macNarrativeHTML). The regime's name, dot and gloss show
      only when there is no bottom line to say it. */
   var _nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
-  var h='<div class="mac-regime'+(full?' mac-econ':'')+'"><div class="mac-regime-main"><div class="sec-label">The Economy</div>';
+  var h='<div class="mac-regime'+(full?' mac-econ':'')+'"><div class="mac-regime-main"><div class="sec-label">The US Economy</div>';
   if(full&&_nar&&_nar.bottom_line){
     h+='<p class="mac-read mac-lead">'+_esc(_nar.bottom_line)+'</p>';
   }else{
@@ -13437,16 +13450,51 @@ function _macNarrativeHTML(){
   h+='</div>';
   return h;
 }
+/* The International Economy card. With a schema-v8 narrative: its lead,
+   one bullet per region and the spillover to US equities. Without one (no
+   API key, an older cache): each region's readings and 1-year changes from
+   the inline summary's grid (macro_dashboard._intl_of), so the card never
+   depends on Claude. Either way it ends in the International sub-tab's
+   charts. Model text passes through _esc(). */
+var _MAC_REGION={ea:'Euro area',uk:'United Kingdom',jp:'Japan',cn:'China',em:'Emerging markets'};
+function _macIntlHTML(){
+  var nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
+  var intl=nar&&nar.international;
+  var grid=(MACRO_SUM&&MACRO_SUM.intl)||[];
+  var regs=intl?(intl.regions||[]).filter(function(r){return r&&r.point&&_MAC_REGION[r.region];}):[];
+  if(!(intl&&intl.lead&&regs.length)&&!grid.length)return '';
+  var h='<div class="mac-card mac-narrative mac-intl-card"><div class="sec-label">The International Economy</div>';
+  if(intl&&intl.lead&&regs.length){
+    h+='<p class="mac-nar-p">'+_esc(intl.lead)+'</p><ul class="mac-nar-ul mac-intl-ul">';
+    regs.forEach(function(r){h+='<li><b>'+_MAC_REGION[r.region]+'.</b> '+_esc(r.point)+'</li>';});
+    h+='</ul>';
+    if(intl.spillover)h+='<div class="mac-nar-k">For US equities</div><p class="mac-intl-sp">'+_esc(intl.spillover)+'</p>';
+  }else{
+    h+='<div class="mac-intl-grid">';
+    grid.forEach(function(r){
+      h+='<div><div class="mac-nar-k">'+_esc(r.l)+'</div><ul class="mac-intl-rows">';
+      (r.items||[]).forEach(function(s){
+        h+='<li><span>'+_esc(s.l)+'</span><span>'+_mfmt(s.latest?s.latest.v:null,s.fmt,s.suffix)
+          +(s.stale?' <span class="mac-stale" title="Last observation '+_attr(s.latest?s.latest.d:'?')+'">· '+_esc(s.latest?s.latest.d:'?')+'</span>':_mdelta(s.chg_1y,s,'1Y'))+'</span></li>';
+      });
+      h+='</ul></div>';
+    });
+    h+='</div>';
+  }
+  h+='<a class="mac-more" href="#" onclick="navGo(\'macro\',\'intl\');return false">Full charts ›</a></div>';
+  return h;
+}
 function _macOverviewHTML(){
   /* Read top to bottom: the regime card above carries the bottom line, then
      the economy (each section ends in its figures and a Full charts link)
      and what to watch. Every indicator's card lives once, on its section
      sub-tab (Rates & Curve, Inflation, Growth & Labor, Credit, …); the
      Overview does not repeat any of them as headline tiles. */
-  /* Three cards: The Economy (the call and the regime signals), The
-     Conditions (why), What to Watch (what would change the call). */
+  /* Four cards: The US Economy (the call and the regime signals), The
+     Conditions (why), What to Watch (what would change the call), The
+     International Economy (the world it sits in). */
   var h='<div class="mac-overview">';
-  h+=_macRegimeHTML(true)+_macNarrativeHTML();
+  h+=_macRegimeHTML(true)+_macNarrativeHTML()+_macIntlHTML();
   if(!MACRO)h+=_macStatusNote();
   h+='</div>';
   return h;
@@ -13476,7 +13524,8 @@ function _macCardHTML(id,s){
      rest, which is what the pointer leaving puts back. */
   var hid=_macHid();
   var vHTML=_mfmt(s.latest?s.latest.v:null,s.fmt,s.suffix);
-  var dHTML='as of '+(s.latest?s.latest.d:'?')+(s.prior?' · prior '+_mfmt(s.prior.v,s.fmt,s.suffix):'');
+  var dHTML='as of '+(s.latest?s.latest.d:'?')+(s.prior?' · prior '+_mfmt(s.prior.v,s.fmt,s.suffix):'')
+    +(s.stale?' · <span class="mac-stale" title="The last observation is further behind than this series\'s release schedule">not updating</span>':'');
   var h='<div class="mac-card mac-tile-zoom"'+_macZoomAttrs(id,s.l)+'>'+_MAC_EXP+'<div class="mac-card-head">'
     +'<span class="mac-card-title">'+s.l+'</span>'
     +'<span class="mac-tile-v" id="'+hid+'-v">'+vHTML+'</span>'

@@ -1342,13 +1342,30 @@ by analyze_stock and gitignored):
   keyless `fredgraph.csv` endpoint)
 - `MACRO_ANTHROPIC_API_KEY` — optional; enables the Claude-generated macro
   narrative — the story on the Macro Outlook tab's Overview (skipped
-  cleanly when unset: the tab renders without it). The Overview is three
-  cards read top down: The Economy (the call, `bottom_line`, which names the
+  cleanly when unset: the tab renders without it). The Overview is four
+  cards read top down: The US Economy (the call, `bottom_line`, which names the
   regime, so no separate regime name or gloss unless there is no bottom
   line; then the regime model's inputs, Regime signals with the composite,
   and the scoring ?), The Conditions (the three economy sections, each a
   lead sentence and bullets ending in a Full charts link to its sub-tab,
-  which charts every number once) and What to Watch (`watch`). No card
+  which charts every number once), What to Watch (`watch`) and The
+  International Economy (`_macIntlHTML`, schema v8 `international`: a lead,
+  one point per region — euro area, UK, Japan, China, emerging markets,
+  the `region` enum — and a For US equities spillover line). The card reads
+  the `intl` series family (sub-tab International): policy rate, 10-year
+  yield, 1-year equity return and currency per region, plus euro-area
+  HICP. FRED's OECD CPIs for the UK, Japan and China are dead (probed
+  2026-10-27), and Yahoo's CSI 300 returns one bar, so China is MCHI.
+  `build_macro_facts` hands the intl series over as their own
+  `international` block, so the US sections are written from US series
+  only. Without a v8 narrative the card shows the inline summary's
+  per-region grid (`summary.intl`, `_intl_of`). Display only: nothing
+  international feeds the regime, a rating or a sector force. Any series
+  whose last observation is further behind than `STALE_AFTER_DAYS` allows
+  for its frequency is stamped `stale` and its card reads "not updating".
+  The dashboard's `MIN_SERIES_FOR_DASHBOARD` counts FRED series only:
+  the seven Yahoo series would clear it alone, and a Yahoo-only build is a
+  FRED outage the re-render answers with its existing sidecar. No card
   carries a byline or reading-time caption. Each indicator's
   card lives once, on its section sub-tab; the Overview has no headline
   tiles (the eight it had repeated Rates, Inflation, Growth and Credit). The narrative's per-sector stance, headline
@@ -1358,7 +1375,8 @@ by analyze_stock and gitignored):
   tailwinds as "mixed"), the headline its heading and the influence's
   sentences its bullets; it adds nothing to the acting count. The Broad Sector Outlook that once listed them all on
   Sector Analysis › Overview (key `__performance__`) was removed as noise,
-  so that tab opens on Sector Price Comparison. A pre-v7 cache has no
+  so that tab opens on Sector Price Comparison. A pre-v8 cache has no
+  `international` and its International card shows the data grid. A pre-v7 cache has no
   `bottom_line`/`watch` and shows its headwinds/tailwinds as The balance. The Sector Analysis tabs carry no
   macro narrative; their Sector Headwinds & Tailwinds block is the
   sector's own structural read, and each influence paragraph weighs

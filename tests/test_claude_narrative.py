@@ -158,7 +158,7 @@ class TestBuildMacroFacts:
         assert SCHEMA_VERSION >= 7
         assert list(props)[0] == 'bottom_line', 'written before the argument'
         assert set(NARRATIVE_SCHEMA['required']) == {
-            'bottom_line', 'paragraphs', 'watch', 'sectors'}
+            'bottom_line', 'paragraphs', 'watch', 'international', 'sectors'}
         assert 'headwinds' not in props and 'tailwinds' not in props
         p = SYSTEM_PROMPT
         assert "square with the regime model's label" in p
@@ -166,6 +166,33 @@ class TestBuildMacroFacts:
         assert 'Say each figure once' in p
         assert overview_word_count({'bottom_line': 'a b c',
                                     'watch': ['d e']}) == 5
+
+    def test_v8_adds_the_international_block(self):
+        assert SCHEMA_VERSION >= 8
+        intl = NARRATIVE_SCHEMA['properties']['international']
+        assert set(intl['required']) == {'lead', 'regions', 'spillover'}
+        region = intl['properties']['regions']['items']['properties']['region']
+        assert region['enum'] == ['ea', 'uk', 'jp', 'cn', 'em']
+        p = SYSTEM_PROMPT
+        assert '- international:' in p and 'spillover:' in p
+        assert 'stale may be cited only with its month' in p
+        assert overview_word_count({'international': {
+            'lead': 'a b', 'regions': [{'region': 'ea', 'point': 'c d e'}],
+            'spillover': 'f'}}) == 6
+
+    def test_international_series_are_split_out_by_region(self):
+        sc = _sidecar()
+        sc['series']['ECBDFR'] = dict(sc['series']['UNRATE'], l='ECB',
+                                      sec='intl', region='ea')
+        sc['series']['IRLTLT01JPM156N'] = dict(sc['series']['UNRATE'],
+                                               l='JGB', sec='intl',
+                                               region='jp', stale=True)
+        f = build_macro_facts(sc)
+        assert set(f['series']) == {'UNRATE'}
+        assert set(f['international']) == {'ea', 'jp'}
+        assert f['international']['ea']['ECBDFR']['l'] == 'ECB'
+        assert f['international']['jp']['IRLTLT01JPM156N']['stale'] is True
+        assert build_macro_facts({})['international'] == {}
 
     def test_overview_word_count_counts_what_the_page_prints(self):
         n = {'paragraphs': ['One two three.', 'Four.'],
@@ -182,7 +209,7 @@ class TestBuildMacroFacts:
         rounding rule that keeps '1.5th percentile' off the page."""
         p = SYSTEM_PROMPT
         assert 'influence:' in p and '30 to 40 words in all' in p
-        assert 'total about 750 words' in p
+        assert 'total about 860 words' in p
         assert 'MECHANISM' in p, 'influence explains channels, not bullets'
         assert 'explain it rather than list it' in p
         assert 'lead: ONE sentence' in p and 'points:' in p
@@ -330,6 +357,23 @@ class TestClaudeNarrativeClient:
         # the FIRST entry per sector wins whole, not a merge of two draws
         assert all(x['influence'] == 'Rates and credit offset.' and
                    x['stance'] == 'neutral' for x in out['sectors'])
+
+    def test_international_regions_are_ordered_and_deduped(self, tmp_path,
+                                                           monkeypatch):
+        payload = _narrative()
+        payload['international'] = {
+            'lead': 'The world is slowing.',
+            'regions': [{'region': 'jp', 'point': 'Japan tightens.'},
+                        {'region': 'ea', 'point': 'Europe eases.'},
+                        {'region': 'jp', 'point': 'A second take.'},
+                        {'region': 'cn', 'point': '  '}],
+            'spillover': 'A firm dollar trims overseas earnings.'}
+        _install_fake_anthropic(
+            monkeypatch, response=_FakeResponse(json.dumps(payload)))
+        out = self._client(tmp_path).generate(_sidecar())
+        regs = out['international']['regions']
+        assert [r['region'] for r in regs] == ['ea', 'jp']
+        assert regs[1]['point'] == 'Japan tightens.'
 
     def test_partial_sector_list_survives_dedupe(self, tmp_path, monkeypatch):
         """A short list still renders — dedupe must not invent entries."""

@@ -127,15 +127,16 @@ def test_macro_overview_reads_top_down():
     inside the regime card."""
     css = _css()
     body = re.search(r'function _macOverviewHTML\(\).*?\n\}\n', css, re.S).group(0)
-    # Three cards: The Economy (the call), The Conditions, What to Watch.
-    assert '_macRegimeHTML(true)+_macNarrativeHTML()' in body
+    # Four cards: The US Economy (the call), The Conditions, What to Watch,
+    # The International Economy.
+    assert '_macRegimeHTML(true)+_macNarrativeHTML()+_macIntlHTML()' in body
     assert 'Key numbers' not in body and 'mac-tiles' not in body
     reg = re.search(r'function _macRegimeHTML\(full\).*?\n\}\n', css, re.S).group(0)
     assert "if(full&&_nar&&_nar.bottom_line)" in reg
     assert '_esc(_nar.bottom_line)' in reg
     # The call leads; the regime's name shows only without a bottom line;
-    # the regime signals close The Economy card.
-    assert '<div class="sec-label">The Economy</div>' in reg
+    # the regime signals close The US Economy card.
+    assert '<div class="sec-label">The US Economy</div>' in reg
     assert reg.find('mac-lead') < reg.find('mac-regime-name')
     assert 'h+=sig;' in reg and '_macNarrativeHTML(' not in re.sub(r'/\*.*?\*/', '', reg, flags=re.S)
     nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S).group(0)
@@ -143,6 +144,24 @@ def test_macro_overview_reads_top_down():
     assert 'Written by' not in css and 'min read' not in css, 'no byline captions'
     assert all(i >= 0 for i in order) and order == sorted(order)
     assert 'Broad Sector Outlook<' not in nar, 'the sector read lives on Sector Analysis only'
+
+
+def test_macro_international_card():
+    """The International Economy card: the narrative's lead, a bullet per
+    region and the spillover, every model string escaped; without a
+    narrative, the inline summary's per-region readings. Both end in the
+    International sub-tab's charts."""
+    css = _css()
+    body = re.search(r'function _macIntlHTML\(\).*?\n\}\n', css, re.S).group(0)
+    assert '<div class="sec-label">The International Economy</div>' in body
+    for field in ('intl.lead', 'r.point', 'intl.spillover'):
+        assert '_esc(%s)' % field in body, '%s must be escaped' % field
+    # a region label comes only from the whitelist, never the model's string
+    assert '_MAC_REGION[r.region]' in body and '_esc(r.region)' not in body
+    assert 'MACRO_SUM.intl' in body and '_mdelta(s.chg_1y' in body
+    assert "navGo(\\'macro\\',\\'intl\\')" in body
+    assert "{k:'intl',l:'International'}" in css
+    assert re.search(r"\n  intl:'", css), 'the sub-tab needs its intro'
 
 
 def test_macro_narrative_escapes_every_model_string():
