@@ -49,7 +49,7 @@ class TestNormalize:
 
     def test_unsupported_version(self):
         with pytest.raises(ValueError, match='version'):
-            pg.normalize({'version': 2, 'portfolios': []})
+            pg.normalize({'version': 3, 'portfolios': []})
 
     def test_bad_color(self):
         with pytest.raises(ValueError, match='color'):

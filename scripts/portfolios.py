@@ -14,6 +14,17 @@ for the file format and the rule semantics.
     python scripts/portfolios.py show energy-buys            # against the latest snapshot
     python scripts/portfolios.py import ~/Downloads/portfolios.json --dry-run
     python scripts/portfolios.py import 'https://…/#pf=eyJpZCI6…'
+    python scripts/portfolios.py buy core DECK 25 88.50 --date 2024-06-10
+    python scripts/portfolios.py sell core DECK 10 140 --date 2026-10-01   # FIFO
+    python scripts/portfolios.py cash core 1250
+    python scripts/portfolios.py target core DECK=0.10 CL=0.05            # =0 drops one
+    python scripts/portfolios.py edit core --weighting held
+    python scripts/portfolios.py holdings core                            # P&L
+    python scripts/portfolios.py migrate-holdings                         # holdings.json -> 'held'
+
+Lots, cash and sales go to the private portfolio/positions.json (gitignored,
+never published; POSITIONS_FILE overrides it). Targets and the weighting are
+strategy and stay in portfolios.json.
 
 Rule min/max on percent columns are fractions (--min mos=0.2 means MoS >= 20%).
 """
@@ -27,6 +38,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from data.snapshot_store import SnapshotStore, list_snapshot_files, load_snapshot_file  # noqa: E402
 from models import portfolio_groups as pg  # noqa: E402
+from models import portfolio_positions as pp  # noqa: E402
 
 logger = logging.getLogger('portfolios')
 
@@ -212,11 +224,18 @@ def cmd_edit(doc, a):
         p['description'] = a.description
     if a.alerts:
         p['alerts'] = a.alerts
+    if a.weighting:
+        p['weighting'] = a.weighting
     return f"updated {a.id}"
 
 
 def cmd_delete(doc, a):
     _find(doc, a.id)
+    if a.id in _books(a):
+        if not a.with_book:
+            raise SystemExit(f"{a.id} has positions in {pp.positions_path(a.positions_file)}; "
+                             "pass --with-book to delete them too")
+        del a.books[a.id]
     doc['portfolios'] = [p for p in doc['portfolios'] if p['id'] != a.id]
     return f"deleted {a.id}"
 
@@ -232,7 +251,17 @@ def cmd_add(doc, a):
 def cmd_remove(doc, a):
     p = _find(doc, a.id)
     msgs = []
+    held = sorted(t.upper() for t in a.tickers
+                  if t.upper() in (_books(a).get(a.id, {}).get('positions') or {}))
+    if held:
+        raise SystemExit(f"{a.id} holds {' '.join(held)}: sell before removing")
     for t in (x.upper() for x in a.tickers):
+        if t in (p.get('targets') or {}):
+            p['targets'] = {k: w for k, w in p['targets'].items() if k != t}
+            if not p['targets']:
+                del p['targets']
+                if p.get('weighting') == 'target':
+                    del p['weighting']
         hit = t in p['tickers']
         if hit:
             p['tickers'] = [x for x in p['tickers'] if x != t]
@@ -271,6 +300,127 @@ def cmd_show(doc, a):
                   f"{_fmt_num(r.get('_composite_score')):>6}  {src:<5} {r.get('sector') or '—'}")
         if res['missing']:
             print(f"  not in universe: {' '.join(res['missing'])}")
+
+
+def _today():
+    from datetime import date as _date
+    return _date.today().isoformat()
+
+
+def _books(a):
+    """The private books, loaded once per command (main() saves them when
+    a command set ``a.books``)."""
+    if getattr(a, 'books', None) is None:
+        try:
+            a.books = pp.load_books(a.positions_file)
+        except ValueError as e:
+            raise SystemExit(f"{pp.positions_path(a.positions_file)}: {e}") from None
+    return a.books
+
+
+def _book(doc, a):
+    _find(doc, a.id)
+    return _books(a).setdefault(a.id, {})
+
+
+def cmd_buy(doc, a):
+    p = _find(doc, a.id)
+    try:
+        pp.buy(_book(doc, a), a.ticker, a.shares, a.price, a.date or _today(), a.note)
+    except ValueError as e:
+        raise SystemExit(str(e)) from None
+    tk = a.ticker.upper()
+    p['tickers'] = sorted(set(p['tickers']) | {tk})
+    p['exclude'] = [t for t in p['exclude'] if t != tk]
+    return f"{a.id}: bought {a.shares:g} {tk} at {a.price:g}"
+
+
+def cmd_sell(doc, a):
+    try:
+        sales = pp.sell(_book(doc, a), a.ticker, a.shares, a.price, a.date or _today(), a.note)
+    except ValueError as e:
+        raise SystemExit(str(e)) from None
+    gain = sum(s['shares'] * (s['price'] - s['cost']) for s in sales)
+    return (f"{a.id}: sold {a.shares:g} {a.ticker.upper()} at {a.price:g} "
+            f"({len(sales)} lot(s), realized {gain:+,.2f})")
+
+
+def cmd_cash(doc, a):
+    _book(doc, a)['cash'] = a.amount
+    return f"{a.id}: cash {a.amount:,.2f}"
+
+
+def cmd_target(doc, a):
+    p = _find(doc, a.id)
+    tg = dict(p.get('targets') or {})
+    for k, v in _parse_kv(a.weights, 'target').items():
+        w = float(v.rstrip('%')) / (100 if v.endswith('%') else 1)
+        if w:
+            tg[k.upper()] = w
+        else:
+            tg.pop(k.upper(), None)
+    p['targets'] = tg
+    p['tickers'] = sorted(set(p['tickers']) | set(tg))
+    p['exclude'] = [t for t in p['exclude'] if t not in tg]
+    if not tg and p.get('weighting') == 'target':
+        p.pop('weighting')
+    return f"{a.id}: targets {', '.join(f'{k} {w:.1%}' for k, w in tg.items()) or 'cleared'}"
+
+
+def _fmt_money(v):
+    return '—' if not isinstance(v, (int, float)) else f"{v:,.2f}"
+
+
+def cmd_holdings(doc, a):
+    books = _books(a)
+    targets = [_find(doc, a.id)] if a.id else [p for p in doc['portfolios'] if p['id'] in books]
+    if not targets:
+        print("No portfolio holds positions. Add one with: portfolios.py buy <id> TICKER SHARES PRICE")
+        return
+    day, rows = _latest_rows(a.results_dir, a.date)
+    by_tk = pg.rows_by_ticker(rows)
+    aliases = pg.listing_aliases(by_tk)
+    print(f"Snapshot {day} (prices are that run's closes)")
+    for p in targets:
+        hs = pp.holdings_summary(books.get(p['id']) or {}, by_tk, aliases, today=day)
+        print(f"\n{p['name']} [{p['id']}]  weighting: {p.get('weighting', 'equal')}")
+        if hs is None:
+            print("  no positions")
+            continue
+        print(f"  {'Ticker':<8} {'Shares':>10} {'Avg cost':>10} {'Price':>10} "
+              f"{'Value':>13} {'P&L':>12} {'P&L %':>7} {'Weight':>7}  Since")
+        for r in hs['rows']:
+            print(f"  {r['ticker']:<8} {r['shares']:>10,.4g} {_fmt_money(r['cost']):>10} "
+                  f"{_fmt_money(r['price']):>10} {_fmt_money(r['market_value']):>13} "
+                  f"{_fmt_money(r['pnl']):>12} {_fmt_pct(r['pnl_pct']):>7} "
+                  f"{_fmt_pct(r['weight']).lstrip('+'):>7}  {r['first']}")
+        t = hs['totals']
+        print(f"  cash {_fmt_money(t['cash'])} · value {_fmt_money(t['value'])} · "
+              f"cost {_fmt_money(t['cost'])} · unrealized {_fmt_money(t['pnl'])} "
+              f"({_fmt_pct(t['pnl_pct'])}) · realized YTD {_fmt_money(t['realized_ytd'])}, "
+              f"all time {_fmt_money(t['realized'])}")
+        if t['unpriced']:
+            print(f"  no price today: {' '.join(t['unpriced'])}")
+
+
+def cmd_migrate_holdings(doc, a):
+    src = a.source
+    with open(src, encoding='utf-8') as f:
+        old = json.load(f)
+    pid = a.id
+    if any(p['id'] == pid for p in doc['portfolios']) or pid in _books(a):
+        raise SystemExit(f"portfolio {pid!r} already exists (pick another with --id)")
+    book = pp.from_holdings_doc(old)
+    doc['portfolios'].append({
+        'id': pid, 'name': a.name or old.get('portfolio_name') or 'Holdings',
+        'description': f"Migrated from {os.path.basename(src)}",
+        'tickers': sorted(book['positions']), 'exclude': [], 'rule': None,
+        **({'weighting': 'held'} if book['positions'] else {})})
+    a.books[pid] = book
+    n = sum(len(v) for v in book['positions'].values())
+    return (f"created {pid}: {len(book['positions'])} positions ({n} lots), "
+            f"{len(book['realized'])} realized sale(s) in "
+            f"{pp.positions_path(a.positions_file)}; {src} is left as it was")
 
 
 def alert_columns(portfolios):
@@ -513,6 +663,9 @@ def build_parser():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--file', default=pg.DEFAULT_PORTFOLIOS_PATH,
                     help='definitions file (default: portfolio/portfolios.json)')
+    ap.add_argument('--positions-file',
+                    help='private book of lots/cash/sales (default: $POSITIONS_FILE '
+                         'or portfolio/positions.json)')
     sub = ap.add_subparsers(dest='cmd', required=True)
 
     sub.add_parser('list', help='list portfolios')
@@ -538,15 +691,50 @@ def build_parser():
     sp.add_argument('--alerts', choices=pg.ALERT_MODES,
                     help='buy_line (default): Action on buy-line crossings; '
                          'all: also moves within a side; off: mute')
+    sp.add_argument('--weighting', choices=pp.WEIGHTINGS,
+                    help='how stats and NAV weigh members: equal (default), model '
+                         '(the run\'s position_weight), target (targets), held (shares x price)')
 
     sp = sub.add_parser('delete', help='delete a portfolio')
     sp.add_argument('id')
+    sp.add_argument('--with-book', action='store_true',
+                    help='also delete its private positions')
 
     for name, hlp in (('add', 'add hand-picked tickers'),
                       ('remove', 'remove tickers (rule members are excluded)')):
         sp = sub.add_parser(name, help=hlp)
         sp.add_argument('id')
         sp.add_argument('tickers', nargs='+')
+
+    for name, hlp in (('buy', 'add a lot (cost per share)'),
+                      ('sell', 'sell shares first-in first-out at a price')):
+        sp = sub.add_parser(name, help=hlp)
+        sp.add_argument('id')
+        sp.add_argument('ticker')
+        sp.add_argument('shares', type=float)
+        sp.add_argument('price', type=float)
+        sp.add_argument('--date', help='trade date YYYY-MM-DD (default: today)')
+        sp.add_argument('--note')
+
+    sp = sub.add_parser('cash', help="set a portfolio's cash balance")
+    sp.add_argument('id')
+    sp.add_argument('amount', type=float)
+
+    sp = sub.add_parser('target', help='set target weights (TICKER=0.1 or 10%%; 0 drops)')
+    sp.add_argument('id')
+    sp.add_argument('weights', nargs='+', metavar='TICKER=W')
+
+    sp = sub.add_parser('holdings', help='positions, P&L and realized gains')
+    sp.add_argument('id', nargs='?')
+    sp.add_argument('--results-dir', default='output')
+    sp.add_argument('--date', help='snapshot date (default: latest)')
+
+    sp = sub.add_parser('migrate-holdings',
+                        help='copy portfolio/holdings.json into a portfolio with positions')
+    sp.add_argument('--source', default=os.path.join(
+        os.path.dirname(pg.DEFAULT_PORTFOLIOS_PATH), 'holdings.json'))
+    sp.add_argument('--id', default='held')
+    sp.add_argument('--name')
 
     sp = sub.add_parser('show', help='resolve members against a snapshot')
     sp.add_argument('id', nargs='?')
@@ -591,7 +779,9 @@ def build_parser():
 COMMANDS = {'list': cmd_list, 'create': cmd_create, 'set-rule': cmd_set_rule,
             'edit': cmd_edit, 'delete': cmd_delete, 'add': cmd_add,
             'remove': cmd_remove, 'show': cmd_show, 'alerts': cmd_alerts, 'nav': cmd_nav,
-            'import': cmd_import}
+            'import': cmd_import, 'buy': cmd_buy, 'sell': cmd_sell, 'cash': cmd_cash,
+            'target': cmd_target, 'holdings': cmd_holdings,
+            'migrate-holdings': cmd_migrate_holdings}
 
 
 def main(argv=None):
@@ -600,10 +790,13 @@ def main(argv=None):
         doc = pg.load_portfolios(a.file)
     except ValueError as e:
         raise SystemExit(f"{a.file}: {e}") from None
+    a.books = None
     msg = COMMANDS[a.cmd](doc, a)
     if msg:
         try:
             pg.save_portfolios(doc, a.file)
+            if a.books is not None:
+                pp.save_books(a.books, a.positions_file)
         except ValueError as e:
             raise SystemExit(f"not saved: {e}") from None
         print(msg)
