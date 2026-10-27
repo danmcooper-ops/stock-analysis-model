@@ -238,7 +238,14 @@ def sell(p, ticker, shares, price, day, note=None):
 # ---------------------------------------------------------------------------
 
 def _price(row):
+    """A row's usable price: a finite positive number, or numeric text (as
+    the report's ``_num`` reads it, so the two holdings views agree)."""
     v = (row or {}).get('price')
+    if isinstance(v, str):
+        try:
+            v = float(v)
+        except ValueError:
+            return None
     if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0:
         return None
     return float(v)

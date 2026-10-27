@@ -1209,6 +1209,22 @@ ruff check .
   (`portfolio_nav.step_contributions`, the same arithmetic as the NAV),
   Carino-linked so a window's contributions sum to its compounded return
   (the plain daily sum read +12.5% against +9.3% for `semis`).
+  **Report UI for positions and analytics** (`templates/report.html`, tests
+  `tests/test_report_portfolio_ui.py`): holdings reach the page only from the
+  reader's own `positions.json`, loaded in Manage (`stock_positions_v1`,
+  localStorage only; never in an export, a share link or `PF_PUB` — a render
+  test with a real book checks no output file carries its numbers).
+  `_pfHoldCalc` mirrors `holdings_summary` (node parity test) and feeds a
+  Holdings panel and a Holdings/Targets column set (shares, cost, value,
+  P&L, weight, target, drift). The detail page adds a Value & risk panel
+  from `PF_PUB.analytics` (published definitions only), a breakdown toggle
+  (sectors / industries / countries / market-cap size against the universe,
+  `stock_pf_brk_v1`), a live line (members' move since the close, display
+  only), Add stocks (paste tickers) and CSV of the members table; Manage
+  edits description and weighting; the overview gains Upside and Beta
+  columns and an Overlap table; contributors come from the ledger's
+  attribution when published. `prompt()`/`alert()` flows are overlay
+  dialogs (`pfNewDialog`, `pfAddDialog`, `_pfMsg`).
   Portfolio colors use the dataviz reference categorical palette (validated
   both themes; dark mode swaps in each hue's dark step).
 - **Rating = composite bucket (`scripts/scoring.py`, `RATING_CAPS_ENABLED`):**
