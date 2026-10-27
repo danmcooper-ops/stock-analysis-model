@@ -1656,6 +1656,18 @@ circle.etfc-spy{fill:var(--etfc-s);}
 @media(min-width:700px){.cm-panel .agg-grid{grid-template-columns:repeat(2,minmax(240px,1fr));}}
 .cm-panel .cm-row.cm-sec{flex-direction:column;gap:6px;align-items:stretch;}
 .cm-sec-head{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+/* Sector Price Comparison's "Compare with" dropdown (indices + sector SPDRs). */
+.sb-dd-btn{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:6px 10px;border:1px solid #d8dee5;border-radius:6px;background:#fff;color:#1a252f;font-size:0.82em;font-weight:600;cursor:pointer;text-align:left;}
+.sb-dd-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sb-dd-chev{width:7px;height:7px;flex-shrink:0;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg);margin-top:-4px;opacity:0.6;transition:transform .15s;}
+.sb-dd.open .sb-dd-chev{transform:rotate(-135deg);margin-top:3px;}
+.sb-dd-list{display:none;margin-top:6px !important;}
+.sb-dd.open .sb-dd-list{display:block;}
+.sb-grp{font-size:0.68em;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#7f8c9a;margin:6px 0 2px;}
+.sb-swatch{width:16px;height:0;flex-shrink:0;border-top:2.5px dashed #111827;}
+.sb-sub{font-weight:400;color:#7f8c9a;font-size:0.9em;}
+[data-theme="dark"] .sb-dd-btn{background:#161b22;border-color:#30363d;color:#e6edf3;}
+[data-theme="dark"] .sb-grp,[data-theme="dark"] .sb-sub{color:#8b949e;}
 [data-theme="dark"] .cm-panel .agg-grid-section{background:none;}
 [data-theme="dark"] .agg-grid-title{color:#e6edf3;}
 [data-theme="dark"] .agg-grid-item{color:#c9d1d9;}
@@ -14300,36 +14312,84 @@ function _windTop(b,line){
    Constituents are today\'s DATA snapshot, so the comparison
    carries survivorship and quality-filter bias. */
 var _sectorPriceRange='20YR';
-/* Benchmark overlay for the sector comparison chart. Distinct from the sector
-   palette (_aggColor) on purpose — these are the yardstick, not a sector. */
+/* Comparison lines for the sector chart: the four indices and the eleven
+   sector SPDRs, picked from one "Compare with" dropdown inside the ☰ menu
+   (the index chips used to sit open there, a row of loud outlined buttons).
+   Indices draw in their own colours; an SPDR takes its sector's colour, so
+   a sector's composite and its fund read as a pair (solid vs dashed). */
 var _sectorBench=[];
 var _BENCH_COL={'SPY':'#111827','IWM':'#7c3aed','DIA':'#b45309','QQQ':'#0891b2'};
+/* Mirrors data/etf_holdings.SPDR_FUNDS (tests/test_report_sector_compare.py
+   pins the two together). The funds ship as px/ shards, loaded on demand. */
+var _SECTOR_SPDR={'Basic Materials':'XLB','Communication Services':'XLC','Energy':'XLE',
+  'Financial Services':'XLF','Industrials':'XLI','Technology':'XLK','Consumer Defensive':'XLP',
+  'Real Estate':'XLRE','Utilities':'XLU','Healthcare':'XLV','Consumer Cyclical':'XLY'};
+function _spdrSector(tk){
+  for(var s in _SECTOR_SPDR)if(_SECTOR_SPDR[s]===tk)return s;
+  return null;
+}
+function _sbColor(tk){var s=_spdrSector(tk);return s?_aggColor(s):(_BENCH_COL[tk]||'#111827');}
+function _sbLabel(tk){return _spdrSector(tk)?tk:_dtcIndexLabel(tk);}
 function toggleSectorBench(tk){
   var i=_sectorBench.indexOf(tk);
   if(i>=0)_sectorBench.splice(i,1);else _sectorBench.push(tk);
-  _sectorBenchBtns();
+  _sectorBenchSum();
   _priceChartDraw();
 }
-/* Fill the benchmark chip row. Called from _priceChartDraw (i.e. after the
-   prices sidecar has landed), since PRICES.indices is unknown at mount. */
-function _sectorBenchBtns(){
-  var el=document.getElementById('sector-bench-btns');if(!el)return;
-  var wrap=document.getElementById('sector-bench-wrap');
-  var ixs=(PRICES&&PRICES.indices)||[];
-  /* Summary first: on a report shipped without index data the early return
-     below used to skip it, leaving the collapsed hamburger permanently
-     blank — no way to see which range was active. */
+function sectorBenchDD(btn){
+  var dd=btn.closest('.sb-dd');if(!dd)return;
+  var open=dd.classList.toggle('open');
+  btn.setAttribute('aria-expanded',open?'true':'false');
+}
+function sectorBenchClear(){
+  _sectorBench=[];
+  document.querySelectorAll('#sector-bench-list input[type="checkbox"]').forEach(function(cb){cb.checked=false;});
+  _sectorBenchSum();
+  _priceChartDraw();
+}
+/* The ☰ summary and the dropdown's button text. Called on every draw and
+   toggle; never rebuilds the list (a rebuilt row detaches the clicked
+   checkbox mid-event). */
+function _sectorBenchSum(){
+  var picked=_sectorBench.map(_sbLabel).join(', ');
   _cmSum('sector',_sectorPriceRange.replace('YR','Y')
-    +(_sectorBench.length?' · vs '+_sectorBench.map(_dtcIndexLabel).join(', '):'')
+    +(picked?' · vs '+picked:'')
     +(document.getElementById('agg-grid')?' · '+_secListSum('agg-grid'):''));
-  if(!ixs.length){if(wrap)wrap.style.display='none';return;}
-  if(wrap)wrap.style.display='flex';
-  el.innerHTML=ixs.map(function(ix){
-    var col=_BENCH_COL[ix.ticker]||'#111827';
-    var on=_sectorBench.indexOf(ix.ticker)>=0;
-    return '<button type="button" class="pp-range-btn'+(on?' active':'')+'" onclick="toggleSectorBench(\''+ix.ticker+'\')"'
-      +' style="border-color:'+col+';color:'+col+(on?';background:'+col+'1a':'')+'">'+_esc(ix.label)+'</button>';
-  }).join('');
+  var bt=document.getElementById('sector-bench-btn-t');
+  if(bt)bt.textContent=picked||'None';
+}
+/* Fill the dropdown once PRICES has landed (PRICES.indices and the shard
+   manifest are unknown at mount): indices first, then the SPDRs present in
+   the px/ manifest, in sector order. */
+function _sectorBenchBtns(){
+  _sectorBenchSum();
+  var list=document.getElementById('sector-bench-list');if(!list)return;
+  var wrap=document.getElementById('sector-bench-wrap');
+  if(list.getAttribute('data-built'))return;
+  var ixs=(PRICES&&PRICES.indices)||[];
+  var funds=_allSectors().filter(function(s){var t=_SECTOR_SPDR[s];return t&&PRICES&&(PRICES.prices[t]||PRICES.manifest[t]);});
+  if(!ixs.length&&!funds.length){if(wrap)wrap.style.display='none';return;}
+  if(wrap)wrap.style.display='';
+  function item(tk,name,sub){
+    var on=_sectorBench.indexOf(tk)>=0;
+    return '<label class="agg-grid-item sb-item"><input type="checkbox" value="'+_attr(tk)+'"'+(on?' checked':'')+' onchange="toggleSectorBench(this.value)">'
+      +'<span class="sb-swatch" style="border-top-color:'+_sbColor(tk)+'"></span>'
+      +'<span class="agg-grid-name">'+_esc(name)+(sub?' <span class="sb-sub">'+_esc(sub)+'</span>':'')+'</span>'
+      +'<span class="agg-grid-ret" data-sb="'+_attr(tk)+'">—</span></label>';
+  }
+  var h='';
+  if(ixs.length)h+='<div class="sb-grp">Indices</div><div class="agg-grid">'+ixs.map(function(ix){return item(ix.ticker,ix.label,ix.ticker);}).join('')+'</div>';
+  if(funds.length)h+='<div class="sb-grp">Sector ETFs (SPDR)</div><div class="agg-grid">'+funds.map(function(s){return item(_SECTOR_SPDR[s],_SECTOR_SPDR[s],s);}).join('')+'</div>';
+  list.innerHTML=h;
+  list.setAttribute('data-built','1');
+}
+/* Each comparison line's return over the plotted window, beside its row. */
+function _sectorBenchSetRet(retByTk){
+  document.querySelectorAll('#sector-bench-list .agg-grid-ret[data-sb]').forEach(function(sp){
+    var tk=sp.getAttribute('data-sb');
+    if(retByTk&&tk in retByTk){var r=retByTk[tk];sp.textContent=(r>=0?'+':'')+r.toFixed(1)+'%';sp.setAttribute('style','color:'+(r>=0?'#2e7d48':'#c0392b'));}
+    else{sp.textContent='—';sp.removeAttribute('style');}
+  });
 }
 var _selectedAggs={};
 var _sectorPriceState=null;
@@ -14375,18 +14435,20 @@ function renderUniversePriceChart(){
     var checked=_selectedAggs[s]?' checked':'';
     return '<label class="agg-grid-item"><span class="agg-grid-rank" title="Rank by price appreciation over the selected timeframe"></span><input type="checkbox" value="'+safe+'"'+checked+' onchange="aggsChanged()"><span class="agg-grid-dot" style="background:'+col+'"></span><span class="agg-grid-name">'+safe+'</span><span class="agg-grid-ret" title="Total price appreciation over the selected timeframe">—</span></label>';
   }).join('');
-  /* Range + benchmark controls live in the hamburger. The benchmark chip
-     container ships empty and _sectorBenchBtns() fills it from PRICES.indices
-     once the sidecar lands — this markup is built before that load finishes,
-     so building the chips here would emit nothing. The All/Clear helpers move
+  /* Range + comparison controls live in the hamburger. The Compare-with
+     list ships empty and _sectorBenchBtns() fills it from PRICES.indices and
+     the px/ manifest once the sidecar lands — this markup is built before
+     that load finishes, so building the rows here would emit nothing. The All/Clear helpers move
      down beside the sector grid they act on. */
   var out='<div class="cm-wrap">'
-    +'<button type="button" class="cm-btn" onclick="cmToggle(\'sector\',event)" title="Chart options — range, benchmarks">&#9776;</button>'
+    +'<button type="button" class="cm-btn" onclick="cmToggle(\'sector\',event)" title="Chart options — range, comparisons, sectors">&#9776;</button>'
     +'<span class="cm-sum" id="sector-cm-sum"></span>'
     +'<div class="cm-panel cm-list" id="sector-cm-panel">'
     +  '<div class="cm-row"><div class="cm-lbl">Range</div><div style="display:flex;gap:4px;flex-wrap:wrap">'+rangeBtns+'</div></div>'
-    +  '<div class="cm-row" id="sector-bench-wrap" style="display:none"><div class="cm-lbl">vs</div>'
-    +    '<span id="sector-bench-btns" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center"></span></div>'
+    +  '<div class="cm-row cm-sec" id="sector-bench-wrap" style="display:none"><div class="cm-sec-head"><div class="cm-lbl" title="Indices and sector ETFs drawn as dashed lines beside the sectors">Compare with</div>'
+    +    '<div style="display:flex;gap:5px;align-items:center"><button type="button" class="agg-helper-btn" onclick="sectorBenchClear()">Clear</button></div></div>'
+    +    '<div class="sb-dd"><button type="button" class="sb-dd-btn" aria-expanded="false" onclick="sectorBenchDD(this)"><span id="sector-bench-btn-t">None</span><i class="sb-dd-chev" aria-hidden="true"></i></button>'
+    +    '<div class="sb-dd-list agg-grid-section" id="sector-bench-list"></div></div></div>'
     +  '<div class="cm-row cm-sec"><div class="cm-sec-head"><div class="cm-lbl" title="Ranked by price appreciation over the selected range">Sectors</div>'
     +    '<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">'+helperBtns+'</div></div>'
     +    '<div class="agg-grid-section"><div class="agg-grid" id="agg-grid">'+gridItems+'</div></div></div>'
@@ -14495,6 +14557,10 @@ function _priceChartDraw(){
   }
   var allD=PRICES.dates;
   _sectorBenchBtns();
+  /* An SPDR's closes are a px/ shard: fetch the picked ones, then redraw.
+     A failed shard leaves the manifest (_ensurePx), so this cannot loop. */
+  var _sbNeed=_sectorBench.filter(function(t){return PRICES.prices[t]===undefined&&PRICES.manifest[t];});
+  if(_sbNeed.length){el.innerHTML=_pxLoadingHTML();_ensurePx(_sbNeed,_priceChartDraw);return;}
   var sectors=_allSectors();
   var keys=sectors.filter(function(s){return _selectedAggs[s];});
   var legendEl=document.getElementById('sector-price-legend');
@@ -14507,6 +14573,7 @@ function _priceChartDraw(){
     if(tipEl)tipEl.innerHTML='';
     _aggHoverState=null;
     _aggSetGridRet(null);
+    _sectorBenchSetRet(null);
     return;
   }
   /* Sector composites are precomputed server-side (prices_meta.json →
@@ -14527,7 +14594,7 @@ function _priceChartDraw(){
      is 0 so benchmarks don't inflate the constituent count in the caption. */
   _sectorBench.forEach(function(b){
     var row=PRICES.prices&&PRICES.prices[b];
-    if(row&&row.length)aggs.push({label:_dtcIndexLabel(b),color:_BENCH_COL[b]||'#111827',lv:row,cov:[],nc:0,bench:true,vals:[]});
+    if(row&&row.length)aggs.push({label:_sbLabel(b),tk:b,color:_sbColor(b),lv:row,cov:[],nc:0,bench:true,vals:[]});
   });
   if(!aggs.length){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">No price data for selected sectors.</p>';_aggSetGridRet(null);return;}
   /* Window cutoff. */
@@ -14563,9 +14630,10 @@ function _priceChartDraw(){
      selected window (final indexed value − 100). Recomputed here so it
      tracks the 1Y/3Y/5Y/10Y/20Y range buttons. Unselected / no-data rows
      fall back to an em dash. */
-  var _retByName={};
-  aggs.forEach(function(a){_retByName[a.label]=a.vals[a.vals.length-1]-100;});
+  var _retByName={},_retByTk={};
+  aggs.forEach(function(a){var r=a.vals[a.vals.length-1]-100;if(a.bench)_retByTk[a.tk]=r;else _retByName[a.label]=r;});
   _aggSetGridRet(_retByName);
+  _sectorBenchSetRet(_retByTk);
   _sectorPriceState={range:_sectorPriceRange,n:dates.length,k:aggs.length};
 }
 function _renderPolylineSVG(el,dates,aggs){
