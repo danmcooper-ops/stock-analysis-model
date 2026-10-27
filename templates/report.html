@@ -8694,6 +8694,7 @@ function _cmDetPosition(p,btn){
 }
 function _cmClose(p){
   p.classList.remove('open');
+  p.querySelectorAll('.sb-dd.open').forEach(_sbDDClose);
   if(p.classList.contains('cm-fixed')){
     p.classList.remove('cm-fixed');
     p.style.top='';p.style.left='';p.style.width='';p.style.maxHeight='';
@@ -14751,11 +14752,26 @@ function toggleSectorBench(tk){
   _sectorBenchSum();
   _priceChartDraw();
 }
+/* The Indices / Sector ETFs dropdowns collapse on their own: opening one
+   shuts the other, a click anywhere outside an open one shuts it, and
+   closing the ☰ panel shuts both (_cmClose), so each visit opens collapsed.
+   Ticking boxes inside one keeps it open for several picks. */
+function _sbDDClose(dd){
+  dd.classList.remove('open');
+  var b=dd.querySelector('.sb-dd-btn');if(b)b.setAttribute('aria-expanded','false');
+}
 function sectorBenchDD(btn){
   var dd=btn.closest('.sb-dd');if(!dd)return;
-  var open=dd.classList.toggle('open');
-  btn.setAttribute('aria-expanded',open?'true':'false');
+  var open=!dd.classList.contains('open');
+  document.querySelectorAll('.sb-dd.open').forEach(_sbDDClose);
+  if(open){dd.classList.add('open');btn.setAttribute('aria-expanded','true');}
 }
+document.addEventListener('click',function(e){
+  var t=e.target;
+  if(t&&t.isConnected===false)return;
+  var own=t&&t.closest?t.closest('.sb-dd'):null;
+  document.querySelectorAll('.sb-dd.open').forEach(function(dd){if(dd!==own)_sbDDClose(dd);});
+});
 /* Clear one dropdown's picks: 'ix' (indices) or 'etf' (sector SPDRs). */
 function sectorBenchClear(kind){
   var etf=kind==='etf';
@@ -14871,8 +14887,7 @@ function renderUniversePriceChart(){
     +'</div>'
     +'</div>'
     +'<div id="sector-price-tip" class="pp-sectorprice-tip" style="margin:6px 0 4px;min-height:20px"></div>'
-    +'<div id="sector-price-chart" style="min-height:260px"></div>'
-    +'<div id="sector-price-legend" style="margin-top:8px"></div>';
+    +'<div id="sector-price-chart" style="min-height:260px"></div>';
   /* Defer the actual draw until after innerHTML mounts the
      container. */
   setTimeout(_priceChartDraw,0);
@@ -14987,7 +15002,7 @@ function _priceChartDraw(){
   if(_sbNeed.length){el.innerHTML=_pxLoadingHTML();_ensurePx(_sbNeed,_priceChartDraw);return;}
   var sectors=_allSectors();
   var keys=sectors.filter(function(s){return _selectedAggs[s];});
-  var legendEl=document.getElementById('sector-price-legend');
+  var legendEl=document.getElementById('sector-price-help');
   var tipEl=document.getElementById('sector-price-tip');
   /* Benchmarks alone are a legitimate view (compare the indices to each
      other), so only the truly empty selection gets the placeholder. */
@@ -15161,20 +15176,20 @@ function _renderPolylineSVG(el,dates,aggs){
      sectors, and they contribute no constituents. */
   var nSec=aggs.filter(function(a){return !a.bench;}).length;
   var nBench=aggs.length-nSec;
-  var meta='<div style="font-size:0.7em;color:#94a3b8;margin-top:6px">Indexed to 100 at '+dates[0]+' · '+dates.length+' obs · '
+  /* The verdict and this caption live in the title's ? popover
+     (#sector-price-help), not under the title; the tip line above the
+     chart stays blank until the cursor is over it. */
+  var meta='Indexed to 100 at '+dates[0]+' · '+dates.length+' obs · '
     +nSec+' sector'+(nSec===1?'':'s')
     +(nBench?' · '+nBench+' benchmark'+(nBench===1?'':'s')+' (dashed)':'')
     +' · '+totalConstituents+' total constituents'
-    +(useLog?' · log scale':'')+'</div>';
+    +(useLog?' · log scale':'')+'.';
   el.innerHTML=svg;
-  var legendEl=document.getElementById('sector-price-legend');
-  if(legendEl)legendEl.innerHTML=meta;
-  /* Default tip: summary verdict line. Replaced by hover values
-     when the cursor is over the chart. */
   _aggHoverState={dates:dates,aggs:aggs,VW:VW,VH:VH,PL:PL,PR:PR,PT:PT,PB:PB,iW:iW,iH:iH,yOf:yOf,cw:cw};
-  _aggHoverState.summaryHtml=_buildAggSummaryTip(aggs);
+  var helpEl=document.getElementById('sector-price-help');
+  if(helpEl)helpEl.innerHTML='<br><br>'+_buildAggSummaryTip(aggs)+'<br><br>'+meta;
   var tipEl=document.getElementById('sector-price-tip');
-  if(tipEl)tipEl.innerHTML=_aggHoverState.summaryHtml;
+  if(tipEl)tipEl.innerHTML='';
 }
 function _buildAggSummaryTip(aggs){
   function _ret(end){var c=end-100;return (c>=0?'+':'')+c.toFixed(1)+'%';}
@@ -15248,7 +15263,7 @@ function aggChartLeave(){
     if(dc)dc.setAttribute('opacity','0');
   });
   var tipEl=document.getElementById('sector-price-tip');
-  if(tipEl&&s)tipEl.innerHTML=s.summaryHtml||'';
+  if(tipEl)tipEl.innerHTML='';
 }
 function aggChartTouch(e){
   if(!_aggHoverState||!e.touches||!e.touches.length)return;
@@ -15760,8 +15775,7 @@ function renderCrossSectorDashboard(){
   }
   var _heatTableHtml=_sumStats.length
     ?_qHelp('<span class="note-q-t">Values are sector medians; green is best and red worst within each column. Tap a header to sort, a sector to open its page.</span>','How to read the heatmap','corner')
-      +'<div class="sec-label">Sector Heatmap</div>'
-      +'<div class="xsect-sub">Sector medians; green is best and red worst in each column.</div>'
+      +'<div class="sec-label" style="margin-bottom:14px">Sector Heatmap</div>'
       /* Compact column widths so the full 16-column heatmap fits within a
          standard laptop viewport without horizontal scrolling. Sector column
          is wide enough for "Communication Services"; all metric columns
@@ -16078,15 +16092,14 @@ function renderPool(){
     var perfBody=renderUniversePriceChart();
     var poolBody=renderCrossSectorProfitPool();
     chartHtml='<div class="xsect-dashboard">'
-      +'<div class="sec-label">Sector Price Comparison</div>'
-      +'<div class="xsect-sub">Indexed price performance across sectors. Pick any subset to compare.</div>'
+      +_qHelp('<span class="note-q-t">Indexed price performance across sectors. Pick any subset to compare, and add indices or sector ETFs from the \u2630 menu. Hover the chart for each line\u2019s value.<span id="sector-price-help"></span></span>','How to read the chart','corner')
+      +'<div class="sec-label" style="margin-bottom:14px">Sector Price Comparison</div>'
       +(perfBody||'<p style="color:#888;padding:20px">No sector data available.</p>')
       +'</div>'
       +renderCrossSectorDashboard()
       +(poolBody?'<div class="xsect-dashboard">'
-        +_qHelp('<span class="note-q-t">Bar width is revenue share, height is operating margin, so area is roughly operating profit. Bars run in order of margin, and shares recompute among the sectors shown in the \u2630 menu.</span>','How to read the chart','corner')
-        +'<div class="sec-label">Cross-Sector Profit Pool</div>'
-        +'<div class="xsect-sub">Operating profit by sector; tap a bar to open it.</div>'
+        +_qHelp('<span class="note-q-t">Bar width is revenue share, height is operating margin, so area is roughly operating profit. Bars run in order of margin, and shares recompute among the sectors shown in the \u2630 menu. Tap a bar to open its sector.</span>','How to read the chart','corner')
+        +'<div class="sec-label" style="margin-bottom:14px">Cross-Sector Profit Pool</div>'
         +poolBody+'</div>':'');
   }
   toRender.forEach(function(sec){
