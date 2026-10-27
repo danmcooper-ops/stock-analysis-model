@@ -571,13 +571,23 @@ def load_snapshots(results_dir, columns, since=None):
     return out
 
 
-def _nav_table(led, portfolios):
+def _nav_table(led, portfolios, private=None):
     from data import portfolio_nav as pn
     spy, uni = led['bench']['spy'], led['bench']['universe']
     lines = [f"{'Portfolio':<26} {'Since':<11} {'Total':>7} {'vs SPY':>7} {'vs EW':>7} "
              f"{'1M':>6} {'3M':>6}  Notes"]
+    rows = []
     for p in portfolios:
-        s = led['portfolios'].get(p['id']) or []
+        w = p.get('weighting') or 'equal'
+        if w == 'held':
+            rows.append((p, (led['portfolios'].get(p['id']) or []), 'equal-weighted (public)'))
+            if private is not None:
+                rows.append((p, private['portfolios'].get(p['id']) or [],
+                             'held weights (private)'))
+        else:
+            rows.append((p, led['portfolios'].get(p['id']) or [],
+                         '' if w == 'equal' else f'{w} weights'))
+    for p, s, label in rows:
         if not s:
             lines.append(f"{p['name'][:26]:<26} (no history yet)")
             continue
@@ -587,7 +597,7 @@ def _nav_table(led, portfolios):
         last = s[-1]['d']
         vs_spy = (tot - (rs[last] - 1)) if tot is not None and last in rs else None
         vs_ew = (tot - (ru[last] - 1)) if tot is not None and last in ru else None
-        notes = []
+        notes = [label] if label else []
         bf = sum(1 for e in s if e.get('bf'))
         if bf:
             notes.append(f"{bf} backfilled day(s)")
@@ -609,15 +619,25 @@ def cmd_nav(doc, a):
     pfs = doc['portfolios']
     if a.id:
         pfs = [_find(doc, i) for i in a.id]
+    private, ppath = None, None
+    if any(p.get('weighting') == 'held' for p in pfs):
+        ppath = pn.private_ledger_path(a.positions_file)
+        private = pn.load_ledger(ppath)
     if a.rebuild:
         snaps = load_snapshots(a.results_dir, pg.rule_columns(pfs), since=a.since)
         print(f"replaying {len(pfs)} portfolio(s) over {len(snaps)} snapshot(s)"
               + (f" ({snaps[0][0]} .. {snaps[-1][0]})" if snaps else ''))
-        rebuilt = pn.rebuild(pfs, snaps, a.prices_dir)
+        rebuilt_private = pn.empty_ledger() if private is not None else None
+        rebuilt = pn.rebuild(pfs, snaps, a.prices_dir, books=_books(a) if private is not None
+                             else None, private=rebuilt_private)
         pn.merge_rebuild(led, rebuilt, ids={p['id'] for p in pfs})
         pn.save_ledger(path, led)
         print(f"wrote {path}")
-    print(_nav_table(led, pfs))
+        if rebuilt_private is not None and rebuilt_private['portfolios']:
+            pn.merge_rebuild(private, rebuilt_private, benchmarks=False)
+            pn.save_ledger(ppath, private, private=True)
+            print(f"wrote {ppath} (private)")
+    print(_nav_table(led, pfs, private))
 
 
 def cmd_import(doc, a):

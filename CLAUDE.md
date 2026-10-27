@@ -1166,8 +1166,20 @@ ruff check .
   `portfolios.py alerts --replay` re-classifies archived runs for tuning.
   **Performance** is a point-in-time NAV ledger, `output/portfolio_nav.json`
   (`data/portfolio_nav.py`): each run records every portfolio's members as
-  resolved that day and compounds the equal-weighted return of the previous
-  entry's members (plus SPY and the equal-weighted universe). The render
+  resolved that day and compounds the return of the previous entry's members
+  (plus SPY and the equal-weighted universe), weighted by the portfolio's
+  `weighting`: equal by default; `model` (rows' `position_weight`) and
+  `target` (`targets`, the rest in cash) record each entry's weights as `w`
+  (cash under `$CASH`), so a step is a time-weighted return on the weights
+  set at its start and an unpriced member's weight spreads over the priced
+  ones. `held` (shares × price from the private book) is written only to the
+  private `portfolio/positions_nav.json` (gitignored, 0600) — the public
+  ledger is archived to `data/snapshots` and shipped in the report, so it
+  keeps that portfolio equal-weighted; a backfill replays the lots held as
+  of each date (`shares_as_of`, sold lots by their `bought` date) without
+  cash. Returns are total returns: the parquets are `auto_adjust=True`
+  closes. `def_hash` adds the strategy keys only when set, so the upgrade
+  flags no plain portfolio as redefined. The render
   advances it, like the rating-history cache, but only for an explicit
   `run_date` whose `results_<date>` sits beside the HTML, and a same-day
   re-render replaces that day's point. Both ends of every step come from the

@@ -736,17 +736,32 @@ def _portfolio_nav(pfs, rows, prev, out_dir, run_date, prices_dir):
     ``results_<run_date>`` sits in *out_dir* — so re-rendering someone
     else's rows (backfill_edgar_hist, a test) can never plant a point, and
     re-rendering the same day replaces that day's point.
+    A ``held`` portfolio's book-weighted series goes to the private ledger
+    beside the private book, never into this payload (the report is public).
     """
     from data import portfolio_nav as pn
     from data.snapshot_store import list_snapshot_files
+    from models import portfolio_positions as pp
     path = pn.ledger_path(out_dir)
     try:
         led = pn.load_ledger(path)
         day = run_date.isoformat() if run_date else None
         if day and prices_dir and os.path.isdir(prices_dir) and \
                 any(d == day for d, _ in list_snapshot_files(out_dir)):
-            if pn.update(led, pfs, day, rows, pn.prices_closes_fn(prices_dir), prev_rows=prev):
+            books, private, ppath = {}, None, None
+            if any(p.get('weighting') == 'held' for p in pfs):
+                try:
+                    books = pp.load_books()
+                    ppath = pn.private_ledger_path()
+                    private = pn.load_ledger(ppath)
+                except (OSError, ValueError) as e:
+                    logger.warning("portfolios: private book unusable (%s); "
+                                   "held portfolios stay equal-weighted", e)
+            if pn.update(led, pfs, day, rows, pn.prices_closes_fn(prices_dir), prev_rows=prev,
+                         books=books, private=private):
                 pn.save_ledger(path, led)
+                if private is not None and private['portfolios']:
+                    pn.save_ledger(ppath, private, private=True)
         return pn.payload(led, [p['id'] for p in pfs])
     except Exception as e:
         logger.warning("portfolios: NAV ledger not updated (%s)", e)

@@ -5584,7 +5584,7 @@ function _pfChartHtml(id){
     +(notes.length?'<div class="pfc-notes">'+notes.map(_pfEsc).join('<br>')+'</div>':'')
     +'<div class="pfv-tbl-wrap pfc-tbl"><table class="pfv-tbl"><thead><tr><th></th><th class="r">1M</th><th class="r">3M</th><th class="r">YTD</th><th class="r">Since '+_pfEsc(pf.dates[0])+'</th><th class="r">Max drawdown</th><th class="r" title="Annualised standard deviation of the step returns">Volatility</th></tr></thead><tbody>'
     +row(_pfEsc(p.name),'pf')+ex+row('S&amp;P 500 (SPY)','spy')+row('Equal-weight universe','ew')+'</tbody></table></div>'
-    +'<div class="pfc-notes">Equal-weighted and rebalanced at every run; members are recorded as they stood each day. Returns are price-only.</div>'
+    +'<div class="pfc-notes">Weighted as the portfolio is set (equal unless chosen otherwise; a portfolio weighted by your holdings shows equal weights here, since holdings are never published) and rebalanced at every run; members are recorded as they stood each day. Returns include dividends (closes are dividend-adjusted).</div>'
     +contrib;
 }
 /* Contributors: today's members' price returns over the chart's range (from

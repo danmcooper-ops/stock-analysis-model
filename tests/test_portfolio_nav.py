@@ -233,3 +233,121 @@ class TestRenderAndCli:
         assert 'BUYs' in out and '+10%' in out and '1 backfilled day(s)' not in out
         led = pn.load_ledger(str(res / pn.LEDGER_NAME))
         assert all(e.get('bf') for e in led['portfolios']['buys'])
+
+
+class TestWeighting:
+    """model / target weights in the public ledger; held weights only in
+    the private one (the book is never published)."""
+
+    def test_model_weights_recorded_and_applied(self, prices):
+        led = pn.empty_ledger()
+        cf = pn.prices_closes_fn(prices)
+        p = _pf(tickers=['AAA', 'BBB', 'CCC'], weighting='model')
+        rows = _rows('AAA', 'BBB', 'CCC', AAA={'position_weight': 0.06},
+                     BBB={'position_weight': 0.02})            # CCC: not sized, holds nothing
+        pn.update(led, [p], D1, rows, cf)
+        assert led['portfolios']['p'][0]['w'] == {'AAA': 0.75, 'BBB': 0.25}
+        pn.update(led, [p], D2, rows, cf, prev_rows=rows)
+        # 0.75 * +10% + 0.25 * -5%
+        assert led['portfolios']['p'][-1]['ret'] == pytest.approx(0.0625)
+
+    def test_model_without_sizes_is_equal(self, prices):
+        led = pn.empty_ledger()
+        p = _pf(tickers=['AAA', 'BBB'], weighting='model')
+        pn.update(led, [p], D1, _rows('AAA', 'BBB'), pn.prices_closes_fn(prices))
+        assert 'w' not in led['portfolios']['p'][0]
+
+    def test_target_weights_hold_cash(self, prices):
+        led = pn.empty_ledger()
+        cf = pn.prices_closes_fn(prices)
+        p = _pf(targets={'AAA': 0.5}, weighting='target')
+        rows = _rows('AAA', 'BBB')
+        pn.update(led, [p], D1, rows, cf)
+        assert led['portfolios']['p'][0]['w'] == {pn.CASH: 0.5, 'AAA': 0.5}
+        pn.update(led, [p], D2, rows, cf, prev_rows=rows)
+        e = led['portfolios']['p'][-1]
+        assert e['ret'] == pytest.approx(0.05) and e['cov'] == 1.0
+
+    def test_unpriced_member_weight_spreads_over_priced(self):
+        closes = {D1: {'A': (D1, 10.0)}, D2: {'A': (D2, 11.0)}}
+        ret, cov = pn._step_return([], D1, D2, closes, {}, {},
+                                   weights={'A': 0.3, 'GONE': 0.3, pn.CASH: 0.4})
+        assert ret == pytest.approx(0.10 * 0.6) and cov == pytest.approx(0.7)
+
+    def test_plain_hash_unchanged(self):
+        """Adding strategy keys to def_hash must not flag every existing
+        portfolio as 'definition changed' on upgrade."""
+        import hashlib
+        p = _pf(tickers=['AAA'])
+        old = hashlib.sha256(json.dumps({'tickers': ['AAA'], 'exclude': [], 'rule': None},
+                                        sort_keys=True, separators=(',', ':')).encode()).hexdigest()[:10]
+        assert pn.def_hash(p) == old
+        assert pn.def_hash(_pf(tickers=['AAA'], weighting='model')) != old
+
+    def test_held_goes_to_private_ledger_only(self, prices):
+        led, priv = pn.empty_ledger(), pn.empty_ledger()
+        cf = pn.prices_closes_fn(prices)
+        p = _pf(tickers=['AAA', 'BBB'], weighting='held')
+        book = {'positions': {'AAA': [{'shares': 30.0, 'cost': 1.0, 'date': '2026-01-01'}],
+                              'BBB': [{'shares': 5.0, 'cost': 1.0, 'date': '2026-01-01'}]},
+                'cash': 100.0}
+        rows = _rows('AAA', 'BBB', AAA={'price': 10.0}, BBB={'price': 20.0})
+        for d, prev in ((D1, None), (D2, rows)):
+            pn.update(led, [p], d, rows, cf, prev_rows=prev, books={'p': book}, private=priv)
+        pub = led['portfolios']['p']
+        assert all('w' not in e for e in pub)
+        assert pub[-1]['ret'] == pytest.approx(0.025)             # equal-weighted
+        w = priv['portfolios']['p'][0]['w']
+        assert w == {pn.CASH: 0.2, 'AAA': 0.6, 'BBB': 0.2}       # 300 / 100 / 100 of 500
+        assert priv['portfolios']['p'][-1]['ret'] == pytest.approx(0.6 * 0.10 + 0.2 * -0.05)
+        assert 'p' in pn.payload(led, ['p'])['pf'] and '"w"' not in json.dumps(pn.payload(led, ['p']))
+
+    def test_held_backfill_replays_lots_as_of_each_day(self, prices):
+        from models import portfolio_positions as pp
+        book = {'positions': {'AAA': [{'shares': 1.0, 'cost': 1.0, 'date': D2}]},
+                'realized': [{'ticker': 'BBB', 'shares': 2.0, 'cost': 1.0, 'price': 2.0,
+                              'date': D3, 'bought': D1},
+                             {'ticker': 'OLD', 'shares': 2.0, 'cost': 1.0, 'price': 2.0,
+                              'date': D3}],
+                'cash': 50.0}
+        assert pp.shares_as_of(book, D1) == {'BBB': 2.0}
+        assert pp.shares_as_of(book, D2) == {'AAA': 1.0, 'BBB': 2.0}
+        assert pp.shares_as_of(book, D3) == {'AAA': 1.0}
+        assert pp.shares_as_of(book) == {'AAA': 1.0}
+        p = _pf(tickers=['AAA', 'BBB'], weighting='held')
+        rows = _rows('AAA', 'BBB', AAA={'price': 10.0}, BBB={'price': 20.0})
+        priv = pn.empty_ledger()
+        pn.rebuild([p], [(D1, rows), (D2, rows)], prices, books={'p': book}, private=priv)
+        s = priv['portfolios']['p']
+        assert s[0]['w'] == {'BBB': 1.0}                          # no cash in a backfill
+        assert s[1]['ret'] == pytest.approx(-0.05) and all(e['bf'] for e in s)
+
+    def test_returns_are_dividend_adjusted(self):
+        """The NAV is a total return because the parquets hold adjusted
+        closes; pin the download setting that makes it so."""
+        src = open(os.path.join(os.path.dirname(__file__), '..', 'scripts', 'download_prices.py'),
+                   encoding='utf-8').read()
+        assert 'auto_adjust=True' in src
+
+    def test_cli_rebuild_writes_private_ledger(self, tmp_path, prices, capsys):
+        from data.snapshot_store import write_snapshot_file
+        from models import portfolio_positions as pp
+        from scripts import portfolios as cli
+        res = tmp_path / 'out'
+        res.mkdir()
+        rows = _rows('AAA', 'BBB', AAA={'price': 10.0}, BBB={'price': 20.0})
+        write_snapshot_file(str(res / f'results_{D1}.json'), {'results': rows})
+        write_snapshot_file(str(res / f'results_{D2}.json'), {'results': rows})
+        pf, pos = tmp_path / 'pf.json', tmp_path / 'priv' / 'positions.json'
+        pg.save_portfolios({'version': 1, 'portfolios': [
+            {'id': 'mine', 'name': 'Mine', 'tickers': ['AAA'], 'weighting': 'held'}]}, str(pf))
+        pp.save_books({'mine': {'positions': {'AAA': [{'shares': 1.0, 'cost': 1.0, 'date': D1}]}}},
+                      str(pos))
+        cli.main(['--file', str(pf), '--positions-file', str(pos), 'nav', '--rebuild',
+                  '--results-dir', str(res), '--prices-dir', prices])
+        out = capsys.readouterr().out
+        assert 'equal-weighted (public)' in out and 'held weights (private)' in out
+        ppath = tmp_path / 'priv' / pn.PRIVATE_LEDGER_NAME
+        assert (ppath.stat().st_mode & 0o777) == 0o600
+        assert '"w"' not in json.dumps(pn.load_ledger(str(res / pn.LEDGER_NAME)))
+        assert pn.load_ledger(str(ppath))['portfolios']['mine'][0]['w'] == {'AAA': 1.0}
