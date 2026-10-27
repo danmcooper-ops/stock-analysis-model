@@ -1,15 +1,15 @@
 {
  "version": 1,
- "date": "2026-10-23",
- "prev_date": "2026-10-22",
+ "date": "2026-10-26",
+ "prev_date": "2026-10-23",
  "systemic": {
-  "n": 3499,
-  "prev_n": 3500,
-  "changed": 30,
-  "changed_share": 0.0086,
+  "n": 3824,
+  "prev_n": 3499,
+  "changed": 37,
+  "changed_share": 0.0097,
   "missing_data": 0,
   "missing_share": 0.0,
-  "shrink_share": 0.0003,
+  "shrink_share": 0.0,
   "flood": false,
   "cause": null,
   "message": null
@@ -29,9 +29,9 @@
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": -0.5710606222798633,
-    "median_score": 49.4,
-    "median_spread": 0.22936933191500147,
+    "median_mos": -0.5989662551221138,
+    "median_score": 49.3,
+    "median_spread": 0.2296430711789393,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -59,9 +59,9 @@
      "HOLD": 7,
      "PASS": 5
     },
-    "median_mos": -0.3083043845586825,
-    "median_score": 48.1,
-    "median_spread": 0.2571901331278887,
+    "median_mos": -0.20693254108370973,
+    "median_score": 48.7,
+    "median_spread": 0.25746000492309085,
     "sector_weights": {
      "Technology": 0.2641509433962264,
      "Financial Services": 0.11320754716981131,
@@ -81,29 +81,22 @@
    },
    "alerts": [
     {
+     "ticker": "AAPL",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AAPL reports earnings on 2026-11-02"
+    },
+    {
      "ticker": "AMZN",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "AMZN reports earnings on 2026-10-29"
     },
     {
-     "ticker": "BRK-B",
-     "portfolio": "flagged",
-     "kind": "joined",
-     "level": "watch",
-     "message": "BRK-B joined Flagged (now matches the rule)"
-    },
-    {
      "ticker": "BUD",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "BUD reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "CMCSA",
-     "kind": "fv_jump",
-     "level": "watch",
-     "message": "CMCSA fair value moved +73% ($61.04 → $105.39)"
     },
     {
      "ticker": "F",
@@ -124,10 +117,16 @@
      "message": "GOOGL reports earnings on 2026-10-28"
     },
     {
+     "ticker": "GOOGL",
+     "kind": "fv_jump",
+     "level": "watch",
+     "message": "GOOGL fair value moved +80% ($161.35 → $289.83)"
+    },
+    {
      "ticker": "HON",
      "kind": "fv_jump",
      "level": "watch",
-     "message": "HON fair value moved -80% ($478.89 → $95.91)"
+     "message": "HON fair value moved +132% ($95.91 → $222.37)"
     },
     {
      "ticker": "ITW",
@@ -158,6 +157,12 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "MSFT reports earnings on 2026-10-28"
+    },
+    {
+     "ticker": "RYAAY",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "RYAAY reports earnings on 2026-11-02"
     },
     {
      "ticker": "STLA",
