@@ -29,6 +29,41 @@ jobs:
         # When coverage rises, bump the floor to match; never lower it.
         run: pytest -m "not network and not slow" -q --cov --cov-report=term --cov-fail-under=63
 
+  # The two subprojects run their own suites from their own folders, on their
+  # own dependencies: their data/models/scripts are namespace packages that the
+  # parent's installed packages of the same names would shadow.
+  bonds:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: bonds
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: bonds/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: python -m pytest -q
+
+  currencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: currencies
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: currencies/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: python -m pytest -q
+
   # Supabase schema (design/supabase-migration.md). Applies supabase/migrations
   # to the Supabase Postgres image and runs the `pg` tests against it.
   db:
