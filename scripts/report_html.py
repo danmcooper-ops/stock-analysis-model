@@ -709,9 +709,18 @@ def _load_portfolio_payload(rows, out_dir=None, run_date=None, prices_dir=None,
                     rows, prev, day if run_date else None, prev_day, prices_dir)
                 by_tk, prev_by_tk = pg.rows_by_ticker(cur), pg.rows_by_ticker(prev_live)
                 payload['prev_date'] = prev_day
+                # The run before the prior one confirms buy-below crossings;
+                # the most sensitive portfolio thresholds set the floors and
+                # each portfolio keeps its own in the browser (_pfPasses).
+                _, prev2 = prior_rows(out_dir, prev_day, ['ticker', 'mos', 'price',
+                                                          'company_name', 'sector'])
+                sd, fj = pg.alert_floors(pfs)
                 entries, stats = pg.classify_changes(by_tk, prev_by_tk, day,
-                                                     history=rating_hist or {})
+                                                     history=rating_hist or {},
+                                                     score_drop=sd, fv_jump=fj,
+                                                     prev2_by_tk=pg.rows_by_ticker(prev2))
                 payload['changes'] = entries
+                payload['thresholds'] = {'score_drop': pg.SCORE_DROP_PTS, 'fv_jump': pg.FV_JUMP}
                 payload['systemic'] = dict(stats, message=pg.systemic_message(stats))
                 payload['events'] = pg.membership_events(pfs, by_tk, prev_by_tk, day,
                                                          stopped, systemic=stats)

@@ -4407,7 +4407,7 @@ var _PF_PALETTE=['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#4
 var _PF_DARK={'#2a78d6':'#3987e5','#eb6834':'#d95926','#1baf7a':'#199e70','#eda100':'#c98500','#e87ba4':'#d55181','#008300':'#008300','#4a3aa7':'#9085e9','#e34948':'#e66767'};
 function _pfCol(c){c=c||'#888888';return document.documentElement.getAttribute('data-theme')==='dark'&&_PF_DARK[c]?_PF_DARK[c]:c;}
 function _pfOnTheme(){_pfRenderFilter();_pfSyncDet();if(curView==='pf')renderPfView();else if(typeof applyFilters==='function')applyFilters();if(typeof renderNavMenu==='function')renderNavMenu();}
-var _PF_FIELDS=['id','name','color','description','created','tickers','exclude','rule','alerts','targets','weighting'];
+var _PF_FIELDS=['id','name','color','description','created','tickers','exclude','rule','alerts','targets','weighting','thresholds'];
 var _pfLocal=(function(){try{var v=JSON.parse(localStorage.getItem(_PF_KEY));return(v&&Array.isArray(v.portfolios))?v:null;}catch(e){return null;}})();
 var _pfMem={},_pfById={},_pfTk={},_pfRow={},_pfSel=[],_pfEditingId=null;
 function _pfEsc(s){return(s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
@@ -4790,7 +4790,7 @@ function pfDiscardLocal(){
   _pfRefresh();
 }
 function pfExport(){
-  var doc={version:_pfDefs().some(function(p){return p.targets||(p.weighting&&p.weighting!=='equal');})?2:1,base_rev:_pfLocal?_pfLocal.base_rev:PF_PUB.rev,exported:new Date().toISOString(),
+  var doc={version:_pfDefs().some(function(p){return p.targets||p.thresholds||(p.weighting&&p.weighting!=='equal');})?2:1,base_rev:_pfLocal?_pfLocal.base_rev:PF_PUB.rev,exported:new Date().toISOString(),
            portfolios:_pfDefs().map(_pfClean)};
   var blob=new Blob([JSON.stringify(doc,null,2)+'\n'],{type:'application/json'});
   var a=document.createElement('a');
@@ -4878,6 +4878,15 @@ var _pfSeenBefore=(function(){try{return localStorage.getItem(_PF_SEEN_KEY)||'';
 function _pfRunDate(){return /^\d{4}-\d{2}-\d{2}$/.test(RUN_DATE)?RUN_DATE:'';}
 function _pfMarkSeen(){var d=_pfRunDate();if(!d)return;try{localStorage.setItem(_PF_SEEN_KEY,d);}catch(e){}}
 function _pfIsNew(){var d=_pfRunDate();return !!(PF_PUB.prev_date&&d&&d>_pfSeenBefore);}
+/* A change entry against the portfolio's own thresholds (score drop in
+   points, fair-value move as a fraction); the published classification ran
+   at the most sensitive of them. Mirrors portfolio_groups.passes. */
+function _pfPasses(a,p){
+  var d=PF_PUB.thresholds||{score_drop:10,fv_jump:0.5},th=(p&&p.thresholds)||{};
+  if(a.kind==='score_drop'&&a.drop!=null)return a.drop>(th.score_drop!=null?th.score_drop:d.score_drop);
+  if(a.kind==='fv_jump'&&a.move!=null)return Math.abs(a.move)>=(th.fv_jump!=null?th.fv_jump:d.fv_jump);
+  return true;
+}
 function _pfLevelFor(a,mode){if(mode==='off')return null;if(mode==='all'&&a.kind==='same_side')return'watch';return a.level;}
 function _pfAddDays(d,n){return new Date(Date.parse(d+'T00:00:00Z')+n*864e5).toISOString().slice(0,10);}
 function _pfEarnings(id){
@@ -4903,7 +4912,7 @@ function _pfAlertsCalc(id){
   if(mode==='off')return[];
   var out=[];
   (PF_PUB.changes||[]).forEach(function(a){
-    if(!_pfIsMember(id,a.ticker))return;
+    if(!_pfIsMember(id,a.ticker)||!_pfPasses(a,p))return;
     var lv=_pfLevelFor(a,mode);if(!lv)return;
     if(lv===a.level){out.push(a);return;}
     var c={};for(var k in a)c[k]=a[k];c.level=lv;out.push(c);
@@ -5278,6 +5287,7 @@ function _pfDetailHtml(id){
     +((p.exclude||[]).length?' · excludes '+_pfEsc(p.exclude.join(', ')):'')
     +(miss.length?' · not in today’s universe: '+_pfEsc(miss.join(', ')):'')
     +(p.weighting&&p.weighting!=='equal'?' · weighted '+_pfEsc(_PF_WLBL[p.weighting]||p.weighting):'')
+    +(p.thresholds?' · <span title="'+_pfEsc(Object.keys(p.thresholds).map(function(k){return k+' '+p.thresholds[k];}).join(', '))+'">custom alert thresholds</span>':'')
     +' · created '+_pfEsc(p.created||'')+'</div>'
     +'<div class="pfv-live" id="pf-live">'+_pfLiveHtml(id)+'</div>';
   var dc=_pfCount(al),mode=p.alerts||'buy_line';
@@ -5896,6 +5906,28 @@ function _pfBookManageHtml(){
   }
   return h+'<input type="file" id="pf-book-file" accept=".json,application/json" style="display:none" onchange="pfBookFile(this)"></div>';
 }
+/* Private holdings alerts: a position at least `drawdown` below its cost, a
+   held weight at least `drift` from its target. Computed here from the book
+   this browser loaded, never published. Mirrors
+   portfolio_positions.holdings_alerts (node parity test). */
+var _PF_HOLD_TH={drawdown:0.20,drift:0.05};
+function _pfHoldAlerts(p,hs){
+  if(!hs)return[];
+  var th=(p&&p.thresholds)||{},dd=th.drawdown!=null?th.drawdown:_PF_HOLD_TH.drawdown,dr=th.drift!=null?th.drift:_PF_HOLD_TH.drift;
+  var out=[],held={};
+  hs.rows.forEach(function(r){
+    held[r.ticker]=r;
+    if(r.pnl_pct!=null&&r.pnl_pct<=-dd)out.push({ticker:r.ticker,kind:'below_cost',pct:r.pnl_pct,
+      message:r.ticker+' is '+Math.round(-r.pnl_pct*100)+'% below your cost'});
+  });
+  Object.keys((p&&p.targets)||{}).forEach(function(t){
+    var tg=p.targets[t],r=held[t],w=r?r.weight:0;
+    if(w==null)return;
+    if(Math.abs(w-tg)>=dr)out.push({ticker:t,kind:'drift',drift:w-tg,
+      message:t+' is '+(w*100).toFixed(1)+'% of the holdings against a '+(tg*100).toFixed(1)+'% target'});
+  });
+  return out.sort(function(a,b){return a.kind<b.kind?-1:a.kind>b.kind?1:a.ticker<b.ticker?-1:a.ticker>b.ticker?1:0;});
+}
 function _pfMoney(v,sign){
   if(v==null)return'—';
   var s='$'+Math.abs(Math.round(v)).toLocaleString('en-US');
@@ -5915,6 +5947,10 @@ function _pfHoldHtml(id){
     +k('Cost',_pfMoney(t.cost),'',hs.rows.length+' position'+(hs.rows.length===1?'':'s'))
     +k('Realized YTD',_pfMoney(t.realized_ytd,true),tone(t.realized_ytd),'all time '+_pfMoney(t.realized,true),'Sales this calendar year, at each lot’s cost')
     +'</div>';
+  var al=_pfHoldAlerts(_pfById[id],hs);
+  if(al.length)h+='<div class="pfv-alerts pfv-hold-al">'+al.map(function(a){
+    return'<div class="pfv-alert"><span class="pfv-lv pfv-lv-watch">Watch</span>'+_pfTkLink(a.ticker)
+      +'<span class="pfv-alert-msg">'+_pfEsc(a.message.slice(a.ticker.length+1))+'</span></div>';}).join('')+'</div>';
   var notes=['From '+_pfEsc(_pfBooks.file||'positions.json')+' loaded '+_pfEsc(_pfBooks.loaded||'')+', kept only in this browser and never published. Prices are this run’s closes.'];
   if(t.unpriced.length)notes.push('No price today for '+_pfEsc(t.unpriced.join(', '))+': left out of value, P&amp;L and weights.');
   return h+'<div class="pfc-notes">'+notes.join('<br>')+'</div>';

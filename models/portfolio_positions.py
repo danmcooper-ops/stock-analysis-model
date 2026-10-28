@@ -45,7 +45,15 @@ import tempfile
 from datetime import date
 
 WEIGHTINGS = ('equal', 'model', 'target', 'held')
-STRATEGY_KEYS = ('targets', 'weighting')
+STRATEGY_KEYS = ('targets', 'weighting', 'thresholds')
+# Per-portfolio alert thresholds (``thresholds``), each an open interval.
+# score_drop / fv_jump tune the public change alerts
+# (models/portfolio_groups.classify_changes); drawdown / drift the private
+# holdings alerts (``holdings_alerts``), which never leave this machine.
+THRESHOLD_RANGES = {'score_drop': (0.0, 100.0), 'fv_jump': (0.0, 5.0),
+                    'drawdown': (0.0, 1.0), 'drift': (0.0, 1.0)}
+DRAWDOWN_ALERT = 0.20          # a position this far below its cost
+DRIFT_ALERT = 0.05             # held weight this far from its target
 BOOK_KEYS = ('positions', 'realized', 'cash')
 BOOK_VERSION = 1
 DEFAULT_POSITIONS_PATH = os.path.join(
@@ -169,6 +177,24 @@ def normalize_strategy(p, pid):
         raise ValueError(f"{pid}: weighting 'target' needs targets")
     if w != 'equal':
         out['weighting'] = w
+    th = p.get('thresholds')
+    if th:
+        if not isinstance(th, dict):
+            raise ValueError(f"{pid}.thresholds: must be an object")
+        unknown = set(th) - set(THRESHOLD_RANGES)
+        if unknown:
+            raise ValueError(f"{pid}.thresholds: unknown key(s) {sorted(unknown)}")
+        norm = {}
+        for k, v in th.items():
+            if v is None:
+                continue
+            lo, hi = THRESHOLD_RANGES[k]
+            v = _num(v, f"{pid}.thresholds.{k}")
+            if not lo < v < hi:
+                raise ValueError(f"{pid}.thresholds.{k}: must be between {lo:g} and {hi:g}")
+            norm[k] = v
+        if norm:
+            out['thresholds'] = dict(sorted(norm.items()))
     return out
 
 
@@ -266,6 +292,37 @@ def shares_as_of(book, day=None):
             if s.get('bought') and s['bought'] <= day < s['date']:
                 out[s['ticker']] = out.get(s['ticker'], 0.0) + s['shares']
     return out
+
+
+def holdings_alerts(p, summary, thresholds=None):
+    """Private alerts for portfolio *p*'s holdings (``holdings_summary``
+    output): positions at least ``drawdown`` below their cost, and held
+    weights at least ``drift`` from their target. State, not news: they
+    repeat every run while true. Never put these in the published digest."""
+    if not summary:
+        return []
+    th = dict(thresholds or {}, **(p.get('thresholds') or {}))
+    dd = th.get('drawdown', DRAWDOWN_ALERT)
+    dr = th.get('drift', DRIFT_ALERT)
+    out = []
+    held = {}
+    for r in summary['rows']:
+        held[r['ticker']] = r
+        if r['pnl_pct'] is not None and r['pnl_pct'] <= -dd:
+            out.append({'ticker': r['ticker'], 'kind': 'below_cost', 'level': 'watch',
+                        'pct': r['pnl_pct'],
+                        'message': f"{r['ticker']} is {-r['pnl_pct']:.0%} below your cost "
+                                   f"(${r['cost']:,.2f} → ${r['price']:,.2f})"})
+    for t, tg in (p.get('targets') or {}).items():
+        r = held.get(t)
+        w = r['weight'] if r and r['weight'] is not None else (0.0 if not r else None)
+        if w is None:
+            continue
+        if abs(w - tg) >= dr:
+            out.append({'ticker': t, 'kind': 'drift', 'level': 'watch', 'drift': w - tg,
+                        'message': f"{t} is {w:.1%} of the holdings against a {tg:.1%} target "
+                                   f"({(w - tg) * 100:+.1f}pp)"})
+    return sorted(out, key=lambda a: (a['kind'], a['ticker']))
 
 
 def realized_by_year(realized):

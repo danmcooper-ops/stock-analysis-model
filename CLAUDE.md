@@ -1182,6 +1182,23 @@ ruff check .
   `Portfolio alerts — <date>` issue when there is an Action/Watch alert or
   a systemic banner (stdlib-only, `GITHUB_TOKEN`, no secrets).
   `portfolios.py alerts --replay` re-classifies archived runs for tuning.
+  **Buy-below** (`buy_below`, `BUY_MOS` = 0.15, the Summary PDF's buy-below
+  line): a member whose MoS crossed 15% is FYI on the run it crosses and a
+  Watch only when the crossing held through the next run (`confirmed`; the
+  run before the prior one, `prev2_by_tk`, is read by both the nightly
+  alerts and the report). Over 29 runs (09-01..10-27) 61% of fresh crossings
+  went back out within five runs, and a 2-5pp hysteresis band did not help
+  (60-63%); confirmed ones reversed 38%, a median of 6 a run universe-wide.
+  **Thresholds** (`thresholds` in a definition, v2: `score_drop`, `fv_jump`,
+  `drawdown`, `drift`; `edit --threshold KEY=V`): the universe is classified
+  at the most sensitive (`alert_floors`), entries carry their size
+  (`drop`, `move`), and each portfolio keeps its own (`passes`, mirrored by
+  `_pfPasses`). **Private holdings alerts** (`holdings_alerts`: a position
+  ≥ `drawdown` (20%) below cost, a held weight ≥ `drift` (5pp) from target)
+  name positions, so `alerts` writes them only to
+  `portfolio/positions_alerts.txt` (0600; stdout gets a count) and the
+  report computes them in the Holdings panel from the locally loaded book
+  (`_pfHoldAlerts`). `portfolio/positions*` is gitignored.
   **Performance** is a point-in-time NAV ledger, `output/portfolio_nav.json`
   (`data/portfolio_nav.py`): each run records every portfolio's members as
   resolved that day and compounds the return of the previous entry's members
