@@ -19,6 +19,13 @@ import pytest
 from data.sec_xbrl_client import SECXBRLClient
 from scripts.analyze_stock import _ensure_fundamental_growth, run_forward_dcf
 
+
+def _pinned(table):
+    """Stand-in for data.fx_convert.annual_rates: one rate per fiscal year,
+    used for flows and balance-sheet instants alike."""
+    return lambda ccy, years, fy_ends=None: {
+        y: (table.get(y), table.get(y)) for y in years}
+
 PRETAX_TAG = ('IncomeLossFromContinuingOperationsBeforeIncomeTaxes'
               'ExtraordinaryItemsNoncontrollingInterest')
 YEARS = (2021, 2022, 2023, 2024)
@@ -208,8 +215,8 @@ class TestGrossProfitDerivation:
             }.items()
         }}}
         c._cache['TEST'] = facts
-        monkeypatch.setattr(xbrl_mod, '_get_fx_rates_to_usd',
-                            lambda ccy: {2023: 1.10, 2024: 1.05})
+        monkeypatch.setattr(xbrl_mod, '_annual_fx_rates',
+                            _pinned({2023: 1.10, 2024: 1.05}))
         h = c.fetch_historical_financials('TEST')
         assert h['fx_converted'] is True
         assert h['gross_profit_history'][2023] == pytest.approx(440.0)

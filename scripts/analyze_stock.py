@@ -81,7 +81,7 @@ from data.finnhub_supply_client import FinnhubSupplyClient
 from data.sec_supply_client import SECSupplyClient
 from data.sec_xbrl_client import SECXBRLClient
 from data.splits import adjust_for_ticker
-from data.fx_client import get_spot_fx_rate, apply_fx_to_statement_df
+from data.fx_convert import FLOW, STOCK, convert_statement_df, get_spot_fx_rate
 from data.sec_insider_client import SECInsiderClient
 from data.provenance import ProvenanceRecorder
 from data.price_store import mass_stop, stopped_trading
@@ -1476,7 +1476,7 @@ _FX_INFO_STATEMENT_FIELDS = (
 )
 
 
-def _convert_financials_to_usd(yf_data, statements_are_usd=False):
+def _convert_financials_to_usd(yf_data, statements_are_usd=False, as_of=None):
     """Convert ``yf_data`` financials + dollar-denominated info fields to USD.
 
     ``statements_are_usd``: set when the statements came from SEC XBRL, which
@@ -1492,10 +1492,18 @@ def _convert_financials_to_usd(yf_data, statements_are_usd=False):
     (ADRs) or the same local currency (.SW, .L exchanges) — producing the
     "wild divergence" the user observed.
 
+    Rates come from the FX store (data/fx_convert.py) as of *as_of* (the
+    run date; today when None). yfinance statements convert column by
+    column: income and cash flow at the average rate over the year ending on
+    the column's date, the balance sheet at that date's close. ``info``
+    totals and quote fields convert at the as-of rate.
+
     Returns ``(yf_data, fx_meta)``. ``fx_meta`` carries:
         currency_quote      — info['currency'] (price currency)
         currency_financial  — info['financialCurrency'] (statement currency)
-        fx_rate_financial   — rate applied to balance_sheet / income_stmt / cash_flow (None when no conversion)
+        fx_rate_financial   — the as-of rate for the statement currency when
+                              the statements were converted (None otherwise);
+                              each column used its own period's rate
         fx_rate_quote       — rate applied to info dollar fields (None when no conversion)
         fx_converted        — True iff any conversion was applied
         fx_fetch_failed     — True iff at least one rate lookup returned None for a non-USD currency
@@ -1524,24 +1532,29 @@ def _convert_financials_to_usd(yf_data, statements_are_usd=False):
         return yf_data, fx_meta
     # Shallow-copy the outer dict so we don't mutate the cached payload.
     out = dict(yf_data)
-    rate_fin = get_spot_fx_rate(ccy_fin) if needs_info_stmt else None
+    rate_fin = get_spot_fx_rate(ccy_fin, as_of) if needs_info_stmt else None
     if needs_fin:
         if rate_fin is None:
             fx_meta['fx_fetch_failed'] = True
         else:
             fx_meta['fx_rate_financial'] = rate_fin
             fx_meta['fx_converted'] = True
-            for key in ('balance_sheet', 'income_statement', 'income_stmt', 'cash_flow'):
-                df = out.get(key)
-                if df is not None:
-                    out[key] = apply_fx_to_statement_df(df, rate_fin)
+        # Converted even without an as-of rate: each column carries its own,
+        # and a column with none is blanked rather than left in local units.
+        for key, kind in (('balance_sheet', STOCK), ('income_statement', FLOW),
+                          ('income_stmt', FLOW), ('cash_flow', FLOW)):
+            df = out.get(key)
+            if df is not None:
+                out[key], blanked = convert_statement_df(df, ccy_fin, kind)
+                if blanked:
+                    fx_meta['fx_fetch_failed'] = True
     if needs_quote:
         # Often the quote and financial currencies are the same (e.g.,
         # NESN.SW: CHF/CHF). get_spot_fx_rate hits the same cache entry.
         if needs_fin and ccy_quote == ccy_fin:
             rate_quote = fx_meta['fx_rate_financial']
         else:
-            rate_quote = get_spot_fx_rate(ccy_quote)
+            rate_quote = get_spot_fx_rate(ccy_quote, as_of)
         if rate_quote is None:
             fx_meta['fx_fetch_failed'] = True
         else:
@@ -3653,12 +3666,12 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
             _stmts_usd = _data_source in ('sec_xbrl', 'sec_xbrl+yfinance')
             _t = time.perf_counter()
             yf_data, fx_meta = _convert_financials_to_usd(
-                yf_data, statements_are_usd=_stmts_usd)
+                yf_data, statements_are_usd=_stmts_usd, as_of=_run_day)
             _legs['fx'] += time.perf_counter() - _t
-            _prov.record_source(ticker, 'fx', 'fx_client',
+            _prov.record_source(ticker, 'fx', 'fx_store',
                                 converted=fx_meta.get('fx_converted', False))
             if fx_meta.get('fx_fetch_failed'):
-                _prov.record_event('fx_fetch_failed', ticker, 'fx_client',
+                _prov.record_event('fx_fetch_failed', ticker, 'fx_store',
                                    {'currency_financial': fx_meta.get('currency_financial')})
 
             info = yf_data.get('info') or {}

@@ -23,7 +23,8 @@
 #
 # Steps, in order (names are valid --from values):
 #   preflight  market_open.py gate (exit 10 = closed → whole run skipped)
-#   prices     refresh output/prices parquets              (non-blocking)
+#   prices     refresh output/prices parquets and the output/fx rate
+#              store (data/fx_store.py)                    (non-blocking)
 #   pull       fast-forward main so the render uses merged templates (non-blocking)
 #   analyze    analyze_stock.py                            (BLOCKING), then the
 #              companyfacts cache backup to Supabase Storage (non-blocking)
@@ -261,6 +262,11 @@ if wants prices; then
   run prices soft "$VPY" scripts/download_prices.py --output-dir output/prices --max-age-days 2 \
       --tickers $(ls output/prices/ | sed -n 's/\.parquet$//p') SPY QQQ IWM DIA \
       MDY XLB XLC XLE XLF XLI XLK XLP XLRE XLU XLV XLY
+  # Daily FX history per currency (data/fx_store.py): the majors plus every
+  # currency the last snapshot reports in. The analysis converts foreign
+  # filers with it; soft, because a currency the store lacks or holds only
+  # up to an earlier date is fetched again on first use (data/fx_convert.py).
+  run fx_rates soft "$VPY" scripts/fx_rates.py refresh --run-date "$RUNDATE"
 fi
 
 # ---------------------------------------------------------------- pull
