@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>World Currency Screener</title>
+<script>
+/* Apply the stored theme before first paint so a dark-mode user never sees a
+   white flash. Wrapped in try/catch because localStorage throws in some
+   privacy modes, and a theme preference must never break the page. */
+(function(){try{var t=localStorage.getItem('ccy_theme_v1');
+if(t==='dark')document.documentElement.setAttribute('data-theme','dark');
+else if(!t&&window.matchMedia&&matchMedia('(prefers-color-scheme:dark)').matches)
+document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();
+</script>
+<style>
+:root{
+  --bg:#ffffff; --panel:#f7f8fa; --ink:#1a1d21; --ink-dim:#5b6570;
+  --line:#dfe3e8; --line-soft:#eceff3; --accent:#2F5496;
+  --pass:#C6EFCE; --pass-ink:#1e5631; --fail:#FFC7CE; --fail-ink:#8b1a1a;
+  --na:#e8eaed; --na-ink:#8a9099;
+  --long:#1e7d3a; --lean:#5a9e2f; --neutral:#9aa0a6; --avoid:#b3261e;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06);
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+}
+:root[data-theme="dark"]{
+  --bg:#14171a; --panel:#1c2024; --ink:#e6e9ec; --ink-dim:#9aa4ae;
+  --line:#2c3237; --line-soft:#23282d; --accent:#7aa2e3;
+  --pass:#1e3a26; --pass-ink:#7ddb9b; --fail:#3d1f22; --fail-ink:#ff9aa2;
+  --na:#24292e; --na-ink:#6b7580;
+  --long:#4ade80; --lean:#a3d977; --neutral:#8a9099; --avoid:#ff6b6b;
+  --shadow:0 1px 3px rgba(0,0,0,.4),0 4px 20px rgba(0,0,0,.3);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-text-size-adjust:100%}
+a{color:var(--accent)}
+h1,h2,h3{margin:0;font-weight:600;letter-spacing:-.01em}
+
+header{position:sticky;top:0;z-index:40;background:var(--bg);
+  border-bottom:1px solid var(--line);padding:12px 20px}
+.hrow{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+h1{font-size:17px}
+.sub{color:var(--ink-dim);font-size:12px}
+.spacer{flex:1}
+.btn{background:var(--panel);color:var(--ink);border:1px solid var(--line);
+  border-radius:7px;padding:6px 11px;font-size:13px;cursor:pointer;
+  font-family:inherit}
+.btn:hover{border-color:var(--accent)}
+.btn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.tabs{display:flex;gap:6px}
+
+.wrap{max-width:1560px;margin:0 auto;padding:18px 20px 64px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  padding:14px;margin-bottom:16px}
+
+.filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  margin-bottom:14px}
+input[type=search],select{background:var(--bg);color:var(--ink);
+  border:1px solid var(--line);border-radius:7px;padding:6px 10px;
+  font:inherit;font-size:13px}
+input[type=search]{min-width:190px}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:20px;
+  padding:4px 11px;font-size:12px;cursor:pointer;user-select:none}
+.chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.count{color:var(--ink-dim);font-size:12px;margin-left:auto}
+
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;
+  border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px}
+th,td{padding:7px 9px;text-align:right;white-space:nowrap;
+  border-bottom:1px solid var(--line-soft)}
+th{position:sticky;top:0;background:var(--panel);z-index:2;cursor:pointer;
+  font-weight:600;font-size:11px;text-transform:uppercase;
+  letter-spacing:.03em;color:var(--ink-dim);user-select:none;
+  border-bottom:1px solid var(--line)}
+th:hover{color:var(--accent)}
+th.sorted{color:var(--accent)}
+td.l,th.l{text-align:left}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:var(--line-soft)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.code{font-family:var(--mono);font-weight:600}
+.dim{color:var(--ink-dim)}
+
+.pill{display:inline-block;padding:2px 8px;border-radius:11px;font-size:11px;
+  font-weight:600;letter-spacing:.02em;white-space:nowrap}
+.r-LONG{background:var(--long);color:#fff}
+.r-LEANLONG{background:var(--lean);color:#fff}
+.r-NEUTRAL{background:var(--neutral);color:#fff}
+.r-AVOID{background:var(--avoid);color:#fff}
+.r-UNRATED{background:var(--na);color:var(--na-ink)}
+.reg{font-size:10px;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--ink-dim);border:1px solid var(--line);border-radius:4px;
+  padding:1px 5px}
+
+/* Score cell: the number reads as text, the bar is a track beside it.
+   Overlaying the two put dark digits on a mid-blue fill and lost contrast
+   exactly in the middle of the range, where most currencies sit. */
+.barwrap{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.barnum{font-family:var(--mono);font-variant-numeric:tabular-nums;
+  font-weight:600;min-width:20px;text-align:right}
+.bar{position:relative;height:7px;width:54px;flex:none;
+  background:var(--line-soft);border-radius:4px;overflow:hidden}
+.bar>i{position:absolute;left:0;top:0;bottom:0;background:var(--accent);
+  border-radius:4px}
+
+/* Gate matrix */
+.mx td{text-align:center;font-family:var(--mono);font-size:11.5px;padding:5px 6px}
+.mx th.cat{text-align:center;color:#fff;font-size:11px;border-radius:4px 4px 0 0}
+.mx th.g{text-align:center;font-size:10px;text-transform:none;
+  letter-spacing:0;line-height:1.25;white-space:normal;min-width:62px;
+  max-width:78px;vertical-align:bottom}
+.mx th.g .thr{display:block;font-size:9px;opacity:.7;font-weight:400}
+.gp-1{background:var(--pass);color:var(--pass-ink)}
+.gp-0{background:var(--fail);color:var(--fail-ink)}
+.gp-x{background:var(--na);color:var(--na-ink)}
+.tot{font-weight:700;border-left:2px solid var(--line)}
+
+/* Map */
+#map svg{width:100%;height:auto;display:block}
+#map path{fill:var(--na);stroke:var(--bg);stroke-width:.4;
+  transition:fill .15s;cursor:default}
+#map path.has{cursor:pointer}
+#map path.has:hover{stroke:var(--ink);stroke-width:1}
+.legend{display:flex;gap:2px;align-items:center;margin-top:10px;font-size:11px;
+  color:var(--ink-dim);flex-wrap:wrap}
+.legend i{width:26px;height:11px;display:inline-block;border-radius:2px}
+
+/* Detail modal. Nothing here measures the viewport, and that is the point.
+
+   Two earlier attempts sized the overlay to the screen — first from
+   `visualViewport`, then from `100svh` — and clipped it with
+   `overflow:hidden`. Both truncated the panel on a real iPhone, because that
+   pairing turns any error in the height into content that cannot be reached:
+   too tall and the bottom sits below the fold with nothing to scroll. iOS
+   offers several plausible numbers for "the height of the screen" and
+   changes which one is right while the address bar animates, so the bug was
+   never in the arithmetic — it was in making the arithmetic load-bearing.
+
+   So the overlay scrolls again, and no height is computed anywhere:
+
+   - The scrim is a pseudo-element at `inset:0`, resolved against the layout
+     viewport, which on iOS is the *large* viewport and so always at least
+     the visible area. It is `fixed`, so it stays put while the overlay
+     scrolls beneath it. Full coverage in every toolbar state — the table
+     cannot reappear alongside the popup.
+   - The overlay scrolls, so however tall the panel ends up and whatever the
+     viewport is doing, every part of it is reachable. Truncation is not a
+     bug that can occur in this arrangement.
+   - Scroll chaining, the reason the overlay was clipped in the first place,
+     is already prevented by pinning the body while the panel is open.
+     `overscroll-behavior` is the belt to that pair of braces.
+
+   The vertical padding lives on `.modal` as a margin rather than on `.mask`
+   as padding, so the overlay's scrollport starts at the top of the screen
+   and the sticky title strip below can pin flush to it with a plain
+   `top:0`. */
+.mask{position:fixed;inset:0;z-index:90;
+  display:none;align-items:flex-start;justify-content:center;
+  padding:0 24px;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain}
+.mask::before{content:"";position:fixed;inset:0;z-index:-1;
+  background:rgba(0,0,0,.45)}
+.mask.open{display:flex}
+.modal{background:var(--bg);border:1px solid var(--line);border-radius:12px;
+  box-shadow:var(--shadow);width:min(920px,100%);padding:20px;position:relative;
+  margin:24px 0}
+/* Title strip, sticky to the overlay's scrollport. An absolutely positioned
+   close button scrolls off the top of a long detail panel, and a phone has no
+   Escape key to fall back on; a bare sticky button instead ends up hovering
+   over the metric cards and hiding the values underneath it. A full-width
+   opaque strip reserves its own space, and keeps the currency named while you
+   scroll through nineteen gates.
+
+   `top:0` pins it to the top of the screen because `.mask` carries no
+   vertical padding for sticky to sit below — that spacing is `.modal`'s
+   margin instead. The padding and the negative margin are the modal's own
+   padding, cancelling at rest so the title sits where it looks like it
+   should, and painting over that padding once the strip is pinned and the
+   panel is scrolling underneath it. Breakpoints that change `.modal` padding
+   restate both. */
+.mhead{position:sticky;top:0;z-index:4;background:var(--bg);
+  display:flex;align-items:center;gap:12px;
+  padding:20px 0 9px;margin-top:-20px;
+  border-bottom:1px solid var(--line-soft)}
+.mhead>div{flex:1;min-width:0}
+.close{flex:none;background:none;border:none;
+  color:var(--ink-dim);font-size:24px;cursor:pointer;line-height:1;padding:4px;
+  margin:-2px -6px 0 0}
+.mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:14px;margin-top:16px}
+.card{border:1px solid var(--line);border-radius:9px;padding:11px;
+  background:var(--panel)}
+.card h3{font-size:11px;text-transform:uppercase;letter-spacing:.05em;
+  color:#fff;padding:3px 7px;border-radius:4px;display:inline-block;
+  margin-bottom:9px}
+.kv{display:flex;justify-content:space-between;gap:10px;padding:2.5px 0;
+  font-size:12.5px;border-bottom:1px solid var(--line-soft)}
+.kv:last-child{border-bottom:none}
+.kv b{font-family:var(--mono);font-weight:600}
+.kv .na{color:var(--na-ink);font-weight:400}
+.note{background:var(--fail);color:var(--fail-ink);border-radius:7px;
+  padding:9px 11px;font-size:12.5px;margin-top:13px}
+.note b{display:block;margin-bottom:3px}
+.spark{margin-top:14px;border:1px solid var(--line);border-radius:9px;
+  padding:10px;background:var(--panel)}
+.spark svg{width:100%;height:120px;display:block;overflow:visible}
+
+/* Tooltip. One element reused for every target, positioned on show and
+   clamped to the viewport so a right-edge column doesn't push the page wide. */
+#tip{position:fixed;z-index:120;max-width:340px;pointer-events:none;
+  background:var(--ink);color:var(--bg);border-radius:7px;padding:9px 11px;
+  font-size:12.5px;line-height:1.45;box-shadow:var(--shadow);
+  opacity:0;transition:opacity .12s;font-weight:400;text-transform:none;
+  letter-spacing:normal;text-align:left;white-space:normal}
+#tip.on{opacity:1}
+#tip b{display:block;margin-bottom:3px;font-size:11px;text-transform:uppercase;
+  letter-spacing:.05em;opacity:.75}
+[data-tip]{cursor:help}
+th[data-tip]{cursor:pointer}
+/* The space after the opening brace is required: an open-brace immediately
+   followed by a hash starts a Jinja comment, and the template would fail to
+   parse. Same reason this note spells it out instead of showing it. */
+@media(prefers-reduced-motion:reduce){ #tip{transition:none} }
+
+footer{border-top:1px solid var(--line);margin-top:26px;padding:18px 20px 40px;
+  color:var(--ink-dim);font-size:12px}
+footer .wrap{padding:0;max-width:1560px}
+footer code{font-family:var(--mono);font-size:11px}
+.srcs{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+  gap:12px;margin-top:10px}
+.hide{display:none!important}
+@media(max-width:768px){
+  .wrap{padding:12px 10px 48px}
+  header{padding:10px 12px}
+  h1{font-size:15px}
+  .modal{padding:14px}
+  .mhead{padding-top:14px;margin-top:-14px}
+}
+
+/* Touch devices. `hover: none` is the honest test — a small window on a
+   desktop still has a pointer, and an iPad with a trackpad does not want
+   thumb-sized controls. */
+@media(hover:none){
+  /* iOS Safari zooms the entire page when focusing an input whose font-size
+     is under 16px, and never zooms back out. This is the fix; the padding
+     keeps the control from growing taller than the buttons beside it. */
+  input[type=search],select{font-size:16px;padding:8px 10px}
+  /* Apple's minimum comfortable tap target is 44px. */
+  .btn{padding:11px 14px;font-size:14px}
+  .chip{padding:10px 14px;font-size:13px}
+  /* 26 + 9 + 9 = 44 exactly. The close button now sets the height of the
+     modal's title strip, and on a landscape phone that strip is competing
+     with the panel for a 331px-tall screen — so hit the target, not more. */
+  .close{font-size:26px;padding:9px}
+  /* Rows are the primary tap target on mobile. */
+  tbody td{padding:11px 9px}
+  /* Without hover there is nothing to reveal a tooltip, so mark the targets
+     that carry one. Kept faint — it is on ~77 elements. */
+  th[data-tip]{text-decoration:underline dotted var(--line);
+    text-underline-offset:3px}
+}
+
+/* Narrow screens: pin the currency code while the rest of the table scrolls
+   sideways. With 18 columns on a 390px phone you are always scrolled away
+   from the left edge, and without this you lose track of which row you are
+   reading. The z-index must sit under the sticky header row so the two do
+   not fight at the top-left corner. */
+@media(max-width:900px){
+  #t td:first-child, #t th:first-child,
+  #m td:first-child, #m th:first-child{
+    position:sticky;left:0;z-index:1;
+    background:var(--bg);
+    box-shadow:1px 0 0 var(--line)}
+  #t th:first-child, #m th:first-child{z-index:3;background:var(--panel)}
+  tbody tr:hover td:first-child{background:var(--line-soft)}
+}
+
+/* Short landscape phones: the modal must not overflow off-screen. Vertical
+   space is what is scarce here — the title strip and the gaps between cards
+   cost the same on a 331px-tall screen as on a 900px one, so they shrink. */
+@media(max-height:520px){
+  .mask{padding:0 8px}
+  .modal{padding:12px;margin:8px 0}
+  .spark svg{height:80px}
+  .mgrid{gap:10px;margin-top:12px}
+  .mhead{padding:12px 0 6px;margin-top:-12px}
+  .mhead h2{font-size:17px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hrow">
+    <h1>World Currency Screener</h1>
+    <span class="sub" id="hdrsub">{{ total }} currencies &middot; {{ run_date_iso }}</span>
+    <span class="spacer"></span>
+    <div class="tabs">
+      <button class="btn on" data-view="table">Screener</button>
+      <button class="btn" data-view="matrix">Gate Matrix</button>
+      <button class="btn" data-view="map">Map</button>
+    </div>
+    <button class="btn" id="theme" title="Toggle light/dark">&#9682;</button>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="filters">
+    <input type="search" id="q" placeholder="Search code or name&hellip;" autocomplete="off">
+    <span id="ratingChips"></span>
+    <label class="chip" id="floatOnly">Floating only</label>
+    <button class="btn" id="reset">Reset</button>
+    <span class="count" id="count"></span>
+  </div>
+
+  <div id="view-table">
+    <div class="scroll"><table id="t">
+      <thead id="thead"></thead><tbody id="tbody"></tbody>
+    </table></div>
+    <p class="sub" style="margin:9px 2px 0">
+      Click any row for the full metric breakdown. Scores are 0&ndash;100 within
+      each pillar; the composite is the weighted average over pillars that
+      apply to that currency.
+    </p>
+  </div>
+
+  <div id="view-matrix" class="hide">
+    <div class="scroll"><table id="m" class="mx">
+      <thead id="mhead"></thead><tbody id="mbody"></tbody>
+    </table></div>
+    <p class="sub" style="margin:9px 2px 0">
+      Green passes the gate, red fails, grey is not applicable &mdash; either the
+      data is missing or the gate cannot describe this currency (a peg has no
+      meaningful volatility signal; the base currency has no carry against
+      itself). Inapplicable gates are excluded from both the numerator and the
+      denominator of their pillar.
+    </p>
+  </div>
+
+  <div id="view-map" class="hide">
+    <div class="panel">
+      <div id="map"></div>
+      <div class="legend" id="legend"></div>
+      <p class="sub" id="mapnote" style="margin:9px 0 0"></p>
+    </div>
+  </div>
+
+</div>
+
+<div class="mask" id="mask"><div class="modal" id="modal"></div></div>
+<div id="tip" role="tooltip" aria-hidden="true"></div>
+
+<footer><div class="wrap">
+  <div id="provline"></div>
+  <div class="srcs">
+    <div><b>Spot rates</b><br>European Central Bank SDMX daily reference rates,
+      1999&ndash;present. Crossed through EUR to a USD base.</div>
+    <div><b>Real exchange rates</b><br>BIS effective exchange rate statistics,
+      real broad basket (64 economies), monthly from 1994.</div>
+    <div><b>Policy rates</b><br>BIS central bank policy rate statistics, monthly.</div>
+    <div><b>Macro indicators</b><br>World Bank Open Data &mdash; current account,
+      reserves, inflation, GDP growth. Annual, reported with a lag.</div>
+  </div>
+  <p style="margin-top:14px">
+    Built by <code>scripts/analyze_currencies.py</code>. This page is self-contained:
+    no network requests, no external scripts, no tracking. Not investment advice.
+  </p>
+</div></footer>
+
+<script>
+var DATA = {{ data_json }};
+var GM   = {{ gate_meta }};
+var PROV = {{ provenance_json }};
+{{ world_svg }}
+
+/* ---------------------------------------------------------------- format */
+function isNum(v){return typeof v==='number'&&isFinite(v);}
+function fpct(v,d){return isNum(v)?(v*100).toFixed(d===undefined?1:d)+'%':null;}
+function fpp(v,d){return isNum(v)?(v>0?'+':'')+v.toFixed(d===undefined?1:d):null;}
+function fnum(v,d){return isNum(v)?v.toFixed(d===undefined?2:d):null;}
+function fx(v){return isNum(v)?v.toFixed(2)+'×':null;}
+function fmtBy(kind,v){
+  if(!isNum(v))return null;
+  if(kind==='pct')return fpct(v);
+  if(kind==='pp') return fpp(v);
+  if(kind==='x')  return fx(v);
+  return fnum(v);
+}
+function na(s){return s===null||s===undefined?'<span class="na">&mdash;</span>':s;}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function ratingCls(r){return 'r-'+String(r||'UNRATED').replace(/ /g,'');}
+
+/* ---------------------------------------------------------------- tooltip */
+/* Delegated rather than bound per element: the table, matrix and modal all
+   re-render on every filter and sort, so anything bound directly would be
+   thrown away and would need rebinding at each of those call sites. */
+var _TIP=document.getElementById('tip'), _TIPT=null;
+
+/* Positions against a plain rect rather than a live element. Tapping a
+   sortable header re-renders the whole header row, so by the time the
+   tooltip is drawn the element that was tapped may be detached — and a
+   detached node reports a zero rect, which would pin the tooltip to the
+   top-left corner. Reading the geometry up front avoids that entirely. */
+function _placeTip(box){
+  var pad=10;
+  _TIP.style.left='0px'; _TIP.style.top='0px';   // measure unclamped
+  var t=_TIP.getBoundingClientRect();
+  var x=box.left+box.width/2-t.width/2;
+  var y=box.bottom+8;
+  if(y+t.height>innerHeight-pad) y=box.top-t.height-8;  // flip above
+  if(y<pad) y=pad;
+  x=Math.max(pad,Math.min(x,innerWidth-t.width-pad));
+  _TIP.style.left=x+'px'; _TIP.style.top=y+'px';
+}
+function _boxOf(el){
+  var r=el.getBoundingClientRect();
+  return {left:r.left,top:r.top,bottom:r.bottom,width:r.width};
+}
+function showTipData(txt,label,box){
+  if(!txt)return;
+  _TIP.innerHTML=(label?'<b>'+esc(label)+'</b>':'')+esc(txt);
+  _TIP.classList.add('on'); _TIP.setAttribute('aria-hidden','false');
+  _placeTip(box);
+}
+function showTip(el){
+  showTipData(el.getAttribute('data-tip'),
+              el.getAttribute('data-tip-title'), _boxOf(el));
+}
+function hideTip(){
+  _TIP.classList.remove('on'); _TIP.setAttribute('aria-hidden','true');
+}
+function _inModal(el){
+  while(el&&el!==document){ if(el.id==='modal')return true; el=el.parentNode; }
+  return false;
+}
+function _tipTarget(e){
+  var el=e.target;
+  while(el&&el!==document){ if(el.getAttribute&&el.getAttribute('data-tip'))return el;
+                            el=el.parentNode; }
+  return null;
+}
+/* Touch devices have no hover, and iOS synthesises a mouseover on first tap —
+   which would show a tooltip that then never receives a mouseout and sits
+   there permanently. So the two input models are bound separately.
+   `hover: none` is the honest test, not screen width: a narrow desktop
+   window still hovers, an iPad with a trackpad does. */
+var COARSE = matchMedia('(hover:none)').matches;
+
+if(!COARSE){
+  document.addEventListener('mouseover',function(e){
+    var el=_tipTarget(e);
+    if(el){clearTimeout(_TIPT);_TIPT=setTimeout(function(){showTip(el);},120);}
+  });
+  document.addEventListener('mouseout',function(e){
+    if(_tipTarget(e)){clearTimeout(_TIPT);hideTip();}
+  });
+}else{
+  /* Tap shows the tooltip and dismisses it again on the next tap anywhere,
+     with a timeout so it cannot be left stranded. Capture phase, because
+     many tooltip targets sit inside something clickable — a column header
+     that sorts, a rating pill inside a row that opens the detail panel. The
+     tooltip rides along with that action rather than trying to suppress it;
+     swallowing the tap would break sorting and drill-down on mobile. */
+  document.addEventListener('click',function(e){
+    var el=_tipTarget(e);
+    clearTimeout(_TIPT);
+    if(!el){hideTip();return;}
+    // Read text and geometry now, draw after this tap's own handlers have
+    // run. Sorting rebuilds the header row, which detaches the tapped
+    // element and fires focusout — drawing synchronously would show a
+    // tooltip that the resulting focus change immediately hides.
+    var txt=el.getAttribute('data-tip'),
+        ttl=el.getAttribute('data-tip-title'),
+        box=_boxOf(el),
+        inModal=_inModal(el);
+    setTimeout(function(){
+      // The same tap can open the detail panel — a row tap usually lands on
+      // the rating pill, which carries a tooltip. Drawing it now would leave
+      // it floating over the panel, and its geometry describes a row that is
+      // no longer visible.
+      if(!inModal&&_MASK.classList.contains('open'))return;
+      showTipData(txt,ttl,box);
+      _TIPT=setTimeout(hideTip,5000);
+    },0);
+  },true);
+}
+
+document.addEventListener('focusin',function(e){
+  var el=_tipTarget(e); if(el)showTip(el);
+});
+/* Only on pointer devices: on touch the re-render that follows a tap
+   detaches the focused element and fires focusout, which would cancel the
+   tooltip that same tap just requested. */
+if(!COARSE) document.addEventListener('focusout',hideTip);
+document.addEventListener('keydown',function(e){if(e.key==='Escape')hideTip();});
+addEventListener('scroll',hideTip,true);
+addEventListener('orientationchange',hideTip);
+
+function tipAttr(text,title){
+  if(!text)return '';
+  return ' data-tip="'+esc(text)+'"'+(title?' data-tip-title="'+esc(title)+'"':'')+
+         ' tabindex="0"';
+}
+
+/* A capped rating is the one place the headline number and the verdict
+   disagree, so the tooltip explains that row specifically rather than
+   repeating the generic band description. */
+function _ratingTip(r){
+  if(r._rating_cap&&r._rating_cap_reasons&&r._rating_cap_reasons.length){
+    return 'Scored '+(isNum(r._composite_score)?r._composite_score.toFixed(1):'n/a')+
+           ', which reads '+r.rating_raw+' — capped to '+r._rating_cap+
+           ' because: '+r._rating_cap_reasons.join('; ')+'.';
+  }
+  return GM.ui.rating;
+}
+
+/* ------------------------------------------------------------------ state */
+var S={view:'table',q:'',ratings:{},floatOnly:false,sort:'_composite_score',dir:-1};
+var BY_CODE={};DATA.forEach(function(r){BY_CODE[r.code]=r;});
+
+/* ------------------------------------------------------------- table spec */
+/* k=field, t=title, f=formatter kind, w=width hint, cls=extra cell class */
+var COLS=[
+  {k:'code',   t:'CCY',    f:'code', l:true},
+  {k:'name',   t:'Currency',f:'text',l:true},
+  {k:'regime', t:'Regime', f:'reg',  l:true},
+  {k:'_composite_score', t:'Score', f:'bar'},
+  {k:'rating', t:'Rating', f:'pill', l:true},
+  {k:'_score_pillar_valuation', t:'Val', f:'sc'},
+  {k:'_score_pillar_carry',     t:'Carry', f:'sc'},
+  {k:'_score_pillar_external',  t:'Extern', f:'sc'},
+  {k:'_score_pillar_momentum',  t:'Mom', f:'sc'},
+  {k:'_score_pillar_stability', t:'Stab', f:'sc'},
+  {k:'reer_z20',    t:'REER z', f:'num'},
+  {k:'real_carry',  t:'Real carry', f:'pp'},
+  {k:'policy_rate', t:'Policy', f:'pp'},
+  {k:'inflation_pct', t:'Infl', f:'pp'},
+  {k:'ret_12m_1m',  t:'12m-1m', f:'pct'},
+  {k:'vol_1y',      t:'Vol', f:'pct'},
+  {k:'_gates_passed', t:'Gates', f:'text'},
+  {k:'_data_coverage_score', t:'Cov', f:'cov'}
+];
+
+function scoreCell(v){
+  if(!isNum(v))return '<span class="na">&mdash;</span>';
+  return '<div class="barwrap"><span class="barnum">'+v.toFixed(0)+'</span>'+
+         '<span class="bar"><i style="width:'+Math.max(0,Math.min(100,v))+
+         '%"></i></span></div>';
+}
+
+function cellHTML(r,c){
+  var v=r[c.k];
+  switch(c.f){
+    case 'code': return '<span class="code">'+esc(v)+'</span>';
+    case 'text': return v==null?'<span class="na">&mdash;</span>':esc(v);
+    case 'reg':  return '<span class="reg"'+tipAttr(GM.ui.regime,'Regime: '+v)+
+                        '>'+esc(v)+'</span>';
+    case 'pill': return '<span class="pill '+ratingCls(v)+'"'+
+                        tipAttr(_ratingTip(r),'Rating')+'>'+esc(v)+'</span>';
+    case 'bar':  return scoreCell(v);
+    case 'sc':   return isNum(v)?'<span class="num">'+v.toFixed(0)+'</span>'
+                               :'<span class="na">&mdash;</span>';
+    case 'cov':  return isNum(v)?'<span class="num dim">'+v.toFixed(0)+'%</span>'
+                               :'<span class="na">&mdash;</span>';
+    default:
+      var s=fmtBy(c.f,v);
+      return s===null?'<span class="na">&mdash;</span>':'<span class="num">'+s+'</span>';
+  }
+}
+
+/* --------------------------------------------------------------- filtering */
+function visible(){
+  var q=S.q.trim().toLowerCase();
+  var anyR=Object.keys(S.ratings).some(function(k){return S.ratings[k];});
+  return DATA.filter(function(r){
+    if(q&&(r.code+' '+r.name).toLowerCase().indexOf(q)<0)return false;
+    if(anyR&&!S.ratings[r.rating])return false;
+    if(S.floatOnly&&r.regime!=='float')return false;
+    return true;
+  });
+}
+function sorted(rows){
+  var k=S.sort,d=S.dir;
+  return rows.slice().sort(function(a,b){
+    var x=a[k],y=b[k];
+    var xn=(x===null||x===undefined),yn=(y===null||y===undefined);
+    /* Missing values sort last in both directions: a currency with no data
+       is not the "best" one just because the sort is ascending. */
+    if(xn&&yn)return a.code<b.code?-1:1;
+    if(xn)return 1; if(yn)return -1;
+    if(typeof x==='string'||typeof y==='string')
+      return String(x)<String(y)?-d:String(x)>String(y)?d:0;
+    return x<y?-d:x>y?d:0;
+  });
+}
+
+/* ------------------------------------------------------------ table render */
+/* Resolve a column's tooltip from the gate metadata, so the table, the matrix
+   and the detail panel all quote the same text for the same measure. */
+var _GATE_BY_FIELD={}, _GATE_BY_KEY={}, _CAT_BY_KEY={};
+GM.gates.forEach(function(g){_GATE_BY_FIELD[g.field]=g;_GATE_BY_KEY[g.key]=g;});
+GM.categories.forEach(function(c){_CAT_BY_KEY[c.scoreKey]=c;});
+
+function colTip(key){
+  if(_GATE_BY_FIELD[key])return _GATE_BY_FIELD[key].tip;
+  if(_CAT_BY_KEY[key])return _CAT_BY_KEY[key].tip;
+  var m={_composite_score:'composite', rating:'rating', regime:'regime',
+         _gates_passed:'gates', _data_coverage_score:'coverage',
+         policy_rate:'policy_rate', inflation_pct:'inflation_pct',
+         name:'name'};
+  return m[key]?(GM.ui[m[key]]||''):'';
+}
+
+function renderHead(){
+  var h='<tr>';
+  COLS.forEach(function(c){
+    h+='<th class="'+(c.l?'l ':'')+(S.sort===c.k?'sorted':'')+'" data-k="'+c.k+'"'+
+       tipAttr(colTip(c.k),c.t)+'>'+
+       esc(c.t)+(S.sort===c.k?(S.dir>0?' ↑':' ↓'):'')+'</th>';
+  });
+  document.getElementById('thead').innerHTML=h+'</tr>';
+  [].forEach.call(document.querySelectorAll('#thead th'),function(th){
+    th.onclick=function(){
+      var k=th.getAttribute('data-k');
+      if(S.sort===k)S.dir=-S.dir;else{S.sort=k;S.dir=-1;}
+      renderHead();renderBody();
+    };
+  });
+}
+function renderBody(){
+  var rows=sorted(visible()),h='';
+  rows.forEach(function(r){
+    h+='<tr data-c="'+esc(r.code)+'">';
+    COLS.forEach(function(c){
+      h+='<td class="'+(c.l?'l':'')+'">'+cellHTML(r,c)+'</td>';
+    });
+    h+='</tr>';
+  });
+  document.getElementById('tbody').innerHTML=h||
+    '<tr><td colspan="'+COLS.length+'" class="l dim" style="padding:20px">'+
+    'No currencies match these filters.</td></tr>';
+  bindRows('#tbody');
+  document.getElementById('count').textContent=
+    rows.length+' of '+DATA.length+' shown';
+}
+function bindRows(sel){
+  [].forEach.call(document.querySelectorAll(sel+' tr[data-c]'),function(tr){
+    tr.onclick=function(){openDetail(tr.getAttribute('data-c'));};
+  });
+}
+
+/* ----------------------------------------------------------- gate matrix */
+function renderMatrix(){
+  var cats=GM.categories,gates=GM.gates;
+  var r1='<tr><th class="l" rowspan="2" data-k="code">CCY</th>'+
+         '<th class="l" rowspan="2" data-k="rating">Rating</th>';
+  cats.forEach(function(c){
+    var n=gates.filter(function(g){return g.category===c.name;}).length;
+    r1+='<th class="cat" colspan="'+(n+1)+'" style="background:'+c.dark+'"'+
+        tipAttr(c.tip,c.name+' · '+Math.round(c.weight*100)+'% of composite')+'>'+
+        esc(c.name)+' &middot; '+Math.round(c.weight*100)+'%</th>';
+  });
+  r1+='</tr><tr>';
+  cats.forEach(function(c){
+    gates.filter(function(g){return g.category===c.name;}).forEach(function(g){
+      r1+='<th class="g" style="background:'+c.light+';color:#1a1d21" data-k="'+
+          g.key+'"'+tipAttr(g.tip,g.label+'  (pass: '+g.threshold+')')+'>'+
+          esc(g.label)+'<span class="thr">'+esc(g.threshold)+'</span></th>';
+    });
+    r1+='<th class="g tot" style="background:'+c.light+';color:#1a1d21" data-k="'+
+        c.scoreKey+'"'+tipAttr('Average of the '+c.name+' gates that apply to '+
+        'this currency, weighted within the pillar. Gates that cannot describe '+
+        'a currency are excluded from the average rather than scored zero.',
+        c.name+' total')+'>Total</th>';
+  });
+  document.getElementById('mhead').innerHTML=r1+'</tr>';
+
+  var rows=sorted(visible()),h='';
+  rows.forEach(function(r){
+    h+='<tr data-c="'+esc(r.code)+'"><td class="l"><span class="code">'+
+       esc(r.code)+'</span></td><td class="l"><span class="pill '+
+       ratingCls(r.rating)+'">'+esc(r.rating)+'</span></td>';
+    cats.forEach(function(c){
+      gates.filter(function(g){return g.category===c.name;}).forEach(function(g){
+        var gp=r[g.gpKey],v=r[g.key];
+        var cls=gp===true?'gp-1':gp===false?'gp-0':'gp-x';
+        var txt=gp===null||gp===undefined?'&mdash;':(fmtBy(g.fmt,v)||'&mdash;');
+        h+='<td class="'+cls+'">'+txt+'</td>';
+      });
+      var sc=r[c.scoreKey];
+      h+='<td class="tot">'+(isNum(sc)?sc.toFixed(0):'&mdash;')+'</td>';
+    });
+    h+='</tr>';
+  });
+  document.getElementById('mbody').innerHTML=h;
+  bindRows('#mbody');
+  [].forEach.call(document.querySelectorAll('#mhead th[data-k]'),function(th){
+    th.style.cursor='pointer';
+    th.onclick=function(){
+      var k=th.getAttribute('data-k');
+      if(S.sort===k)S.dir=-S.dir;else{S.sort=k;S.dir=-1;}
+      renderMatrix();
+    };
+  });
+}
+
+/* ------------------------------------------------------------------- map */
+var MAP_STOPS=[
+  [0,  '#b3261e'],[25, '#d9772b'],[40, '#d9c22b'],
+  [55, '#8fbf3f'],[70, '#3f9e4d'],[100,'#1e7d3a']
+];
+function scoreColor(v){
+  if(!isNum(v))return null;
+  for(var i=MAP_STOPS.length-1;i>=0;i--)if(v>=MAP_STOPS[i][0])return MAP_STOPS[i][1];
+  return MAP_STOPS[0][1];
+}
+function renderMap(){
+  var host=document.getElementById('map');
+  if(!WORLD_SVG){host.innerHTML='<p class="dim">Basemap unavailable.</p>';return;}
+  if(!host.firstChild)host.innerHTML=WORLD_SVG;
+
+  var rows=visible(),byIso={},drawn=0;
+  rows.forEach(function(r){
+    (r.map_iso3||[]).forEach(function(i){byIso[i]=r;});
+  });
+  var missing=[];
+  [].forEach.call(host.querySelectorAll('path'),function(p){
+    var iso=p.getAttribute('data-iso'),r=byIso[iso];
+    if(r){
+      var c=scoreColor(r._composite_score);
+      p.style.fill=c||'';
+      p.classList.add('has');
+      p.setAttribute('data-c',r.code);
+      var s=isNum(r._composite_score)?r._composite_score.toFixed(0):'n/a';
+      var t=p.querySelector('title')||
+            document.createElementNS('http://www.w3.org/2000/svg','title');
+      t.textContent=(p.getAttribute('data-name')||iso)+' — '+r.code+
+                    ' — score '+s+' — '+r.rating;
+      if(!t.parentNode)p.appendChild(t);
+      p.onclick=function(){openDetail(r.code);};
+      drawn++;
+    }else{
+      p.style.fill='';p.classList.remove('has');p.onclick=null;
+      p.removeAttribute('data-c');
+    }
+  });
+
+  /* Honest caption: count what actually got drawn, and name what could not.
+     HKG, SGP and MLT have no path at 110m resolution — they are too small —
+     so their currencies appear in every table but never on the map. */
+  var isoNeeded={};rows.forEach(function(r){(r.map_iso3||[]).forEach(function(i){isoNeeded[i]=1;});});
+  var present={};[].forEach.call(host.querySelectorAll('path'),function(p){
+    present[p.getAttribute('data-iso')]=1;});
+  Object.keys(isoNeeded).forEach(function(i){if(!present[i])missing.push(i);});
+
+  var lg='<span>Composite score</span>';
+  MAP_STOPS.forEach(function(s,i){
+    lg+='<i style="background:'+s[1]+'"></i>';
+    if(i<MAP_STOPS.length-1)lg+='<span style="margin-right:4px">'+s[0]+'</span>';
+  });
+  lg+='<span>100</span><i style="background:var(--na);margin-left:10px"></i>'+
+      '<span>not covered</span>';
+  document.getElementById('legend').innerHTML=lg;
+
+  document.getElementById('mapnote').innerHTML=
+    drawn+' countries tinted from '+rows.length+' currencies. The euro area '+
+    'shares one score across its members.'+
+    (missing.length?' No basemap shape at this resolution for: '+
+      esc(missing.sort().join(', '))+' — those currencies are in the tables '+
+      'but not on the map.':'');
+}
+
+/* ---------------------------------------------------------------- detail */
+function kv(label,val,cls,tip,tipTitle){
+  return '<div class="kv"><span'+(cls?' class="'+cls+'"':'')+
+         (tip?tipAttr(tip,tipTitle):'')+'>'+esc(label)+
+         '</span>'+(val===null||val===undefined
+           ? '<b class="na">&mdash;</b>' : '<b>'+val+'</b>')+'</div>';
+}
+function sparkSVG(spark){
+  if(!spark||spark.length<2)return '';
+  var W=900,H=120,n=spark.length,lo=Infinity,hi=-Infinity;
+  spark.forEach(function(p){if(p[1]<lo)lo=p[1];if(p[1]>hi)hi=p[1];});
+  if(!(hi>lo))return '';
+  var pts=spark.map(function(p,i){
+    var x=i/(n-1)*W, y=H-(p[1]-lo)/(hi-lo)*(H-8)-4;
+    return x.toFixed(1)+','+y.toFixed(1);
+  }).join(' ');
+  var first=spark[0],last=spark[n-1];
+  var up=last[1]>=first[1];
+  return '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'+
+    '<polyline points="'+pts+'" fill="none" stroke="'+(up?'#3f9e4d':'#b3261e')+
+    '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>'+
+    '<div class="kv" style="border:none;padding-top:7px">'+
+    '<span class="dim">'+esc(first[0])+'</span>'+
+    '<span class="dim">USD per unit &middot; '+
+    (up?'+':'')+((last[1]/first[1]-1)*100).toFixed(1)+'% over the window</span>'+
+    '<span class="dim">'+esc(last[0])+'</span></div>';
+}
+
+/* ------------------------------------------------------- modal scrolling */
+/* The overlay is sized by `inset:0` and scrolls, so there is no height to
+   compute here and no viewport event to listen for — see the CSS. What is
+   left is the scroll lock, which is the only reason the page behind the
+   overlay does not move with it. `overflow:hidden` on the body is ignored on
+   iOS; pinning it is not. The scroll offset moves onto `top` so the page does
+   not jump, and is restored on close. */
+var _MASK=document.getElementById('mask'),_lockY=0,_locked=false;
+
+function lockBody(){
+  if(_locked)return;
+  _lockY=window.pageYOffset||document.documentElement.scrollTop||0;
+  /* Desktop only: pinning the body removes a classic scrollbar and the page
+     underneath widens by its width. iOS overlay scrollbars measure 0 here. */
+  var sw=window.innerWidth-document.documentElement.clientWidth;
+  var b=document.body.style;
+  b.position='fixed';b.top=(-_lockY)+'px';b.left='0';b.right='0';
+  b.width='100%';b.overflow='hidden';
+  if(sw>0)b.paddingRight=sw+'px';
+  _locked=true;
+}
+function unlockBody(){
+  if(!_locked)return;
+  var b=document.body.style;
+  b.position='';b.top='';b.left='';b.right='';b.width='';b.overflow='';
+  b.paddingRight='';
+  _locked=false;
+  window.scrollTo(0,_lockY);
+}
+function openDetail(code){
+  var r=BY_CODE[code];if(!r)return;
+  var h='<div class="mhead"><div>'+
+    '<h2>'+esc(r.code)+' &middot; '+esc(r.name)+'</h2></div>'+
+    '<button class="close" id="x" aria-label="Close">&times;</button></div>'+
+    '<p class="sub" style="margin:9px 0 0">'+
+      '<span class="pill '+ratingCls(r.rating)+'">'+esc(r.rating)+'</span> '+
+      '&nbsp;<span'+tipAttr(GM.ui.composite,'Composite')+'>composite <b class="num">'+
+      (isNum(r._composite_score)?r._composite_score.toFixed(1):'n/a')+'</b></span>'+
+      ' &middot; <span'+tipAttr(GM.ui.gates,'Gates passed')+'>gates '+
+      esc(r._gates_passed||'')+'</span>'+
+      ' &middot; <span'+tipAttr(GM.ui.coverage,'Data coverage')+'>coverage '+
+      (isNum(r._data_coverage_score)?r._data_coverage_score.toFixed(0)+'%':'n/a')+'</span>'+
+      ' &middot; <span class="reg"'+tipAttr(GM.ui.regime,'Regime: '+r.regime)+'>'+
+      esc(r.regime)+'</span></p>';
+
+  if(r._rating_cap&&r._rating_cap_reasons&&r._rating_cap_reasons.length){
+    h+='<div class="note"><b>Rating capped at '+esc(r._rating_cap)+
+       ' (raw '+esc(r.rating_raw)+')</b>'+
+       r._rating_cap_reasons.map(function(x){return esc(x);}).join('<br>')+'</div>';
+  }
+
+  h+='<div class="spark"'+tipAttr(GM.ui.spark,'Price history')+'>'+
+     (sparkSVG(r.spark)||'<span class="dim">No price history.</span>')+'</div>';
+
+  h+='<div class="mgrid">';
+  GM.categories.forEach(function(c){
+    var gs=GM.gates.filter(function(g){return g.category===c.name;});
+    var sc=r[c.scoreKey];
+    h+='<div class="card"><h3 style="background:'+c.dark+'"'+
+       tipAttr(c.tip,c.name+' · '+Math.round(c.weight*100)+'% of composite')+'>'+
+       esc(c.name)+' &middot; '+(isNum(sc)?sc.toFixed(0):'n/a')+'</h3>';
+    gs.forEach(function(g){
+      var gp=r[g.gpKey],v=r[g.key],s=r[g.scoreKey];
+      var mark=gp===true?'✓ ':gp===false?'✗ ':'';
+      var na=(gp===null||gp===undefined);
+      var shown=na
+        ? null
+        : (fmtBy(g.fmt,v)||'—')+'  <span class="dim">'+
+          (isNum(s)?s.toFixed(0):'')+'</span>';
+      // An N/A row is the one that most needs explaining, so append the
+      // two-kinds-of-N/A note rather than leaving a bare dash.
+      var tip=g.tip+(na?'  —  '+GM.ui.na:'  Passes when '+g.threshold+'.');
+      h+=kv(mark+g.label,shown,null,tip,g.label);
+    });
+    h+='</div>';
+  });
+
+  /* Context fields that are displayed but deliberately not scored: coverage
+     is too thin across the universe to rank on (external debt is reported to
+     the World Bank mainly by developing economies). */
+  h+='<div class="card"><h3 style="background:var(--ink-dim)">Context</h3>'+
+     kv('Spot (USD per unit)',isNum(r.spot)?r.spot.toPrecision(6):null)+
+     kv('Spot date',r.spot_date)+
+     kv('REER level',fnum(r.reer_level,1))+
+     kv('REER as of',r.reer_period)+
+     kv('REER history',r.reer_months?r.reer_months+' months':null)+
+     kv('12m return',fpct(r.ret_12m))+
+     kv('6m return',fpct(r.ret_6m))+
+     kv('3m volatility',fpct(r.vol_3m))+
+     kv('Gov debt (% GDP)',fnum(r.gov_debt_pct_gdp,1))+
+     kv('External debt (% GNI)',fnum(r.external_debt_pct_gni,1))+
+     kv('Macro vintage',r.macro_year)+
+     '</div></div>';
+  h+='<p class="sub" style="margin-top:14px">Grey values are not applicable: '+
+     'either the data is missing, or the gate cannot describe this currency.</p>';
+
+  var m=document.getElementById('modal');
+  m.innerHTML=h;
+  lockBody();
+  _MASK.classList.add('open');
+  /* The overlay is the scroll container now, and it keeps its offset from
+     whichever panel was open last. */
+  _MASK.scrollTop=0;
+  /* A tap on a row often lands on the rating pill, which carries a tooltip.
+     The tooltip sits above the overlay and would otherwise hang over the
+     panel that same tap just opened. */
+  clearTimeout(_TIPT);hideTip();
+  document.getElementById('x').onclick=closeDetail;
+}
+function closeDetail(){
+  if(!_MASK.classList.contains('open'))return;
+  _MASK.classList.remove('open');
+  unlockBody();
+  clearTimeout(_TIPT);hideTip();
+}
+
+/* ------------------------------------------------------------------ views */
+function showView(v){
+  S.view=v;
+  ['table','matrix','map'].forEach(function(n){
+    document.getElementById('view-'+n).classList.toggle('hide',n!==v);
+  });
+  [].forEach.call(document.querySelectorAll('[data-view]'),function(b){
+    b.classList.toggle('on',b.getAttribute('data-view')===v);
+  });
+  try{location.hash=v;}catch(e){}
+  render();
+}
+function render(){
+  if(S.view==='table'){renderHead();renderBody();}
+  else if(S.view==='matrix'){renderMatrix();
+    document.getElementById('count').textContent=
+      visible().length+' of '+DATA.length+' shown';}
+  else{renderMap();
+    document.getElementById('count').textContent=
+      visible().length+' of '+DATA.length+' shown';}
+}
+
+/* ------------------------------------------------------------------- init */
+(function(){
+  var chips=GM.ratings.map(function(r){
+    return '<label class="chip" data-r="'+esc(r)+'">'+esc(r)+'</label>';
+  }).join(' ');
+  document.getElementById('ratingChips').innerHTML=chips;
+  [].forEach.call(document.querySelectorAll('[data-r]'),function(el){
+    el.onclick=function(){
+      var r=el.getAttribute('data-r');
+      S.ratings[r]=!S.ratings[r];
+      el.classList.toggle('on',S.ratings[r]);
+      render();
+    };
+  });
+
+  document.getElementById('q').oninput=function(e){S.q=e.target.value;render();};
+  document.getElementById('floatOnly').onclick=function(){
+    S.floatOnly=!S.floatOnly;
+    this.classList.toggle('on',S.floatOnly);render();
+  };
+  document.getElementById('reset').onclick=function(){
+    S={view:S.view,q:'',ratings:{},floatOnly:false,
+       sort:'_composite_score',dir:-1};
+    document.getElementById('q').value='';
+    [].forEach.call(document.querySelectorAll('.chip'),function(c){
+      c.classList.remove('on');});
+    render();
+  };
+  [].forEach.call(document.querySelectorAll('[data-view]'),function(b){
+    b.onclick=function(){showView(b.getAttribute('data-view'));};
+  });
+  document.getElementById('theme').onclick=function(){
+    var dark=document.documentElement.getAttribute('data-theme')==='dark';
+    if(dark)document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme','dark');
+    try{localStorage.setItem('ccy_theme_v1',dark?'light':'dark');}catch(e){}
+    if(S.view==='map')renderMap();
+  };
+  document.getElementById('mask').onclick=function(e){
+    if(e.target===this)closeDetail();};
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape')closeDetail();});
+
+  var p=[];
+  if(PROV.generated_at)p.push('Generated '+esc(PROV.generated_at));
+  if(PROV.run_date)p.push('run date '+esc(PROV.run_date));
+  if(isNum(PROV.stale_slots)&&PROV.stale_slots>0)
+    p.push('<b>'+PROV.stale_slots+' data slots served from an expired cache</b> '+
+           '(an upstream endpoint was unreachable at build time)');
+  var ec=PROV.event_counts||{};
+  var evs=Object.keys(ec).map(function(k){return k+': '+ec[k];});
+  if(evs.length)p.push('events &mdash; '+esc(evs.join(', ')));
+  document.getElementById('provline').innerHTML=p.join(' &middot; ');
+
+  var h=(location.hash||'').replace('#','');
+  showView(['table','matrix','map'].indexOf(h)>=0?h:'table');
+})();
+</script>
+</body>
+</html>
