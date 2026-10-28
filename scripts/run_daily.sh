@@ -24,7 +24,9 @@
 # Steps, in order (names are valid --from values):
 #   preflight  market_open.py gate (exit 10 = closed → whole run skipped)
 #   prices     refresh output/prices parquets              (non-blocking)
-#   pull       fast-forward main so the render uses merged templates (non-blocking)
+#   pull       fast-forward main so the run uses merged code; a checkout left on a
+#              merged branch with no uncommitted edits goes back to main first
+#              (non-blocking)
 #   analyze    analyze_stock.py                            (BLOCKING), then the
 #              companyfacts cache backup to Supabase Storage (non-blocking)
 #   enrich     FDIC, REIT, XBRL, FDA enrichment, price top-up for new entrants,
@@ -264,13 +266,36 @@ if wants prices; then
 fi
 
 # ---------------------------------------------------------------- pull
+# The whole run executes this checkout's code, so it wants main. A checkout
+# left on a branch that is already merged into origin/main, with no
+# uncommitted edits, has nothing to lose, so it goes back to main. On
+# 2026-10-27 the run started on claude/bond-tab (merged that afternoon) and
+# analyzed with code from before two merged PRs. Anything else (commits not
+# on main, uncommitted edits) is someone's work in progress and is left as
+# it is, as before. Untracked files never block the switch; git refuses a
+# switch that would overwrite one.
+pull_main() {
+  local branch
+  branch="$(git rev-parse --abbrev-ref HEAD)" || return 1
+  if [ "$branch" != main ]; then
+    git fetch -q origin main || return 1
+    if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+      echo "checkout is on '$branch' with uncommitted changes; left as is"; return 0
+    fi
+    if ! git merge-base --is-ancestor HEAD origin/main; then
+      echo "checkout is on '$branch', which has commits not on main; left as is"; return 0
+    fi
+    git switch -q main || return 1
+    echo "checkout was on '$branch' (merged into main, no uncommitted changes); switched to main"
+  fi
+  git pull -q --ff-only origin main
+}
+
 if wants pull; then
-  branch="$(git rev-parse --abbrev-ref HEAD)"
-  if [ "$branch" = main ]; then
-    run pull soft git pull --ff-only origin main \
-      || note "git pull --ff-only failed — rendering from the current checkout (stale templates possible)"
-  else
-    note "checkout is on '$branch', not main — skipped the fast-forward; the render uses this branch's templates"
+  if ! run pull soft pull_main; then
+    note "git pull --ff-only failed — rendering from the current checkout (stale templates possible)"
+  elif [ "$DRY_RUN" = 0 ] && [ "$(git rev-parse --abbrev-ref HEAD)" != main ]; then
+    note "checkout is on '$(git rev-parse --abbrev-ref HEAD)', not main (unmerged commits or uncommitted changes) — skipped the fast-forward; the render uses this branch's code"
   fi
 fi
 
