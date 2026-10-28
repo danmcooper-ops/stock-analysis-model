@@ -507,6 +507,9 @@ publish() {
   # macro.json is optional; never publish yesterday's under today's HTML.
   if [ -f output/macro.json ]; then cp output/macro.json "$docs/macro.json" || return 1
   else rm -f "$docs/macro.json"; fi
+  # bonds.json (Financial Model › Bond Valuations) is optional the same way.
+  if [ -f output/bonds.json ]; then cp output/bonds.json "$docs/bonds.json" || return 1
+  else rm -f "$docs/bonds.json"; fi
   rm -f "$docs/prices.json"   # retired 2026-08-11
   rm -f "$docs/hist.json" "$docs/details.json"   # split into hist/ and details/ (P4c)
   "$VPY" scripts/publish_vol_shards.py || { echo "publish: shard sync failed"; return 1; }

@@ -1374,33 +1374,52 @@ circle.etfc-spy{fill:var(--etfc-s);}
 .etfc-msg{font-size:0.8em;color:var(--ppf-sub);padding:40px 0;text-align:center;}
 .etfc-note{font-size:0.74em;color:var(--ppf-sub);margin-top:4px;}
 @media (max-width:768px){.etf-sm-hide{display:none;}.etf-rel{min-width:120px;}}
-/* Bonds vs Stocks (renderBondsVsStocks). Bond and stock bars reuse the
-   .etfc pair, validated for CVD separation on both surfaces. */
-#bnd-rv{--bnd-b:#c4701f;--bnd-s:#3a6ea5;}
-[data-theme="dark"] #bnd-rv{--bnd-b:#d07a2c;--bnd-s:#5b95d4;}
-.bnd-head{margin:4px 0 14px;color:var(--ppf-txt);}
-.bnd-hl{font-size:1.15em;font-weight:600;margin-bottom:6px;}
-.bnd-facts{margin:0;padding-left:18px;font-size:0.85em;line-height:1.6;}
-.bnd-facts b,.bnd-v,.bnd-tbl td{font-variant-numeric:tabular-nums;}
-.bnd-key{display:flex;gap:16px;font-size:0.8em;color:var(--ppf-sub);margin-bottom:6px;}
-.bnd-key i{display:inline-block;width:12px;height:10px;border-radius:2px;vertical-align:middle;margin-right:5px;}
-.bnd-kb i{background:var(--bnd-b);}.bnd-ks i{background:var(--bnd-s);}
-.bnd-ladder{display:flex;flex-direction:column;gap:8px;margin-bottom:18px;}
-.bnd-row{display:grid;grid-template-columns:minmax(150px,34%) 1fr 60px;align-items:center;gap:10px;}
-.bnd-l{font-size:0.85em;color:var(--ppf-txt);line-height:1.3;}
-.bnd-s .bnd-l{font-weight:600;}
-.bnd-m{display:block;font-size:0.85em;color:var(--ppf-sub);}
-.bnd-bar{position:relative;height:12px;}
-.bnd-bar i{position:absolute;top:0;bottom:0;border-radius:2px;background:var(--bnd-b);}
-.bnd-s .bnd-bar i{background:var(--bnd-s);}
-.bnd-v{text-align:right;font-size:0.85em;color:var(--ppf-txt);}
-.bnd-sl{margin-top:8px;}
-.bnd-pos{color:var(--ppf-tw);}.bnd-neg{color:var(--ppf-hw);}
+/* Bond Valuations (renderBondView): the bond model's report in this page's
+   tiles, cards and table. Series colours are the .etfc pair plus a green and
+   a neutral, with dark steps; every text colour has a dark override below. */
+#bv{--bv-warn:#a8621b;--bv-c0:#2f7d4f;--bv-c1:#3a6ea5;--bv-c2:#c4701f;--bv-c3:#90a4ae;}
+[data-theme="dark"] #bv{--bv-warn:#d99a4e;--bv-c0:#4fb37a;--bv-c1:#5b95d4;--bv-c2:#d07a2c;--bv-c3:#6e7681;}
+/* Flex, not the 4-column grid: seven tiles would leave an empty cell. */
+.pp-tiles.bv-tiles{display:flex;flex-wrap:wrap;gap:1px;margin:0 0 14px;}
+.bv-tiles .pp-tile{flex:1 1 118px;}
+.bv-tiles .pp-tile{cursor:help;}
+.bv-warn{border-left:3px solid var(--bv-warn);background:color-mix(in srgb,var(--bv-warn) 8%,transparent);border-radius:6px;padding:10px 14px;margin:0 0 12px;font-size:0.82em;line-height:1.55;color:var(--ppf-txt);}
+.bv-warn h4{margin:0 0 4px;font-size:1.05em;color:var(--bv-warn);}
+.bv-warn p{margin:0;}.bv-warn ul{margin:0;padding-left:18px;}.bv-warn li{margin:3px 0;}
+.bv-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin:4px 0 18px;}
+.bv-card{border:1px solid var(--ppf-line);border-radius:10px;padding:12px 14px;background:var(--ppf-bg);min-width:0;}
+.bv-card h4{margin:0 0 10px;font-size:0.86em;color:var(--ppf-txt);}
+.bv-card h4[title],.bv-tl{cursor:help;text-decoration:underline dotted var(--ppf-sub);text-underline-offset:3px;}
+.bv-dist{display:grid;grid-template-columns:minmax(0,max-content) minmax(40px,1fr) auto;gap:6px 10px;align-items:center;font-size:0.78em;color:var(--ppf-txt);}
+.bv-dist>span:nth-child(3n+1){max-width:13em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.bv-dist i{display:block;height:8px;border-radius:2px;background:var(--bv-c1);}
+.bv-dist em{font-style:normal;color:var(--ppf-sub);font-variant-numeric:tabular-nums;text-align:right;}
+.bv-svg{width:100%;height:auto;display:block;}
+.bv-svg .g{stroke:var(--ppf-line);stroke-width:1;}
+.bv-svg text{fill:var(--ppf-sub);font-size:11px;}
+.bv-key{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:0.76em;color:var(--ppf-sub);margin:0 0 4px;}
+.bv-key i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px;}
+.bv-note{font-size:0.74em;color:var(--ppf-sub);margin:8px 0 0;line-height:1.5;}
+.bv-ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 10px;font-size:0.82em;}
+.bv-ctl input[type=search],.bv-ctl select,.bv-ctl button{font:inherit;padding:5px 9px;border:1px solid var(--ppf-line);border-radius:6px;background:var(--ppf-bg);color:var(--ppf-txt);}
+.bv-ctl input[type=search]{min-width:220px;flex:0 1 260px;}
+.bv-ctl button{cursor:pointer;}
+.bv-ctl label{display:flex;align-items:center;gap:4px;color:var(--ppf-txt);}
+.bv-n{color:var(--ppf-sub);}
+.bv-wrap{max-height:74vh;overflow:auto;border:1px solid var(--ppf-line);border-radius:8px;}
+.bv-tbl th{position:sticky;top:0;z-index:2;background:var(--ppi-bg);cursor:pointer;}
+.bv-tbl th:first-child{z-index:3;}
+.bv-tbl th.bv-l,.bv-tbl td.bv-l{text-align:left;}
+.bv-tbl tbody tr:hover td{background:var(--ppi-bg);}
+.bv-pos{color:var(--ppf-tw);}.bv-neg{color:var(--ppf-hw);}.bv-caps{color:var(--bv-warn);}.bv-mut{color:var(--ppf-sub);}
 /* !important beats the blanket dark `body *{color:#fff !important}` rule. */
-[data-theme="dark"] .bnd-pos{color:var(--ppf-tw) !important;}
-[data-theme="dark"] .bnd-neg{color:var(--ppf-hw) !important;}
-[data-theme="dark"] .bnd-m,[data-theme="dark"] .bnd-key span{color:var(--ppf-sub) !important;}
-@media (max-width:768px){.bnd-row{grid-template-columns:1fr 54px;}.bnd-bar{grid-column:1 / -1;grid-row:2;}}
+[data-theme="dark"] .bv-warn,[data-theme="dark"] .bv-warn li,[data-theme="dark"] .bv-warn p,[data-theme="dark"] .bv-card h4,[data-theme="dark"] .bv-dist span,[data-theme="dark"] .bv-ctl label,[data-theme="dark"] .bv-ctl input,[data-theme="dark"] .bv-ctl select,[data-theme="dark"] .bv-ctl button{color:var(--ppf-txt) !important;}
+[data-theme="dark"] .bv-warn h4{color:var(--bv-warn) !important;}
+[data-theme="dark"] .bv-dist em,[data-theme="dark"] .bv-key,[data-theme="dark"] .bv-key span,[data-theme="dark"] .bv-note,[data-theme="dark"] .bv-n,[data-theme="dark"] .bv-mut{color:var(--ppf-sub) !important;}
+[data-theme="dark"] .bv-pos{color:var(--ppf-tw) !important;}
+[data-theme="dark"] .bv-neg{color:var(--ppf-hw) !important;}
+[data-theme="dark"] .bv-caps{color:var(--bv-warn) !important;}
+@media (max-width:768px){.bv-ctl input[type=search]{min-width:0;flex:1 1 100%;}.bv-wrap{max-height:70vh;}}
 :root{--ppf-tw:#1e7d45;--ppf-hw:#c0392b;--ppf-q:#90a4ae;--ppf-line:#e3e8ee;--ppf-sub:#607d8b;--ppf-bg:#fff;--ppf-txt:#263238;}
 [data-theme="dark"]{--ppf-tw:#3fb950;--ppf-hw:#f85149;--ppf-q:#6e7681;--ppf-line:#30363d;--ppf-sub:#8b949e;--ppf-bg:#1c2128;--ppf-txt:#e6edf3;}
 /* Sector forces (renderPoolSectorSignals): one row per force, a plain-word
@@ -4002,7 +4021,7 @@ var SECTOR_POOL={{ sector_pool_json }};
    report_html._build_etf_payload): {base, funds:{T:{...}}, sector_fund}.
    null when no holdings are archived or the run is coverage-degraded. */
 var ETF_LT={{ etf_json }};
-var BOND_RV={{ bond_json|default('null') }};
+var BOND_META={{ bond_meta|default('null') }};
 /* PRICES context lives in prices_meta.json (dates axis, manifests, index
    series, sector composites) with per-ticker closes sharded under px/;
    HIST is sharded per ticker under hist/ (the inline _HIST_TICKERS says
@@ -7532,7 +7551,7 @@ function swMSub(key){
 }
 /* Financial Model's four sub-tabs: Dashboard, Stock Valuations (the gate
    matrix table), ETF Valuations (the SPDRs read through the model) and
-   Bonds vs Stocks. One view shows at a time. */
+   Bond Valuations (the bond model's report). One view shows at a time. */
 function _mIsMatrix(){return (curMSub||'matrix')==='matrix';}
 function _mShow(){
   var mw=document.querySelector('.matrix-wrap'),ov=document.getElementById('m-overview-view'),ev=document.getElementById('m-etf-view'),bv=document.getElementById('m-bond-view');
@@ -7545,10 +7564,6 @@ function _mShow(){
   else if(k==='etf')renderEtfView();
   else if(k==='bond')renderBondView();
   else renderMatrix();
-}
-function renderBondView(){
-  var bv=document.getElementById('m-bond-view');if(!bv)return;
-  bv.innerHTML=renderBondsVsStocks()||'<p style="color:#888;padding:20px;font-size:0.9em">No bond data for this run.</p>';
 }
 function renderEtfView(){
   var ev=document.getElementById('m-etf-view');if(!ev)return;
@@ -12576,7 +12591,7 @@ function _navGroups(){
   var groups=[
     {v:'pool',l:'Sector Analysis',cur:_poolTab||'__performance__',items:pool},
     {v:'matrix',l:'Financial Model',cur:curMSub||'matrix',
-     items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Stock Valuations'},{k:'etf',l:'ETF Valuations'},{k:'bond',l:'Bonds vs Stocks'}]},
+     items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Stock Valuations'},{k:'etf',l:'ETF Valuations'},{k:'bond',l:'Bond Valuations'}]},
     {v:'table',l:'Financial Data',cur:curTSub,
      items:Object.keys(TL).map(function(k){return{k:k,l:TL[k]};})},
     {v:'pf',l:'Portfolios',cur:curPfSub,
@@ -14426,81 +14441,170 @@ function renderEtfLookthrough(){
   h+='</tbody></table></div>'+_etfDetail(F[_etfSel])+'</div>';
   return h;
 }
-/* Financial Model › Bonds vs Stocks (models/bond_relative.py): what stocks
-   pay over bonds at today's prices. Bonds read at their starting yield, high
-   yield after its expected credit loss; stocks cap-weighted over the
-   universe. Display only — nothing here rates a row. */
-function _bndY(v){return v==null||!isFinite(v)?'—':(v*100).toFixed(2)+'%';}
-function _bndPp(v){return v==null||!isFinite(v)?'—':(v>=0?'+':'−')+Math.abs(v*100).toFixed(1)+'pp';}
-function _bndGap(v){return (Math.abs(v)*100).toFixed(1)+'pp';}
-function _bndOrd(p){var n=Math.round(p*100),s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
-/* Every bond line and every stock measure on one % axis, highest first, so
-   the reader sees where stocks sit among bonds. */
-function _bndLadder(R){
-  var S=R.stocks||{},items=(R.bonds||[]).map(function(b){return {l:b.l,y:b.y,k:'b',b:b};});
-  [['earnings_yield','Stocks: earnings yield'],['fcf_yield','Stocks: free cash flow yield'],['shareholder_yield','Stocks: shareholder yield']].forEach(function(x){
-    if(S[x[0]]!=null)items.push({l:x[1],y:S[x[0]],k:'s'});
-  });
-  items=items.filter(function(i){return i.y!=null&&isFinite(i.y);}).sort(function(a,b){return b.y-a.y;});
-  var lo=Math.min(0,Math.min.apply(null,items.map(function(i){return i.y;}))),hi=Math.max.apply(null,items.map(function(i){return i.y;}));
-  var span=(hi-lo)||1,pos=function(v){return (v-lo)/span*100;},z=pos(0);
-  var h='<div class="bnd-key"><span class="bnd-kb"><i></i>Bonds</span><span class="bnd-ks"><i></i>Stocks</span></div><div class="bnd-ladder">';
-  items.forEach(function(i){
-    var a=pos(Math.min(0,i.y)),w=Math.abs(pos(i.y)-z),meta=[];
-    if(i.b){
-      if(i.b.chg_1y!=null)meta.push(_bndPp(i.b.chg_1y)+' in a year');
-      if(i.b.pctile!=null)meta.push(_bndOrd(i.b.pctile)+' percentile, '+_esc(i.b.pct_win||'')+'');
-      if(i.b.note)meta.push(_esc(i.b.note)+' (gross '+_bndY(i.b.gross)+')');
-      if(i.b.derived)meta.push('≈ '+_esc(i.b.derived));
+/* Financial Model › Bond Valuations: the bond model's report
+   (bond-analysis-model's bond_report_<date>.json, staged beside this page as
+   bonds.json by report_html._stage_bond_report) drawn in this report's
+   styling. Every number and caveat is the bond model's own; this only draws
+   it. Display only: no bond reaches DATA, a rating or a filter. */
+var _BV=null,_BV_LOADING=false,_BV_FAILED=false,_BV_LIMIT=1000;
+var _bvSortK='_composite_score',_bvAsc=false,_bvF={q:'',r:'',c:'',b:'',u:false};
+var _BV_LEFT={text:1,cls:1,rating:1,caps:1,bucket:1,date:1};
+var _BV_SERIES={'tight':'--bv-c0','mid':'--bv-c1','wide':'--bv-c2','FRED slices':'--bv-c3'};
+function renderBondView(){
+  var bv=document.getElementById('m-bond-view');if(!bv)return;
+  var msg=function(t){bv.innerHTML='<p style="color:#888;padding:20px;font-size:0.9em">'+t+'</p>';};
+  if(!BOND_META)return msg('No bond report for this run.');
+  if(!_BV){
+    if(_BV_FAILED)return msg('The bond report could not be loaded.');
+    msg('Loading '+(BOND_META.total||0).toLocaleString()+' bonds…');
+    if(!_BV_LOADING){
+      _BV_LOADING=true;
+      var again=function(){_BV_LOADING=false;if(curView==='matrix'&&curMSub==='bond')renderBondView();};
+      _loadSidecar('bonds.json',function(d){if(d&&d.rows)_BV=d;else _BV_FAILED=true;again();});
     }
-    h+='<div class="bnd-row bnd-'+i.k+'"><div class="bnd-l">'+_esc(i.l)+(meta.length?'<span class="bnd-m">'+meta.join(' · ')+'</span>':'')+'</div>'
-      +'<div class="bnd-bar"><i style="left:'+a.toFixed(1)+'%;width:'+Math.max(w,0.5).toFixed(1)+'%"></i></div>'
-      +'<b class="bnd-v">'+_bndY(i.y)+'</b></div>';
-  });
-  return h+'</div>';
-}
-/* A sector row opens its sector page as a drill, so ‹ Bonds vs Stocks and
-   Back return here (drillPoolTab assumes the sector view is already up). */
-function _bndSector(sec){_drillPush('Bonds vs Stocks');showView('pool');showPoolTab(sec);_drillSeal();}
-function renderBondsVsStocks(){
-  var R=BOND_RV;if(!R||!R.bonds||!R.bonds.length)return '';
-  var S=R.stocks||{},P=R.premia||{},by={};
-  R.bonds.forEach(function(b){by[b.id]=b;});
-  var tips=by.tips10,ig=by.ig,pe=S.earnings_yield>0?1/S.earnings_yield:null;
-  var lead=P.vs_real!=null
-    ?'Stocks earn <b>'+_bndGap(P.vs_real)+'</b> '+(P.vs_real>=0?'more':'less')+' than inflation-protected Treasuries'
-    :'Stock and bond yields';
-  var h='<div class="xsect-dashboard" id="bnd-rv">'
-    +_qHelp('<span class="note-q-t">A bond held to maturity returns about its yield today, so each bond is shown at its yield. High yield is shown after a '+_bndY(R.hy_credit_loss).replace('.00','')+' expected loss to defaults. On the stock side, earnings yield is total earnings ÷ total market value across every company the model covers, losses included. Earnings grow with inflation, so earnings yield is compared with the inflation-protected (TIPS) yield, not the ordinary one. Bank and other lender cash flow is left out of the free cash flow yield, because deposits run through it. Corporate yields go back only about 3 years on FRED, so their percentiles cover that span. A line marked ≈ is built from the nearest series when the direct one is missing.</span>','How to read this','corner')
-    +'<div class="sec-label">Bonds vs Stocks</div>'
-    +'<div class="xsect-sub">What stocks pay over bonds at today’s prices. Yields as of '+_esc(R.as_of||'?')+'.</div>'
-    +'<div class="bnd-head"><div class="bnd-hl">'+lead+'.</div><ul class="bnd-facts">';
-  if(S.earnings_yield!=null&&tips)h+='<li>Earnings yield <b>'+_bndY(S.earnings_yield)+'</b>'+(pe?' (P/E '+pe.toFixed(1)+')':'')+' against the 10-year TIPS at <b>'+_bndY(tips.y)+'</b>.</li>';
-  if(P.fcf_vs_ig!=null&&ig)h+='<li>Free cash flow yield <b>'+_bndY(S.fcf_yield)+'</b> is <b>'+_bndGap(P.fcf_vs_ig)+'</b> '+(P.fcf_vs_ig>=0?'above':'below')+' investment-grade corporate bonds at <b>'+_bndY(ig.y)+'</b>.</li>';
-  if(R.model&&R.model.mos!=null)h+='<li>The model’s own fair values put '+(R.model.source==='SPY'?'SPY':'the covered market')+' at <b>'+_etfPct(R.model.mos)+'</b> margin of safety.</li>';
-  h+='</ul></div>'+_bndLadder(R);
-  var sec=(R.sectors||[]);
-  if(sec.length){
-    h+='<div class="sec-label bnd-sl">By Sector</div><div class="xsect-sub">Each sector’s yields against the same bonds. Tap a sector to open its page.</div>'
-      +'<div class="ppi-wrap"><table class="ppi-tbl bnd-tbl"><thead><tr>'+_ppiTh('Sector','s')+'<th data-t="n" class="etf-sm-hide" onclick="_ppiSort(this)">Companies</th>'
-      +_ppiTh('Earnings yield')+'<th data-t="n" class="etf-sm-hide" onclick="_ppiSort(this)">FCF yield</th>'+_ppiTh('vs TIPS','n',true)+_ppiTh('FCF vs IG')+'</tr></thead><tbody>';
-    sec.forEach(function(e){
-      var ok=e.status==='ok';
-      var sg=function(v){return v==null?'—':'<span class="'+(v>=0?'bnd-pos':'bnd-neg')+'">'+_bndPp(v)+'</span>';};
-      h+='<tr class="ppi-co" data-sec="'+_attr(e.sector)+'" onclick="_bndSector(this.dataset.sec)" title="Open the '+_attr(e.sector)+' page">'
-        +'<td data-v="'+_attr(e.sector)+'"><b>'+_esc(e.sector)+'</b></td>'
-        +'<td class="etf-sm-hide" data-v="'+e.n+'">'+e.n+'</td>';
-      if(!ok){h+='<td colspan="4" data-v=""><span class="etf-st">'+_esc(e.reason||'not enough data')+'</span></td></tr>';return;}
-      h+='<td data-v="'+_ppiV(e.earnings_yield)+'">'+_bndY(e.earnings_yield)+'</td>'
-        +'<td class="etf-sm-hide" data-v="'+_ppiV(e.fcf_yield)+'">'+_bndY(e.fcf_yield)+'</td>'
-        +'<td data-v="'+_ppiV(e.vs_real)+'">'+sg(e.vs_real)+'</td>'
-        +'<td data-v="'+_ppiV(e.fcf_vs_ig)+'">'+sg(e.fcf_vs_ig)+'</td></tr>';
-    });
-    h+='</tbody></table></div>';
+    return;
   }
-  h+='<div class="etf-note">'+(S.n||0)+' companies, $'+((S.mcap||0)/1e12).toFixed(1)+'T of market value. Display only: nothing here changes a rating.</div>';
+  bv.innerHTML=_bvHtml(_BV);
+  _bvDraw();
+}
+function _bvCls(v){return _esc(String(v).replace('TREASURY_BILL','T-BILL').replace('TREASURY','TSY').replace('CORP_',''));}
+function _bvFmt(v,f){
+  if(v==null||v==='')return '<span class="bv-mut">—</span>';
+  switch(f){
+    case 'pct2':return (v*100).toFixed(2)+'%';
+    case 'n0':return (+v).toFixed(0);
+    case 'n1':return (+v).toFixed(1);
+    case 'n2':return (+v).toFixed(2);
+    case 'int':return (+v).toLocaleString();
+    case 'bp':var b=Math.round(v*10000);return '<span class="'+(b>0?'bv-pos':b<0?'bv-neg':'')+'">'+b+'</span>';
+    case 'usd':var n=+v;return n>=1e9?(n/1e9).toFixed(1)+'bn':n>=1e6?(n/1e6).toFixed(0)+'m':(n/1e3).toFixed(0)+'k';
+    case 'days':return (+v).toFixed(0)+'d';
+    case 'date':return _esc(String(v).slice(0,10));
+    case 'cls':return _bvCls(v);
+    case 'rating':return rb(v);
+    case 'caps':return '<span class="bv-caps">'+_esc(v)+'</span>';
+    default:return _esc(v);
+  }
+}
+/* label | bar | value rows for a small distribution. o: total (shares),
+   top (bar scale), col(label) (bar colour), tip(label), val(v) (value text). */
+function _bvDist(items,o){
+  if(!items||!items.length)return '<p class="bv-note">No data.</p>';
+  o=o||{};
+  var top=o.top||Math.max.apply(null,items.map(function(i){return i[1];}))||1;
+  var tot=o.total||items.reduce(function(a,i){return a+i[1];},0)||1;
+  return '<div class="bv-dist">'+items.map(function(it){
+    var tip=o.tip&&o.tip(it[0]);
+    return '<span'+(tip?' class="bv-tl"':'')+' title="'+_attr(tip||it[0])+'">'+_esc(it[0])+'</span>'
+      +'<span><i style="width:'+Math.max(it[1]/top*100,0.5).toFixed(1)+'%'+(o.col?';background:'+o.col(it[0]):'')+'"></i></span>'
+      +'<em>'+(o.val?o.val(it[1]):it[1].toLocaleString()+' · '+(it[1]/tot*100).toFixed(1)+'%')+'</em>';
+  }).join('')+'</div>';
+}
+/* A small line chart: [{name, points:[[x,y]]}] on one axis, years on x. */
+function _bvLine(series,fmt){
+  var pts=[];series.forEach(function(s){pts=pts.concat(s.points);});
+  if(!pts.length)return '<p class="bv-note">No data.</p>';
+  var W=360,H=200,P=46,xs=pts.map(function(p){return p[0];}),ys=pts.map(function(p){return p[1];});
+  var x0=Math.min.apply(null,xs),x1=Math.max.apply(null,xs),y0=Math.min.apply(null,ys),y1=Math.max.apply(null,ys);
+  if(x1===x0)x1=x0+1;
+  var sp=(y1-y0)||(Math.abs(y1)||1)*0.1;y0-=sp*0.12;y1+=sp*0.12;
+  var px=function(x){return P+(x-x0)/(x1-x0)*(W-P-12);},py=function(y){return H-34-(y-y0)/(y1-y0)*(H-46);};
+  var f=function(v){return fmt==='pct'?(v*100).toFixed(2)+'%':v.toFixed(2)+'x';};
+  var h='<svg class="bv-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+_attr(series.map(function(s){return s.name;}).join(', '))+' by years to maturity">';
+  for(var i=0;i<4;i++){var y=y0+(y1-y0)*i/3;h+='<line class="g" x1="'+P+'" x2="'+(W-12)+'" y1="'+py(y).toFixed(1)+'" y2="'+py(y).toFixed(1)+'"/><text x="'+(P-6)+'" y="'+(py(y)+3).toFixed(1)+'" text-anchor="end">'+f(y)+'</text>';}
+  [0,5,10,20,30,40,50].forEach(function(t){if(t>=x0&&t<=x1)h+='<text x="'+px(t).toFixed(1)+'" y="'+(H-18)+'" text-anchor="middle">'+t+'</text>';});
+  h+='<text x="'+((W+P)/2)+'" y="'+(H-2)+'" text-anchor="middle">years to maturity</text>';
+  series.forEach(function(s){
+    if(!s.points.length)return;
+    var c='var('+(_BV_SERIES[s.name]||'--bv-c1')+')',ps=s.points.slice().sort(function(a,b){return a[0]-b[0];});
+    h+='<path d="'+ps.map(function(p,i){return (i?'L':'M')+px(p[0]).toFixed(1)+','+py(p[1]).toFixed(1);}).join(' ')+'" style="fill:none;stroke:'+c+';stroke-width:2;stroke-linejoin:round"/>';
+    ps.forEach(function(p){h+='<circle cx="'+px(p[0]).toFixed(1)+'" cy="'+py(p[1]).toFixed(1)+'" r="2.5" style="fill:'+c+'"/>';});
+  });
+  h+='</svg>';
+  var key=series.length>1?'<div class="bv-key">'+series.map(function(s){return '<span><i style="background:var('+(_BV_SERIES[s.name]||'--bv-c1')+')"></i>'+_esc(s.name)+'</span>';}).join('')+'</div>':'';
+  return key+h;
+}
+function _bvCard(title,tip,body){
+  return '<div class="bv-card"><h4'+(tip?' title="'+_attr(tip)+'"':'')+'>'+title+'</h4>'+body+'</div>';
+}
+function _bvHtml(D){
+  var T=D.tips||{},N=D.notes||{},total=(D.total||0).toLocaleString();
+  var h='<div class="xsect-dashboard" id="bv">'
+    +'<div class="sec-label">Bond Valuations</div>'
+    +'<div class="xsect-sub">Run '+_esc(D.run_date)+' · curve '+_esc(D.curve_date)+' · '+total+' instruments · US Treasuries and corporate bonds · free data only</div>'
+    +'<div class="pp-tiles bv-tiles">'+(D.cards||[]).map(function(c){return '<div class="pp-tile" title="'+_attr(c.t)+'"><span>'+_esc(c.k)+'</span><b>'+_esc(c.v)+'</b></div>';}).join('')+'</div>';
+  if(D.vintage)h+='<div class="bv-warn"><h4>Marks are '+D.vintage.age_days+' days old</h4><p>The newest fund mark in this dataset is dated '+_esc(D.vintage.date)+'. A newer quarterly N-PORT release is due or already published but not yet loaded; until it is, every price here leans harder on the curve overlay.</p></div>';
+  h+='<div class="bv-warn"><h4>What this is, and what it is not</h4><ul>'+(D.caveats||[]).map(function(c){return '<li><b>'+_esc(c.lead)+'</b> '+_esc(c.text)+'</li>';}).join('')+'</ul></div>';
+  var bt=D.bucket_tips||{};
+  h+='<div class="bv-grid">'
+    +_bvCard('Rating distribution',T.ratings,_bvDist(D.ratings,{total:D.total,col:function(r){return RC[r]||'#888';}}))
+    +_bvCard('Implied credit bucket',T.buckets,_bvDist(D.buckets,{tip:function(b){return bt[b];}}))
+    +_bvCard('Treasury par curve',T.curve,_bvLine([{name:'Treasury par curve',points:D.curve||[]}],'pct'))
+    +_bvCard('Spread term structure, fitted vs FRED',T.term,_bvLine(D.term||[],'x')+(N.term?'<p class="bv-note">'+_esc(N.term)+'</p>':''))
+    +_bvCard('Why rows are capped',T.caps,_bvDist(D.cap_reasons,{col:function(){return 'var(--bv-warn)';},val:function(v){return v.toLocaleString();}}))
+    +_bvCard('Mean score by category',T.categories,_bvDist((D.categories||[]).map(function(c){return [c.label,c.mean];}),{top:100,val:function(v){return Math.round(v);}})+(N.categories?'<p class="bv-note">'+_esc(N.categories)+'</p>':''))
+    +'</div>';
+  var cls={};(D.rows||[]).forEach(function(r){var v=r[_bvIdx().asset_class];if(v)cls[v]=1;});
+  var opt=function(v,l,cur){return '<option value="'+_attr(v)+'"'+(v===cur?' selected':'')+'>'+l+'</option>';};
+  h+='<div class="sec-label">All '+total+' Instruments</div>'
+    +'<div class="bv-ctl">'
+    +'<input type="search" id="bv-q" placeholder="Search CUSIP or issuer…" value="'+_attr(_bvF.q)+'" oninput="_bvSet(\'q\',this.value)" aria-label="Search CUSIP or issuer">'
+    +'<select onchange="_bvSet(\'r\',this.value)" aria-label="Rating">'+opt('','All ratings',_bvF.r)+['BUY','LEAN BUY','HOLD','PASS'].map(function(r){return opt(r,r,_bvF.r);}).join('')+'</select>'
+    +'<select onchange="_bvSet(\'c\',this.value)" aria-label="Asset class">'+opt('','All classes',_bvF.c)+Object.keys(cls).sort().map(function(c){return opt(c,_bvCls(c),_bvF.c);}).join('')+'</select>'
+    +'<select onchange="_bvSet(\'b\',this.value)" aria-label="Implied credit bucket">'+opt('','All buckets',_bvF.b)+(D.buckets||[]).map(function(b){return opt(b[0],b[0],_bvF.b);}).join('')+'</select>'
+    +'<label><input type="checkbox"'+(_bvF.u?' checked':'')+' onchange="_bvSet(\'u\',this.checked)"> Uncapped only</label>'
+    +'<button type="button" onclick="_bvReset()">Reset</button>'
+    +'<span class="bv-n" id="bv-n"></span></div>'
+    +'<div class="ppi-wrap bv-wrap"><table class="ppi-tbl bv-tbl"><thead><tr id="bv-head"></tr></thead><tbody id="bv-body"></tbody></table></div>'
+    +'<div class="bv-note">Click a header to sort; hover one for what it means. Showing the first '+_BV_LIMIT.toLocaleString()+' matching rows; narrow the filters to see the rest.</div>'
+    +'<div class="etf-note">Sources: '+_esc(D.sources||'')+' Generated '+_esc(D.generated||'')+' by the bond analysis model. Not investment advice. Display only: nothing here changes a stock rating.</div>';
   return h+'</div>';
 }
+function _bvIdx(){
+  if(!_BV)return {};
+  if(!_BV._idx){var m={};_BV.columns.forEach(function(c,i){m[c.k]=i;});_BV._idx=m;}
+  return _BV._idx;
+}
+function _bvRows(){
+  var I=_bvIdx(),f=_bvF,q=f.q.trim().toLowerCase(),c=I[_bvSortK],asc=_bvAsc;
+  var out=_BV.rows.filter(function(r){
+    if(f.r&&r[I.rating]!==f.r)return false;
+    if(f.c&&r[I.asset_class]!==f.c)return false;
+    if(f.b&&r[I.implied_bucket]!==f.b)return false;
+    if(f.u&&r[I._caps])return false;
+    if(q&&((r[I.cusip]||'')+' '+(r[I.issuer_name]||'')).toLowerCase().indexOf(q)<0)return false;
+    return true;
+  });
+  if(c!=null)out.sort(function(a,b){
+    var x=a[c],y=b[c];
+    if(x==null)return y==null?0:1;
+    if(y==null)return -1;
+    if(typeof x==='string')return asc?x.localeCompare(y):y.localeCompare(x);
+    return asc?x-y:y-x;
+  });
+  return out;
+}
+function _bvDraw(){
+  var head=document.getElementById('bv-head'),body=document.getElementById('bv-body');
+  if(!head||!body)return;
+  var C=_BV.columns;
+  head.innerHTML=C.map(function(c){
+    var on=c.k===_bvSortK;
+    return '<th class="'+(_BV_LEFT[c.f]?'bv-l':'')+'" style="min-width:'+c.w+'px" onclick="_bvSortBy(\''+c.k+'\')" data-col-tip="bv_'+_attr(c.k)+'" data-col-label="'+_attr(c.l)+'" data-col-tip-body="'+_attr(c.t)+'"'+(on?' aria-sort="'+(_bvAsc?'ascending':'descending')+'"':'')+'>'+_esc(c.l)+(on?' <span class="arrow">'+(_bvAsc?'▲':'▼')+'</span>':'')+'</th>';
+  }).join('');
+  var rows=_bvRows(),shown=rows.slice(0,_BV_LIMIT);
+  body.innerHTML=shown.map(function(r){
+    return '<tr>'+C.map(function(c,i){
+      var v=r[i],long=(c.f==='caps'||c.f==='text')&&v;
+      return '<td'+(_BV_LEFT[c.f]?' class="bv-l"':'')+(long?' title="'+_attr(v)+'"':'')+'>'+_bvFmt(v,c.f)+'</td>';
+    }).join('')+'</tr>';
+  }).join('');
+  var n=document.getElementById('bv-n');
+  if(n)n.textContent=rows.length.toLocaleString()+' match'+(rows.length===1?'':'es')+(rows.length>_BV_LIMIT?' (showing '+_BV_LIMIT.toLocaleString()+')':'');
+}
+function _bvSortBy(k){if(k===_bvSortK)_bvAsc=!_bvAsc;else{_bvSortK=k;_bvAsc=false;}_bvDraw();}
+function _bvSet(k,v){_bvF[k]=v;_bvDraw();}
+function _bvReset(){_bvF={q:'',r:'',c:'',b:'',u:false};renderBondView();}
 /* A sector page's Value creation tab: its own SPDR. */
 function renderPoolEtf(sec){
   var t=ETF_LT&&ETF_LT.sector_fund&&ETF_LT.sector_fund[sec];

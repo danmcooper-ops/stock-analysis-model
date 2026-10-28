@@ -436,11 +436,11 @@ def test_portfolio_page_way_back_sits_under_the_sub_tabs():
 def test_financial_model_has_stock_and_etf_valuations_tabs():
     """Financial Model's sub-tabs read Dashboard, Stock Valuations (the gate
     matrix), ETF Valuations (the SPDRs read through the model, moved off
-    the Sector Analysis Charts tab so the table appears once) and Bonds vs
-    Stocks (tests/test_report_bond_tab.py)."""
+    the Sector Analysis Charts tab so the table appears once) and Bond
+    Valuations (tests/test_report_bond_tab.py)."""
     src = _tpl()
     assert ("items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Stock Valuations'},"
-            "{k:'etf',l:'ETF Valuations'},{k:'bond',l:'Bonds vs Stocks'}]},") in src
+            "{k:'etf',l:'ETF Valuations'},{k:'bond',l:'Bond Valuations'}]},") in src
     assert '<div id="m-etf-view" style="display:none"></div>' in src
     show = re.search(r'function _mShow\(\)\{.*?\n\}\n', src, re.S).group(0)
     assert "else if(k==='etf')renderEtfView();" in show
