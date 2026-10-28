@@ -58,6 +58,10 @@ def _refresh_edgar_derived_metrics(results, prices_dir=None):
         eh = adjust_for_ticker(eh, r.get('ticker'), prices_dir)
         r['edgar_history'] = eh
         m = derive_edgar_metrics(eh)
+        # fcf_edgar is a level, kept at the run date's rate like the
+        # statements were (analyze_stock._value_at_spot).
+        if m.get('fcf_edgar') is not None and r.get('fx_rebase_flow'):
+            m['fcf_edgar'] *= r['fx_rebase_flow']
         for k, v in m.items():
             r[k] = v
         # Snapshots before 2026-09 stored a point count here (quarterly share

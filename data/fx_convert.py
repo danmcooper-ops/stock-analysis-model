@@ -181,3 +181,93 @@ def convert_statement_df(df, ccy, kind, store=None):
         else:
             out.loc[rows, col] = vals * rate
     return out, blanked
+
+
+# -- valuation at today's rate --------------------------------------------------
+#
+# Translation at historical rates is right for the record, but a fair value is
+# a claim on future cash flows, which will translate at future rates; the best
+# guess of those is today's (spot). So the valuation inputs are rebased: every
+# column of a translated statement is scaled by one factor per kind, today's
+# rate over the newest fiscal year's (its average for flows, its close for
+# balance sheets). Growth rates are those of the translated history exactly,
+# since every year moves by the same factor, while the newest year's level
+# sits at today's rate and its returns on capital are the reporting
+# currency's own. A yen filer whose FY ended in March, with the yen 5% firmer
+# since, is valued on 5% more dollars of earnings.
+
+#
+# Two guards, both from 2026-10-26's 283 SEC-sourced foreign filers. A stale
+# newest year (Toyota's and Honda's SEC histories end years back) would carry
+# years of drift into one factor, so only a fiscal year that ended within
+# REBASE_MAX_AGE_DAYS is rebased. And a move past REBASE_MAX_MOVE is mostly
+# inflation, not a change in what the business earns: the peso and lira fall
+# roughly in step with local prices, so the next year's earnings come in more
+# pesos and marking last year's to spot counts the depreciation without the
+# inflation (YPF read -93%, Turkcell -41%). Either way the row keeps its
+# translated rates and the reason is returned.
+REBASE_MAX_AGE_DAYS = 455      # a fiscal year end plus a 20-F's filing lag
+REBASE_MAX_MOVE = 0.25         # |factor - 1| for flows or stocks
+
+
+def spot_rebase_factors(ccy, period_end, as_of, store=None):
+    """``{'flow', 'stock', 'spot', 'period_end'}`` for the fiscal year ending
+    *period_end*; ``{'skipped': reason, ...}`` when a guard declines it; None
+    when a rate is missing or the currency is USD. Only a dict with ``flow``
+    rebases anything."""
+    ccy = _iso(ccy)
+    if ccy in ('', 'USD') or period_end is None:
+        return None
+    store = store or default_store()
+    end = pd.Timestamp(period_end).date()
+    as_of = as_of or date.today()
+    if (as_of - end).days > REBASE_MAX_AGE_DAYS:
+        return {'skipped': 'stale', 'period_end': end.isoformat()}
+    spot = get_spot_fx_rate(ccy, as_of, store=store)
+    avg = store.avg_rate(ccy, end - timedelta(days=YEAR_DAYS), end)
+    close = store.close_rate(ccy, end)
+    if not spot or not avg or not close:
+        return None
+    flow, stock = spot / avg, spot / close
+    if max(abs(flow - 1), abs(stock - 1)) > REBASE_MAX_MOVE:
+        return {'skipped': 'large_move', 'period_end': end.isoformat(),
+                'move': round(flow - 1, 4)}
+    return {'flow': flow, 'stock': stock, 'spot': spot,
+            'period_end': end.isoformat()}
+
+
+def newest_period_end(yf_data):
+    """Date of the newest column of the income statement (else the balance
+    sheet), or None."""
+    for key in ('income_statement', 'income_stmt', 'balance_sheet'):
+        df = (yf_data or {}).get(key)
+        if df is not None and not getattr(df, 'empty', True):
+            try:
+                return max(pd.Timestamp(c) for c in df.columns).date()
+            except (TypeError, ValueError):
+                continue
+    return None
+
+
+def _scale_df(df, factor):
+    out = df.copy()
+    rows = [lbl for lbl in out.index if not _is_share_count_label(lbl)]
+    for col in out.columns:
+        out.loc[rows, col] = pd.to_numeric(out.loc[rows, col], errors='coerce') * factor
+    return out
+
+
+def rebase_statements(yf_data, factors):
+    """*yf_data* with its statement frames scaled by *factors* (flows by
+    ``flow``, the balance sheet by ``stock``); share counts and ``info`` are
+    left alone (``info`` totals are already at the run date's rate). Never
+    mutates the input."""
+    if not factors or 'flow' not in factors:
+        return yf_data
+    out = dict(yf_data)
+    for key, kind in (('balance_sheet', STOCK), ('income_statement', FLOW),
+                      ('income_stmt', FLOW), ('cash_flow', FLOW)):
+        df = out.get(key)
+        if df is not None and not getattr(df, 'empty', True):
+            out[key] = _scale_df(df, factors[kind])
+    return out
