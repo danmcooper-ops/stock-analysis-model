@@ -9,6 +9,20 @@ import numpy as np
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
+@pytest.fixture(autouse=True)
+def _offline_fx_store(tmp_path_factory, monkeypatch):
+    """Every test gets an empty FX store that cannot fetch, so a non-USD
+    filer never reaches Yahoo or FRED. A test that needs rates pins them
+    (``data.sec_xbrl_client._annual_fx_rates``, ``scripts.analyze_stock.
+    get_spot_fx_rate``) or builds its own ``FXStore``."""
+    from data import fx_convert, fx_store
+    monkeypatch.setattr(fx_store, 'fetch_yahoo', lambda *a, **k: pd.Series(dtype=float))
+    monkeypatch.setattr(fx_store, 'fetch_fred', lambda *a, **k: pd.Series(dtype=float))
+    monkeypatch.setattr(fx_convert, '_STORE',
+                        fx_store.FXStore(str(tmp_path_factory.getbasetemp() / 'fx-empty')))
+    monkeypatch.setattr(fx_convert, '_ENSURED', set())
+
+
 @pytest.fixture
 def sample_info():
     """Minimal yfinance info dict with typical fields."""

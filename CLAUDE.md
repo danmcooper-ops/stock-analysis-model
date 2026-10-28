@@ -248,6 +248,43 @@ ruff check .
   meta. On 2026-09-30 only the first and last rungs existed: every discount
   rate in a seven-hour run was built on 4.00% while the 10-year printed
   5.29%, with `FRED_API_KEY` set and the prior day's 5.25% in `output/`.
+- **FX rate store (`data/fx_store.py`, `scripts/fx_rates.py`, 2026-10-27):**
+  the first step of replacing `data/fx_client.py`, which converts every
+  value at a calendar-year-end close (a March-year-end yen filer's revenue
+  takes December's rate), keeps rates in memory only, and passes a
+  native-currency value through as dollars when a fetch fails. The store
+  keeps one daily history per currency, USD per unit, in
+  `output/fx/<CCY>.parquet` (`FX_STORE_DIR`), refreshed in full by
+  `run_daily.sh`'s `prices` step (soft) for the majors plus every currency
+  the last snapshot reports in (31 on 10-27). Yahoo `{CCY}USD=X` is primary
+  (all 32 universe currencies, current to the run date). FRED's H.10
+  (`H10_SERIES`, 21 currencies, published weekly) fills Yahoo's gaps and
+  overrides a day more than 5% away: on 10-27 all 37 such days were Yahoo's
+  errors except CHF's 2015-01-15 timing. An isolated bar >25% off both
+  agreeing neighbours is dropped; all 23 were decimal shifts. Lookups are as
+  of a date (`rate`/`close_rate`, `avg_rate` over a window with ≥50%
+  weekday coverage) and return None, never a pass-through.
+  **Translation (`data/fx_convert.py`, replaces `fx_client.py`)** follows
+  ASC 830 / IAS 21: flows (income, cash flow, EPS) at the average rate over
+  the fiscal year, balance-sheet instants at the fiscal year end's close,
+  `info` totals at the run date's rate. Fiscal-year ends come from the
+  filer's own entries (`SECXBRLClient.fiscal_year_ends`); yfinance frames
+  convert column by column. A year with no rate is dropped
+  (`edgar_history.fx_years_missing`), a yfinance column blanked, and no rate
+  for the newest fiscal year declines the SEC shape. A currency the store
+  lacks is fetched once per process (`ensure`). Measured on 10-26's 283
+  SEC-sourced foreign filers: balance sheets barely move (median 0%), flows
+  median ±2.7%, 32 over 10%: BRL +15% (the real fell late in 2024, so its
+  average sat far above the December close), June/March year-ends that had
+  taken a December rate (IRS +41%). The 335 yfinance-sourced rows (OTC
+  ordinaries) had converted every column at that night's spot; their newest
+  year now moves about −11% (BRL, NOK) to +5% (JPY, PLN). The yfinance
+  share-count rule no longer skips 'Basic EPS', 'Diluted EPS' or 'Diluted NI
+  Availto Com Stockholders', which fx_client left unconverted. Tests
+  (`tests/conftest.py` gives every test an empty store that cannot fetch):
+  `tests/test_fx_store.py`, `tests/test_fx_convert.py`. Phase 0 found BIS
+  real effective rates (`RB<ISO2>BIS`, monthly) for all 32 currencies and
+  OECD 3-month rates for about 20, for the Currencies tab (Financial Model).
 - **Snapshot coverage floor (`data/coverage.py`, `MIN_ROW_RATIO`=0.7):** one
   floor for the database publish (`publish_run` refused that night's 739
   rows — the only guard that asked), the archive and the site. `analyze_stock`

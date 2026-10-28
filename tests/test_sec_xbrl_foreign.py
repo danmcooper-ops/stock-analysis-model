@@ -11,6 +11,13 @@ from data import sec_xbrl_client as xbrl_mod
 from data.sec_xbrl_client import SECXBRLClient
 
 
+def _pinned(table):
+    """Stand-in for data.fx_convert.annual_rates: one rate per fiscal year,
+    used for flows and balance-sheet instants alike."""
+    return lambda ccy, years, fy_ends=None: {
+        y: (table.get(y), table.get(y)) for y in years}
+
+
 def _make_client():
     return SECXBRLClient(
         cik_map={'TEST': '0000000001'},
@@ -158,27 +165,28 @@ class TestCurrencyDetection:
 class TestFXConversion:
     """Phase 2B: native-currency values must be multiplied through FX rates."""
 
-    def test_apply_fx_annual_basic(self):
-        from data.sec_xbrl_client import _apply_fx_annual
-        rates = {2020: 0.165, 2021: 0.159, 2022: 0.142}
+    def test_convert_annual_basic(self):
+        from data.fx_convert import FLOW, convert_annual
+        rates = {2020: (0.165, 0.17), 2021: (0.159, 0.16), 2022: (0.142, 0.14)}
         vals = {2020: 100, 2021: 200, 2022: 300}
-        out = _apply_fx_annual(vals, rates)
+        out = convert_annual(vals, rates, FLOW)
         assert out[2020] == pytest.approx(16.5)
         assert out[2021] == pytest.approx(31.8)
         assert out[2022] == pytest.approx(42.6)
 
-    def test_apply_fx_passes_through_missing_year(self):
-        """Years with no FX rate keep native magnitude (better than dropping)."""
-        from data.sec_xbrl_client import _apply_fx_annual
-        rates = {2024: 1.10}
-        vals = {2000: 100, 2024: 200}
-        out = _apply_fx_annual(vals, rates)
-        assert out[2000] == 100  # pre-2003 EUR has no rate
-        assert out[2024] == pytest.approx(220)
+    def test_convert_annual_picks_the_stock_rate(self):
+        from data.fx_convert import STOCK, convert_annual
+        out = convert_annual({2024: 100}, {2024: (1.08, 1.04)}, STOCK)
+        assert out[2024] == pytest.approx(104)
 
-    def test_apply_fx_empty_rates_passthrough(self):
-        from data.sec_xbrl_client import _apply_fx_annual
-        assert _apply_fx_annual({2024: 100}, {}) == {2024: 100}
+    def test_convert_annual_drops_a_year_without_a_rate(self):
+        """A year with no rate is left out, never kept in the reporting
+        currency (fx_client passed it through as dollars)."""
+        from data.fx_convert import FLOW, convert_annual
+        rates = {2000: (None, None), 2024: (1.10, 1.10)}
+        out = convert_annual({2000: 100, 2024: 200}, rates, FLOW)
+        assert out == {2024: pytest.approx(220)}
+        assert convert_annual({2024: 100}, {}, FLOW) == {}
 
     def test_fetch_historical_converts_eur_to_usd(self, monkeypatch):
         """End-to-end: IFRS / EUR filing returns USD-denominated history."""
@@ -187,8 +195,8 @@ class TestFXConversion:
             {2020: 5e9, 2021: 6e9, 2022: 7e9}, currency='EUR', form='20-F')
 
         monkeypatch.setattr(c, 'fetch_company_facts', lambda tk: facts)
-        monkeypatch.setattr(xbrl_mod, '_get_fx_rates_to_usd',
-                            lambda ccy: {2020: 1.20, 2021: 1.18, 2022: 1.05})
+        monkeypatch.setattr(xbrl_mod, '_annual_fx_rates',
+                            _pinned({2020: 1.20, 2021: 1.18, 2022: 1.05}))
 
         h = c.fetch_historical_financials('TEST')
         assert h['reporting_currency'] == 'EUR'
@@ -204,8 +212,8 @@ class TestFXConversion:
 
         monkeypatch.setattr(c, 'fetch_company_facts', lambda tk: facts)
         # Make FX fetch explode if it's called — must NOT be invoked for USD.
-        monkeypatch.setattr(xbrl_mod, '_get_fx_rates_to_usd',
-                            lambda ccy: (_ for _ in ()).throw(AssertionError(
+        monkeypatch.setattr(xbrl_mod, '_annual_fx_rates',
+                            lambda *a, **k: (_ for _ in ()).throw(AssertionError(
                                 'FX must not be fetched for USD filer')))
 
         h = c.fetch_historical_financials('TEST')
@@ -225,8 +233,8 @@ class TestFXConversion:
         facts = {'facts': {'us-gaap': {'Revenues': {'units': {'CAD': entries}}}}}
 
         monkeypatch.setattr(c, 'fetch_company_facts', lambda tk: facts)
-        monkeypatch.setattr(xbrl_mod, '_get_fx_rates_to_usd',
-                            lambda ccy: {2022: 0.77, 2023: 0.74, 2024: 0.73})
+        monkeypatch.setattr(xbrl_mod, '_annual_fx_rates',
+                            _pinned({2022: 0.77, 2023: 0.74, 2024: 0.73}))
 
         h = c.fetch_historical_financials('TEST')
         assert h['reporting_currency'] == 'CAD'

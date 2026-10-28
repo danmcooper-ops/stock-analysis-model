@@ -28,7 +28,7 @@ def _payload(**info):
 
 class TestInfoStatementFields:
     def test_sec_path_converts_statement_currency_totals(self, monkeypatch):
-        monkeypatch.setattr(az, 'get_spot_fx_rate', lambda c: JPY if c == 'JPY' else None)
+        monkeypatch.setattr(az, 'get_spot_fx_rate', lambda c, as_of=None: JPY if c == "JPY" else None)
         out, meta = az._convert_financials_to_usd(
             _payload(totalCash=1.0e12, totalDebt=5.0e11), statements_are_usd=True)
         assert out['info']['totalCash'] == pytest.approx(1.0e12 * JPY)
@@ -42,7 +42,7 @@ class TestInfoStatementFields:
         assert net == pytest.approx(2.0e9 - 6.7e9)
 
     def test_missing_rate_blanks_rather_than_mixes(self, monkeypatch):
-        monkeypatch.setattr(az, 'get_spot_fx_rate', lambda c: None)
+        monkeypatch.setattr(az, 'get_spot_fx_rate', lambda c, as_of=None: None)
         out, meta = az._convert_financials_to_usd(
             _payload(totalCash=1.0e12), statements_are_usd=True)
         assert out['info']['totalCash'] is None
@@ -51,14 +51,14 @@ class TestInfoStatementFields:
         assert cash is None and net is None
 
     def test_usd_filer_untouched(self, monkeypatch):
-        monkeypatch.setattr(az, 'get_spot_fx_rate', lambda c: pytest.fail('no lookup'))
+        monkeypatch.setattr(az, 'get_spot_fx_rate', lambda c, as_of=None: pytest.fail('no lookup'))
         payload = {'info': {'financialCurrency': 'USD', 'currency': 'USD',
                             'totalCash': 5.0}}
         out, meta = az._convert_financials_to_usd(payload)
         assert out is payload and meta['fx_rate_info_statement'] is None
 
     def test_does_not_mutate_the_cached_payload(self, monkeypatch):
-        monkeypatch.setattr(az, 'get_spot_fx_rate', lambda c: JPY)
+        monkeypatch.setattr(az, 'get_spot_fx_rate', lambda c, as_of=None: JPY)
         payload = _payload(totalCash=1.0e12)
         az._convert_financials_to_usd(payload, statements_are_usd=True)
         assert payload['info']['totalCash'] == 1.0e12

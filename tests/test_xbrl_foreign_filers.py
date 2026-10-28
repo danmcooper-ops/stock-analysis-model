@@ -21,6 +21,13 @@ import pytest
 from data.sec_xbrl_client import SECXBRLClient
 
 
+def _pinned(table):
+    """Stand-in for data.fx_convert.annual_rates: one rate per fiscal year,
+    used for flows and balance-sheet instants alike."""
+    return lambda ccy, years, fy_ends=None: {
+        y: (table.get(y), table.get(y)) for y in years}
+
+
 def _flow(fy, val):
     return {'form': '20-F', 'fy': fy, 'fp': 'FY', 'val': val,
             'filed': f'{fy + 1}-02-01', 'start': f'{fy}-01-01', 'end': f'{fy}-12-31'}
@@ -64,8 +71,8 @@ _IFRS_STATEMENT = {
 @pytest.fixture(autouse=True)
 def _fixed_fx(monkeypatch):
     """Pin FX so conversion is deterministic and offline (2024 EUR->USD 1.25)."""
-    monkeypatch.setattr('data.sec_xbrl_client._get_fx_rates_to_usd',
-                        lambda ccy: {2023: 1.10, 2024: 1.25})
+    monkeypatch.setattr('data.sec_xbrl_client._annual_fx_rates',
+                        _pinned({2023: 1.10, 2024: 1.25}))
 
 
 class TestForeignCurrencyStatements:
@@ -182,19 +189,20 @@ class TestReportingCurrency:
 
 class TestMissingFxRates:
     def test_no_rates_declines_the_shape(self, monkeypatch):
-        """_apply_fx_annual passes values through unchanged on an empty rate
-        table, so converting anyway would publish EUR magnitudes as dollars
-        with nothing to flag it. yfinance's statements at least carry a
-        financialCurrency the FX layer can act on."""
-        monkeypatch.setattr('data.sec_xbrl_client._get_fx_rates_to_usd',
-                            lambda ccy: {})
+        """No rate for the newest fiscal year declines the shape: converting
+        anyway once published EUR magnitudes as dollars, and dropping the
+        year would hand the models last year's statements as current.
+        yfinance's statements carry a financialCurrency the FX layer can act
+        on."""
+        monkeypatch.setattr('data.sec_xbrl_client._annual_fx_rates',
+                            _pinned({}))
         c = _client({'us-gaap': _US_GAAP_STATEMENT}, currency='EUR')
         assert c.build_yfinance_shape('TEST') is None
 
     def test_a_usd_filer_never_asks_for_rates(self, monkeypatch):
         monkeypatch.setattr(
-            'data.sec_xbrl_client._get_fx_rates_to_usd',
-            lambda ccy: pytest.fail('USD filer must not fetch FX rates'))
+            'data.sec_xbrl_client._annual_fx_rates',
+            lambda *a, **k: pytest.fail('USD filer must not fetch FX rates'))
         c = _client({'us-gaap': _US_GAAP_STATEMENT}, currency='USD')
         assert c.build_yfinance_shape('TEST') is not None
 
