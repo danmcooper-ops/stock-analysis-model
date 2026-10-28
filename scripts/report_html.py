@@ -30,7 +30,6 @@ from scripts.config import (CARRY_FORWARD_MAX_PRICE_LAG_BARS,
                             PHASE1_LOCAL_PRICE_MAX_AGE_DAYS)
 from data import etf_holdings
 from models.etf_lookthrough import lookthrough as etf_lookthrough, relative_to
-from models.bond_relative import bonds_vs_stocks
 from data.price_store import mass_stop, stopped_trading
 from data.splits import adjust_for_ticker
 from data.news_tags import TAG_LABELS
@@ -2044,27 +2043,50 @@ def _build_etf_payload(rows, out_dir, run_date, prices_dir=None, run_provenance=
     return payload
 
 
-def _build_bond_payload(rows, out_dir, run_date, macro_sidecar, etf_payload=None,
-                        run_provenance=None):
-    """Bonds vs stocks (models/bond_relative.py) over the rendered rows, or
-    None without a yield curve or on a coverage-degraded run (missing rows
-    would move every aggregate). Also written to ``bonds_<date>.json``
-    beside the report, the dated record of the read. Display only."""
-    cov = (run_provenance or {}).get('coverage') or {}
-    if cov.get('degraded'):
-        print("[report_html] Bonds vs stocks skipped: run is coverage-degraded")
+BOND_REPORT_VERSION = 1   # bond-analysis-model's REPORT_DATA_VERSION we draw
+
+
+def _bond_output_dir():
+    """The sibling bond model's output/ (``BOND_MODEL_OUTPUT`` overrides)."""
+    return os.environ.get('BOND_MODEL_OUTPUT') or os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        'bond-analysis-model', 'output')
+
+
+def _stage_bond_report(out_dir, run_date, src_dir=None):
+    """Copy the bond model's newest ``bond_report_<date>.json`` on or before
+    *run_date* beside the report as ``bonds.json``, the sidecar Financial
+    Model › Bond Valuations loads when opened. Returns ``{date, total}`` for
+    the page, or None (and removes a stale ``bonds.json``) when there is no
+    report or its shape is not the one the template draws. Display only."""
+    dest = os.path.join(out_dir, 'bonds.json')
+    src_dir = src_dir or _bond_output_dir()
+    cutoff = run_date.isoformat() if run_date is not None else '9999-12-31'
+    picks = sorted(n for n in (os.listdir(src_dir) if os.path.isdir(src_dir) else [])
+                   if re.fullmatch(r'bond_report_\d{4}-\d{2}-\d{2}\.json', n)
+                   and n[12:22] <= cutoff)
+    data = None
+    if picks:
+        src = os.path.join(src_dir, picks[-1])
+        try:
+            with open(src, encoding='utf-8') as f:
+                data = json.load(f)
+        except (OSError, ValueError) as e:
+            logger.warning("Bond report %s unreadable: %s", src, e)
+        if data is not None and data.get('version') != BOND_REPORT_VERSION:
+            logger.warning("Bond report %s is version %s, the template draws %s",
+                           src, data.get('version'), BOND_REPORT_VERSION)
+            data = None
+    if data is None:
+        if os.path.exists(dest):
+            os.remove(dest)
+        print(f"[report_html] Bond valuations: no bond report on or before {cutoff} in {src_dir}")
         return None
-    payload = bonds_vs_stocks(rows, macro_sidecar, etf_payload)
-    if payload is None:
-        return None
-    if run_date is not None:
-        path = os.path.join(out_dir, f'bonds_{run_date.isoformat()}.json')
-        tmp = path + '.tmp'
-        with open(tmp, 'w', encoding='utf-8') as f:
-            json.dump({'date': run_date.isoformat(), **payload}, f,
-                      default=_json_default, separators=(',', ':'), sort_keys=True)
-        os.replace(tmp, path)
-    return payload
+    tmp = dest + '.tmp'
+    shutil.copyfile(src, tmp)
+    os.replace(tmp, dest)
+    print(f"[report_html] Bond valuations: {picks[-1]} ({data.get('total', 0):,} instruments)")
+    return {'date': data.get('run_date'), 'total': data.get('total')}
 
 
 def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=None,
@@ -2128,12 +2150,10 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         etf_payload = None
 
     try:
-        bond_payload = _build_bond_payload(rows, _out_dir_early, run_date,
-                                           (macro_payload or {}).get('sidecar'),
-                                           etf_payload, run_provenance)
+        bond_meta = _stage_bond_report(_out_dir_early, run_date)
     except Exception as e:  # display only: never fail a render over it
-        logger.warning("Bonds vs stocks failed: %s", e, exc_info=True)
-        bond_payload = None
+        logger.warning("Bond valuations failed: %s", e, exc_info=True)
+        bond_meta = None
 
     # Sidecar JSON files (PRICES, HIST) live next to the HTML output. The
     # template lazy-fetches them on first chart open, so the embedded HTML
@@ -2189,7 +2209,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         portfolios_json=dumps_for_script(portfolios_payload, default=_json_default),
         sector_pool_json=sector_pool_json,
         etf_json=dumps_for_script(_sanitize(etf_payload), default=_json_default),
-        bond_json=dumps_for_script(_sanitize(bond_payload), default=_json_default),
+        bond_meta=dumps_for_script(bond_meta),
         prices_available=('true' if prices_payload is not None else 'false'),
         prices_size_mb=prices_size_mb,
         hist_available=('true' if hist_tickers else 'false'),
