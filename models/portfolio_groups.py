@@ -526,6 +526,12 @@ LEVEL_ORDER = {lv: i for i, lv in enumerate(LEVELS)}
 ALERT_MODES = ('buy_line', 'all', 'off')
 
 SCORE_DROP_PTS = 10.0
+# The model's buy margin (profile_verdict.MIN_MOS: the Summary PDF's "buy
+# below" price is fair value x (1 - 15%)). A crossing is a Watch only once
+# it has held for a second run: over 29 runs (09-01..10-27) 61% of fresh
+# crossings went back out within five runs (a hysteresis band of 2-5pp did
+# not help: 60-63%), against 38% of those that held a day.
+BUY_MOS = 0.15
 # Fair values are noisy run to run: over 82 run pairs (04-20..09-14) a >=25%
 # move hit a median of 12.5 tickers a run (1,166 on 09-02); >=50% is 5.
 FV_JUMP = 0.50
@@ -547,7 +553,7 @@ def rule_columns(portfolios):
     """Row columns needed to evaluate every rule (plus the ones alerts read),
     for a narrow snapshot-store query of the prior run."""
     cols = {'ticker', 'rating', 'sector', 'country', '_composite_score', 'price',
-            'company_name', '_fv_effective', 'position_weight', 'listing_aliases'}
+            'company_name', '_fv_effective', 'position_weight', 'listing_aliases', 'mos'}
     for p in portfolios:
         for c in (p.get('rule') or {}).get('cf') or ():
             cols.add(c['key'])
@@ -693,8 +699,32 @@ def _recent_reversal(points, into_buy, day, days=REVERSAL_DAYS):
     return hit
 
 
+def alert_floors(portfolios):
+    """``(score_drop, fv_jump)``: the most sensitive of the defaults and every
+    portfolio's ``thresholds``, so one universe-wide classification carries
+    every entry some portfolio wants; each then keeps its own (``passes``)."""
+    sd, fj = SCORE_DROP_PTS, FV_JUMP
+    for p in portfolios:
+        th = p.get('thresholds') or {}
+        sd = min(sd, th.get('score_drop', sd))
+        fj = min(fj, th.get('fv_jump', fj))
+    return sd, fj
+
+
+def passes(entry, portfolio):
+    """Whether a change entry clears *portfolio*'s own thresholds (the
+    defaults when it sets none). Mirrored by ``_pfPasses`` in the report."""
+    th = (portfolio or {}).get('thresholds') or {}
+    if entry.get('kind') == 'score_drop' and entry.get('drop') is not None:
+        return entry['drop'] > th.get('score_drop', SCORE_DROP_PTS)
+    if entry.get('kind') == 'fv_jump' and entry.get('move') is not None:
+        return abs(entry['move']) >= th.get('fv_jump', FV_JUMP)
+    return True
+
+
 def classify_changes(by_tk, prev_by_tk, run_date=None, history=None, explain=None,
-                     score_drop=SCORE_DROP_PTS, fv_jump=FV_JUMP):
+                     score_drop=SCORE_DROP_PTS, fv_jump=FV_JUMP, buy_mos=BUY_MOS,
+                     prev2_by_tk=None):
     """Classify every ticker's run-over-run change, universe-wide.
 
     Returns ``(entries, stats)``. Each entry: ``{ticker, kind, level, from,
@@ -702,6 +732,14 @@ def classify_changes(by_tk, prev_by_tk, run_date=None, history=None, explain=Non
     apply. *history* is the rating-history cache (``{ticker: [[date,
     rating], …]}``) used to spot reversals; *explain(prev_row, row)* returns
     "why the rating changed" bullets for rating moves.
+
+    ``score_drop`` / ``fv_jump`` entries carry their size (``drop``,
+    ``move``), so a portfolio with stricter thresholds can drop them
+    (``passes``). ``buy_below``: the margin of safety crossed *buy_mos*,
+    i.e. the price went under the buy-below line. A crossing on this run is
+    FYI; one that happened on the prior run and held is a Watch
+    (``confirmed``; needs *prev2_by_tk*, the run before the prior). Going
+    back over the line is FYI.
 
     A row resting on missing data yields one ``data_gap`` FYI entry and
     nothing else — a rating move or score drop on absent inputs is not a
@@ -748,14 +786,45 @@ def classify_changes(by_tk, prev_by_tk, run_date=None, history=None, explain=Non
         s0, s1 = js_num(p.get('_composite_score')), js_num(r.get('_composite_score'))
         if s0 is not None and s1 is not None and s0 - s1 > score_drop:
             out.append({'ticker': t, 'kind': 'score_drop', 'level': 'watch',
+                        'drop': round(s0 - s1, 2),
                         'message': f"{t} composite score dropped {s0 - s1:.1f} pts "
                                    f"({s0:.1f} → {s1:.1f})"})
         f0, f1 = js_num(p.get('_fv_effective')), js_num(r.get('_fv_effective'))
         if f0 and f1 and f0 > 0 and abs(f1 / f0 - 1) >= fv_jump:
             out.append({'ticker': t, 'kind': 'fv_jump', 'level': 'watch',
+                        'move': round(f1 / f0 - 1, 4),
                         'message': f"{t} fair value moved {f1 / f0 - 1:+.0%} "
                                    f"(${f0:,.2f} → ${f1:,.2f})"})
+        e = _buy_below_entry(t, r, p, (prev2_by_tk or {}).get(t), buy_mos)
+        if e:
+            if stats['flood']:
+                e['flood'] = True
+            out.append(e)
     return out, stats
+
+
+def _buy_below_entry(t, r, p, p2, bar):
+    """The buy-below entry for one ticker, or None (see classify_changes)."""
+    m1, m0 = js_num(r.get('mos')), js_num(p.get('mos'))
+    if m0 is None or m1 is None:
+        return None
+    m2 = None if p2 is None or data_missing(p2) else js_num(p2.get('mos'))
+    fv, px = js_num(r.get('_fv_effective')), js_num(r.get('price'))
+    line = f" ${fv * (1 - bar):,.2f}" if fv else ''
+    at = f" at ${px:,.2f}" if px else ''
+    base = {'ticker': t, 'kind': 'buy_below', 'mos0': round(m0, 4), 'mos1': round(m1, 4)}
+    if m2 is not None and m2 < bar <= m0 and m1 >= bar:
+        return dict(base, level='watch', into=True, confirmed=True,
+                    message=f"{t} has held below its buy-below price{line} for two runs "
+                            f"(MoS {m1:.0%}{at})")
+    if m0 < bar <= m1:
+        return dict(base, level='fyi', into=True,
+                    message=f"{t} crossed below its buy-below price{line} (MoS {m1:.0%}{at}); "
+                            "a Watch follows if it holds")
+    if m1 < bar <= m0:
+        return dict(base, level='fyi', into=False,
+                    message=f"{t} rose back above its buy-below price{line} (MoS {m1:.0%}{at})")
+    return None
 
 
 def earnings_soon(members, by_tk, run_date=None, days=EARNINGS_DAYS):
@@ -881,7 +950,7 @@ def _sort_key(a):
 
 
 def portfolio_alerts(portfolios, by_tk, prev_by_tk, run_date=None, history=None,
-                     explain=None, changes=None, stopped=None):
+                     explain=None, changes=None, stopped=None, prev2_by_tk=None):
     """Per-portfolio alerts: ``(by_id, stats)`` with ``by_id = {id:
     [entries]}``, each list sorted Action → Watch → FYI.
 
@@ -891,8 +960,10 @@ def portfolio_alerts(portfolios, by_tk, prev_by_tk, run_date=None, history=None,
     portfolio; each portfolio's ``alerts`` mode sets the final level.
     *stopped* labels members whose prices ended (``membership_events``).
     """
+    sd, fj = alert_floors(portfolios)
     entries, stats = changes if changes is not None else classify_changes(
-        by_tk, prev_by_tk, run_date, history, explain)
+        by_tk, prev_by_tk, run_date, history, explain, score_drop=sd, fv_jump=fj,
+        prev2_by_tk=prev2_by_tk)
     by_ticker = {}
     for e in entries:
         by_ticker.setdefault(e['ticker'], []).append(e)
@@ -903,7 +974,7 @@ def portfolio_alerts(portfolios, by_tk, prev_by_tk, run_date=None, history=None,
     for p in portfolios:
         mode = p.get('alerts') or 'buy_line'
         members = resolve_members(p, by_tk)['members']
-        lst = [e for t in members for e in by_ticker.get(t, ())]
+        lst = [e for t in members for e in by_ticker.get(t, ()) if passes(e, p)]
         lst += events.get(p['id'], [])
         lst += earnings_soon(members, by_tk, run_date)
         shown = []

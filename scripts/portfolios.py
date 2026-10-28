@@ -226,6 +226,14 @@ def cmd_edit(doc, a):
         p['alerts'] = a.alerts
     if a.weighting:
         p['weighting'] = a.weighting
+    if a.threshold:
+        th = dict(p.get('thresholds') or {})
+        for k, v in _parse_kv(a.threshold, 'threshold').items():
+            if v.lower() in ('', 'default', '0'):
+                th.pop(k, None)
+            else:
+                th[k] = float(v.rstrip('%')) / (100 if v.endswith('%') else 1)
+        p['thresholds'] = th or None
     return f"updated {a.id}"
 
 
@@ -404,6 +412,8 @@ def cmd_holdings(doc, a):
               f"all time {_fmt_money(t['realized'])}")
         if t['unpriced']:
             print(f"  no price today: {' '.join(t['unpriced'])}")
+        for x in pp.holdings_alerts(p, hs):
+            print(f"  WATCH  {x['message']}")
 
 
 def cmd_migrate_holdings(doc, a):
@@ -510,7 +520,7 @@ def rating_history(results_dir, day):
 
 
 def build_digest(portfolios, rows, prev_rows, day, prev_day, history=None, explain=None,
-                 prices_dir=None):
+                 prices_dir=None, prev2_rows=None):
     """The machine-readable alerts digest (output/portfolio_alerts.json) that
     the nightly text, the GitHub issue and tests all render from. With
     *prices_dir*, stopped-trading names are left out first (``drop_stopped``)."""
@@ -519,7 +529,8 @@ def build_digest(portfolios, rows, prev_rows, day, prev_day, history=None, expla
     by_id, stats = ({p['id']: [] for p in portfolios},
                     pg.universe_stats(by_tk, prev_by_tk)) if not prev_day else \
         pg.portfolio_alerts(portfolios, by_tk, prev_by_tk, run_date=day,
-                            history=history, explain=explain, stopped=stopped)
+                            history=history, explain=explain, stopped=stopped,
+                            prev2_by_tk=pg.rows_by_ticker(prev2_rows or []))
     systemic = dict(stats, message=pg.systemic_message(stats)) if prev_day else None
     out = []
     for p in portfolios:
@@ -545,7 +556,10 @@ def cmd_alerts(doc, a):
     pfs = doc['portfolios']
     day, rows = _latest_rows(a.results_dir, a.date)
     prev_day, prev = prior_rows(a.results_dir, day, alert_columns(pfs))
-    digest = build_digest(pfs, rows, prev, day, prev_day,
+    # The run before the prior one confirms a buy-below crossing (classify_changes).
+    _, prev2 = prior_rows(a.results_dir, prev_day, ['ticker', 'mos', 'price', 'company_name',
+                                                    'sector']) if prev_day else (None, [])
+    digest = build_digest(pfs, rows, prev, day, prev_day, prev2_rows=prev2,
                           history=rating_history(a.results_dir, day) if prev_day else None,
                           explain=rating_explainer() if prev_day else None,
                           prices_dir=(a.prices_dir if a.prices_dir is not None
@@ -559,6 +573,37 @@ def cmd_alerts(doc, a):
                json.dumps(digest, ensure_ascii=False, indent=1, default=str) + '\n')
     if a.markdown:
         _write(a.markdown.replace('{date}', day), pdg.render_markdown(digest, a.pages_url))
+    _private_alerts(pfs, rows, day, a)
+
+
+def _private_alerts(portfolios, rows, day, a):
+    """Holdings alerts (below cost, drift from target) for portfolios with a
+    private book. They name positions, so they go only to a file beside the
+    book — never to stdout, the digest JSON or the GitHub issue."""
+    try:
+        books = pp.load_books(a.positions_file)
+    except (OSError, ValueError) as e:
+        logger.warning("portfolios: private book unusable (%s); no holdings alerts", e)
+        return
+    if not books:
+        return
+    by_tk = pg.rows_by_ticker(rows)
+    aliases = pg.listing_aliases(by_tk)
+    lines, n = [f"Holdings alerts — {day} (private; from {pp.positions_path(a.positions_file)})"], 0
+    for p in portfolios:
+        if p['id'] not in books:
+            continue
+        al = pp.holdings_alerts(p, pp.holdings_summary(books[p['id']], by_tk, aliases, today=day))
+        if al:
+            lines.append(f"\n{p['name']} [{p['id']}]")
+            lines += [f"  WATCH  {x['message']}" for x in al]
+            n += len(al)
+    path = os.path.join(os.path.dirname(os.path.abspath(pp.positions_path(a.positions_file))),
+                        'positions_alerts.txt')
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines if n else lines[:1] + ['', 'Nothing to flag.']) + '\n')
+    print(f"private holdings alerts: {n} (in {path})")
 
 
 def cmd_alerts_replay(doc, a):
@@ -567,30 +612,33 @@ def cmd_alerts_replay(doc, a):
     history. Reversals use change-points rebuilt from the replayed days."""
     import statistics
     cols = ['ticker', 'rating', 'price', 'company_name', 'sector',
-            '_composite_score', '_fv_effective']
+            '_composite_score', '_fv_effective', 'mos']
     snaps = load_snapshots(a.results_dir, cols, since=a.since)
-    hist, prev = {}, None
+    hist, prev, prev2 = {}, None, None
     rows_out = []
     print(f"{'date':<11} {'n':>5} {'rerated':>8} {'no-data':>8} {'ACTION':>7} {'reversal':>9} "
-          f"{'same-side':>10} {'data-gap':>9} {'score':>6} {'fv':>5}  flood")
+          f"{'same-side':>10} {'data-gap':>9} {'score':>6} {'fv':>5} {'buy<':>5}  flood")
     for day, rows in snaps:
         by_tk = pg.rows_by_ticker(rows)
         if prev is not None:
-            entries, st = pg.classify_changes(by_tk, prev, day, history=hist)
+            entries, st = pg.classify_changes(by_tk, prev, day, history=hist, prev2_by_tk=prev2)
             c = {}
             for e in entries:
                 c[e['kind']] = c.get(e['kind'], 0) + 1
             action = c.get('entered_buy', 0) + c.get('exited_buy', 0)
-            rows_out.append((action, c.get('reversal', 0), c.get('same_side', 0), st['flood']))
+            rows_out.append((action, c.get('reversal', 0), c.get('same_side', 0), st['flood'],
+                             sum(1 for e in entries if e['kind'] == 'buy_below'
+                                 and e.get('confirmed'))))
             print(f"{day:<11} {st['n']:>5} {st['changed_share']:>8.1%} {st['missing_share']:>8.1%} "
                   f"{action:>7} {c.get('reversal', 0):>9} {c.get('same_side', 0):>10} "
-                  f"{c.get('data_gap', 0):>9} {c.get('score_drop', 0):>6} {c.get('fv_jump', 0):>5}  "
+                  f"{c.get('data_gap', 0):>9} {c.get('score_drop', 0):>6} {c.get('fv_jump', 0):>5} "
+                  f"{rows_out[-1][4]:>5}  "
                   f"{(st['cause'] or '').upper() if st['flood'] else ''}")
         for t, r in by_tk.items():
             pts = hist.setdefault(t, [])
             if r.get('rating') and (not pts or pts[-1][1] != r['rating']):
                 pts.append([day, r['rating']])
-        prev = by_tk
+        prev2, prev = prev, by_tk
     if rows_out:
         acts = [r[0] for r in rows_out]
         crossings = sum(r[0] + r[1] for r in rows_out)
@@ -598,6 +646,7 @@ def cmd_alerts_replay(doc, a):
               f"max {max(acts)}; reversals {sum(r[1] for r in rows_out)} of {crossings} crossings "
               f"({sum(r[1] for r in rows_out) / max(1, crossings):.0%}); "
               f"same-side median {statistics.median(r[2] for r in rows_out):g}/run; "
+              f"confirmed buy-below crossings median {statistics.median(r[4] for r in rows_out):g}/run; "
               f"flood runs {sum(1 for r in rows_out if r[3])}")
 
 
@@ -765,6 +814,9 @@ def build_parser():
     sp.add_argument('--alerts', choices=pg.ALERT_MODES,
                     help='buy_line (default): Action on buy-line crossings; '
                          'all: also moves within a side; off: mute')
+    sp.add_argument('--threshold', action='append', metavar='KEY=V',
+                    help='alert threshold override: score_drop (pts), fv_jump, drawdown, drift '
+                         '(fractions or %%); "default" clears one')
     sp.add_argument('--weighting', choices=pp.WEIGHTINGS,
                     help='how stats and NAV weigh members: equal (default), model '
                          '(the run\'s position_weight), target (targets), held (shares x price)')
