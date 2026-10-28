@@ -2043,28 +2043,34 @@ def _build_etf_payload(rows, out_dir, run_date, prices_dir=None, run_provenance=
     return payload
 
 
-BOND_REPORT_VERSION = 1   # bond-analysis-model's REPORT_DATA_VERSION we draw
+BOND_REPORT_VERSION = 1      # bonds/: REPORT_DATA_VERSION we draw
+CURRENCY_REPORT_VERSION = 1  # currencies/: REPORT_DATA_VERSION we draw
+
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _bond_output_dir():
-    """The sibling bond model's output/ (``BOND_MODEL_OUTPUT`` overrides)."""
-    return os.environ.get('BOND_MODEL_OUTPUT') or os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-        'bond-analysis-model', 'output')
+    """The bond model's output/ (``BOND_MODEL_OUTPUT`` overrides)."""
+    return os.environ.get('BOND_MODEL_OUTPUT') or os.path.join(_REPO_ROOT, 'bonds', 'output')
 
 
-def _stage_bond_report(out_dir, run_date, src_dir=None):
-    """Copy the bond model's newest ``bond_report_<date>.json`` on or before
-    *run_date* beside the report as ``bonds.json``, the sidecar Financial
-    Model › Bond Valuations loads when opened. Returns ``{date, total}`` for
-    the page, or None (and removes a stale ``bonds.json``) when there is no
-    report or its shape is not the one the template draws. Display only."""
-    dest = os.path.join(out_dir, 'bonds.json')
-    src_dir = src_dir or _bond_output_dir()
+def _currency_output_dir():
+    """The currency screener's output/ (``CURRENCY_MODEL_OUTPUT`` overrides)."""
+    return os.environ.get('CURRENCY_MODEL_OUTPUT') or os.path.join(
+        _REPO_ROOT, 'currencies', 'output')
+
+
+def _stage_model_report(out_dir, run_date, src_dir, prefix, dest_name, version, label):
+    """Copy a subproject's newest ``<prefix>_<date>.json`` on or before
+    *run_date* beside the report as *dest_name*, the sidecar its Financial
+    Model tab loads when opened. Returns ``{date, total}`` for the page, or
+    None (and removes a stale *dest_name*) when there is no report or its
+    shape is not *version*, the one the template draws. Display only."""
+    dest = os.path.join(out_dir, dest_name)
     cutoff = run_date.isoformat() if run_date is not None else '9999-12-31'
+    pat = re.escape(prefix) + r'_(\d{4}-\d{2}-\d{2})\.json'
     picks = sorted(n for n in (os.listdir(src_dir) if os.path.isdir(src_dir) else [])
-                   if re.fullmatch(r'bond_report_\d{4}-\d{2}-\d{2}\.json', n)
-                   and n[12:22] <= cutoff)
+                   if (m := re.fullmatch(pat, n)) and m.group(1) <= cutoff)
     data = None
     if picks:
         src = os.path.join(src_dir, picks[-1])
@@ -2072,21 +2078,37 @@ def _stage_bond_report(out_dir, run_date, src_dir=None):
             with open(src, encoding='utf-8') as f:
                 data = json.load(f)
         except (OSError, ValueError) as e:
-            logger.warning("Bond report %s unreadable: %s", src, e)
-        if data is not None and data.get('version') != BOND_REPORT_VERSION:
-            logger.warning("Bond report %s is version %s, the template draws %s",
-                           src, data.get('version'), BOND_REPORT_VERSION)
+            logger.warning("%s report %s unreadable: %s", label, src, e)
+        if data is not None and data.get('version') != version:
+            logger.warning("%s report %s is version %s, the template draws %s",
+                           label, src, data.get('version'), version)
             data = None
     if data is None:
         if os.path.exists(dest):
             os.remove(dest)
-        print(f"[report_html] Bond valuations: no bond report on or before {cutoff} in {src_dir}")
+        print(f"[report_html] {label}: no report on or before {cutoff} in {src_dir}")
         return None
     tmp = dest + '.tmp'
     shutil.copyfile(src, tmp)
     os.replace(tmp, dest)
-    print(f"[report_html] Bond valuations: {picks[-1]} ({data.get('total', 0):,} instruments)")
+    print(f"[report_html] {label}: {picks[-1]} ({data.get('total', 0):,} rows)")
     return {'date': data.get('run_date'), 'total': data.get('total')}
+
+
+def _stage_bond_report(out_dir, run_date, src_dir=None):
+    """bonds/'s ``bond_report_<date>.json`` as ``bonds.json``, for Financial
+    Model › Bond Valuations (``_stage_model_report``)."""
+    return _stage_model_report(out_dir, run_date, src_dir or _bond_output_dir(),
+                               'bond_report', 'bonds.json', BOND_REPORT_VERSION,
+                               'Bond valuations')
+
+
+def _stage_currency_report(out_dir, run_date, src_dir=None):
+    """currencies/'s ``currency_report_<date>.json`` as ``currencies.json``,
+    for Financial Model › Currencies (``_stage_model_report``)."""
+    return _stage_model_report(out_dir, run_date, src_dir or _currency_output_dir(),
+                               'currency_report', 'currencies.json',
+                               CURRENCY_REPORT_VERSION, 'Currencies')
 
 
 def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=None,
@@ -2155,6 +2177,12 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         logger.warning("Bond valuations failed: %s", e, exc_info=True)
         bond_meta = None
 
+    try:
+        ccy_meta = _stage_currency_report(_out_dir_early, run_date)
+    except Exception as e:  # display only: never fail a render over it
+        logger.warning("Currencies failed: %s", e, exc_info=True)
+        ccy_meta = None
+
     # Sidecar JSON files (PRICES, HIST) live next to the HTML output. The
     # template lazy-fetches them on first chart open, so the embedded HTML
     # stays small enough to publish via GitHub Pages (<100 MB hard cap) and
@@ -2210,6 +2238,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         sector_pool_json=sector_pool_json,
         etf_json=dumps_for_script(_sanitize(etf_payload), default=_json_default),
         bond_meta=dumps_for_script(bond_meta),
+        ccy_meta=dumps_for_script(ccy_meta),
         prices_available=('true' if prices_payload is not None else 'false'),
         prices_size_mb=prices_size_mb,
         hist_available=('true' if hist_tickers else 'false'),

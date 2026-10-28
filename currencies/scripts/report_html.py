@@ -12,6 +12,12 @@ only because it carries 2,200 tickers.
 
 The world basemap lives in `templates/world_svg.js` (Natural Earth 110m,
 public domain) and is inlined here rather than fetched, for the same reason.
+
+Beside the page, `build_html` writes `currency_report_<date>.json`: the same
+records, gate metadata and basemap as data. The stock model's report (this
+folder's parent repo) draws it as Financial Model › Currencies in its own
+styling. That is a file contract, not a code dependency: bump
+`REPORT_DATA_VERSION` on any change of shape.
 """
 
 import json
@@ -81,20 +87,60 @@ def _load_world_svg():
         return 'var WORLD_SVG = "";'
 
 
-def build_html(rows, filename, run_date=None, run_provenance=None,
-               params=None):
-    """Write the report. Returns the path written."""
-    gm = gate_metadata(params)
+REPORT_DATA_VERSION = 1
+
+
+def _records(rows, gm):
+    """The fields the page draws, per row, with non-finite floats nulled."""
     gate_field_keys = [k for g in gm['gates']
                        for k in (g['key'], g['gpKey'], g['scoreKey'])]
     pillar_keys = ['_score_pillar_' + c.lower() for c in PILLAR_ORDER]
-
     records = []
     for r in rows:
         rec = {k: r.get(k) for k in _BASE_FIELDS}
         rec.update({k: r.get(k) for k in gate_field_keys})
         rec.update({k: r.get(k) for k in pillar_keys})
         records.append(_sanitize(rec))
+    return records
+
+
+def report_data(rows, run_date, run_provenance=None, params=None):
+    """The page as data, for another report to draw in its own style."""
+    gm = gate_metadata(params)
+    svg = _load_world_svg()
+    # world_svg.js is `var WORLD_SVG = `<svg ...>`;` -- keep only the markup.
+    start, end = svg.find('<svg'), svg.rfind('</svg>')
+    return {
+        'version': REPORT_DATA_VERSION,
+        'run_date': run_date.isoformat(),
+        'generated': (run_provenance or {}).get('generated_at', ''),
+        'total': len(rows),
+        'rows': _records(rows, gm),
+        'gate_meta': _sanitize(gm),
+        'provenance': _sanitize(run_provenance or {}),
+        'world_svg': svg[start:end + 6] if start >= 0 and end > start else '',
+    }
+
+
+def write_report_data(rows, out_dir, run_date, run_provenance=None,
+                      params=None):
+    """Write ``currency_report_<date>.json`` into *out_dir*, atomically.
+    Returns the path written."""
+    path = os.path.join(out_dir, 'currency_report_%s.json' % run_date.isoformat())
+    tmp = path + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(report_data(rows, run_date, run_provenance, params), f,
+                  separators=(',', ':'), allow_nan=False)
+    os.replace(tmp, path)
+    return path
+
+
+def build_html(rows, filename, run_date=None, run_provenance=None,
+               params=None):
+    """Write the report, and its data file beside it (``write_report_data``).
+    Returns the path of the page."""
+    gm = gate_metadata(params)
+    records = _records(rows, gm)
 
     run_date = run_date or date.today()
     env = jinja2.Environment(
@@ -115,6 +161,8 @@ def build_html(rows, filename, run_date=None, run_provenance=None,
     os.makedirs(os.path.dirname(os.path.abspath(filename)) or '.', exist_ok=True)
     with open(filename, 'w', encoding='utf-8') as f:
         f.write(html)
+    write_report_data(rows, os.path.dirname(os.path.abspath(filename)),
+                      run_date, run_provenance, params)
     return filename
 
 

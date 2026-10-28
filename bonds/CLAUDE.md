@@ -5,10 +5,20 @@
 Screens US corporate bonds (IG + HY) and US Treasuries into BUY / LEAN BUY /
 HOLD / PASS, and accumulates a daily snapshot corpus. Free data sources only.
 
-**Standalone project — no connection to any other repo.** It reads the sibling
-equity model's output directory when one is present (issuer fundamentals it has
-already computed), but degrades gracefully to SEC XBRL when it is absent. There
-is no code dependency in either direction.
+**A subproject of stock-analysis-model, in `bonds/`.** It came in with its
+history from the standalone Bond-Analysis- repo on 2026-10-28 (`git log` of
+the "Add 'bonds/'" commit's second parent). It still has no code dependency on
+the stock model in either direction: it runs from this folder on its own
+interpreter (`~/.venvs/bonds-model`, built by the parent's
+`scripts/setup_submodels.sh`), because its `data/`, `models/` and `scripts/`
+are namespace packages the parent's installed packages would shadow. It reads
+the equity snapshots in the parent's `output/` when present (issuer
+fundamentals already computed), and degrades gracefully to SEC XBRL when they
+are absent. The parent's nightly `scripts/run_daily.sh` runs it (step
+`sidemodels`, 17:00 weekdays) and draws `bond_report_<date>.json` as Financial
+Model › Bond Valuations. Until cutover the standalone repo and its 17:00
+scheduled task keep publishing the old page; the sections below on scheduling
+and publishing describe that standalone setup.
 
 ## What this is, and is not
 
@@ -194,7 +204,8 @@ not from this code:
 
 ### Moving the run to another Mac
 
-The MacBook skipped every weekday it was asleep at 07:00 (10-12..10-15), so
+The MacBook skipped every weekday it was asleep at 07:00 (10-12..10-15; the run
+has since moved to 17:00 with the stock model), so
 the run is moving to the always-on Mac mini. What has to move is only what git
 cannot carry: `output/` and `data/cache/` (~1 GB), the `.env` values, and the
 task itself. The equity snapshots do **not** have to move: the daily run never
@@ -209,11 +220,11 @@ opens one (they are baked into `universe_<quarter>.parquet` at build time).
    happened before), then `ssh-copy-id <target>` once and
    `scheduling/push_to_mini.sh <target> --go`.
 4. Target: create the task from `scheduling/daily-bond-analysis.SKILL.md`
-   (weekdays 07:00, working folder = the repo), add Claude to Login Items, and
+   (weekdays 17:00, working folder = the repo), add Claude to Login Items, and
    "Run now" once while watching to approve each command.
 
 When `daily_checks.py gaps` reports a missed run, grep
-`~/Library/Logs/Claude/main.log` for `daily-bond-analysis` around 07:00 of that
+`~/Library/Logs/Claude/main.log` for `daily-bond-analysis` around 17:00 of that
 day before suspecting the pipeline.
 
 ## Snapshot versions

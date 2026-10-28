@@ -26,7 +26,18 @@ as `from data import ...` / `from models import ...`.
   runs after Actions publishes, and `archive_snapshots.py` pushes its
   history to the `data/snapshots` branch (`scheduled-tasks/daily-check/`;
   README, "The daily check").
-- **Publishing** is GitHub Actions only (`build.yml`); the github-pages
+- **In the parent repo.** This folder is `currencies/` in stock-analysis-model,
+  imported with its history from the standalone Currency-Screener- repo on
+  2026-10-28. It runs from here on its own interpreter
+  (`~/.venvs/currencies-model`, the parent's `scripts/setup_submodels.sh`),
+  never the parent's venv, whose packages of the same names would shadow
+  these. The parent's nightly `scripts/run_daily.sh` runs
+  `analyze_currencies.py` (step `sidemodels`, 17:00 weekdays) and draws
+  `output/currency_report_<date>.json` (written beside the page by
+  `build_html`) as Financial Model › Currencies. The workflow below lives on
+  in the standalone repo until cutover; the parent runs only its root
+  workflows.
+- **Publishing (standalone)** is GitHub Actions only (`build.yml`); the github-pages
   environment refuses deploys from anywhere else. The site URL follows the
   repository name — it moved when the repo was renamed from
   `Currency-Arbitrage-`, and GitHub does not redirect Pages.
