@@ -1374,6 +1374,27 @@ circle.etfc-spy{fill:var(--etfc-s);}
 .etfc-msg{font-size:0.8em;color:var(--ppf-sub);padding:40px 0;text-align:center;}
 .etfc-note{font-size:0.74em;color:var(--ppf-sub);margin-top:4px;}
 @media (max-width:768px){.etf-sm-hide{display:none;}.etf-rel{min-width:120px;}}
+/* Financial Model › Currencies (renderFxBoard). Text colours carry
+   !important against the blanket dark `body *` rule. */
+.fx-tbl td,.fx-tbl th{white-space:nowrap;}
+.fx-tbl .fx-r{text-align:right;font-variant-numeric:tabular-nums;}
+.fx-tbl tr.fx-off{cursor:default;opacity:.72;}
+.fx-up,.fx-cheap{color:var(--ppf-tw)!important;}
+.fx-dn,.fx-rich{color:var(--ppf-hw)!important;}
+.fx-fair,.fx-na{color:var(--ppf-sub)!important;}
+.fx-sp polyline{fill:none;stroke-width:1.5;stroke-linejoin:round;}
+.fx-sp.up polyline{stroke:var(--ppf-tw);}.fx-sp.dn polyline{stroke:var(--ppf-hw);}
+.fx-real{display:inline-flex;align-items:center;gap:8px;}
+.fx-real-bar{position:relative;display:inline-block;width:70px;height:8px;background:var(--ppf-line);border-radius:2px;}
+.fx-real-bar .lo,.fx-real-bar .hi{position:absolute;top:0;bottom:0;width:20%;opacity:.35;}
+.fx-real-bar .lo{left:0;background:var(--ppf-tw);border-radius:2px 0 0 2px;}
+.fx-real-bar .hi{right:0;background:var(--ppf-hw);border-radius:0 2px 2px 0;}
+.fx-real-bar .m{position:absolute;top:-3px;bottom:-3px;width:3px;margin-left:-1.5px;background:var(--ppf-txt);border-radius:1px;}
+@media (max-width:768px){
+  .fx-tbl .etf-name{display:block;margin-left:0;font-size:.78em;}
+  .fx-tbl td,.fx-tbl th{padding-left:5px;padding-right:5px;}
+  .fx-real{gap:5px;}.fx-real-bar{width:36px;}
+}
 :root{--ppf-tw:#1e7d45;--ppf-hw:#c0392b;--ppf-q:#90a4ae;--ppf-line:#e3e8ee;--ppf-sub:#607d8b;--ppf-bg:#fff;--ppf-txt:#263238;}
 [data-theme="dark"]{--ppf-tw:#3fb950;--ppf-hw:#f85149;--ppf-q:#6e7681;--ppf-line:#30363d;--ppf-sub:#8b949e;--ppf-bg:#1c2128;--ppf-txt:#e6edf3;}
 /* Sector forces (renderPoolSectorSignals): one row per force, a plain-word
@@ -3496,6 +3517,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
   <div id="view-matrix" class="view">
     <div id="m-overview-view" style="display:none"></div>
     <div id="m-etf-view" style="display:none"></div>
+    <div id="m-fx-view" style="display:none"></div>
     <div class="matrix-wrap"><table class="matrix-table" id="mtx"><thead id="mtx-h"></thead><tbody id="mtx-b"></tbody></table></div>
   </div>
   <div id="view-table" class="view">
@@ -3724,6 +3746,7 @@ function _dashPass(d){
     if(d.sector!==f.sector)return false;
     return (f.members||[]).indexOf(d.industry||'Other')>=0;
   }
+  if(f.type==='ccy')return d.ccy===f.ccy; /* Currencies tab: reports in it */
   if(f.type==='score'){
     var c=_num(d._composite_score);
     if(c==null)return false;
@@ -3737,6 +3760,7 @@ function _dashLabel(){
   if(f.type==='cat')return f.name+' — above avg ('+f.avg+'%)';
   if(f.type==='score')return'Score '+(f.idx*10)+'–'+((f.idx+1)*10);
   if(f.type==='industry')return f.sector+' › '+f.label;
+  if(f.type==='ccy')return 'Reports in '+f.ccy;
   return'';
 }
 function clearDashFilter(){if(!_dashFilter)return;_dashFilter=null;applyFilters();}
@@ -3964,6 +3988,7 @@ var SECTOR_POOL={{ sector_pool_json }};
    report_html._build_etf_payload): {base, funds:{T:{...}}, sector_fund}.
    null when no holdings are archived or the run is coverage-degraded. */
 var ETF_LT={{ etf_json }};
+var FX_PUB={{ fx_json }};
 /* PRICES context lives in prices_meta.json (dates axis, manifests, index
    series, sector composites) with per-ticker closes sharded under px/;
    HIST is sharded per ticker under hist/ (the inline _HIST_TICKERS says
@@ -7455,19 +7480,101 @@ function swMSub(key){
   _syncHash();
   setTimeout(_setTableH,0);
 }
-/* Financial Model's three sub-tabs: Dashboard, Stock Valuations (the gate
-   matrix table) and ETF Valuations (the SPDRs read through the model). One
-   view shows at a time. */
+/* Financial Model's sub-tabs: Dashboard, Stock Valuations (the gate matrix
+   table), ETF Valuations (the SPDRs read through the model) and Currencies
+   (renderFxView). One view shows at a time. */
 function _mIsMatrix(){return (curMSub||'matrix')==='matrix';}
 function _mShow(){
-  var mw=document.querySelector('.matrix-wrap'),ov=document.getElementById('m-overview-view'),ev=document.getElementById('m-etf-view');
+  var mw=document.querySelector('.matrix-wrap'),ov=document.getElementById('m-overview-view'),ev=document.getElementById('m-etf-view'),fv=document.getElementById('m-fx-view');
   var k=curMSub||'matrix';
   if(mw)mw.style.display=k==='matrix'?'':'none';
   if(ov)ov.style.display=k==='dashboard'?'':'none';
   if(ev)ev.style.display=k==='etf'?'':'none';
+  if(fv)fv.style.display=k==='fx'?'':'none';
   if(k==='dashboard')renderOverview();
   else if(k==='etf')renderEtfView();
+  else if(k==='fx')renderFxView();
   else renderMatrix();
+}
+/* === Financial Model › Currencies === (models/fx_valuation.py, FX_PUB)
+   Display only: no rating reads it. Each currency's move against the
+   dollar, where its real effective rate sits in its own 20-year range,
+   what it pays over the dollar, and the stocks that report in it; a row
+   opens Stock Valuations filtered to those stocks. */
+function renderFxView(){
+  var el=document.getElementById('m-fx-view');if(!el)return;
+  el.innerHTML=renderFxBoard()||'<p style="color:#888;padding:20px;font-size:0.9em">No exchange-rate history was stored for this run.</p>';
+}
+function _fxRate(c){
+  var v=c.quote==='usd_per'?c.spot:1/c.spot;
+  var d=v>=1000?0:v>=100?1:v>=10?2:v>=1?3:4;
+  return v.toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});
+}
+function _fxMove(v){
+  if(v==null||!isFinite(v))return '<span class="fx-na">—</span>';
+  return '<span class="'+(v>=0?'fx-up':'fx-dn')+'">'+_etfPct(v,1)+'</span>';
+}
+function _fxSpark(c){
+  var p=c.spark||[];if(p.length<2)return '';
+  var lo=Math.min.apply(null,p),hi=Math.max.apply(null,p),W=64,H=18,r=hi-lo||1;
+  var pts=p.map(function(v,i){return (i*W/(p.length-1)).toFixed(1)+','+(H-1-(v-lo)/r*(H-2)).toFixed(1);}).join(' ');
+  return '<svg class="fx-sp '+(p[p.length-1]>=p[0]?'up':'dn')+'" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" aria-hidden="true"><polyline points="'+pts+'"/></svg>';
+}
+function _fxMonth(iso){
+  if(!iso)return '';
+  var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return m[+iso.slice(5,7)-1]+' '+iso.slice(0,4);
+}
+function _fxReal(rv){
+  if(!rv||rv.pct==null)return '<span class="fx-na" title="'+(rv?'Too little history to rank':'No BIS real effective rate')+'">—</span>';
+  var w={cheap:'Cheap',fair:'Fair',rich:'Rich'}[rv.read]||'';
+  return '<span class="fx-real" title="'+_ord(Math.round(rv.pct))+' percentile of its last '+rv.years+' years (BIS, '+_fxMonth(rv.as_of)+')">'
+    +'<span class="fx-real-bar"><i class="lo"></i><i class="hi"></i><i class="m" style="left:'+rv.pct.toFixed(1)+'%"></i></span>'
+    +'<b class="fx-'+rv.read+'">'+w+'</b></span>';
+}
+function _fxCarry(k){
+  if(!k)return '<span class="fx-na" title="No recent 3-month rate from the OECD">—</span>';
+  var v=k.spread;
+  return '<span class="'+(v>=0?'fx-up':'fx-dn')+'" title="'+k.rate.toFixed(2)+'% vs '+k.usd_rate.toFixed(2)+'% in the US, '+(k.tenor==='overnight'?'overnight':'3-month')+' rates ('+_fxMonth(k.as_of)+')">'+(v>=0?'+':'−')+Math.abs(v).toFixed(1)+' pp</span>';
+}
+function fxJump(ccy){
+  var c=((FX_PUB&&FX_PUB.currencies)||[]).filter(function(x){return x.ccy===ccy;})[0];
+  if(!c||!c.exposure||!c.exposure.n)return;
+  _drillPush('Financial Model · Currencies');
+  _dashFilter={type:'ccy',ccy:ccy};
+  _dashJump();
+}
+function renderFxBoard(){
+  if(!FX_PUB||!FX_PUB.currencies||!FX_PUB.currencies.length)return '';
+  var U=FX_PUB.usd||{},ur=U.real,cs=FX_PUB.currencies;
+  var foreign=cs.reduce(function(a,c){return a+(c.exposure.n||0);},0);
+  var lead='';
+  if(ur&&ur.pct!=null)lead='The dollar is <b class="fx-'+ur.read+'">'+({cheap:'cheap',fair:'fairly valued',rich:'rich'}[ur.read])+'</b> in real terms: '
+    +_ord(Math.round(ur.pct))+' percentile of its last '+ur.years+' years ('+_fxMonth(ur.as_of)+'). ';
+  if(U.rate3m)lead+='US 3-month rate '+U.rate3m.rate.toFixed(2)+'%. ';
+  lead+=foreign.toLocaleString()+' companies report in another currency; tap a currency to see them.';
+  var h='<div class="xsect-dashboard" id="fx-board">'
+    +_qHelp('<span class="note-q-t"><b>Rate</b> is units per dollar, or dollars per unit for EUR, GBP, AUD and NZD. <b>1M to 5Y</b> is the change in the currency’s dollar value: positive means it strengthened. <b>Real value</b> places the BIS real effective exchange rate (the currency against its trading partners, adjusted for inflation) within its own last 20 years: the bottom fifth reads Cheap, the top fifth Rich. It says where the currency sits against its past, not when or whether it will revert. <b>Carry</b> is its 3-month interest rate less the US one (overnight rates where the 3-month series has stopped, as for the euro and pound): what holding it instead of dollars pays, before any change in the exchange rate. <b>Stocks</b> report in that currency; their statements were translated to dollars at each fiscal year’s average rate, balance sheets at the year-end rate. Nothing here feeds a rating.</span>','How to read this','corner')
+    +'<div class="sec-label">Currencies Against the Dollar</div>'
+    +'<div class="xsect-sub">'+lead+'</div>'
+    +'<div class="ppi-wrap"><table class="ppi-tbl fx-tbl"><thead><tr><th>Currency</th><th class="fx-r etf-sm-hide">Rate</th><th class="etf-sm-hide">1 year</th><th class="fx-r etf-sm-hide">1M</th><th class="fx-r etf-sm-hide">3M</th><th class="fx-r">1Y</th><th class="fx-r etf-sm-hide">5Y</th><th>Real value</th><th class="fx-r">Carry</th><th class="fx-r">Stocks</th><th class="fx-r etf-sm-hide">Median MoS</th></tr></thead><tbody>';
+  cs.forEach(function(c){
+    var e=c.exposure||{},go=e.n>0;
+    h+='<tr class="ppi-co'+(go?'':' fx-off')+'" data-c="'+_attr(c.ccy)+'"'
+      +(go?' onclick="fxJump(this.dataset.c)" title="Open Stock Valuations filtered to the '+e.n+' compan'+(e.n===1?'y':'ies')+' reporting in the '+_attr(c.name)+'"'
+          :' title="No company in the universe reports in the '+_attr(c.name)+'"')+'>'
+      +'<td><b>'+_esc(c.ccy)+'</b><span class="etf-name">'+_esc(c.name)+'</span></td>'
+      +'<td class="fx-r etf-sm-hide" title="Close of '+_attr(c.spot_date)+'">'+_fxRate(c)+'</td>'
+      +'<td class="etf-sm-hide">'+_fxSpark(c)+'</td>'
+      +'<td class="fx-r etf-sm-hide">'+_fxMove(c['1m'])+'</td><td class="fx-r etf-sm-hide">'+_fxMove(c['3m'])+'</td>'
+      +'<td class="fx-r">'+_fxMove(c['1y'])+'</td><td class="fx-r etf-sm-hide">'+_fxMove(c['5y'])+'</td>'
+      +'<td>'+_fxReal(c.real)+'</td><td class="fx-r">'+_fxCarry(c.carry)+'</td>'
+      +'<td class="fx-r">'+(go?e.n:'<span class="fx-na">0</span>')+'</td>'
+      +'<td class="fx-r etf-sm-hide">'+(e.median_mos!=null?_etfPct(e.median_mos):'<span class="fx-na">—</span>')+'</td></tr>';
+  });
+  h+='</tbody></table></div>'
+    +'<div class="etf-note">Exchange rates from Yahoo, checked against the Fed’s H.10. Real effective rates (BIS) and 3-month rates (OECD) come monthly through FRED, so they trail the run by a few months. Rows with no stocks are major currencies, shown for context.</div></div>';
+  return h;
 }
 function renderEtfView(){
   var ev=document.getElementById('m-etf-view');if(!ev)return;
@@ -12495,7 +12602,7 @@ function _navGroups(){
   var groups=[
     {v:'pool',l:'Sector Analysis',cur:_poolTab||'__performance__',items:pool},
     {v:'matrix',l:'Financial Model',cur:curMSub||'matrix',
-     items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Stock Valuations'},{k:'etf',l:'ETF Valuations'}]},
+     items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Stock Valuations'},{k:'etf',l:'ETF Valuations'},{k:'fx',l:'Currencies'}]},
     {v:'table',l:'Financial Data',cur:curTSub,
      items:Object.keys(TL).map(function(k){return{k:k,l:TL[k]};})},
     {v:'pf',l:'Portfolios',cur:curPfSub,

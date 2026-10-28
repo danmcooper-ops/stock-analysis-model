@@ -27,6 +27,10 @@ def _refresh(store, a):
     wanted = set(snapshot_currencies(a.results_dir, before=None))
     ccys = set(MAJORS) | set(store.currencies()) | wanted | set(a.currencies or [])
     stats = store.refresh(ccys)
+    # The Currencies tab's real-value and carry series, read at render time.
+    got = store.refresh_indicators(ccys)
+    print(f"indicators: {sum('reer' in v for v in got.values())} real effective "
+          f"rates, {sum('rate3m' in v for v in got.values())} 3-month rates")
     unserved = []
     for ccy, st in stats.items():
         info = store.rate_info(ccy, a.run_date)

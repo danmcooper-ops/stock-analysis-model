@@ -36,6 +36,7 @@ freshness check would freeze a live intraday bar. A fetch that fails, or
 returns far less history than the file holds, keeps the file as it is.
 """
 
+import json
 import logging
 import math
 import os
@@ -69,6 +70,29 @@ H10_SERIES = {
     'NOK': ('DEXNOUS', False), 'SGD': ('DEXSIUS', False),
     'MYR': ('DEXMAUS', False),
 }
+
+# FRED's two-letter area code per currency for the indicator series the
+# Currencies tab reads: BIS real broad effective exchange rates
+# (RB<area>BIS, monthly) and OECD 3-month interbank rates
+# (IR3TIB01<area>M156N, monthly). XM is the euro area.
+INDICATOR_AREA = {
+    'USD': 'US', 'EUR': 'XM', 'JPY': 'JP', 'GBP': 'GB', 'CHF': 'CH',
+    'CNY': 'CN', 'CAD': 'CA', 'AUD': 'AU', 'NZD': 'NZ', 'SEK': 'SE',
+    'NOK': 'NO', 'DKK': 'DK', 'HKD': 'HK', 'SGD': 'SG', 'KRW': 'KR',
+    'TWD': 'TW', 'INR': 'IN', 'IDR': 'ID', 'THB': 'TH', 'MYR': 'MY',
+    'PHP': 'PH', 'MXN': 'MX', 'BRL': 'BR', 'ARS': 'AR', 'CLP': 'CL',
+    'COP': 'CO', 'PEN': 'PE', 'ZAR': 'ZA', 'PLN': 'PL', 'HUF': 'HU',
+    'CZK': 'CZ', 'TRY': 'TR', 'ILS': 'IL',
+}
+# The OECD files the euro area's short rate under EZ, the BIS under XM.
+RATE_AREA = {'EUR': 'EZ'}
+# Overnight rates, the fallback when the OECD 3-month series has stopped
+# (euro area and UK at 2026-01): the central banks' own daily benchmarks
+# where FRED carries them, else the OECD's monthly immediate rate.
+OVERNIGHT_SERIES = {'USD': 'SOFR', 'EUR': 'ECBESTRVOLWGTTRMDMNRT',
+                    'GBP': 'IUDSOIA'}
+INDICATORS_FILE = '_indicators.json'
+INDICATOR_START = date(1994, 1, 1)
 
 DISAGREE_TOL = 0.05       # Yahoo vs H.10 on the same day
 SPIKE_TOL = 0.25          # an isolated bar this far off both neighbours
@@ -289,6 +313,62 @@ class FXStore:
                 out[ccy] = {'status': 'kept' if self.frame(ccy) is not None
                             else 'missing', 'error': str(e)}
         return out
+
+    # -- indicators (Currencies tab) ----------------------------------------
+
+    def indicators(self):
+        """``{ccy: {'reer': {iso_date: value}, 'rate3m': {...},
+        'rate_on': {...}}}`` as last
+        written by :meth:`refresh_indicators`, or {}."""
+        try:
+            with open(os.path.join(self.fx_dir, INDICATORS_FILE),
+                      encoding='utf-8') as fh:
+                return json.load(fh).get('series') or {}
+        except (OSError, ValueError) as e:
+            logger.debug("fx_store: no indicators: %s", e)
+            return {}
+
+    def refresh_indicators(self, currencies, fred_client=None):
+        """Fetch the BIS real effective rate, the 3-month rate and the
+        overnight rate for each of
+        *currencies* (plus USD) and rewrite the indicators file. A series
+        FRED does not carry is left out; one that fails this time keeps what
+        the file held. Returns ``{ccy: [series fetched]}``."""
+        fred = fred_client or _default_fred()
+        old = self.indicators()
+        out, got = {}, {}
+        for ccy in sorted({_iso(c) for c in currencies} | {'USD'}):
+            area = INDICATOR_AREA.get(ccy)
+            if not area:
+                continue
+            entry = {}
+            rarea = RATE_AREA.get(ccy, area)
+            for key, sid in (('reer', f'RB{area}BIS'),
+                             ('rate3m', f'IR3TIB01{rarea}M156N'),
+                             ('rate_on', OVERNIGHT_SERIES.get(
+                                 ccy, f'IRSTCI01{rarea}M156N'))):
+                try:
+                    obs = fred.fetch_series(sid, start=INDICATOR_START) or {}
+                except Exception as e:
+                    logger.warning("fx_store: FRED %s failed: %s", sid, e)
+                    obs = {}
+                vals = {k.isoformat(): float(v) for k, v in obs.items()
+                        if v is not None and math.isfinite(float(v))}
+                if vals:
+                    entry[key] = vals
+                    got.setdefault(ccy, []).append(key)
+                elif (old.get(ccy) or {}).get(key):
+                    entry[key] = old[ccy][key]
+            if entry:
+                out[ccy] = entry
+        os.makedirs(self.fx_dir, exist_ok=True)
+        dest = os.path.join(self.fx_dir, INDICATORS_FILE)
+        tmp = f'{dest}.tmp.{os.getpid()}'
+        with open(tmp, 'w', encoding='utf-8') as fh:
+            json.dump({'written': date.today().isoformat(), 'series': out}, fh,
+                      separators=(',', ':'))
+        os.replace(tmp, dest)
+        return got
 
     def _refresh_one(self, ccy, yahoo_fetch, fred_fetch):
         try:

@@ -433,16 +433,19 @@ def test_portfolio_page_way_back_sits_under_the_sub_tabs():
     assert '.pfv-back{padding-left:0;padding-top:0;margin-bottom:6px;}' in src
 
 
-def test_financial_model_has_stock_and_etf_valuations_tabs():
+def test_financial_model_has_stock_etf_and_currency_tabs():
     """Financial Model's sub-tabs read Dashboard, Stock Valuations (the gate
-    matrix) and ETF Valuations (the SPDRs read through the model, moved off
-    the Sector Analysis Charts tab so the table appears once)."""
+    matrix), ETF Valuations (the SPDRs read through the model, moved off
+    the Sector Analysis Charts tab so the table appears once) and
+    Currencies (models/fx_valuation.py)."""
     src = _tpl()
     assert ("items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Stock Valuations'},"
-            "{k:'etf',l:'ETF Valuations'}]},") in src
+            "{k:'etf',l:'ETF Valuations'},{k:'fx',l:'Currencies'}]},") in src
     assert '<div id="m-etf-view" style="display:none"></div>' in src
+    assert '<div id="m-fx-view" style="display:none"></div>' in src
     show = re.search(r'function _mShow\(\)\{.*?\n\}\n', src, re.S).group(0)
     assert "else if(k==='etf')renderEtfView();" in show
+    assert "else if(k==='fx')renderFxView();" in show
     assert "+poolBody+'</div>':'')\n      +renderEtfLookthrough();" not in src
     assert "l:'Gate Matrix'" not in src
 

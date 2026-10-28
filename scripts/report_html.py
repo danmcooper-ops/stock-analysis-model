@@ -30,6 +30,8 @@ from scripts.config import (CARRY_FORWARD_MAX_PRICE_LAG_BARS,
                             PHASE1_LOCAL_PRICE_MAX_AGE_DAYS)
 from data import etf_holdings
 from models.etf_lookthrough import lookthrough as etf_lookthrough, relative_to
+from models.fx_valuation import currency_board
+from data.fx_store import FXStore
 from data.price_store import mass_stop, stopped_trading
 from data.splits import adjust_for_ticker
 from data.news_tags import TAG_LABELS
@@ -842,6 +844,9 @@ def _row_context(r, gate_meta_obj, _r2000, _prev_ratings, _rating_hist):
         'sector': r.get('sector'),
         'industry': r.get('industry'),
         'country': r.get('country'),
+        # Reporting currency, for the Currencies tab's drill (None = USD).
+        'ccy': (r.get('currency_financial')
+                if r.get('currency_financial') not in (None, 'USD') else None),
         'ceo': r.get('ceo'),
         'description_full': r.get('description') or '',
         'ceo_bio': r.get('ceo_bio') or '',
@@ -2034,6 +2039,36 @@ def _build_etf_payload(rows, out_dir, run_date, prices_dir=None, run_provenance=
     return payload
 
 
+def _build_fx_payload(rows, out_dir, run_date, fx_dir=None):
+    """Financial Model › Currencies (models/fx_valuation.py) from the FX
+    store, or None when the store holds no history. Every stored currency is
+    shown, so the majors appear whether or not a row reports in one. Also
+    written to ``fx_<date>.json`` beside the report."""
+    store = FXStore(fx_dir)
+    spot = {}
+    for ccy in store.currencies():
+        df = store.frame(ccy)
+        if df is not None and not df.empty:
+            spot[ccy] = df['rate']
+    if not spot:
+        print(f"[report_html] Currencies skipped: no FX history in {store.fx_dir}")
+        return None
+    day = run_date or date.today()
+    payload = currency_board(spot, store.indicators(), rows, day)
+    rich = sum((c.get('real') or {}).get('read') == 'rich' for c in payload['currencies'])
+    cheap = sum((c.get('real') or {}).get('read') == 'cheap' for c in payload['currencies'])
+    print(f"[report_html] Currencies: {len(payload['currencies'])} shown, "
+          f"{cheap} cheap and {rich} rich in real terms")
+    if run_date is not None:
+        path = os.path.join(out_dir, f'fx_{run_date.isoformat()}.json')
+        tmp = path + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(payload, f, default=_json_default, separators=(',', ':'),
+                      sort_keys=True)
+        os.replace(tmp, path)
+    return payload
+
+
 def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=None,
                macro_payload=None):
     """Render the interactive HTML report via Jinja2 template."""
@@ -2093,6 +2128,11 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     except Exception as e:  # display only: never fail a render over it
         logger.warning("ETF look-through failed: %s", e, exc_info=True)
         etf_payload = None
+    try:
+        fx_payload = _build_fx_payload(rows, _out_dir_early, run_date)
+    except Exception as e:  # display only: never fail a render over it
+        logger.warning("Currencies failed: %s", e, exc_info=True)
+        fx_payload = None
 
     # Sidecar JSON files (PRICES, HIST) live next to the HTML output. The
     # template lazy-fetches them on first chart open, so the embedded HTML
@@ -2148,6 +2188,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         portfolios_json=dumps_for_script(portfolios_payload, default=_json_default),
         sector_pool_json=sector_pool_json,
         etf_json=dumps_for_script(_sanitize(etf_payload), default=_json_default),
+        fx_json=dumps_for_script(_sanitize(fx_payload), default=_json_default),
         prices_available=('true' if prices_payload is not None else 'false'),
         prices_size_mb=prices_size_mb,
         hist_available=('true' if hist_tickers else 'false'),

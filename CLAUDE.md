@@ -285,6 +285,34 @@ ruff check .
   `tests/test_fx_store.py`, `tests/test_fx_convert.py`. Phase 0 found BIS
   real effective rates (`RB<ISO2>BIS`, monthly) for all 32 currencies and
   OECD 3-month rates for about 20, for the Currencies tab (Financial Model).
+- **Currencies tab (`models/fx_valuation.py`, Financial Model › Currencies,
+  2026-10-27):** display only; no rating or `profile_verdict` reads it.
+  `report_html._build_fx_payload` builds it at render time from the FX
+  store (every stored currency, so the majors show with no rows behind
+  them), writes `output/fx_<date>.json` and ships it as `FX_PUB`. Per
+  currency:
+  - the change in its dollar value over 1M–5Y, and a 1-year weekly
+    sparkline;
+  - **real value**: the BIS real effective rate's percentile within its
+    own trailing 20 years (`REER_WINDOW_YEARS`). At or under
+    `CHEAP_PCT` (20) it reads Cheap, at or over `RICH_PCT` (80) Rich; a
+    history under 10 years is not ranked;
+  - **carry**: the 3-month rate less the US one, or, when either side's
+    3-month series is older than `RATE_MAX_AGE_DAYS`, the overnight pair
+    (€STR, SONIA, SOFR, else the OECD immediate rate). Tenors are never
+    mixed. The OECD's euro-area and UK 3-month series stopped at 2026-01;
+    with the fallback 22 of 31 currencies have a carry;
+  - **exposure**: rows reporting in it, with market cap and median MoS.
+
+  `scripts/fx_rates.py refresh` also writes those monthly series to
+  `output/fx/_indicators.json` (`FXStore.refresh_indicators`; a series that
+  fails keeps its last copy), so the render makes no request. A row opens
+  Stock Valuations through the drill chip `{type:'ccy'}` ("Reports in JPY"),
+  matched on the row's `ccy` (reporting currency, null for USD). On
+  2026-10-26 the dollar read rich (91st percentile); JPY, CAD, KRW, IDR and
+  SEK read cheap; CHF, GBP, PLN, SGD, ILS and PEN rich. On phones the Rate,
+  sparkline, 1M/3M/5Y and Median MoS columns hide. Tests:
+  `tests/test_fx_valuation.py`.
 - **Snapshot coverage floor (`data/coverage.py`, `MIN_ROW_RATIO`=0.7):** one
   floor for the database publish (`publish_run` refused that night's 739
   rows — the only guard that asked), the archive and the site. `analyze_stock`
