@@ -44,6 +44,8 @@ from data.price_store import (last_valid_dates, parquet_paths, select_window,
                                valid_span, window_closes)
 from data.snapshot_store import (SnapshotStore, list_snapshot_files,
                                  parquet_export_is_stale, read_snapshot)
+from models.inference import (DEFAULT_N_PERM, MIN_BLOCKS, block_length, bootstrap_mean,
+                              ic_permutation_test, permutation_p)
 from models.utils import rank
 from scripts.param_set import (default_params, merge_params, scoring_params_hash,
                                validate_params)
@@ -1069,7 +1071,10 @@ def composite_ic_summary(all_metrics):
     Fama–MacBeth style: one IC per (snapshot, horizon), then the mean, the
     share positive, and a t-stat on the EFFECTIVE independent sample
     (span // horizon + 1) rather than the snapshot count — daily snapshots
-    over one horizon are one observation. Returns {horizon: {...}}; empty
+    over one horizon are one observation. ``bootstrap`` is a stationary block
+    bootstrap of the IC series (``models.inference.bootstrap_mean``; blocks of
+    one horizon's snapshots): a 90% CI and a two-sided p for the mean, seeded
+    per horizon so a summary is reproducible. Returns {horizon: {...}}; empty
     when no (snapshot, horizon) has >= 10 usable rows.
     """
     by_h = defaultdict(list)   # horizon -> [(run_date, ic)]
@@ -1091,6 +1096,7 @@ def composite_ic_summary(all_metrics):
         d0 = date.fromisoformat(str(pairs[0][0])[:10])
         d1 = date.fromisoformat(str(pairs[-1][0])[:10])
         eff = (d1 - d0).days // h + 1
+        dates = [date.fromisoformat(str(d)[:10]) for d, _ in pairs]
         mean = float(np.mean(ics))
         sd = float(np.std(ics, ddof=1)) if len(ics) > 1 else 0.0
         out[h] = {
@@ -1102,25 +1108,143 @@ def composite_ic_summary(all_metrics):
             't_stat_effective': (mean / sd * math.sqrt(eff)) if sd > 0 else None,
             'first': pairs[0][0],
             'last': pairs[-1][0],
+            'bootstrap': bootstrap_mean(ics, block_length(dates, h), seed=h),
         }
     return out
 
 
-def print_composite_ic(ic):
+def _ic_panels(all_metrics):
+    """{horizon: [(tickers, scores, excess), ...]} in date order, for the
+    permutation test. Same row filter and 10-row floor as composite_ic_summary."""
+    by_h = defaultdict(list)
+    for m in sorted(all_metrics, key=lambda m: str(m['run_date'])):
+        tk, xs, ys = [], [], []
+        for d in m['details']:
+            s, ex, t = d.get('_composite_score'), d.get('excess_return'), d.get('ticker')
+            if (t and isinstance(s, (int, float)) and not isinstance(s, bool)
+                    and isinstance(ex, (int, float)) and math.isfinite(s)
+                    and math.isfinite(ex)):
+                tk.append(t)
+                xs.append(float(s))
+                ys.append(float(ex))
+        if len(xs) >= 10:
+            by_h[m['horizon']].append((tk, xs, ys))
+    return by_h
+
+
+def composite_ic_permutation(all_metrics, n_perm=DEFAULT_N_PERM, seed=0):
+    """{horizon: ticker-permutation test of the mean composite IC}.
+
+    Answers "how often would scores carrying no information post this mean
+    IC on these very return paths?" (``models.inference.ic_permutation_test``:
+    one permutation of tickers across every snapshot, so the overlap between
+    daily snapshots stays in the null). Empty when ``n_perm`` is 0.
+    """
+    if not n_perm:
+        return {}
+    out = {}
+    for h, panels in _ic_panels(all_metrics).items():
+        res = ic_permutation_test(panels, n_perm=n_perm, seed=seed + h)
+        if res:
+            out[h] = res
+    return out
+
+
+# Top and bottom of the rating ladder for the per-snapshot spread.
+SPREAD_TOP = ('BUY', 'LEAN BUY')
+SPREAD_BOTTOM = ('PASS',)
+MIN_BUCKET_ROWS = 5
+
+
+def rating_bucket_inference(all_metrics):
+    """Block-bootstrap CIs for each rating's per-snapshot mean excess return.
+
+    ``aggregate_buckets`` pools rows across snapshots, so its mean leans on
+    the snapshots with the most rows and carries no error bar. Here each
+    snapshot contributes one mean per rating (at least MIN_BUCKET_ROWS rows),
+    and the series is bootstrapped in horizon-long blocks like the IC.
+    ``spread`` is the per-snapshot mean of SPREAD_TOP less that of
+    SPREAD_BOTTOM: does the top of the ladder beat the bottom by more than
+    noise? Returns {horizon: {rating: bootstrap, ..., 'spread': bootstrap}}.
+    """
+    series = defaultdict(lambda: defaultdict(list))   # h -> key -> [(date, v)]
+    for m in all_metrics:
+        rows = defaultdict(list)
+        for d in m['details']:
+            ex = d.get('excess_return')
+            if isinstance(ex, (int, float)) and math.isfinite(ex):
+                rows[d.get('rating')].append(ex)
+        dt = date.fromisoformat(str(m['run_date'])[:10])
+        for rating in RATING_ORDER:
+            if len(rows.get(rating, ())) >= MIN_BUCKET_ROWS:
+                series[m['horizon']][rating].append((dt, float(np.mean(rows[rating]))))
+        top = [x for r in SPREAD_TOP for x in rows.get(r, ())]
+        bot = [x for r in SPREAD_BOTTOM for x in rows.get(r, ())]
+        if len(top) >= MIN_BUCKET_ROWS and len(bot) >= MIN_BUCKET_ROWS:
+            series[m['horizon']]['spread'].append(
+                (dt, float(np.mean(top)) - float(np.mean(bot))))
+    out = {}
+    for h, by_key in series.items():
+        out[h] = {}
+        for key, pts in by_key.items():
+            pts.sort()
+            res = bootstrap_mean([v for _, v in pts],
+                                 block_length([d for d, _ in pts], h), seed=h)
+            if res:
+                res['n_snapshots'] = len(pts)
+                out[h][key] = res
+    return out
+
+
+def print_rating_inference(inf):
+    if not inf:
+        return
+    top, bot = '+'.join(SPREAD_TOP), '+'.join(SPREAD_BOTTOM)
+    print("\n  Per-snapshot mean excess return by rating, block-bootstrap 90% CI:")
+    print(f"  {'Horizon':<8s} {'Bucket':<22s} {'Snaps':>6s} {'Mean':>8s} "
+          f"{'90% CI':>19s} {'p':>6s} {'Blocks':>7s}")
+    for h in sorted(inf, key=int):
+        for key in [*RATING_ORDER, 'spread']:
+            b = inf[h].get(key)
+            if not b:
+                continue
+            label = f'{top} - {bot}' if key == 'spread' else key
+            if b.get('ci_low') is None:
+                ci, p = f"{'n/a':>19s}", f"{'n/a':>6s}"
+            else:
+                ci = f"[{b['ci_low']:>+7.2%}, {b['ci_high']:>+7.2%}]"
+                p = f"{b['p_value']:>6.3f}"
+            print(f"  {int(h):<8d} {label:<22s} {b['n_snapshots']:>6d} {b['mean']:>+8.2%} "
+                  f"{ci} {p} {b['n_blocks']:>7d}")
+    print(f"  (no CI under {MIN_BLOCKS} blocks, the independent periods; a CI "
+          "over fewer than ~10 understates the uncertainty)")
+
+
+def print_composite_ic(ic, perm=None):
     if not ic:
         return
+    perm = perm or {}
     print("\n  Composite-score rank IC vs forward excess return (one IC per snapshot):")
     print(f"  {'Horizon':<8s} {'Snaps':>6s} {'Mean IC':>8s} {'Med IC':>8s} "
-          f"{'IC>0':>6s} {'Eff n':>6s} {'t(eff)':>7s}")
+          f"{'IC>0':>6s} {'Eff n':>6s} {'t(eff)':>7s} {'90% CI (boot)':>17s} "
+          f"{'p boot':>7s} {'p perm':>7s}")
     for h in sorted(ic):
         s = ic[h]
         t = (f"{s['t_stat_effective']:.2f}"
              if s['t_stat_effective'] is not None else 'n/a')
+        b = s.get('bootstrap')
+        ok = b and b.get('ci_low') is not None
+        ci = f"[{b['ci_low']:+.3f}, {b['ci_high']:+.3f}]" if ok else 'n/a'
+        pb = f"{b['p_value']:.3f}" if ok else 'n/a'
+        pp = perm.get(h) or perm.get(str(h))
+        pp = f"{pp['p_value']:.3f}" if pp else 'n/a'
         print(f"  {h:<8d} {s['n_snapshots']:>6d} {s['mean_ic']:>+8.3f} "
               f"{s['median_ic']:>+8.3f} {s['frac_positive']:>6.0%} "
-              f"{s['effective_n']:>6d} {t:>7s}")
+              f"{s['effective_n']:>6d} {t:>7s} {ci:>17s} {pb:>7s} {pp:>7s}")
     print("  (t uses effective n = span // horizon + 1; |t| >= 2 is the bar "
-          "for calling the signal real)")
+          "for calling the signal real. p boot: block bootstrap, two-sided. "
+          "p perm: ticker permutation, one-sided: how often scores carrying no "
+          "information post an IC this high)")
 
 
 def aggregate_buckets(all_metrics):
@@ -2163,8 +2287,11 @@ def filter_metrics_to_cohort(all_metrics, cohort_key='mos',
     return out
 
 
-def print_summary(all_metrics):
-    """Print a concise console summary of backtest results."""
+def print_summary(all_metrics, perm=None):
+    """Print a concise console summary of backtest results.
+
+    ``perm`` is ``composite_ic_permutation``'s result, printed beside the IC.
+    """
     if not all_metrics:
         return
 
@@ -2198,7 +2325,8 @@ def print_summary(all_metrics):
     # Does the composite score rank future winners above losers? Per-snapshot
     # IC with a t-stat on the effective (independent) sample — the headline
     # number for "is the model working".
-    print_composite_ic(composite_ic_summary(all_metrics))
+    print_composite_ic(composite_ic_summary(all_metrics), perm)
+    print_rating_inference(rating_bucket_inference(all_metrics))
 
     # Strong BUY hit rate
     buy_hit = strong_buy_hit_rate(all_metrics)
@@ -2734,7 +2862,7 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
                            search_space=None,
                            since=MIN_CONSISTENT_DATE,
                            min_effective_n=MIN_EFFECTIVE_N,
-                           force=False):
+                           force=False, null_runs=0, null_seed=0):
     """Run the full walk-forward calibration.
 
     Pipeline:
@@ -2750,6 +2878,9 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
       5. For each rolling window whose TEST date is matured:
          a. sweep candidate ParamSets on the train window
          b. select the best, measure it out-of-sample on the test window
+      6. With *null_runs* > 0, replay steps 5a-b that many times on returns
+         permuted across tickers (``_null_calibration``): how good does the
+         sweep look when there is nothing to find?
 
     Args:
         results_dir: Directory containing results_YYYY-MM-DD.json files.
@@ -2766,6 +2897,9 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
         since: Date floor for snapshots (None = no floor).
         min_effective_n: Independent-period floor below which the run refuses.
         force: Run anyway below the floor (result is flagged 'forced').
+        null_runs: Permuted replays for the null calibration (0 = skip; each
+            costs a full sweep).
+        null_seed: Seed of the first permutation.
 
     Returns:
         dict with 'windows', 'overall', 'recommended_params', 'matured_counts'.
@@ -2902,51 +3036,57 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
                            effective_independent_obs=effective_n, **corpus)
 
     # 5. Walk forward over windows with a matured test date.
-    window_results = []
-    skipped_immature = 0
-    for win in windows:
-        test_matured = any(
-            is_matured(td.isoformat(), h, today)
-            for td in win['test_dates'] for h in horizons
-        )
-        if not test_matured:
-            skipped_immature += 1
-            continue
+    # A function so the null calibration (step 6) can replay the identical
+    # sweep on permuted returns.
+    def run_windows():
+        window_results = []
+        skipped_immature = 0
+        for win in windows:
+            test_matured = any(
+                is_matured(td.isoformat(), h, today)
+                for td in win['test_dates'] for h in horizons
+            )
+            if not test_matured:
+                skipped_immature += 1
+                continue
 
-        train_results = [snaps_by_date[d] for d in win['train_dates']
-                         if d in snaps_by_date]
-        test_results = [snaps_by_date[d] for d in win['test_dates']
-                        if d in snaps_by_date]
+            train_results = [snaps_by_date[d] for d in win['train_dates']
+                             if d in snaps_by_date]
+            test_results = [snaps_by_date[d] for d in win['test_dates']
+                            if d in snaps_by_date]
 
-        def evaluate(params, _train=train_results):
-            metrics = _evaluate_params_on_snapshots(_train, params, horizons)
-            raw = compute_objective(metrics, objective)
-            if lambda_reg > 0:
-                return regularized_objective(raw, params, lambda_reg)
-            return raw
+            def evaluate(params, _train=train_results):
+                metrics = _evaluate_params_on_snapshots(_train, params, horizons)
+                raw = compute_objective(metrics, objective)
+                if lambda_reg > 0:
+                    return regularized_objective(raw, params, lambda_reg)
+                return raw
 
-        search_results = grid_search(evaluate, search_space=search_space,
-                                     max_evaluations=max_evaluations)
-        if not search_results:
-            continue
+            search_results = grid_search(evaluate, search_space=search_space,
+                                         max_evaluations=max_evaluations)
+            if not search_results:
+                continue
 
-        best = search_results[0]
-        best_params = best['params']
-        train_obj = best['objective']
+            best = search_results[0]
+            best_params = best['params']
+            train_obj = best['objective']
 
-        test_metrics = _evaluate_params_on_snapshots(test_results, best_params,
-                                                     horizons)
-        test_obj = compute_objective(test_metrics, objective)
+            test_metrics = _evaluate_params_on_snapshots(test_results, best_params,
+                                                         horizons)
+            test_obj = compute_objective(test_metrics, objective)
 
-        window_results.append({
-            'train_dates': [d.isoformat() for d in win['train_dates']],
-            'test_dates': [d.isoformat() for d in win['test_dates']],
-            # Serialize only the swept weight block — the full ParamSet would
-            # imply the other ~30 params were calibrated when they were not.
-            'best_params': _calibrated_weights(best_params),
-            'train_objective': round(train_obj, 4),
-            'test_objective': round(test_obj, 4),
-        })
+            window_results.append({
+                'train_dates': [d.isoformat() for d in win['train_dates']],
+                'test_dates': [d.isoformat() for d in win['test_dates']],
+                # Serialize only the swept weight block — the full ParamSet would
+                # imply the other ~30 params were calibrated when they were not.
+                'best_params': _calibrated_weights(best_params),
+                'train_objective': round(train_obj, 4),
+                'test_objective': round(test_obj, 4),
+            })
+        return window_results, skipped_immature
+
+    window_results, skipped_immature = run_windows()
 
     # Aggregate results
     stability = compute_stability(window_results)
@@ -2988,6 +3128,11 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
         'param_stability': {k: round(v, 6) for k, v in stability.items()},
     }
 
+    null = None
+    if null_runs and window_results:
+        null = _null_calibration(snaps_by_date, run_windows, null_runs, null_seed,
+                                 overall)
+
     return {
         'date': today.isoformat(),
         'objective': objective,
@@ -3009,6 +3154,78 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
         'overall': overall,
         'recommended_params': recommended,
         'recommendation_basis': recommendation_basis,
+        'null': null,
+    }
+
+
+def _permute_forward_returns(snaps_by_date, rng):
+    """Re-pair every row's ``_fwd`` with another ticker's, one permutation for
+    every snapshot (as ``models.inference.ic_permutation_test`` does), so each
+    return path stays intact. Returns what ``_restore_forward_returns`` needs."""
+    universe = sorted({r.get('ticker') for snap in snaps_by_date.values()
+                       for r in snap.get('results', []) if r.get('ticker')})
+    partner = dict(zip(universe, (universe[k] for k in rng.permutation(len(universe))),
+                       strict=True))
+    saved = []
+    for snap in snaps_by_date.values():
+        rows = snap.get('results', [])
+        orig = [r.get('_fwd') for r in rows]
+        saved.append((rows, orig))
+        by_tk = {r.get('ticker'): f for r, f in zip(rows, orig, strict=True)}
+        for r in rows:
+            r['_fwd'] = by_tk.get(partner.get(r.get('ticker')))
+    return saved
+
+
+def _restore_forward_returns(saved):
+    for rows, orig in saved:
+        for r, f in zip(rows, orig, strict=True):
+            r['_fwd'] = f
+
+
+def _null_calibration(snaps_by_date, run_windows, n_runs, seed, overall):
+    """Walk-forward calibration replayed on ticker-permuted forward returns.
+
+    The real sweep picks the best of hundreds of weight sets on each train
+    window, so its train objective is biased up however little the gates
+    know. Re-running the identical sweep on returns that carry no relation to
+    the scores measures that bias: the real train objective has to beat the
+    null's, and the real test objective has to beat a null test objective
+    centred near zero. One-sided p-values with the +1 correction.
+    """
+    rng = np.random.default_rng(seed)
+    train, test = [], []
+    for k in range(int(n_runs)):
+        saved = _permute_forward_returns(snaps_by_date, rng)
+        try:
+            wins, _ = run_windows()
+        finally:
+            _restore_forward_returns(saved)
+        if wins:
+            train.append(float(np.mean([w['train_objective'] for w in wins])))
+            test.append(float(np.mean([w['test_objective'] for w in wins])))
+        print(f"[calibrate] null run {k + 1}/{n_runs}: "
+              f"train {train[-1] if wins else float('nan'):.4f}, "
+              f"test {test[-1] if wins else float('nan'):.4f}")
+
+    def dist(v):
+        if not v:
+            return None
+        a = np.asarray(v)
+        return {'mean': round(float(a.mean()), 4),
+                'p95': round(float(np.quantile(a, 0.95)), 4),
+                'max': round(float(a.max()), 4)}
+
+    return {
+        'runs': len(train),
+        'seed': seed,
+        'train_objective': dist(train),
+        'test_objective': dist(test),
+        'p_train': permutation_p(overall.get('mean_train_objective'), train),
+        'p_test': permutation_p(overall.get('mean_test_objective'), test),
+        'note': ('returns permuted across tickers (one permutation per run for '
+                 'every snapshot); p = share of null runs matching or beating '
+                 'the real objective'),
     }
 
 
@@ -3119,7 +3336,8 @@ def _cli_measure(args):
                                cache_dir=args.cache_dir, report=report)
 
     if all_metrics:
-        print_summary(all_metrics)
+        perm = composite_ic_permutation(all_metrics, n_perm=getattr(args, 'n_perm', DEFAULT_N_PERM))
+        print_summary(all_metrics, perm)
 
         # Evidence census: how much of this is statistically independent, and
         # when the corpus becomes long enough to calibrate / test.
@@ -3160,11 +3378,13 @@ def _cli_measure(args):
         # Last, because re-scoring rewrites the rows' ratings in place.
         rescored = None
         try:
-            rescored = rescored_current_view(report.get('_kept') or [], horizons)
+            rescored = rescored_current_view(report.get('_kept') or [], horizons,
+                                             n_perm=getattr(args, 'n_perm', DEFAULT_N_PERM))
         except Exception as e:
             logger.warning('re-scored view failed (%s); summary carries as-recorded only', e)
         summary = build_measure_summary(all_metrics, horizons, since, stamp,
-                                        readiness, report, rescored=rescored)
+                                        readiness, report, rescored=rescored,
+                                        permutation=perm)
         print_regimes_and_rescored(summary['regimes'], rescored)
         with open(summary_path, 'w', encoding='utf-8') as f:
             json.dump(summary, f, indent=2, default=str)
@@ -3219,7 +3439,7 @@ def model_regimes(all_metrics):
     return sorted(out, key=lambda r: (r['first'], r['params_hash']))
 
 
-def rescored_current_view(snapshots, horizons):
+def rescored_current_view(snapshots, horizons, n_perm=0):
     """Today's scoring model re-applied to every usable snapshot.
 
     The as-recorded headline measures whatever model rated each day, so after
@@ -3231,7 +3451,8 @@ def rescored_current_view(snapshots, horizons):
     calibrate is the out-of-sample test.
 
     Mutates the rows' rating/_composite_score in place (like calibrate), so
-    call it only after the as-recorded metrics have been computed.
+    call it only after the as-recorded metrics have been computed. ``n_perm``
+    > 0 adds the ticker-permutation test of its IC.
     """
     metrics = _evaluate_params_on_snapshots(snapshots, default_params(), horizons)
     metrics = [m for m in metrics
@@ -3241,20 +3462,27 @@ def rescored_current_view(snapshots, horizons):
         'snapshots': len({m['run_date'] for m in metrics}),
         'composite_ic': {str(h): v for h, v in composite_ic_summary(metrics).items()},
         'rating_buckets': {str(h): v for h, v in aggregate_buckets(metrics).items()},
+        'rating_bucket_inference': {str(h): v for h, v in
+                                    rating_bucket_inference(metrics).items()},
+        'composite_ic_permutation': {str(h): v for h, v in
+                                     composite_ic_permutation(metrics, n_perm).items()},
         'note': ('current weights and gates re-applied to every snapshot; '
                  'in-sample if those weights were calibrated on this corpus'),
     }
 
 
 def build_measure_summary(all_metrics, horizons, since, stamp, readiness,
-                          report=None, rescored=None):
+                          report=None, rescored=None, permutation=None):
     """The versioned ``backtest_summary_<stamp>.json`` body.
 
     Beyond the headline IC and rating buckets it carries what is needed to
     compare one week with the next without reading stdout: the code it ran
     from, the snapshots skipped (and why), the matured (date, horizon) pairs
     that produced nothing, and per pair how much of the snapshot was priced
-    and which ratings the unpriced names held.
+    and which ratings the unpriced names held. ``composite_ic`` carries each
+    horizon's block-bootstrap CI, ``composite_ic_permutation`` the ticker
+    permutation test (``permutation``, from ``composite_ic_permutation``) and
+    ``rating_bucket_inference`` per-snapshot bucket means with CIs.
     """
     report = report or {}
     coverage = [dict({'run_date': m['run_date'], 'horizon': m['horizon']},
@@ -3284,18 +3512,31 @@ def build_measure_summary(all_metrics, horizons, since, stamp, readiness,
                          composite_ic_summary(all_metrics).items()},
         'rating_buckets': {str(h): v for h, v in
                            aggregate_buckets(all_metrics).items()},
+        'rating_bucket_inference': {str(h): v for h, v in
+                                    rating_bucket_inference(all_metrics).items()},
+        'composite_ic_permutation': {str(h): v for h, v in
+                                     (permutation or {}).items()},
         'regimes': model_regimes(all_metrics),
         'rescored_current': rescored,
     }
+
+
+def _ic_ci_text(v):
+    """' (t_eff 1.23, 90% CI [-0.010, +0.050])' for a composite_ic entry."""
+    parts = []
+    if v.get('t_stat_effective') is not None:
+        parts.append(f"t_eff {v['t_stat_effective']:.2f}")
+    b = v.get('bootstrap')
+    if b and b.get('ci_low') is not None:
+        parts.append(f"90% CI [{b['ci_low']:+.3f}, {b['ci_high']:+.3f}]")
+    return f" ({', '.join(parts)})" if parts else ''
 
 
 def print_regimes_and_rescored(regimes, rescored):
     """stdout: the as-recorded IC per scoring model, then the re-scored view."""
     print(f"\n  {'-'*60}\n  SCORING MODELS IN THE CORPUS (as-recorded ratings)\n  {'-'*60}")
     for r in regimes:
-        ics = ', '.join(f"{h}d IC {v['mean_ic']:+.3f} (t_eff {v['t_stat_effective']:.2f})"
-                        if v.get('t_stat_effective') is not None
-                        else f"{h}d IC {v['mean_ic']:+.3f}"
+        ics = ', '.join(f"{h}d IC {v['mean_ic']:+.3f}{_ic_ci_text(v)}"
                         for h, v in sorted(r['composite_ic'].items(), key=lambda kv: int(kv[0])))
         print(f"  {r['params_hash']:<16s} {r['first']} .. {r['last']}  "
               f"{r['snapshots']:>3d} snapshot(s)  {ics or 'no matured pairs'}")
@@ -3306,7 +3547,9 @@ def print_regimes_and_rescored(regimes, rescored):
     print(f"\n  {'-'*60}\n  CURRENT MODEL ({rescored['params_hash']}) RE-SCORED OVER "
           f"{rescored['snapshots']} SNAPSHOT(S)\n  {'-'*60}")
     print(f"  ({rescored['note']})")
-    print_composite_ic({int(h): v for h, v in rescored['composite_ic'].items()})
+    print_composite_ic({int(h): v for h, v in rescored['composite_ic'].items()},
+                       rescored.get('composite_ic_permutation'))
+    print_rating_inference(rescored.get('rating_bucket_inference'))
     for h, by_rating in sorted(rescored['rating_buckets'].items(), key=lambda kv: int(kv[0])):
         print(f"\n  {h}d  {'Rating':<10s} {'n':>7s} {'Mean ex':>9s} {'Median ex':>10s} {'Beat SPY':>9s}")
         for rating, v in by_rating.items():
@@ -3368,6 +3611,7 @@ def _cli_calibrate(args):
         since=parse_since(args.since),
         min_effective_n=args.min_effective_n,
         force=args.force,
+        null_runs=getattr(args, 'null_runs', 0),
     )
 
     overall = result.get('overall', {})
@@ -3409,6 +3653,12 @@ def _cli_calibrate(args):
     print(f"Mean train objective: {overall.get('mean_train_objective')}")
     print(f"Mean test objective:  {overall.get('mean_test_objective')}")
     print(f"Overfit gap:          {overall.get('overfit_gap')}")
+    null = result.get('null')
+    if null:
+        nt, ns = null.get('train_objective') or {}, null.get('test_objective') or {}
+        print(f"Null ({null['runs']} permuted runs): train mean {nt.get('mean')} "
+              f"p95 {nt.get('p95')} -> p {null.get('p_train')}; "
+              f"test mean {ns.get('mean')} p95 {ns.get('p95')} -> p {null.get('p_test')}")
     rb = result.get('recommendation_basis', {})
     print(f"Recommended weights:  {result.get('recommended_params')}")
     print(f"  basis: {rb.get('rule')} "
@@ -3561,6 +3811,9 @@ if __name__ == '__main__':
                            help='Measure from --prices-dir only; never fetch a missing ticker '
                                 'from yfinance (the cloud routine downloads every '
                                 'price first).')
+    p_measure.add_argument('--n-perm', type=int, default=DEFAULT_N_PERM,
+                           help='Ticker permutations for the IC significance test '
+                                f'(default: {DEFAULT_N_PERM}; 0 skips it)')
     p_measure.set_defaults(func=_cli_measure)
 
     # ---- calibrate ----
@@ -3600,6 +3853,10 @@ if __name__ == '__main__':
     p_cal.add_argument('--min-effective-n', type=int, default=MIN_EFFECTIVE_N,
                        help='Refuse below this many independent periods '
                             f'(span // horizon + 1). Default {MIN_EFFECTIVE_N}.')
+    p_cal.add_argument('--null-runs', type=int, default=0, metavar='N',
+                       help='Replay the sweep N times on ticker-permuted returns '
+                            'and report p-values for the train and test '
+                            'objectives (each run costs a full sweep; default 0)')
     p_cal.add_argument('--force', action='store_true',
                        help='Run even below --min-effective-n (result is '
                             'flagged "forced": exploratory only).')

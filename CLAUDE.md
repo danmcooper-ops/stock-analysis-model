@@ -756,6 +756,31 @@ ruff check .
 
   `backtest_cloud.compare` prints a `NOTICE` (not a failure) when the model
   changed since last week or the headline pools more than one model.
+  **Is it noise? (`models/inference.py`, 2026-10-28):** the t-stat on
+  effective n said how much evidence there was but gave no interval. Each
+  `composite_ic` entry (headline, regimes, re-scored) now carries
+  `bootstrap`: a stationary block bootstrap of the per-snapshot IC series,
+  blocks averaging one horizon's snapshots, giving a 90% CI and a two-sided
+  p. Below `MIN_BLOCKS` (3) independent periods it reports no CI: one block
+  only reshuffles days of a single market episode, and on the 2026-10-28
+  corpus the 90d horizon (one period) read a "CI" of +0.088..+0.122 at
+  p 0.000. Under ~10 blocks a CI still understates the uncertainty.
+  `composite_ic_permutation` (`--n-perm`, 200, ~2.4 s a horizon) re-pairs
+  scores with another ticker's returns using one permutation across every
+  snapshot, so each return path and the snapshots' overlap stay in the null;
+  a per-date shuffle would treat overlapping days as independent. It stays
+  valid on one period but then only says the scores ranked that episode.
+  `rating_bucket_inference` bootstraps each rating's per-snapshot mean
+  excess return and the BUY+LEAN BUY − PASS spread (`aggregate_buckets`
+  pools rows and has no error bar). `calibrate --null-runs N` replays the
+  whole sweep on permuted returns and gives p-values for the train and test
+  objectives, since a best-of-400 train objective is biased up however
+  little the gates know; each run costs a full sweep. `compare` adds a
+  NOTICE when a horizon's IC CI starts or stops excluding zero. Over the
+  53 30d snapshots on 10-28: IC +0.053, CI +0.021..+0.086, permutation
+  p 0.005, but only 3 periods, and the BUY+LEAN BUY − PASS spread
+  (+1.17%) had a CI spanning zero (−0.09%..+2.46%). Tests:
+  `tests/test_inference.py`.
 - **Sector page pool history (`models/sector_pool.py`):** the sector page's
   Pool History and Share Shifts sections (`renderPoolHistory`,
   `renderPoolShifts`) read `SECTOR_POOL[sec].history`, built at render time

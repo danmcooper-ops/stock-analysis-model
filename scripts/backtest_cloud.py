@@ -33,8 +33,10 @@ cold. These subcommands keep that logic out of shell heredocs:
                  Exit 1 with REGRESSION lines when the corpus shrank, a new
                  snapshot was skipped, a (date, horizon) went unmeasured, stayed
                  deferred for a second week, or fell below the coverage floor. NOTICE lines (no
-                 failure) say when the scoring model changed or the
-                 as-recorded headline pools more than one model.
+                 failure) say when the scoring model changed, the
+                 as-recorded headline pools more than one model, or a
+                 horizon's composite IC changed significance (its
+                 block-bootstrap 90% CI came to exclude zero, or stopped).
 
 Usage:
     python scripts/backtest_cloud.py stage --repo .cloud-backtest/snapshots-data --dest output
@@ -551,6 +553,40 @@ def model_notices(cur, prior):
     return out
 
 
+def _ic_verdict(entry):
+    """'positive' / 'negative' / 'inconclusive' from a composite_ic entry's
+    bootstrap CI; None for a summary written before the CI existed."""
+    b = (entry or {}).get('bootstrap')
+    if not b or b.get('ci_low') is None:
+        return None
+    if b['ci_low'] > 0:
+        return 'positive'
+    if b['ci_high'] < 0:
+        return 'negative'
+    return 'inconclusive'
+
+
+def significance_notices(cur, prior):
+    """NOTICE lines when a horizon's headline IC changed verdict since last week.
+
+    The verdict reads the block-bootstrap 90% CI of the mean IC
+    (``backtest.composite_ic_summary``): one week adding a few snapshots can
+    move a borderline signal either way, which is worth seeing but is not a
+    regression.
+    """
+    out = []
+    prior_ic = (prior or {}).get('composite_ic') or {}
+    for h, entry in sorted((cur.get('composite_ic') or {}).items(), key=lambda kv: int(kv[0])):
+        now, then = _ic_verdict(entry), _ic_verdict(prior_ic.get(h))
+        if now and then and now != then:
+            b = entry['bootstrap']
+            out.append(f'{h}d composite IC went {then} -> {now} '
+                       f'(mean {entry["mean_ic"]:+.3f}, 90% CI '
+                       f'[{b["ci_low"]:+.3f}, {b["ci_high"]:+.3f}] over '
+                       f'{b["n_blocks"]} independent period(s))')
+    return out
+
+
 def _prior_summary_path(current_path):
     """The newest ``backtest_summary_*.json`` beside *current_path*, dated before it."""
     m = SUMMARY_RE.fullmatch(os.path.basename(current_path))
@@ -665,7 +701,7 @@ def main(argv=None):
     if prior:
         print(f'snapshots measured: {len(prior.get("snapshots", []))} -> '
               f'{len(cur.get("snapshots", []))}')
-    for line in model_notices(cur, prior):
+    for line in model_notices(cur, prior) + significance_notices(cur, prior):
         print(f'NOTICE: {line}')
     problems = compare_summaries(cur, prior)
     for line in problems:
