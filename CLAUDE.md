@@ -282,7 +282,32 @@ ruff check .
   share-count rule no longer skips 'Basic EPS', 'Diluted EPS' or 'Diluted NI
   Availto Com Stockholders', which fx_client left unconverted. Tests
   (`tests/conftest.py` gives every test an empty store that cannot fetch):
-  `tests/test_fx_store.py`, `tests/test_fx_convert.py`. Phase 0 found BIS
+  `tests/test_fx_store.py`, `tests/test_fx_convert.py`.
+  **Valued at today's rate (`analyze_stock._value_at_spot`,
+  `FX_VALUE_AT_SPOT`, default on):** translated history is the record, but a
+  fair value is a claim on cash flows that will translate at future rates,
+  best guessed by today's. So Phase 1 rebases a foreign filer's translated
+  statements: every column times today's rate over the newest fiscal year's
+  (its average for flows, its close for the balance sheet). Growth stays the
+  translated history's exactly, the newest year sits at spot, and its
+  returns on capital are the reporting currency's own. The factors are on
+  the row (`fx_rebase_flow` / `fx_rebase_stock`), and `fcf_edgar` takes the
+  flow one, here and in `rescore_and_render`. The currency is the SEC
+  shape's `reporting_currency` (a dual-tagged filer reads USD and is left
+  alone), else yfinance's when it was converted. Two guards keep translated
+  rates and record why (`fx_rebase_skipped`):
+  - `stale`: the newest year ended over `REBASE_MAX_AGE_DAYS` (455) ago.
+    117 of 283 SEC-sourced foreign filers on 10-26, because their SEC
+    histories lag their filings: TSMC's FY2025 20-F carries cover facts
+    only, Sony's and Canada Goose's latest are absent;
+  - `large_move`: a factor more than `REBASE_MAX_MOVE` (25%) from 1, which
+    is mostly inflation (YPF −93%, Turkcell −41%): the next year's earnings
+    come in more pesos, so marking last year's to spot would count the
+    depreciation without the inflation.
+
+  On 10-26 the 166 rebased filers moved a median 0.8% (11 over 10%: BRL
+  +12.5%, CNY +7.6%). For the yfinance-sourced rows the newest year lands
+  back near the spot `fx_client` used. Phase 0 found BIS
   real effective rates (`RB<ISO2>BIS`, monthly) for all 32 currencies and
   OECD 3-month rates for about 20, for the Currencies tab (Financial Model).
 - **Snapshot coverage floor (`data/coverage.py`, `MIN_ROW_RATIO`=0.7):** one
