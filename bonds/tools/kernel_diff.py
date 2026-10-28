@@ -33,14 +33,12 @@ import tokenize
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
-# This repo used to sit INSIDE the stock-analysis-model working tree, so '..'
-# found the equity checkout. It is now a standalone sibling elsewhere on disk,
-# and the two have no fixed relative path -- so the location has to be stated
-# rather than guessed. $EQUITY_ROOT wins, then the path below, then
+# This model lives in bonds/ inside the stock-analysis-model repo, so the
+# equity checkout is the parent of bonds/. $EQUITY_ROOT wins over that, and
 # --equity-root beats both. Nothing here is read unless you run this script.
 EQUITY_ROOT_DEFAULT = os.environ.get(
     'EQUITY_ROOT',
-    os.path.expanduser('~/Desktop/Workspace Folder'))
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 # (vendored path, upstream path, functions to compare, expected-divergence notes)
 #

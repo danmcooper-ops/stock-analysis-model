@@ -30,6 +30,9 @@ from datetime import date, datetime
 
 from data.logging_setup import get_logger
 
+# The stock-analysis-model checkout this model sits in (bonds/data/ -> repo).
+_EQUITY_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 log = get_logger('issuer_fundamentals')
 
 # Fields the credit scorecard and the Credit gates read. Names on the left are
@@ -67,16 +70,13 @@ class EquitySnapshotBackend:
         # to a path that does not exist and every issuer lost its credit gates.
         from data.http import load_dotenv
         load_dotenv()
-        # The old default here walked up three directories to find <parent
-        # repo>/output, which worked only because this repo used to live INSIDE
-        # the stock-analysis-model checkout. It is now standalone, so that walk
-        # resolves to a sibling of this repo that does not exist -- and the
-        # failure would be SILENT: `available` returns False, the stale-risk
-        # guard suppresses the divergence signal for every bond, and nothing
-        # raises. Hence an explicit path, overridable by $EQUITY_SNAPSHOT_DIR.
+        # This model lives in bonds/ inside the stock-analysis-model repo, so
+        # the equity snapshots are <repo>/output. A wrong path fails SILENTLY:
+        # `available` returns False, the stale-risk guard suppresses the
+        # divergence signal for every bond, and nothing raises. Overridable by
+        # $EQUITY_SNAPSHOT_DIR.
         self.snapshot_dir = snapshot_dir or os.environ.get(
-            'EQUITY_SNAPSHOT_DIR',
-            os.path.expanduser('~/Desktop/Workspace Folder/output'))
+            'EQUITY_SNAPSHOT_DIR', os.path.join(_EQUITY_ROOT, 'output'))
         self._rows = None
         self._as_of = None
         self._schema = set()

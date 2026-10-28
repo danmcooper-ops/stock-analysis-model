@@ -18,3 +18,17 @@ repos:
         language: system
         pass_filenames: false
         types: [python]
+        exclude: ^(bonds|currencies)/
+      # The subprojects test on their own venvs (scripts/setup_submodels.sh).
+      - id: pytest-bonds
+        name: pytest (bonds/)
+        entry: bash -c 'cd bonds && .venv/bin/python -m pytest -q'
+        language: system
+        pass_filenames: false
+        files: ^bonds/
+      - id: pytest-currencies
+        name: pytest (currencies/)
+        entry: bash -c 'cd currencies && .venv/bin/python -m pytest -q'
+        language: system
+        pass_filenames: false
+        files: ^currencies/
