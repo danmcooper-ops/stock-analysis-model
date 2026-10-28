@@ -1418,6 +1418,61 @@ circle.etfc-spy{fill:var(--etfc-s);}
 [data-theme="dark"] .bv-dist em,[data-theme="dark"] .bv-key,[data-theme="dark"] .bv-key span,[data-theme="dark"] .bv-note,[data-theme="dark"] .bv-n,[data-theme="dark"] .bv-mut{color:var(--ppf-sub) !important;}
 [data-theme="dark"] .bv-pos{color:var(--ppf-tw) !important;}
 [data-theme="dark"] .bv-neg{color:var(--ppf-hw) !important;}
+/* Currencies (renderCcyView): the currency screener drawn as Stock
+   Valuations is: its navy fixed-header, borders, gp/gf/gn and sg/sm/sp
+   cells and .rb pills, on a table of its own (.cx-tbl) so the stock
+   table's fixed column widths and offsets never reach it. Tiles, cards and
+   controls are Bond Valuations'. */
+#cx{--cx-na:#e3e7ec;--cx-cell:#fff;--cx-edge:#e8e8e8;--cx-hov:#eaf4fd;}
+[data-theme="dark"] #cx{--cx-na:#2b3138;--cx-cell:#161b22;--cx-edge:#21262d;--cx-hov:#1f3a5c;}
+#cx .cx-tabs{margin:14px 0 10px;}
+#cx .cx-wrap{overflow:auto;max-height:74vh;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.07);-webkit-overflow-scrolling:touch;margin-bottom:4px;}
+#cx .cx-tbl{border-collapse:separate;border-spacing:0;min-width:100%;background:var(--cx-cell);font-size:0.78em;white-space:nowrap;}
+#cx .cx-tbl th{padding:7px 10px;font-size:0.82em;font-weight:700;text-align:center;border:1px solid #ccc;border-width:0 1px 1px 0;cursor:pointer;user-select:none;}
+#cx .cx-tbl th.fixed-header{background:var(--hdr-bg);color:#fff;}
+#cx .cx-tbl th.cat-header{color:#fff;}
+#cx .cx-tbl th.col-header{color:#1a1d21;font-weight:600;white-space:normal;min-width:70px;}
+#cx .cx-tbl td{padding:6px 10px;text-align:center;border:1px solid var(--cx-edge);border-width:0 1px 1px 0;background:var(--cx-cell);font-variant-numeric:tabular-nums;}
+#cx .cx-tbl td.tk{font-weight:700;color:#1a252f;text-decoration:underline;text-decoration-color:rgba(41,128,185,0.3);}
+#cx .cx-tbl thead th{position:sticky;top:0;z-index:2;}
+#cx .cx-mx thead tr:nth-child(2) th{top:31px;}
+#cx .cx-tbl th:first-child,#cx .cx-tbl td:first-child{position:sticky;left:0;z-index:1;box-shadow:2px 0 6px rgba(0,0,0,0.10);}
+#cx .cx-tbl thead th:first-child{z-index:3;}
+#cx .cx-tbl td.cx-l,#cx .cx-tbl th.cx-l{text-align:left;}
+#cx .cx-tbl tbody tr{cursor:pointer;}
+#cx .cx-tbl tbody tr:hover td,#cx .cx-tbl tr.cx-sel td{background-color:var(--cx-hov) !important;}
+#cx .cx-thr{font-weight:400;font-size:0.9em;opacity:.8;}
+#cx .rb-cap{margin-left:3px;cursor:help;}
+.cx-mapcard #cx-map svg{width:100%;height:auto;display:block;}
+#cx-map path{fill:var(--cx-na);stroke:var(--ppf-bg);stroke-width:.4;}
+#cx-map path.has{cursor:pointer;}
+#cx-map path.has:hover{opacity:.8;}
+.cx-legend{display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:0.74em;color:var(--ppf-sub);margin-top:8px;}
+.cx-legend i{display:inline-block;width:18px;height:10px;border-radius:2px;}
+.cx-legend .cx-na-sw{background:var(--cx-na);margin-left:10px;}
+.cx-det{border:1px solid var(--ppf-line);border-radius:10px;padding:12px 14px;margin:14px 0;background:var(--ppf-bg);}
+.cx-dhead{display:flex;align-items:center;justify-content:space-between;}
+.cx-dhead h3{margin:0;font-size:1.05em;color:var(--ppf-txt);}
+.cx-x{border:0;background:none;font-size:1.5em;line-height:1;cursor:pointer;color:var(--ppf-sub);}
+.cx-dsub{font-size:0.82em;color:var(--ppf-sub);margin:6px 0 12px;}
+.cx-sparkcard{margin-bottom:12px;}
+.cx-spark{width:100%;height:90px;display:block;}
+.cx-spark polyline{fill:none;stroke-width:2;stroke-linejoin:round;}
+.cx-spark .cx-up{stroke:var(--ppf-tw);}.cx-spark .cx-dn{stroke:var(--ppf-hw);}
+.cx-cat{border-left:4px solid;padding-left:8px;}
+.cx-kv{display:flex;justify-content:space-between;gap:10px;font-size:0.8em;padding:4px 0;border-bottom:1px solid var(--ppf-line);color:var(--ppf-txt);}
+.cx-kv:last-child{border-bottom:0;}
+.cx-kv b{font-weight:600;font-variant-numeric:tabular-nums;text-align:right;}
+.cx-ok{color:var(--ppf-tw);}.cx-no{color:var(--ppf-hw);}
+@media (max-width:768px){ #cx .cx-sm-hide{display:none;} }
+[data-theme="dark"] #cx .cx-tbl th{border-color:#30363d;}
+[data-theme="dark"] #cx .cx-tbl th.col-header{color:#1a1d21 !important;}
+[data-theme="dark"] #cx .cx-tbl th.fixed-header,[data-theme="dark"] #cx .cx-tbl th.cat-header{color:#fff !important;}
+[data-theme="dark"] #cx .cx-tbl td{color:#e6edf3 !important;}
+[data-theme="dark"] #cx .cx-tbl td.tk{color:#58a6ff !important;}
+[data-theme="dark"] .cx-dhead h3,[data-theme="dark"] .cx-kv,[data-theme="dark"] .cx-kv span,[data-theme="dark"] .cx-kv b{color:var(--ppf-txt) !important;}
+[data-theme="dark"] .cx-dsub,[data-theme="dark"] .cx-legend,[data-theme="dark"] .cx-legend span,[data-theme="dark"] .cx-x{color:var(--ppf-sub) !important;}
+[data-theme="dark"] .cx-ok{color:var(--ppf-tw) !important;}[data-theme="dark"] .cx-no{color:var(--ppf-hw) !important;}
 [data-theme="dark"] .bv-caps{color:var(--bv-warn) !important;}
 @media (max-width:768px){.bv-ctl input[type=search]{min-width:0;flex:1 1 100%;}.bv-wrap{max-height:70vh;}}
 :root{--ppf-tw:#1e7d45;--ppf-hw:#c0392b;--ppf-q:#90a4ae;--ppf-line:#e3e8ee;--ppf-sub:#607d8b;--ppf-bg:#fff;--ppf-txt:#263238;}
@@ -3553,6 +3608,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
     <div id="m-overview-view" style="display:none"></div>
     <div id="m-etf-view" style="display:none"></div>
     <div id="m-bond-view" style="display:none"></div>
+    <div id="m-ccy-view" style="display:none"></div>
     <div class="matrix-wrap"><table class="matrix-table" id="mtx"><thead id="mtx-h"></thead><tbody id="mtx-b"></tbody></table></div>
   </div>
   <div id="view-table" class="view">
@@ -4022,6 +4078,7 @@ var SECTOR_POOL={{ sector_pool_json }};
    null when no holdings are archived or the run is coverage-degraded. */
 var ETF_LT={{ etf_json }};
 var BOND_META={{ bond_meta|default('null') }};
+var CCY_META={{ ccy_meta|default('null') }};
 /* PRICES context lives in prices_meta.json (dates axis, manifests, index
    series, sector composites) with per-ticker closes sharded under px/;
    HIST is sharded per ticker under hist/ (the inline _HIST_TICKERS says
@@ -7549,20 +7606,23 @@ function swMSub(key){
   _syncHash();
   setTimeout(_setTableH,0);
 }
-/* Financial Model's four sub-tabs: Dashboard, Stock Valuations (the gate
-   matrix table), ETF Valuations (the SPDRs read through the model) and
-   Bond Valuations (the bond model's report). One view shows at a time. */
+/* Financial Model's five sub-tabs: Dashboard, Stock Valuations (the gate
+   matrix table), ETF Valuations (the SPDRs read through the model), Bond
+   Valuations (bonds/'s report) and Currencies (currencies/'s screener).
+   One view shows at a time. */
 function _mIsMatrix(){return (curMSub||'matrix')==='matrix';}
 function _mShow(){
-  var mw=document.querySelector('.matrix-wrap'),ov=document.getElementById('m-overview-view'),ev=document.getElementById('m-etf-view'),bv=document.getElementById('m-bond-view');
+  var mw=document.querySelector('.matrix-wrap'),ov=document.getElementById('m-overview-view'),ev=document.getElementById('m-etf-view'),bv=document.getElementById('m-bond-view'),cv=document.getElementById('m-ccy-view');
   var k=curMSub||'matrix';
   if(mw)mw.style.display=k==='matrix'?'':'none';
   if(ov)ov.style.display=k==='dashboard'?'':'none';
   if(ev)ev.style.display=k==='etf'?'':'none';
   if(bv)bv.style.display=k==='bond'?'':'none';
+  if(cv)cv.style.display=k==='ccy'?'':'none';
   if(k==='dashboard')renderOverview();
   else if(k==='etf')renderEtfView();
   else if(k==='bond')renderBondView();
+  else if(k==='ccy')renderCcyView();
   else renderMatrix();
 }
 function renderEtfView(){
@@ -12591,7 +12651,7 @@ function _navGroups(){
   var groups=[
     {v:'pool',l:'Sector Analysis',cur:_poolTab||'__performance__',items:pool},
     {v:'matrix',l:'Financial Model',cur:curMSub||'matrix',
-     items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Stock Valuations'},{k:'etf',l:'ETF Valuations'},{k:'bond',l:'Bond Valuations'}]},
+     items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Stock Valuations'},{k:'etf',l:'ETF Valuations'},{k:'bond',l:'Bond Valuations'},{k:'ccy',l:'Currencies'}]},
     {v:'table',l:'Financial Data',cur:curTSub,
      items:Object.keys(TL).map(function(k){return{k:k,l:TL[k]};})},
     {v:'pf',l:'Portfolios',cur:curPfSub,
@@ -14605,6 +14665,295 @@ function _bvDraw(){
 function _bvSortBy(k){if(k===_bvSortK)_bvAsc=!_bvAsc;else{_bvSortK=k;_bvAsc=false;}_bvDraw();}
 function _bvSet(k,v){_bvF[k]=v;_bvDraw();}
 function _bvReset(){_bvF={q:'',r:'',c:'',b:'',u:false};renderBondView();}
+/* Financial Model › Currencies: the currency screener (currencies/, its
+   currency_report_<date>.json staged beside this page as currencies.json by
+   report_html._stage_currency_report) drawn in this report's styling: the
+   matrix-table look of Stock Valuations, rating pills, the d-stmt-tabs row.
+   Every number, gate and tooltip is the screener's own; this only draws it.
+   Display only: no currency reaches the stock rows, a rating or a filter. */
+var _CX=null,_CX_LOADING=false,_CX_FAILED=false;
+var _cxView='table',_cxSortK='_composite_score',_cxDir=-1,_cxF={q:'',r:'',fl:false},_cxSel=null;
+var _CX_RATINGS=['LONG','LEAN LONG','NEUTRAL','AVOID'];
+/* The screener's four ratings take the stock ratings' colours, rank for rank. */
+var _CX_RC={'LONG':'BUY','LEAN LONG':'LEAN BUY','NEUTRAL':'HOLD','AVOID':'PASS'};
+var _CX_VIEWS=[['table','Screener'],['matrix','Gate Matrix'],['map','Map']];
+/* k=field, t=title, f=format, l=left-aligned, s=hidden on phones */
+var _CX_COLS=[
+  {k:'code',t:'CCY',f:'code',l:1},
+  {k:'name',t:'Currency',f:'text',l:1},
+  {k:'rating',t:'Rating',f:'pill'},
+  {k:'_composite_score',t:'Score',f:'score'},
+  {k:'regime',t:'Regime',f:'text',s:1},
+  {k:'_score_pillar_valuation',t:'Valuation',f:'sc'},
+  {k:'_score_pillar_carry',t:'Carry',f:'sc'},
+  {k:'_score_pillar_external',t:'External',f:'sc',s:1},
+  {k:'_score_pillar_momentum',t:'Momentum',f:'sc',s:1},
+  {k:'_score_pillar_stability',t:'Stability',f:'sc',s:1},
+  {k:'reer_z20',t:'REER z',f:'num'},
+  {k:'real_carry',t:'Real carry',f:'pp'},
+  {k:'policy_rate',t:'Policy rate',f:'pp',s:1},
+  {k:'inflation_pct',t:'Inflation',f:'pp',s:1},
+  {k:'ret_12m_1m',t:'12m-1m',f:'pct',s:1},
+  {k:'vol_1y',t:'Vol 1y',f:'pct',s:1},
+  {k:'_gates_passed',t:'Gates',f:'text',s:1},
+  {k:'_data_coverage_score',t:'Coverage',f:'cov',s:1}
+];
+var _CX_MAP_STOPS=[[0,'#b3261e'],[25,'#d9772b'],[40,'#d9c22b'],[55,'#8fbf3f'],[70,'#3f9e4d'],[100,'#1e7d3a']];
+function renderCcyView(){
+  var cv=document.getElementById('m-ccy-view');if(!cv)return;
+  var msg=function(t){cv.innerHTML='<p style="color:#888;padding:20px;font-size:0.9em">'+t+'</p>';};
+  if(!CCY_META)return msg('No currency report for this run.');
+  if(!_CX){
+    if(_CX_FAILED)return msg('The currency report could not be loaded.');
+    msg('Loading '+(CCY_META.total||0)+' currencies…');
+    if(!_CX_LOADING){
+      _CX_LOADING=true;
+      var again=function(){_CX_LOADING=false;if(curView==='matrix'&&curMSub==='ccy')renderCcyView();};
+      _loadSidecar('currencies.json',function(d){if(d&&d.rows&&d.gate_meta)_CX=_cxPrep(d);else _CX_FAILED=true;again();});
+    }
+    return;
+  }
+  cv.innerHTML=_cxHtml(_CX);
+  _cxDraw();
+}
+function _cxPrep(d){
+  var gm=d.gate_meta;d.byCode={};d.byField={};d.byCat={};
+  d.rows.forEach(function(r){d.byCode[r.code]=r;});
+  gm.gates.forEach(function(g){d.byField[g.field]=g;});
+  gm.categories.forEach(function(c){d.byCat[c.scoreKey]=c;c.gates=gm.gates.filter(function(g){return g.category===c.name;});});
+  return d;
+}
+function _cxNum(v){return typeof v==='number'&&isFinite(v);}
+function _cxFmt(kind,v){
+  if(!_cxNum(v))return null;
+  if(kind==='pct')return (v*100).toFixed(1)+'%';
+  if(kind==='pp')return (v>0?'+':'')+v.toFixed(1);
+  if(kind==='x')return v.toFixed(2)+'×';
+  return v.toFixed(2);
+}
+var _CX_NA='<span class="bv-mut">—</span>';
+function _cxPill(r){
+  var v=r.rating,h='<span class="rb" style="background:'+(RC[_CX_RC[v]]||'#888')+'">'+_esc(v||'N/A')+'</span>';
+  if(r._rating_cap&&r._rating_cap_reasons&&r._rating_cap_reasons.length)
+    h+='<span class="rb-cap" title="'+_attr('Scored '+(_cxNum(r._composite_score)?r._composite_score.toFixed(1):'n/a')+', which reads '+r.rating_raw+'. Flag: capped to '+r._rating_cap+' because '+r._rating_cap_reasons.join('; ')+'.')+'">⚠</span>';
+  return h;
+}
+function _cxScCls(v){return !_cxNum(v)?'gn':v>=60?'sg':v>=40?'sm':'sp';}
+function _cxCell(r,c){
+  var v=r[c.k];
+  switch(c.f){
+    case 'code':return _esc(v);
+    case 'text':return v==null||v===''?_CX_NA:_esc(v);
+    case 'pill':return _cxPill(r);
+    case 'score':return _cxNum(v)?v.toFixed(1):_CX_NA;
+    case 'sc':return _cxNum(v)?v.toFixed(0):_CX_NA;
+    case 'cov':return _cxNum(v)?v.toFixed(0)+'%':_CX_NA;
+    default:var s=_cxFmt(c.f,v);return s===null?_CX_NA:s;
+  }
+}
+/* A column's tooltip from the gate metadata, so the table, matrix and detail
+   quote the screener's own text for the same measure. */
+function _cxTip(k){
+  var D=_CX,g=D.byField[k],c=D.byCat[k],ui=D.gate_meta.ui||{};
+  if(g)return g.tip;if(c)return c.tip;
+  var m={_composite_score:'composite',rating:'rating',regime:'regime',_gates_passed:'gates',_data_coverage_score:'coverage',policy_rate:'policy_rate',inflation_pct:'inflation_pct',name:'name'};
+  return m[k]?(ui[m[k]]||''):'';
+}
+function _cxTh(k,label,cls,extra){
+  var on=k&&k===_cxSortK,tip=k?_cxTip(k):'';
+  return '<th class="'+(cls||'')+'"'+(k?' onclick="_cxSortBy(\''+k+'\')"':'')+(tip?' data-col-tip="ccy_'+_attr(k)+'" data-col-label="'+_attr(label)+'" data-col-tip-body="'+_attr(tip)+'"':'')
+    +(on?' aria-sort="'+(_cxDir>0?'ascending':'descending')+'"':'')+(extra||'')+'>'+label+(on?' <span class="arrow">'+(_cxDir>0?'▲':'▼')+'</span>':'')+'</th>';
+}
+function _cxHtml(D){
+  var gm=D.gate_meta,n={};D.rows.forEach(function(r){n[r.rating]=(n[r.rating]||0)+1;});
+  var capped=D.rows.filter(function(r){return r._rating_cap&&r.rating!==r.rating_raw;}).length;
+  var top=D.rows.filter(function(r){return _cxNum(r._composite_score);}).sort(function(a,b){return b._composite_score-a._composite_score;})[0];
+  var th=gm.thresholds||{};
+  var h='<div class="xsect-dashboard" id="cx">'
+    +'<div class="sec-label">Currencies</div>'
+    +'<div class="xsect-sub">Run '+_esc(D.run_date)+' · '+D.total+' currencies ranked rich to cheap on '+gm.gates.length+' gates in '+gm.categories.length+' weighted pillars · ECB, BIS and World Bank data</div>'
+    +'<div class="pp-tiles bv-tiles">'
+    +_CX_RATINGS.map(function(r){
+      var t=r==='LONG'?'Composite ≥ '+th.long:r==='LEAN LONG'?'Composite ≥ '+th.lean:r==='NEUTRAL'?'Composite ≥ '+th.neutral:'Below '+th.neutral;
+      return '<div class="pp-tile" title="'+_attr(t+'. '+(gm.ui&&gm.ui.rating||''))+'"><span>'+r+'</span><b>'+(n[r]||0)+'</b></div>';}).join('')
+    +(top?'<div class="pp-tile" title="Highest composite score."><span>Top ranked</span><b>'+_esc(top.code)+' · '+top._composite_score.toFixed(0)+'</b></div>':'')
+    +'<div class="pp-tile" title="Rows whose rating was capped below what the score reads (pegs, the base currency, thin data, very high inflation)."><span>Capped</span><b>'+capped+'</b></div>'
+    +'</div>'
+    +'<div class="d-stmt-tabs sa-chrome cx-tabs" role="tablist" aria-label="Currency views">'
+    +_CX_VIEWS.map(function(v){var on=v[0]===_cxView;return '<button type="button" role="tab" class="d-stmt-tab'+(on?' cur':'')+'" aria-selected="'+on+'" onclick="_cxSetView(\''+v[0]+'\')">'+v[1]+'</button>';}).join('')
+    +'</div>'
+    +'<div class="bv-ctl">'
+    +'<input type="search" placeholder="Search code or name…" value="'+_attr(_cxF.q)+'" oninput="_cxSet(\'q\',this.value)" aria-label="Search code or name">'
+    +'<select onchange="_cxSet(\'r\',this.value)" aria-label="Rating"><option value="">All ratings</option>'+_CX_RATINGS.map(function(r){return '<option value="'+r+'"'+(r===_cxF.r?' selected':'')+'>'+r+'</option>';}).join('')+'</select>'
+    +'<label title="'+_attr((gm.ui&&gm.ui.regime)||'')+'"><input type="checkbox"'+(_cxF.fl?' checked':'')+' onchange="_cxSet(\'fl\',this.checked)"> Floating only</label>'
+    +'<button type="button" onclick="_cxReset()">Reset</button><span class="bv-n" id="cx-n"></span></div>'
+    +'<div id="cx-body"></div><div id="cx-det"></div>'
+    +'<div class="etf-note">'+_cxProv(D)+' Built by the currency screener (currencies/). Not investment advice. Display only: nothing here changes a stock rating.</div>';
+  return h+'</div>';
+}
+function _cxProv(D){
+  var P=D.provenance||{},p=[];
+  if(D.generated)p.push('Generated '+_esc(D.generated)+'.');
+  if(_cxNum(P.stale_slots)&&P.stale_slots>0)p.push(P.stale_slots+' data slots were served from an expired cache (an upstream source was unreachable).');
+  p.push('Sources: ECB daily reference rates (1999–), BIS real effective exchange rates and policy rates, World Bank macro indicators.');
+  return p.join(' ');
+}
+function _cxRows(){
+  var f=_cxF,q=f.q.trim().toLowerCase(),k=_cxSortK,d=_cxDir;
+  return _CX.rows.filter(function(r){
+    if(q&&(r.code+' '+r.name).toLowerCase().indexOf(q)<0)return false;
+    if(f.r&&r.rating!==f.r)return false;
+    if(f.fl&&r.regime!=='float')return false;
+    return true;
+  }).sort(function(a,b){
+    var x=a[k],y=b[k],xn=x==null,yn=y==null;
+    /* Missing values sort last in both directions. */
+    if(xn&&yn)return a.code<b.code?-1:1;
+    if(xn)return 1;if(yn)return -1;
+    if(typeof x==='string'||typeof y==='string')return String(x)<String(y)?-d:String(x)>String(y)?d:0;
+    return x<y?-d:x>y?d:0;
+  });
+}
+function _cxDraw(){
+  var host=document.getElementById('cx-body');if(!host)return;
+  var rows=_cxRows();
+  if(_cxView==='matrix')host.innerHTML=_cxMatrix(rows);
+  else if(_cxView==='map'){host.innerHTML=_cxMapHtml();_cxMapPaint(rows);}
+  else host.innerHTML=_cxTable(rows);
+  var n=document.getElementById('cx-n');
+  if(n)n.textContent=rows.length+' of '+_CX.rows.length+' shown';
+  _cxDetail();
+}
+function _cxTable(rows){
+  var h='<div class="cx-wrap"><table class="cx-tbl"><thead><tr>'
+    +_CX_COLS.map(function(c){return _cxTh(c.k,c.t,'fixed-header'+(c.s?' cx-sm-hide':''));}).join('')
+    +'</tr></thead><tbody>';
+  h+=rows.map(function(r){
+    return '<tr class="'+(r.code===_cxSel?'cx-sel':'')+'" onclick="_cxPick(\''+_attr(r.code)+'\')">'+_CX_COLS.map(function(c){
+      var cls=c.k==='code'?'tk':c.f==='sc'?_cxScCls(r[c.k]):'';
+      if(c.l)cls+=' cx-l';if(c.s)cls+=' cx-sm-hide';
+      return '<td class="'+cls+'">'+_cxCell(r,c)+'</td>';
+    }).join('')+'</tr>';
+  }).join('')||'<tr><td colspan="'+_CX_COLS.length+'" class="cx-l">No currencies match these filters.</td></tr>';
+  return h+'</tbody></table></div><div class="bv-note">Click a row for its gate-by-gate breakdown; hover a header for what it measures. Pillar scores are 0–100; the composite is their weighted average over the pillars that apply to that currency.</div>';
+}
+function _cxMatrix(rows){
+  var cats=_CX.gate_meta.categories;
+  var r1='<tr>'+_cxTh('code','CCY','fixed-header',' rowspan="2"')+_cxTh('rating','Rating','fixed-header',' rowspan="2"');
+  cats.forEach(function(c){
+    var w=Math.round(c.weight*100);
+    r1+='<th class="cat-header" colspan="'+(c.gates.length+1)+'" style="background:'+c.dark+'" data-col-tip="ccy_cat_'+_attr(c.name)+'" data-col-label="'+_attr(c.name+' ('+w+'%)')+'" data-col-tip-body="'+_attr(c.tip+' Weighted '+w+'% of the composite score.')+'">'+_esc(c.name)+' ('+w+'%)</th>';
+  });
+  var r2='</tr><tr>';
+  cats.forEach(function(c){
+    c.gates.forEach(function(g){
+      var on=g.key===_cxSortK;
+      r2+='<th class="col-header" style="background:'+c.light+'" onclick="_cxSortBy(\''+g.key+'\')" data-col-tip="ccy_'+_attr(g.key)+'" data-col-label="'+_attr(g.label)+'" data-col-tip-body="'+_attr(g.tip+' Passes when '+g.threshold+'.')+'">'+_esc(g.label)+'<br><span class="cx-thr">'+_esc(g.threshold)+'</span>'+(on?' <span class="arrow">'+(_cxDir>0?'▲':'▼')+'</span>':'')+'</th>';
+    });
+    r2+=_cxTh(c.scoreKey,'Total','col-header',' style="background:'+c.light+'"');
+  });
+  var h='<div class="cx-wrap"><table class="cx-tbl cx-mx"><thead>'+r1+r2+'</tr></thead><tbody>';
+  h+=rows.map(function(r){
+    var t='<tr class="'+(r.code===_cxSel?'cx-sel':'')+'" onclick="_cxPick(\''+_attr(r.code)+'\')"><td class="tk cx-l">'+_esc(r.code)+'</td><td>'+_cxPill(r)+'</td>';
+    cats.forEach(function(c){
+      c.gates.forEach(function(g){
+        var gp=r[g.gpKey],v=r[g.key];
+        t+='<td class="'+(gp===true?'gp':gp===false?'gf':'gn')+'">'+(gp==null?'—':(_cxFmt(g.fmt,v)||'—'))+'</td>';
+      });
+      var sc=r[c.scoreKey];
+      t+='<td class="ct '+_cxScCls(sc)+'">'+(_cxNum(sc)?sc.toFixed(0):'—')+'</td>';
+    });
+    return t+'</tr>';
+  }).join('');
+  return h+'</tbody></table></div><div class="bv-note">Green passes the gate, red fails, grey is not applicable: either the data is missing (scored 0, kept in the pillar) or the gate cannot describe this currency (left out of the pillar), as for a peg’s volatility or the dollar’s carry against itself.</div>';
+}
+function _cxMapHtml(){
+  var lg='<span>Composite score</span>';
+  _CX_MAP_STOPS.forEach(function(s,i){lg+='<i style="background:'+s[1]+'"></i>'+(i<_CX_MAP_STOPS.length-1?'<span>'+s[0]+'</span>':'');});
+  lg+='<span>100</span><i class="cx-na-sw"></i><span>not covered</span>';
+  return '<div class="bv-card cx-mapcard"><div id="cx-map">'+(_CX.world_svg||'<p class="bv-note">Basemap unavailable.</p>')+'</div><div class="cx-legend">'+lg+'</div><p class="bv-note" id="cx-mapnote"></p></div>';
+}
+function _cxMapPaint(rows){
+  var host=document.getElementById('cx-map');if(!host)return;
+  var byIso={},need={},present={},drawn=0;
+  rows.forEach(function(r){(r.map_iso3||[]).forEach(function(i){byIso[i]=r;need[i]=1;});});
+  [].forEach.call(host.querySelectorAll('path'),function(p){
+    var iso=p.getAttribute('data-iso'),r=byIso[iso];present[iso]=1;
+    if(!r)return;
+    var v=r._composite_score,c=null;
+    if(_cxNum(v))for(var i=_CX_MAP_STOPS.length-1;i>=0;i--)if(v>=_CX_MAP_STOPS[i][0]){c=_CX_MAP_STOPS[i][1];break;}
+    if(c)p.style.fill=c;
+    p.classList.add('has');
+    var t=document.createElementNS('http://www.w3.org/2000/svg','title');
+    t.textContent=(p.getAttribute('data-name')||iso)+' — '+r.code+' — score '+(_cxNum(v)?v.toFixed(0):'n/a')+' — '+r.rating;
+    p.appendChild(t);
+    p.addEventListener('click',function(){_cxPick(r.code);});
+    drawn++;
+  });
+  /* HKG, SGP and MLT have no shape at 110m: in the tables, never on the map. */
+  var missing=Object.keys(need).filter(function(i){return !present[i];}).sort();
+  var note=document.getElementById('cx-mapnote');
+  if(note)note.textContent=drawn+' countries tinted from '+rows.length+' currencies. The euro area shares one score across its members.'
+    +(missing.length?' No shape at this resolution for '+missing.join(', ')+'; those currencies are in the tables but not on the map.':'');
+}
+function _cxSpark(sp){
+  if(!sp||sp.length<2)return '';
+  var W=600,H=90,n=sp.length,lo=Infinity,hi=-Infinity;
+  sp.forEach(function(p){if(p[1]<lo)lo=p[1];if(p[1]>hi)hi=p[1];});
+  if(!(hi>lo))return '';
+  var pts=sp.map(function(p,i){return (i/(n-1)*W).toFixed(1)+','+(H-(p[1]-lo)/(hi-lo)*(H-8)-4).toFixed(1);}).join(' ');
+  var up=sp[n-1][1]>=sp[0][1],chg=(sp[n-1][1]/sp[0][1]-1)*100;
+  return '<svg class="cx-spark" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" role="img" aria-label="USD per unit, '+chg.toFixed(1)+'% over the window"><polyline points="'+pts+'" class="'+(up?'cx-up':'cx-dn')+'"/></svg>'
+    +'<div class="cx-kv bv-note"><span>'+_esc(sp[0][0])+'</span><span>USD per unit · '+(up?'+':'')+chg.toFixed(1)+'%</span><span>'+_esc(sp[n-1][0])+'</span></div>';
+}
+function _cxKv(label,val,tip){
+  return '<div class="cx-kv"><span'+(tip?' class="bv-tl" title="'+_attr(tip)+'"':'')+'>'+_esc(label)+'</span><b>'+(val==null?_CX_NA:val)+'</b></div>';
+}
+function _cxDetail(){
+  var host=document.getElementById('cx-det');if(!host)return;
+  var r=_cxSel&&_CX.byCode[_cxSel];
+  if(!r){host.innerHTML='';return;}
+  var gm=_CX.gate_meta,ui=gm.ui||{};
+  var h='<div class="cx-det"><div class="cx-dhead"><h3>'+_esc(r.code)+' · '+_esc(r.name)+'</h3><button type="button" class="cx-x" onclick="_cxPick(null)" aria-label="Close">×</button></div>'
+    +'<div class="cx-dsub">'+_cxPill(r)+' composite <b>'+(_cxNum(r._composite_score)?r._composite_score.toFixed(1):'n/a')+'</b> · gates '+_esc(r._gates_passed||'—')+' · coverage '+(_cxNum(r._data_coverage_score)?r._data_coverage_score.toFixed(0)+'%':'n/a')+' · '+_esc(r.regime||'')+'</div>';
+  if(r._rating_cap&&r._rating_cap_reasons&&r._rating_cap_reasons.length)
+    h+='<div class="bv-warn"><h4>Flag: rating capped at '+_esc(r._rating_cap)+' (score reads '+_esc(r.rating_raw)+')</h4><p>'+r._rating_cap_reasons.map(_esc).join('; ')+'</p></div>';
+  h+='<div class="bv-card cx-sparkcard"><h4 title="'+_attr(ui.spark||'')+'">Price history</h4>'+(_cxSpark(r.spark)||'<p class="bv-note">No price history.</p>')+'</div><div class="bv-grid">';
+  gm.categories.forEach(function(c){
+    var sc=r[c.scoreKey];
+    h+='<div class="bv-card"><h4 class="cx-cat" style="border-color:'+c.dark+'" title="'+_attr(c.tip)+'">'+_esc(c.name)+' · '+(_cxNum(sc)?sc.toFixed(0):'n/a')+'</h4>';
+    c.gates.forEach(function(g){
+      var gp=r[g.gpKey],s=r[g.scoreKey],na=gp==null;
+      var mark=gp===true?'<span class="cx-ok">✓</span> ':gp===false?'<span class="cx-no">✗</span> ':'';
+      h+=_cxKv(g.label,na?null:mark+(_cxFmt(g.fmt,r[g.key])||'—')+' <span class="bv-mut">'+(_cxNum(s)?s.toFixed(0):'')+'</span>',g.tip+(na?' — '+(ui.na||''):' Passes when '+g.threshold+'.'));
+    });
+    h+='</div>';
+  });
+  h+='<div class="bv-card"><h4>Context</h4>'
+    +_cxKv('Spot (USD per unit)',_cxNum(r.spot)?r.spot.toPrecision(6):null)
+    +_cxKv('Spot date',r.spot_date?_esc(r.spot_date):null)
+    +_cxKv('REER level',_cxNum(r.reer_level)?r.reer_level.toFixed(1):null)
+    +_cxKv('REER as of',r.reer_period?_esc(r.reer_period):null)
+    +_cxKv('REER history',r.reer_months?r.reer_months+' months':null)
+    +_cxKv('12m return',_cxFmt('pct',r.ret_12m))
+    +_cxKv('6m return',_cxFmt('pct',r.ret_6m))
+    +_cxKv('3m volatility',_cxFmt('pct',r.vol_3m))
+    +_cxKv('Gov debt (% GDP)',_cxNum(r.gov_debt_pct_gdp)?r.gov_debt_pct_gdp.toFixed(1):null)
+    +_cxKv('External debt (% GNI)',_cxNum(r.external_debt_pct_gni)?r.external_debt_pct_gni.toFixed(1):null)
+    +_cxKv('Macro vintage',r.macro_year?_esc(r.macro_year):null)
+    +'</div></div><p class="bv-note">A dash is not applicable: either the data is missing, or the gate cannot describe this currency.</p></div>';
+  host.innerHTML=h;
+}
+function _cxPick(code){
+  _cxSel=code===_cxSel?null:code;
+  _cxDraw();
+  var d=document.querySelector('#cx-det .cx-det');
+  if(d&&d.scrollIntoView)d.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function _cxSetView(v){_cxView=v;renderCcyView();}
+function _cxSortBy(k){if(k===_cxSortK)_cxDir=-_cxDir;else{_cxSortK=k;_cxDir=-1;}_cxDraw();}
+function _cxSet(k,v){_cxF[k]=v;_cxDraw();}
+function _cxReset(){_cxF={q:'',r:'',fl:false};_cxSortK='_composite_score';_cxDir=-1;_cxSel=null;renderCcyView();}
 /* A sector page's Value creation tab: its own SPDR. */
 function renderPoolEtf(sec){
   var t=ETF_LT&&ETF_LT.sector_fund&&ETF_LT.sector_fund[sec];

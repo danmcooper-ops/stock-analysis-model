@@ -1,0 +1,16 @@
+# Build artifacts — regenerated every run, never committed.
+# The published report goes to the single-commit `pages-live` branch instead,
+# so large daily HTML/JSON never accumulates in main's history.
+output/
+docs/
+
+# API response cache (TTL-keyed, safe to delete)
+data/cache/
+
+# API keys — never commit. (This project needs none, but keep the guard.)
+.env
+
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/

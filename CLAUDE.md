@@ -45,6 +45,12 @@ scripts/         - Entry points: analyze_stock.py (main pipeline), backtest.py,
 tests/           - pytest suite (~1,300 tests) incl. hypothesis property tests;
                    tests/load/ holds the P5 database scale harness and k6 script
 templates/       - jinja2 report templates
+bonds/           - the bond model (US corporates + Treasuries), a subproject
+                   imported with its history from Bond-Analysis-; own
+                   CLAUDE.md, tests and interpreter (~/.venvs/bonds-model)
+currencies/      - the currency screener (30 currencies), a subproject
+                   imported with its history from Currency-Screener-; own
+                   CLAUDE.md, tests and interpreter (~/.venvs/currencies-model)
 cloudflare/      - the login in front of the Cloudflare Pages report
                    (Access runbook + the JWT-checking pages/_worker.js)
 supabase/        - Supabase project (config.toml, migrations/) for the planned
@@ -69,6 +75,7 @@ output/          - (gitignored) run artifacts: results JSON, HTML, prices,
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pre-commit install   # runs ruff + the offline test suite before each commit
+scripts/setup_submodels.sh   # bonds/ and currencies/ interpreters, in ~/.venvs
 ```
 
 ## Running
@@ -976,8 +983,40 @@ ruff check .
   rated, and an ETF must never reach `profile_verdict` (its −20% MoS AVOID
   flag would fire on nearly every fund). `ETF_HOLDINGS_DIR` overrides the
   archive path. Tests: `tests/test_etf_lookthrough.py`.
+- **Subprojects `bonds/` and `currencies/` (2026-10-28):** the bond model and
+  the currency screener came in by `git subtree add` with their full history
+  (the two "Add '<dir>/'" commits; their old commits are that merge's second
+  parent, so `git log -- bonds/` alone shows only the import). Each stays
+  self-contained: its own CLAUDE.md, tests and interpreter. They cannot share
+  the stock venv: their `data/`, `models/` and `scripts/` have no
+  `__init__.py`, so they are namespace packages, and this repo's installed
+  packages of the same names win over them on import. So each runs from its
+  own folder on `~/.venvs/<name>-model` (`scripts/setup_submodels.sh`, outside
+  the repo for the reason `VPY` is); ruff skips both folders, pre-commit and
+  CI run each suite on its own interpreter, and only the root's GitHub
+  workflows exist. The nightly step `sidemodels` (after `pull`) starts both in
+  the background; the enrich step's re-render waits for them (at most
+  `SIDE_WAIT_SEC`, 30 min) and stages their reports, so a failure costs a tab,
+  never the night. The screener always dates its run today, so a `--date`
+  re-run of a past day leaves it alone. The bond model reads equity snapshots
+  from this repo's `output/` by default. Their standalone repos and 17:00
+  scheduled tasks keep publishing until cutover, then get archived.
+- **Currencies (Financial Model's fifth sub-tab, 2026-10-28):** the currency
+  screener's own page, drawn in this report's styling. `currencies/`'s
+  `build_html` writes `output/currency_report_<date>.json` beside its page
+  (rows, gate metadata with every tooltip, provenance and the world basemap;
+  `REPORT_DATA_VERSION` there, `CURRENCY_REPORT_VERSION` here), which
+  `_stage_currency_report` copies as `currencies.json` exactly as bonds are
+  staged (one helper, `_stage_model_report`; `CURRENCY_MODEL_OUTPUT`
+  overrides `currencies/output`). The template (`renderCcyView`, `_cx*`) has
+  Screener, Gate Matrix and Map views plus a per-currency detail panel, on a
+  table of its own (`.cx-tbl`) that copies Stock Valuations' look (navy
+  `fixed-header`, `gp/gf/gn` and `sg/sm/sp` cells, `.rb` pills; LONG / LEAN
+  LONG / NEUTRAL / AVOID take BUY / LEAN BUY / HOLD / PASS colours) without
+  the stock table's fixed column offsets. Display only, like bonds. Tests:
+  `tests/test_report_currency_tab.py`, `currencies/tests/test_report_data.py`.
 - **Bond Valuations (Financial Model's fourth sub-tab, 2026-10-27):** the
-  sibling bond-analysis-model's report, drawn in this report's styling and
+  bond model's report (`bonds/`), drawn in this report's styling and
   meant to replace that repo's own HTML page. The bond model's
   `report_html.py` writes `output/bond_report_<date>.json` beside its page:
   the page's content as data (tiles, caveats, distributions, curve and term
@@ -986,7 +1025,7 @@ ruff check .
   dependency, versioned by `REPORT_DATA_VERSION` there and
   `BOND_REPORT_VERSION` here. `report_html._stage_bond_report` copies the
   newest one dated on or before the run from `BOND_MODEL_OUTPUT` (default
-  `../bond-analysis-model/output`) beside the report as `bonds.json` (~2 MB,
+  `bonds/output`) beside the report as `bonds.json` (~2 MB,
   lazy-loaded when the tab opens; `run_daily.sh` publish ships it like
   `macro.json`) and inlines only `BOND_META` (`{date, total}`); no report, or
   another version, removes a stale `bonds.json` and the tab says so. The

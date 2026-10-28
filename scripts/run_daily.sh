@@ -28,6 +28,11 @@
 #   pull       fast-forward main so the run uses merged code; a checkout left on a
 #              merged branch with no uncommitted edits goes back to main first
 #              (non-blocking)
+#   sidemodels start the bond model (bonds/) and the currency screener
+#              (currencies/) in the background, each in its own folder on its
+#              own interpreter; the enrich step's re-render waits for them (at
+#              most 30 min) and draws their reports as Financial Model › Bond
+#              Valuations and Currencies                    (non-blocking)
 #   analyze    analyze_stock.py                            (BLOCKING), then the
 #              companyfacts cache backup to Supabase Storage (non-blocking)
 #   enrich     FDIC, REIT, XBRL, FDA enrichment, price top-up for new entrants,
@@ -61,11 +66,16 @@ REPO="${STOCK_MODEL_REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # every routine used, was removed on 2026-09-13 mid-run). Rebuild it with
 # scheduled-tasks/RECOVERY.md step 3; override with PYTHON=... .
 VPY="${PYTHON:-$HOME/.venvs/stock-model/bin/python}"
+# The subprojects' interpreters, outside the repo for the same reason
+# (scripts/setup_submodels.sh builds them).
+BONDS_PY="${BONDS_PYTHON:-$HOME/.venvs/bonds-model/bin/python}"
+CCY_PY="${CURRENCIES_PYTHON:-$HOME/.venvs/currencies-model/bin/python}"
+SIDE_WAIT_SEC="${SIDE_WAIT_SEC:-1800}"
 PAGES_WT="$REPO/.claude/worktrees/pages-live"
 SNAP_WT="$REPO/.claude/worktrees/snapshots-data"
 PAGES_URL="https://danmcooper-ops.github.io/stock-analysis-model/"
 LOGDIR="$HOME/Library/Logs/StockModel"
-STEPS=(preflight prices pull analyze enrich archive reports publish compact)
+STEPS=(preflight prices pull sidemodels analyze enrich archive reports publish compact)
 # Cloudflare Pages response headers and the deploy workflow, copied onto
 # pages-live as the cloud publish does.
 PAGES_HEADERS="$REPO/scheduled-tasks/cloud-daily-stock-analysis/pages_headers"
@@ -305,6 +315,52 @@ if wants pull; then
   fi
 fi
 
+# ---------------------------------------------------------------- sidemodels
+# The bond model and the currency screener run beside the stock analysis,
+# never in its way: started here, waited for only by the re-render, and a
+# failure (or a missing interpreter) costs their tab, never the night.
+SIDE_PIDS=()
+sidemodels_start() {
+  local slog="$LOGDIR/sidemodels_$RUNDATE"
+  [ -x "$BONDS_PY" ] && [ -x "$CCY_PY" ] || { echo "sidemodels: run scripts/setup_submodels.sh ($BONDS_PY, $CCY_PY)"; return 1; }
+  (cd bonds || exit 1
+   SSL_CERT_FILE=$("$BONDS_PY" -m certifi 2>/dev/null) && export SSL_CERT_FILE
+   "$BONDS_PY" scripts/analyze_bonds.py --as-of "$RUNDATE" \
+     && "$BONDS_PY" scripts/report_html.py --run-date "$RUNDATE") >"${slog}_bonds.log" 2>&1 &
+  SIDE_PIDS+=("bonds:$!")
+  # The screener always dates its run today, so a re-run of a past date
+  # leaves it alone (the render then draws the newest report on or before).
+  if [ "$RUNDATE" = "$(TZ=America/New_York date +%F)" ]; then
+    (cd currencies && "$CCY_PY" scripts/analyze_currencies.py) >"${slog}_currencies.log" 2>&1 &
+    SIDE_PIDS+=("currencies:$!")
+  fi
+  echo "sidemodels: started ${SIDE_PIDS[*]}; logs ${slog}_*.log"
+}
+# sidemodel_wait NAME PID — wait at most SIDE_WAIT_SEC, then give up on it.
+sidemodel_wait() {
+  local name="$1" pid="$2" deadline=$(( $(date +%s) + SIDE_WAIT_SEC ))
+  while kill -0 "$pid" 2>/dev/null; do
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      kill "$pid" 2>/dev/null; echo "$name: still running after ${SIDE_WAIT_SEC}s, stopped"; return 124
+    fi
+    sleep 2
+  done
+  wait "$pid"
+}
+sidemodels_join() {
+  local e
+  for e in "${SIDE_PIDS[@]+"${SIDE_PIDS[@]}"}"; do
+    run "sidemodel_${e%%:*}" soft sidemodel_wait "${e%%:*}" "${e#*:}" \
+      || note "${e%%:*} model failed — its tab draws the newest earlier report (see $LOGDIR/sidemodels_${RUNDATE}_${e%%:*}.log)"
+  done
+  SIDE_PIDS=()
+}
+
+if wants sidemodels; then
+  run sidemodels soft sidemodels_start \
+    || note "sidemodels not started — Bond Valuations and Currencies draw the newest earlier reports"
+fi
+
 # ---------------------------------------------------------------- analyze
 if wants analyze; then
   run analyze blocking bash -c "set -o pipefail; \"$VPY\" scripts/analyze_stock.py --run-date $RUNDATE --macro --prices-dir output/prices \
@@ -365,6 +421,7 @@ if wants enrich; then
   # history issuer files have. A failure costs the night's ETF read only.
   run etf_holdings    soft "$VPY" scripts/fetch_etf_holdings.py
   # Must follow every enrichment so the banners pick the fields up.
+  sidemodels_join
   run render          soft "$VPY" scripts/rescore_and_render.py "$SNAPSHOT" --prices-dir output/prices
   # Your portfolio groupings (portfolio/portfolios.json): stats + change
   # alerts. Before the archive, so portfolio_alerts.json rides into
@@ -510,6 +567,9 @@ publish() {
   # bonds.json (Financial Model › Bond Valuations) is optional the same way.
   if [ -f output/bonds.json ]; then cp output/bonds.json "$docs/bonds.json" || return 1
   else rm -f "$docs/bonds.json"; fi
+  # currencies.json (Financial Model › Currencies) likewise.
+  if [ -f output/currencies.json ]; then cp output/currencies.json "$docs/currencies.json" || return 1
+  else rm -f "$docs/currencies.json"; fi
   rm -f "$docs/prices.json"   # retired 2026-08-11
   rm -f "$docs/hist.json" "$docs/details.json"   # split into hist/ and details/ (P4c)
   "$VPY" scripts/publish_vol_shards.py || { echo "publish: shard sync failed"; return 1; }
