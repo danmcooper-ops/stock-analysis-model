@@ -1,12 +1,12 @@
 {
  "version": 1,
- "date": "2026-10-26",
- "prev_date": "2026-10-23",
+ "date": "2026-10-27",
+ "prev_date": "2026-10-26",
  "systemic": {
-  "n": 3824,
-  "prev_n": 3499,
-  "changed": 37,
-  "changed_share": 0.0097,
+  "n": 3829,
+  "prev_n": 3824,
+  "changed": 23,
+  "changed_share": 0.006,
   "missing_data": 0,
   "missing_share": 0.0,
   "shrink_share": 0.0,
@@ -29,9 +29,9 @@
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": -0.5989662551221138,
+    "median_mos": -0.6529222396803027,
     "median_score": 49.3,
-    "median_spread": 0.2296430711789393,
+    "median_spread": 0.22958613443659304,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -43,7 +43,14 @@
     "upgrades": 0,
     "downgrades": 0
    },
-   "alerts": []
+   "alerts": [
+    {
+     "ticker": "AMD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AMD reports earnings on 2026-11-03"
+    }
+   ]
   },
   {
    "id": "flagged",
@@ -59,7 +66,7 @@
      "HOLD": 7,
      "PASS": 5
     },
-    "median_mos": -0.20693254108370973,
+    "median_mos": -0.2047438019082056,
     "median_score": 48.7,
     "median_spread": 0.25746000492309085,
     "sector_weights": {
@@ -93,6 +100,12 @@
      "message": "AMZN reports earnings on 2026-10-29"
     },
     {
+     "ticker": "BKNG",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "BKNG reports earnings on 2026-11-03"
+    },
+    {
      "ticker": "BUD",
      "kind": "earnings_soon",
      "level": "watch",
@@ -115,18 +128,6 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "GOOGL reports earnings on 2026-10-28"
-    },
-    {
-     "ticker": "GOOGL",
-     "kind": "fv_jump",
-     "level": "watch",
-     "message": "GOOGL fair value moved +80% ($161.35 → $289.83)"
-    },
-    {
-     "ticker": "HON",
-     "kind": "fv_jump",
-     "level": "watch",
-     "message": "HON fair value moved +132% ($95.91 → $222.37)"
     },
     {
      "ticker": "ITW",
