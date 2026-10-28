@@ -914,23 +914,27 @@ ruff check .
   rated, and an ETF must never reach `profile_verdict` (its −20% MoS AVOID
   flag would fire on nearly every fund). `ETF_HOLDINGS_DIR` overrides the
   archive path. Tests: `tests/test_etf_lookthrough.py`.
-- **Bonds vs Stocks (`models/bond_relative.py`, 2026-10-27):** Financial
-  Model's fourth sub-tab asks whether stocks pay enough over bonds at today's
-  prices. Built at render time (`report_html._build_bond_payload`, after the
-  ETF payload, whose SPY MoS it shows) from the macro sidecar and the rows,
-  shipped as `BOND_RV` and written to `output/bonds_<date>.json`; skipped on a
-  coverage-degraded run. Bonds read at their starting yield: 3M/2Y/10Y/30Y
-  from `curve`, 10Y TIPS (`DFII10`), IG and HY effective yields
-  (`BAMLC0A0CMEY`/`BAMLH0A0HYM2EY`), HY less `HY_CREDIT_LOSS` (1.5pp, shown).
-  A missing series falls back to an identity, flagged `derived`: real =
-  10Y − breakeven, corporate = 7Y/5Y Treasury + OAS. Stocks are cap-weighted
-  over the rendered universe as Σ flow / Σ mcap, loss-makers kept (no usable
-  P/E → net income), a flow larger than its company dropped, lender FCF
-  excluded (`is_balance_sheet_financial`). The headline premium is earnings
-  yield − TIPS (E/P is a real yield); a second compares FCF yield with IG.
-  Sectors need 5 companies and 80% of cap with earnings. A sector row opens
-  its sector page as a drill (`_bndSector`). Display only: nothing reaches a
-  rating, `DATA` or `profile_verdict`. Tests: `tests/test_bond_relative.py`,
+- **Bond Valuations (Financial Model's fourth sub-tab, 2026-10-27):** the
+  sibling bond-analysis-model's report, drawn in this report's styling and
+  meant to replace that repo's own HTML page. The bond model's
+  `report_html.py` writes `output/bond_report_<date>.json` beside its page:
+  the page's content as data (tiles, caveats, distributions, curve and term
+  points, the 24-column table of ~9k bonds with each column's tooltip), from
+  the same function its page is drawn from. A file contract, not a code
+  dependency, versioned by `REPORT_DATA_VERSION` there and
+  `BOND_REPORT_VERSION` here. `report_html._stage_bond_report` copies the
+  newest one dated on or before the run from `BOND_MODEL_OUTPUT` (default
+  `../bond-analysis-model/output`) beside the report as `bonds.json` (~2 MB,
+  lazy-loaded when the tab opens; `run_daily.sh` publish ships it like
+  `macro.json`) and inlines only `BOND_META` (`{date, total}`); no report, or
+  another version, removes a stale `bonds.json` and the tab says so. The
+  template (`renderBondView`, `_bv*`) draws it with `pp-tiles`, `sec-label`
+  sections, cards and a sortable `ppi-tbl` (header tooltips through the
+  shared `data-col-tip-body` path), and filters/sorts/limits to 1,000 rows as
+  the bond page did. Every number and caveat is the bond model's; display
+  only, so no bond reaches `DATA`, a rating or a filter. The macro series
+  `DFII10`, `BAMLC0A0CMEY` and `BAMLH0A0HYM2EY` (Macro › Rates and Credit)
+  came with the Bonds vs Stocks view this replaced. Tests:
   `tests/test_report_bond_tab.py`.
 - **Report sidecars and the Pages size limits:** the HTML lazy-loads
   everything heavy from files beside it, through `_loadSidecar` (relative
