@@ -81,7 +81,9 @@ from data.finnhub_supply_client import FinnhubSupplyClient
 from data.sec_supply_client import SECSupplyClient
 from data.sec_xbrl_client import SECXBRLClient
 from data.splits import adjust_for_ticker
-from data.fx_client import get_spot_fx_rate, apply_fx_to_statement_df
+from data.fx_convert import (FLOW, STOCK, convert_statement_df, get_spot_fx_rate,
+                             newest_period_end, rebase_statements,
+                             spot_rebase_factors)
 from data.sec_insider_client import SECInsiderClient
 from data.provenance import ProvenanceRecorder
 from data.price_store import mass_stop, stopped_trading
@@ -1476,7 +1478,7 @@ _FX_INFO_STATEMENT_FIELDS = (
 )
 
 
-def _convert_financials_to_usd(yf_data, statements_are_usd=False):
+def _convert_financials_to_usd(yf_data, statements_are_usd=False, as_of=None):
     """Convert ``yf_data`` financials + dollar-denominated info fields to USD.
 
     ``statements_are_usd``: set when the statements came from SEC XBRL, which
@@ -1492,10 +1494,18 @@ def _convert_financials_to_usd(yf_data, statements_are_usd=False):
     (ADRs) or the same local currency (.SW, .L exchanges) — producing the
     "wild divergence" the user observed.
 
+    Rates come from the FX store (data/fx_convert.py) as of *as_of* (the
+    run date; today when None). yfinance statements convert column by
+    column: income and cash flow at the average rate over the year ending on
+    the column's date, the balance sheet at that date's close. ``info``
+    totals and quote fields convert at the as-of rate.
+
     Returns ``(yf_data, fx_meta)``. ``fx_meta`` carries:
         currency_quote      — info['currency'] (price currency)
         currency_financial  — info['financialCurrency'] (statement currency)
-        fx_rate_financial   — rate applied to balance_sheet / income_stmt / cash_flow (None when no conversion)
+        fx_rate_financial   — the as-of rate for the statement currency when
+                              the statements were converted (None otherwise);
+                              each column used its own period's rate
         fx_rate_quote       — rate applied to info dollar fields (None when no conversion)
         fx_converted        — True iff any conversion was applied
         fx_fetch_failed     — True iff at least one rate lookup returned None for a non-USD currency
@@ -1524,24 +1534,29 @@ def _convert_financials_to_usd(yf_data, statements_are_usd=False):
         return yf_data, fx_meta
     # Shallow-copy the outer dict so we don't mutate the cached payload.
     out = dict(yf_data)
-    rate_fin = get_spot_fx_rate(ccy_fin) if needs_info_stmt else None
+    rate_fin = get_spot_fx_rate(ccy_fin, as_of) if needs_info_stmt else None
     if needs_fin:
         if rate_fin is None:
             fx_meta['fx_fetch_failed'] = True
         else:
             fx_meta['fx_rate_financial'] = rate_fin
             fx_meta['fx_converted'] = True
-            for key in ('balance_sheet', 'income_statement', 'income_stmt', 'cash_flow'):
-                df = out.get(key)
-                if df is not None:
-                    out[key] = apply_fx_to_statement_df(df, rate_fin)
+        # Converted even without an as-of rate: each column carries its own,
+        # and a column with none is blanked rather than left in local units.
+        for key, kind in (('balance_sheet', STOCK), ('income_statement', FLOW),
+                          ('income_stmt', FLOW), ('cash_flow', FLOW)):
+            df = out.get(key)
+            if df is not None:
+                out[key], blanked = convert_statement_df(df, ccy_fin, kind)
+                if blanked:
+                    fx_meta['fx_fetch_failed'] = True
     if needs_quote:
         # Often the quote and financial currencies are the same (e.g.,
         # NESN.SW: CHF/CHF). get_spot_fx_rate hits the same cache entry.
         if needs_fin and ccy_quote == ccy_fin:
             rate_quote = fx_meta['fx_rate_financial']
         else:
-            rate_quote = get_spot_fx_rate(ccy_quote)
+            rate_quote = get_spot_fx_rate(ccy_quote, as_of)
         if rate_quote is None:
             fx_meta['fx_fetch_failed'] = True
         else:
@@ -1571,6 +1586,39 @@ def _convert_financials_to_usd(yf_data, statements_are_usd=False):
         out['info'] = new_info
         fx_meta['fx_rate_info_statement'] = rate_fin
     return out, fx_meta
+
+
+def _value_at_spot(yf_data, fx_meta, data_source, as_of):
+    """Rebase a foreign filer's translated statements to the run date's rate
+    (data/fx_convert.py: every column by today's rate over the newest fiscal
+    year's, average for flows and close for the balance sheet), so a fair
+    value counts tomorrow's cash flows at today's rate while growth keeps the
+    translated history's. The factors go on *fx_meta* as ``fx_rebase_flow``
+    / ``fx_rebase_stock`` (Phase 2 applies the flow one to ``fcf_edgar``).
+
+    The currency is the one the frames were translated from: the SEC shape's
+    reporting currency (a dual-tagged filer reads USD and is not rebased),
+    or yfinance's financialCurrency when this function's caller converted
+    them. A stale newest year or a move past REBASE_MAX_MOVE keeps
+    translated rates and says why in ``fx_rebase_skipped``.
+    ``FX_VALUE_AT_SPOT=0`` keeps translated rates throughout."""
+    if os.environ.get('FX_VALUE_AT_SPOT', '1') == '0':
+        return yf_data, fx_meta
+    if data_source in ('sec_xbrl', 'sec_xbrl+yfinance'):
+        ccy = (yf_data or {}).get('reporting_currency')
+    else:
+        ccy = fx_meta.get('currency_financial') if fx_meta.get('fx_rate_financial') else None
+    if not ccy or ccy == 'USD':
+        return yf_data, fx_meta
+    factors = spot_rebase_factors(ccy, newest_period_end(yf_data), as_of)
+    if factors is None:
+        return yf_data, fx_meta
+    if 'flow' not in factors:   # stale year or an inflation-sized move
+        return yf_data, dict(fx_meta, fx_rebase_skipped=factors['skipped'])
+    fx_meta = dict(fx_meta, fx_rebase_flow=factors['flow'],
+                   fx_rebase_stock=factors['stock'],
+                   fx_rebase_period_end=factors['period_end'])
+    return rebase_statements(yf_data, factors), fx_meta
 
 
 def _fcf_series_from_cashflow(cf):
@@ -3588,6 +3636,10 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                     'info':             yf_data.get('info') or {},
                     'growth_estimates': yf_data.get('growth_estimates'),
                     'earnings_history': yf_data.get('earnings_history'),
+                    # The currency the frames were translated from (USD for a
+                    # filer tagging in dollars, whatever financialCurrency
+                    # says); _value_at_spot rebases on it.
+                    'reporting_currency': xbrl_data.get('reporting_currency'),
                 }
                 _data_source = 'sec_xbrl+yfinance'
             elif xbrl_data is not None:
@@ -3653,12 +3705,13 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
             _stmts_usd = _data_source in ('sec_xbrl', 'sec_xbrl+yfinance')
             _t = time.perf_counter()
             yf_data, fx_meta = _convert_financials_to_usd(
-                yf_data, statements_are_usd=_stmts_usd)
+                yf_data, statements_are_usd=_stmts_usd, as_of=_run_day)
+            yf_data, fx_meta = _value_at_spot(yf_data, fx_meta, _data_source, _run_day)
             _legs['fx'] += time.perf_counter() - _t
-            _prov.record_source(ticker, 'fx', 'fx_client',
+            _prov.record_source(ticker, 'fx', 'fx_store',
                                 converted=fx_meta.get('fx_converted', False))
             if fx_meta.get('fx_fetch_failed'):
-                _prov.record_event('fx_fetch_failed', ticker, 'fx_client',
+                _prov.record_event('fx_fetch_failed', ticker, 'fx_store',
                                    {'currency_financial': fx_meta.get('currency_financial')})
 
             info = yf_data.get('info') or {}
@@ -4648,6 +4701,11 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 'fx_rate_quote': fx_meta.get('fx_rate_quote'),
                 'fx_converted': fx_meta.get('fx_converted', False),
                 'fx_fetch_failed': fx_meta.get('fx_fetch_failed', False),
+                # Valuation at the run date's rate (_value_at_spot): the
+                # factors the statements were scaled by, None when not.
+                'fx_rebase_flow': fx_meta.get('fx_rebase_flow'),
+                'fx_rebase_stock': fx_meta.get('fx_rebase_stock'),
+                'fx_rebase_skipped': fx_meta.get('fx_rebase_skipped'),
                 'ceo': ceo,
                 'ceo_bio': ceo_bio,
                 'founder_led': founder_led,
@@ -4785,7 +4843,10 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 'shares_cagr_5y': shares_cagr_5y,
                 # EDGAR-derived point-in-time FCF (OCF − capex); scoring uses
                 # it as a fallback for `fcf` when yfinance has no cash flow.
-                'fcf_edgar': _edgar_metrics.get('fcf_edgar'),
+                # At the run date's rate like the statements (_value_at_spot).
+                'fcf_edgar': (None if _edgar_metrics.get('fcf_edgar') is None
+                              else _edgar_metrics['fcf_edgar']
+                              * (fx_meta.get('fx_rebase_flow') or 1.0)),
                 # EDGAR-derived EBIT/interest; scoring uses it as a fallback
                 # for `int_cov` when yfinance has no income statement.
                 'int_cov_edgar': _edgar_metrics.get('int_cov_edgar'),

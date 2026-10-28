@@ -248,6 +248,68 @@ ruff check .
   meta. On 2026-09-30 only the first and last rungs existed: every discount
   rate in a seven-hour run was built on 4.00% while the 10-year printed
   5.29%, with `FRED_API_KEY` set and the prior day's 5.25% in `output/`.
+- **FX rate store (`data/fx_store.py`, `scripts/fx_rates.py`, 2026-10-27):**
+  the first step of replacing `data/fx_client.py`, which converts every
+  value at a calendar-year-end close (a March-year-end yen filer's revenue
+  takes December's rate), keeps rates in memory only, and passes a
+  native-currency value through as dollars when a fetch fails. The store
+  keeps one daily history per currency, USD per unit, in
+  `output/fx/<CCY>.parquet` (`FX_STORE_DIR`), refreshed in full by
+  `run_daily.sh`'s `prices` step (soft) for the majors plus every currency
+  the last snapshot reports in (31 on 10-27). Yahoo `{CCY}USD=X` is primary
+  (all 32 universe currencies, current to the run date). FRED's H.10
+  (`H10_SERIES`, 21 currencies, published weekly) fills Yahoo's gaps and
+  overrides a day more than 5% away: on 10-27 all 37 such days were Yahoo's
+  errors except CHF's 2015-01-15 timing. An isolated bar >25% off both
+  agreeing neighbours is dropped; all 23 were decimal shifts. Lookups are as
+  of a date (`rate`/`close_rate`, `avg_rate` over a window with ≥50%
+  weekday coverage) and return None, never a pass-through.
+  **Translation (`data/fx_convert.py`, replaces `fx_client.py`)** follows
+  ASC 830 / IAS 21: flows (income, cash flow, EPS) at the average rate over
+  the fiscal year, balance-sheet instants at the fiscal year end's close,
+  `info` totals at the run date's rate. Fiscal-year ends come from the
+  filer's own entries (`SECXBRLClient.fiscal_year_ends`); yfinance frames
+  convert column by column. A year with no rate is dropped
+  (`edgar_history.fx_years_missing`), a yfinance column blanked, and no rate
+  for the newest fiscal year declines the SEC shape. A currency the store
+  lacks is fetched once per process (`ensure`). Measured on 10-26's 283
+  SEC-sourced foreign filers: balance sheets barely move (median 0%), flows
+  median ±2.7%, 32 over 10%: BRL +15% (the real fell late in 2024, so its
+  average sat far above the December close), June/March year-ends that had
+  taken a December rate (IRS +41%). The 335 yfinance-sourced rows (OTC
+  ordinaries) had converted every column at that night's spot; their newest
+  year now moves about −11% (BRL, NOK) to +5% (JPY, PLN). The yfinance
+  share-count rule no longer skips 'Basic EPS', 'Diluted EPS' or 'Diluted NI
+  Availto Com Stockholders', which fx_client left unconverted. Tests
+  (`tests/conftest.py` gives every test an empty store that cannot fetch):
+  `tests/test_fx_store.py`, `tests/test_fx_convert.py`.
+  **Valued at today's rate (`analyze_stock._value_at_spot`,
+  `FX_VALUE_AT_SPOT`, default on):** translated history is the record, but a
+  fair value is a claim on cash flows that will translate at future rates,
+  best guessed by today's. So Phase 1 rebases a foreign filer's translated
+  statements: every column times today's rate over the newest fiscal year's
+  (its average for flows, its close for the balance sheet). Growth stays the
+  translated history's exactly, the newest year sits at spot, and its
+  returns on capital are the reporting currency's own. The factors are on
+  the row (`fx_rebase_flow` / `fx_rebase_stock`), and `fcf_edgar` takes the
+  flow one, here and in `rescore_and_render`. The currency is the SEC
+  shape's `reporting_currency` (a dual-tagged filer reads USD and is left
+  alone), else yfinance's when it was converted. Two guards keep translated
+  rates and record why (`fx_rebase_skipped`):
+  - `stale`: the newest year ended over `REBASE_MAX_AGE_DAYS` (455) ago.
+    117 of 283 SEC-sourced foreign filers on 10-26, because their SEC
+    histories lag their filings: TSMC's FY2025 20-F carries cover facts
+    only, Sony's and Canada Goose's latest are absent;
+  - `large_move`: a factor more than `REBASE_MAX_MOVE` (25%) from 1, which
+    is mostly inflation (YPF −93%, Turkcell −41%): the next year's earnings
+    come in more pesos, so marking last year's to spot would count the
+    depreciation without the inflation.
+
+  On 10-26 the 166 rebased filers moved a median 0.8% (11 over 10%: BRL
+  +12.5%, CNY +7.6%). For the yfinance-sourced rows the newest year lands
+  back near the spot `fx_client` used. Phase 0 found BIS
+  real effective rates (`RB<ISO2>BIS`, monthly) for all 32 currencies and
+  OECD 3-month rates for about 20, for the Currencies tab (Financial Model).
 - **Snapshot coverage floor (`data/coverage.py`, `MIN_ROW_RATIO`=0.7):** one
   floor for the database publish (`publish_run` refused that night's 739
   rows — the only guard that asked), the archive and the site. `analyze_stock`
@@ -914,23 +976,27 @@ ruff check .
   rated, and an ETF must never reach `profile_verdict` (its −20% MoS AVOID
   flag would fire on nearly every fund). `ETF_HOLDINGS_DIR` overrides the
   archive path. Tests: `tests/test_etf_lookthrough.py`.
-- **Bonds vs Stocks (`models/bond_relative.py`, 2026-10-27):** Financial
-  Model's fourth sub-tab asks whether stocks pay enough over bonds at today's
-  prices. Built at render time (`report_html._build_bond_payload`, after the
-  ETF payload, whose SPY MoS it shows) from the macro sidecar and the rows,
-  shipped as `BOND_RV` and written to `output/bonds_<date>.json`; skipped on a
-  coverage-degraded run. Bonds read at their starting yield: 3M/2Y/10Y/30Y
-  from `curve`, 10Y TIPS (`DFII10`), IG and HY effective yields
-  (`BAMLC0A0CMEY`/`BAMLH0A0HYM2EY`), HY less `HY_CREDIT_LOSS` (1.5pp, shown).
-  A missing series falls back to an identity, flagged `derived`: real =
-  10Y − breakeven, corporate = 7Y/5Y Treasury + OAS. Stocks are cap-weighted
-  over the rendered universe as Σ flow / Σ mcap, loss-makers kept (no usable
-  P/E → net income), a flow larger than its company dropped, lender FCF
-  excluded (`is_balance_sheet_financial`). The headline premium is earnings
-  yield − TIPS (E/P is a real yield); a second compares FCF yield with IG.
-  Sectors need 5 companies and 80% of cap with earnings. A sector row opens
-  its sector page as a drill (`_bndSector`). Display only: nothing reaches a
-  rating, `DATA` or `profile_verdict`. Tests: `tests/test_bond_relative.py`,
+- **Bond Valuations (Financial Model's fourth sub-tab, 2026-10-27):** the
+  sibling bond-analysis-model's report, drawn in this report's styling and
+  meant to replace that repo's own HTML page. The bond model's
+  `report_html.py` writes `output/bond_report_<date>.json` beside its page:
+  the page's content as data (tiles, caveats, distributions, curve and term
+  points, the 24-column table of ~9k bonds with each column's tooltip), from
+  the same function its page is drawn from. A file contract, not a code
+  dependency, versioned by `REPORT_DATA_VERSION` there and
+  `BOND_REPORT_VERSION` here. `report_html._stage_bond_report` copies the
+  newest one dated on or before the run from `BOND_MODEL_OUTPUT` (default
+  `../bond-analysis-model/output`) beside the report as `bonds.json` (~2 MB,
+  lazy-loaded when the tab opens; `run_daily.sh` publish ships it like
+  `macro.json`) and inlines only `BOND_META` (`{date, total}`); no report, or
+  another version, removes a stale `bonds.json` and the tab says so. The
+  template (`renderBondView`, `_bv*`) draws it with `pp-tiles`, `sec-label`
+  sections, cards and a sortable `ppi-tbl` (header tooltips through the
+  shared `data-col-tip-body` path), and filters/sorts/limits to 1,000 rows as
+  the bond page did. Every number and caveat is the bond model's; display
+  only, so no bond reaches `DATA`, a rating or a filter. The macro series
+  `DFII10`, `BAMLC0A0CMEY` and `BAMLH0A0HYM2EY` (Macro › Rates and Credit)
+  came with the Bonds vs Stocks view this replaced. Tests:
   `tests/test_report_bond_tab.py`.
 - **Report sidecars and the Pages size limits:** the HTML lazy-loads
   everything heavy from files beside it, through `_loadSidecar` (relative

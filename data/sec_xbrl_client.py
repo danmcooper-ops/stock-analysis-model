@@ -61,14 +61,11 @@ from models.field_keys import (
     EQUITY_KEYS, DEBT_KEYS, OPERATING_CF_KEYS, GROSS_PROFIT_KEYS, INTEREST_KEYS,
 )
 
-# FX helpers moved to data/fx_client.py so the yfinance live-data pipeline
-# can share them. Re-exported here so the existing call sites below (line
-# ~787) and any external imports continue to work unchanged.
-from data.fx_client import (  # noqa: F401
-    _FX_CACHE,
-    _get_fx_rates_to_usd,
-    _apply_fx_annual,
-)
+# Currency translation (data/fx_convert.py). Imported under these names so a
+# test can pin rates with one monkeypatch of _annual_fx_rates.
+from data.fx_convert import FLOW, STOCK  # noqa: E402
+from data.fx_convert import annual_rates as _annual_fx_rates  # noqa: E402
+from data.fx_convert import convert_annual as _convert_annual  # noqa: E402
 
 
 
@@ -1012,7 +1009,8 @@ class SECXBRLClient:
 
     def _extract_annual_values(self, facts_json, tag_list, form_filter='10-K',
                                units_key='USD', taxonomy_key='us-gaap',
-                               tie_break='first', fallback_min_year=None):
+                               tie_break='first', fallback_min_year=None,
+                               with_ends=False):
         """Extract annual values for a concept from XBRL facts.
 
         Tries each tag in tag_list until one has data.  Filters for the
@@ -1029,6 +1027,8 @@ class SECXBRLClient:
             fallback series the filer stopped tagging long ago (SO's last
             AllocatedShareBasedCompensationExpense is 2016) must not stand in
             for the current year.
+        with_ends: return each fiscal year's period-end date ('YYYY-MM-DD')
+            in place of its value (see :meth:`fiscal_year_ends`).
 
         Selection logic per fiscal year:
         1. Only 10-K / 20-F / 40-F filings with fp='FY'
@@ -1165,7 +1165,35 @@ class SECXBRLClient:
             if fb_years and max(fb_years) < fallback_min_year:
                 merged = {fy: info for fy, info in merged.items() if not info[2]}
 
+        if with_ends:
+            return {fy: info[0] for fy, info in sorted(merged.items())}
         return {fy: info[1] for fy, info in sorted(merged.items())}
+
+    # Concepts whose annual entries date a filer's fiscal years, in order of
+    # preference: a flow's period end is its fiscal year end by construction.
+    _FY_END_ANCHORS = ('net_income', 'revenue', 'operating_cash_flow',
+                       'total_assets')
+
+    def fiscal_year_ends(self, facts_json, units_key):
+        """``{fiscal_year: 'YYYY-MM-DD'}``, the period end each fiscal-year
+        label stands for, under the same selection rules as the values (so a
+        Jan/Feb year-end filer's labels line up with their own dates). FX
+        translation needs it: a fiscal year's flows convert at the average
+        rate over that period, not the calendar year's."""
+        ends = {}
+        for concept in self._FY_END_ANCHORS:
+            for taxonomy_key, tag_map in self._TAXONOMIES:
+                tags = tag_map.get(concept, [])
+                if not tags:
+                    continue
+                found = self._extract_annual_values(
+                    facts_json, tags, units_key=units_key,
+                    taxonomy_key=taxonomy_key, with_ends=True)
+                if found:
+                    for fy, end in found.items():
+                        ends.setdefault(fy, end)
+                    break
+        return ends
 
     def _extract_periodic_values(self, facts_json, tag_list, units_key='USD',
                                  point_in_time=False, taxonomy_key='us-gaap'):
@@ -1701,8 +1729,10 @@ class SECXBRLClient:
         detail.
 
         Foreign-currency filings (EUR, JPY, DKK, etc.) are auto-detected
-        and converted to USD using year-end FX rates from yfinance, so
-        the returned values are always USD-denominated.
+        and converted to USD (data/fx_convert.py: flows at each fiscal
+        year's average rate, balance-sheet instants at its closing rate), so
+        the returned values are always USD-denominated. Years with no rate
+        are left out and listed in ``fx_years_missing``.
 
         Args:
             ticker: Stock ticker symbol.
@@ -1894,67 +1924,48 @@ class SECXBRLClient:
         wavg_d, _e7, _e8 = self._extract_concept_annual(
             facts, 'wavg_diluted', units_key='shares')
 
+        fx_years_missing = []
         if fx_converted:
-            fx = _get_fx_rates_to_usd(reporting_ccy)
-            rev    = _apply_fx_annual(rev, fx)
-            ni     = _apply_fx_annual(ni, fx)
-            ocf    = _apply_fx_annual(ocf, fx)
-            capex  = _apply_fx_annual(capex, fx)
-            gp     = _apply_fx_annual(gp, fx)
-            intexp = _apply_fx_annual(intexp, fx)
-            div    = _apply_fx_annual(div, fx)
-            opinc  = _apply_fx_annual(opinc, fx)
-            pretax  = _apply_fx_annual(pretax, fx)
-            taxprov = _apply_fx_annual(taxprov, fx)
-            dna     = _apply_fx_annual(dna, fx)
-            # Balance-sheet instants use the same year-end-close rate as the
-            # flows — exact for calendar-year fiscal ends, and the same
-            # months-off approximation already accepted for flow series on
-            # mid-year fiscal ends.
-            cash_h = _apply_fx_annual(cash_h, fx)
-            debt_h = _apply_fx_annual(debt_h, fx)
-            assets_h  = _apply_fx_annual(assets_h, fx)
-            ca_h      = _apply_fx_annual(ca_h, fx)
-            cl_h      = _apply_fx_annual(cl_h, fx)
-            liabs_h   = _apply_fx_annual(liabs_h, fx)
-            equity_h  = _apply_fx_annual(equity_h, fx)
-            retearn_h = _apply_fx_annual(retearn_h, fx)
-            # GAAP statement lines. Per-share amounts convert at the same
-            # rate (a currency-per-share unit scales exactly like currency);
-            # weighted share COUNTS do not, same as `shares` below.
-            cogs_h    = _apply_fx_annual(cogs_h, fx)
-            rd_h      = _apply_fx_annual(rd_h, fx)
-            sga_h     = _apply_fx_annual(sga_h, fx)
-            selmkt_h  = _apply_fx_annual(selmkt_h, fx)
-            opex_h    = _apply_fx_annual(opex_h, fx)
-            othnonop_h = _apply_fx_annual(othnonop_h, fx)
-            stinv_h   = _apply_fx_annual(stinv_h, fx)
-            recv_h    = _apply_fx_annual(recv_h, fx)
-            invty_h   = _apply_fx_annual(invty_h, fx)
-            ppe_h     = _apply_fx_annual(ppe_h, fx)
-            gw_h      = _apply_fx_annual(gw_h, fx)
-            intang_h  = _apply_fx_annual(intang_h, fx)
-            ap_h      = _apply_fx_annual(ap_h, fx)
-            lae_h     = _apply_fx_annual(lae_h, fx)
-            csapic_h  = _apply_fx_annual(csapic_h, fx)
-            aoci_h    = _apply_fx_annual(aoci_h, fx)
-            treas_h   = _apply_fx_annual(treas_h, fx)
-            minint_h  = _apply_fx_annual(minint_h, fx)
-            icf_h     = _apply_fx_annual(icf_h, fx)
-            fcf_h     = _apply_fx_annual(fcf_h, fx)
-            sbc_h     = _apply_fx_annual(sbc_h, fx)
-            deftax_h  = _apply_fx_annual(deftax_h, fx)
-            buyback_h = _apply_fx_annual(buyback_h, fx)
-            dissued_h = _apply_fx_annual(dissued_h, fx)
-            drepaid_h = _apply_fx_annual(drepaid_h, fx)
-            acq_h     = _apply_fx_annual(acq_h, fx)
-            chgcash_h = _apply_fx_annual(chgcash_h, fx)
-            fxeff_h   = _apply_fx_annual(fxeff_h, fx)
-            debt_cur_h = _apply_fx_annual(debt_cur_h, fx)
-            debt_nc_h  = _apply_fx_annual(debt_nc_h, fx)
-            eps_b     = _apply_fx_annual(eps_b, fx)
-            eps_d     = _apply_fx_annual(eps_d, fx)
-            # shares are unit-counts, not currency — leave alone.
+            # Flows at each fiscal year's average rate, balance-sheet
+            # instants at its closing rate (data/fx_convert.py). A year with
+            # no rate is dropped from the series rather than kept in the
+            # reporting currency.
+            _fy_ends = self.fiscal_year_ends(facts, reporting_ccy)
+            _years = set(_fy_ends)
+            for _s in (rev, ni, ocf, assets_h, equity_h, eps_d):
+                _years |= set(_s or {})
+            _fx = _annual_fx_rates(reporting_ccy, _years, _fy_ends)
+            fx_years_missing = sorted(
+                y for y, (f, s) in _fx.items() if f is None or s is None)
+
+            def _f(vals):
+                return _convert_annual(vals, _fx, FLOW)
+
+            def _s(vals):
+                return _convert_annual(vals, _fx, STOCK)
+
+            rev, ni, ocf, capex, gp = _f(rev), _f(ni), _f(ocf), _f(capex), _f(gp)
+            intexp, div, opinc = _f(intexp), _f(div), _f(opinc)
+            pretax, taxprov, dna = _f(pretax), _f(taxprov), _f(dna)
+            cogs_h, rd_h, sga_h = _f(cogs_h), _f(rd_h), _f(sga_h)
+            selmkt_h, opex_h, othnonop_h = _f(selmkt_h), _f(opex_h), _f(othnonop_h)
+            icf_h, fcf_h, sbc_h, deftax_h = _f(icf_h), _f(fcf_h), _f(sbc_h), _f(deftax_h)
+            buyback_h, dissued_h, drepaid_h = _f(buyback_h), _f(dissued_h), _f(drepaid_h)
+            acq_h, chgcash_h, fxeff_h = _f(acq_h), _f(chgcash_h), _f(fxeff_h)
+            # Per-share amounts scale like currency; weighted share COUNTS
+            # (and `shares` below) are unit counts and are left alone.
+            eps_b, eps_d = _f(eps_b), _f(eps_d)
+            cash_h, debt_h, assets_h = _s(cash_h), _s(debt_h), _s(assets_h)
+            ca_h, cl_h, liabs_h = _s(ca_h), _s(cl_h), _s(liabs_h)
+            equity_h, retearn_h, stinv_h = _s(equity_h), _s(retearn_h), _s(stinv_h)
+            recv_h, invty_h, ppe_h = _s(recv_h), _s(invty_h), _s(ppe_h)
+            gw_h, intang_h, ap_h, lae_h = _s(gw_h), _s(intang_h), _s(ap_h), _s(lae_h)
+            csapic_h, aoci_h, treas_h = _s(csapic_h), _s(aoci_h), _s(treas_h)
+            minint_h, debt_cur_h, debt_nc_h = _s(minint_h), _s(debt_cur_h), _s(debt_nc_h)
+            if fx_years_missing:
+                logger.warning("SEC XBRL: %s (%s) has no FX rate for FY %s; "
+                               "those years are left out", ticker,
+                               reporting_ccy, ', '.join(map(str, fx_years_missing)))
 
         # Untagged debt across every component concept = genuinely unlevered
         # filer: explicit zeros over the revenue span (else net debt would
@@ -2042,6 +2053,7 @@ class SECXBRLClient:
             'points_available':         points_available,
             'reporting_currency':       reporting_ccy,
             'fx_converted':             fx_converted,
+            'fx_years_missing':         fx_years_missing,
         }
         if facts.get('_predecessor_cik'):
             # Provenance: this history was read from the predecessor registrant.
@@ -2061,8 +2073,9 @@ class SECXBRLClient:
         info dict on top of this result.
 
         Values are always USD: a filer reporting in another currency is
-        detected (see :meth:`reporting_currency`) and converted at year-end
-        rates before the frames are built, so callers can treat the result
+        detected (see :meth:`reporting_currency`) and converted (flows at
+        fiscal-year average rates, instants at closing rates) before the
+        frames are built, so callers can treat the result
         as USD without consulting yfinance's ``financialCurrency``. The
         currency it was read in comes back as ``reporting_currency``.
 
@@ -2211,34 +2224,41 @@ class SECXBRLClient:
         # yfinance's USD `info` on top of these frames and then tells
         # _convert_financials_to_usd the statements are already USD, so every
         # monetary series has to be converted here or the ratios mix
-        # currencies. Every one of them was read in reporting_ccy above, so
-        # one rate per year converts the lot.
+        # currencies. Every one of them was read in reporting_ccy above:
+        # flows convert at each fiscal year's average rate, balance-sheet
+        # instants at its closing rate (data/fx_convert.py), and a year with
+        # no rate is dropped rather than left in the reporting currency.
         #
-        # No rates means no shape. _apply_fx_annual passes values through
-        # unchanged when the rate table is empty, which would publish EUR or
-        # CNY magnitudes as dollars with nothing to flag it — 43 rows in the
-        # 2026-09-08 snapshot did exactly that. yfinance's own statements at
-        # least carry a financialCurrency the FX layer can act on, so falling
-        # back beats guessing.
+        # No rate for the newest fiscal year means no shape. Converting
+        # anyway once published EUR or CNY magnitudes as dollars (43 rows in
+        # the 2026-09-08 snapshot), and dropping only that year would hand
+        # the models last year's statements as current. yfinance's own
+        # statements carry a financialCurrency the FX layer can act on, so
+        # falling back beats guessing.
         if reporting_ccy != 'USD':
-            _fx = _get_fx_rates_to_usd(reporting_ccy)
-            if not _fx:
+            _flows = [revenue, net_income, op_income, gross_profit,
+                      interest_exp, tax_provision, pretax_income, op_cf, capex,
+                      d_and_a, sbc, dividends, buybacks, issuance]
+            _stocks = [equity, cash, cash_incl, st_inv, cash_sti, minority,
+                       preferred, assets, curr_assets, curr_liabs, liabilities,
+                       ret_earnings, goodwill, intangibles, debt]
+            _years = set().union(*(set(s or {}) for s in _flows + _stocks))
+            _fx = _annual_fx_rates(reporting_ccy, _years,
+                                   self.fiscal_year_ends(facts, reporting_ccy))
+            _newest = max(_years) if _years else None
+            if _newest is None or None in _fx.get(_newest, (None, None)):
                 logger.warning(
-                    "SEC XBRL: %s reports in %s and no FX rates are "
-                    "available — declining the shape so callers keep their "
-                    "yfinance statements", ticker, reporting_ccy)
+                    "SEC XBRL: %s reports in %s and has no FX rate for its "
+                    "newest fiscal year (%s) — declining the shape so callers "
+                    "keep their yfinance statements", ticker, reporting_ccy,
+                    _newest)
                 return None
-            _monetary = [
-                revenue, net_income, op_income, gross_profit, interest_exp,
-                tax_provision, pretax_income, op_cf, capex, d_and_a, sbc,
-                dividends, buybacks, issuance, equity, cash, cash_incl,
-                st_inv, cash_sti, minority, preferred, assets, curr_assets,
-                curr_liabs, liabilities, ret_earnings, goodwill,
-                intangibles, debt,
-            ]
-            for _series in _monetary:
-                if _series:
-                    _series.update(_apply_fx_annual(dict(_series), _fx))
+            for _group, _kind in ((_flows, FLOW), (_stocks, STOCK)):
+                for _series in _group:
+                    if _series:
+                        _conv = _convert_annual(dict(_series), _fx, _kind)
+                        _series.clear()
+                        _series.update(_conv)
 
         years = sorted(set(revenue) | set(net_income) | set(op_income) |
                        set(equity) | set(debt) | set(assets) | set(pretax_income),
