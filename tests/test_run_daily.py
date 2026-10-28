@@ -245,3 +245,69 @@ def test_a_broken_coverage_check_does_not_block_the_publish(tmp_path):
     out, notes = _publish_gate(tmp_path, 1)
     assert 'CALLED publish' in out
     assert 'treated as not degraded' in notes
+
+
+def _main_remote(tmp_path):
+    """A bare remote with main one commit ahead of a clone that has a
+    feature branch already merged into it (the 2026-10-27 shape)."""
+    remote = tmp_path / 'origin.git'
+    _git('init', '-q', '--bare', '-b', 'main', str(remote), cwd=tmp_path)
+    up = tmp_path / 'up'
+    _git('init', '-q', '-b', 'main', str(up), cwd=tmp_path)
+    for k, v in (('user.name', 't'), ('user.email', 't@example.com')):
+        _git('config', k, v, cwd=up)
+    (up / 'f.txt').write_text('1', encoding='utf-8')
+    _git('add', '-A', cwd=up)
+    _git('commit', '-q', '-m', 'one', cwd=up)
+    _git('push', '-q', str(remote), 'main', cwd=up)
+    co = tmp_path / 'checkout'
+    _git('clone', '-q', str(remote), str(co), cwd=tmp_path)
+    for k, v in (('user.name', 't'), ('user.email', 't@example.com')):
+        _git('config', k, v, cwd=co)
+    _git('switch', '-q', '-c', 'claude/feature', cwd=co)
+    (up / 'f.txt').write_text('2', encoding='utf-8')
+    _git('commit', '-q', '-am', 'two', cwd=up)
+    _git('push', '-q', str(remote), 'main', cwd=up)
+    return co
+
+
+def _pull_main(co):
+    script = 'set -uo pipefail\n' + _fn('pull_main') + 'pull_main; echo "rc=$?"\n'
+    r = subprocess.run(['bash', '-c', script], cwd=co, capture_output=True, text=True,
+                       timeout=60)
+    branch = subprocess.run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], cwd=co,
+                            capture_output=True, text=True).stdout.strip()
+    return r.stdout + r.stderr, branch, (co / 'f.txt').read_text(encoding='utf-8')
+
+
+def test_pull_returns_a_merged_clean_branch_to_main(tmp_path):
+    co = _main_remote(tmp_path)
+    out, branch, f = _pull_main(co)
+    assert 'rc=0' in out and 'switched to main' in out, out
+    assert branch == 'main' and f == '2', 'switched and fast-forwarded'
+
+
+def test_pull_leaves_a_branch_with_unmerged_commits(tmp_path):
+    co = _main_remote(tmp_path)
+    (co / 'g.txt').write_text('wip', encoding='utf-8')
+    _git('add', '-A', cwd=co)
+    _git('commit', '-q', '-m', 'wip', cwd=co)
+    out, branch, _ = _pull_main(co)
+    assert 'rc=0' in out and 'commits not on main' in out, out
+    assert branch == 'claude/feature'
+
+
+def test_pull_leaves_a_branch_with_uncommitted_edits(tmp_path):
+    co = _main_remote(tmp_path)
+    (co / 'f.txt').write_text('edited', encoding='utf-8')
+    out, branch, f = _pull_main(co)
+    assert 'rc=0' in out and 'uncommitted changes' in out, out
+    assert branch == 'claude/feature' and f == 'edited'
+
+
+def test_pull_fast_forwards_main(tmp_path):
+    co = _main_remote(tmp_path)
+    _git('switch', '-q', 'main', cwd=co)
+    out, branch, f = _pull_main(co)
+    assert 'rc=0' in out and 'switched' not in out, out
+    assert branch == 'main' and f == '2'

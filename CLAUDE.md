@@ -1379,7 +1379,7 @@ by analyze_stock and gitignored):
   2026-10-27), and Yahoo's CSI 300 returns one bar, so China is MCHI.
   `build_macro_facts` hands the intl series over as their own
   `international` block, so the US sections are written from US series
-  only. Without a v8 narrative the card shows the inline summary's
+  only. Without a v9 narrative the card shows the inline summary's
   per-region grid (`summary.intl`, `_intl_of`). Display only: nothing
   international feeds the regime, a rating or a sector force. Any series
   whose last observation is further behind than `STALE_AFTER_DAYS` allows
