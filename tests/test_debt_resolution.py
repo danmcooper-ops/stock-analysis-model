@@ -17,6 +17,13 @@ from models.quality import calculate_altman_z, get_net_debt
 from scripts.backfill_edgar_hist import _needs_refetch
 
 
+def _pinned(table):
+    """Stand-in for data.fx_convert.annual_rates: one rate per fiscal year,
+    used for flows and balance-sheet instants alike."""
+    return lambda ccy, years, fy_ends=None: {
+        y: (table.get(y), table.get(y)) for y in years}
+
+
 def _make_client():
     return SECXBRLClient(
         cik_map={'TEST': '0000000001'},
@@ -231,8 +238,8 @@ class TestHistoricalSeries:
             'CashAndCashEquivalents': [_pit(2024, 80.0, form='20-F')],
         }
         c._cache['TEST'] = _facts(tags, taxonomy='ifrs-full', currency='EUR')
-        monkeypatch.setattr(xbrl_mod, '_get_fx_rates_to_usd',
-                            lambda ccy: {2024: 1.1})
+        monkeypatch.setattr(xbrl_mod, '_annual_fx_rates',
+                            _pinned({2024: 1.1}))
         hist = c.fetch_historical_financials('TEST')
         assert hist['fx_converted'] is True
         assert hist['total_debt_history'][2024] == pytest.approx(275.0)
