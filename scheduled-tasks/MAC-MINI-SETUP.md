@@ -408,6 +408,52 @@ Things to know:
   (about 0.8 GB at today's size).
 - Log: `~/Library/Logs/StockModel/live_quotes.log`.
 
+## 9. Paper trading (optional)
+
+`scripts/paper_trade.py` holds the `paper` portfolio (every BUY and LEAN BUY,
+equal-weighted) in an **Alpaca paper account** and rebalances it each trading
+morning from the newest finished snapshot. It is paper only: the client
+refuses any endpoint but `paper-api.alpaca.markets`.
+
+- [ ] Open a free Alpaca account, switch to Paper Trading, and generate API
+      keys there. Add them to the repo's `.env` (gitignored):
+      ```
+      ALPACA_API_KEY=...
+      ALPACA_SECRET_KEY=...
+      ```
+- [ ] Dry run (prints the orders, sends nothing):
+      ```bash
+      .venv/bin/python scripts/paper_trade.py rebalance
+      ```
+- [ ] Install the agent. It runs `tick` at 9:45, 10:20 and 16:10 on weekdays,
+      in the mini's local time, which must be America/New_York:
+      ```bash
+      cp scheduled-tasks/mac-mini/com.stockmodel.papertrade.plist ~/Library/LaunchAgents/
+      launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.stockmodel.papertrade.plist
+      ```
+
+Things to know:
+
+- **The first build takes about four days.** Daily turnover is capped at 25%
+  of equity (`PAPER_MAX_TURNOVER`), so the first ~240 positions go in each
+  day until the book is full.
+- **It halts rather than guesses.** It sends nothing when any of these holds:
+  - the kill switch is set;
+  - the snapshot is coverage-degraded, on a systemic day, or more than 3
+    trading days old;
+  - equity fell 3% since the prior close;
+  - the market is closed;
+  - orders from an earlier run are still open.
+
+  Each halt is logged with its reason.
+- **Kill switch:** `paper_trade.py stop` (and `resume`).
+- **Results:** `paper_trade.py status` compares the realized paper return
+  with the `paper` portfolio's hypothetical NAV and SPY. The gap between the
+  first two is the cost of trading.
+- **Private files.** Orders, fills and equity are written only to
+  `portfolio/paper/` (gitignored, owner-only).
+- Log: `~/Library/Logs/StockModel/paper_trade.log`.
+
 ## Going back to the cloud
 
 Pause the Mac task first, then resume the matching cloud Routine. Do this

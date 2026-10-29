@@ -492,6 +492,22 @@ LIVE_QUOTES_REFUSED_WAIT = 1800
 LIVE_QUOTES_BUILD_SETTLE_SEC = 120
 LIVE_QUOTES_BUILDS_KEEP = 2
 
+# --- Paper trading (scripts/paper_trade.py, models/paper_trade.py) ----------
+# The paper book holds every member of PAPER_PORTFOLIO (BUY + LEAN BUY,
+# equal-weighted: ~950 names at ~0.1% each), so the band is relative to a
+# position's target, not absolute: a 1pp band would exceed every weight.
+PAPER_PORTFOLIO = os.environ.get('PAPER_PORTFOLIO', 'paper')
+PAPER_REBAL_BAND = 0.25        # trade when |gap| > 25% of the target value
+PAPER_MIN_ORDER = 1.0          # dollars; Alpaca's fractional-order minimum
+PAPER_MAX_TURNOVER = 0.25      # of equity per day; the first build takes ~4 days
+PAPER_MAX_POSITION = 0.10      # of equity, whatever the weight says
+PAPER_LIMIT_SLIP = 0.005       # limit = quote ± 0.5%
+PAPER_QUOTE_MAX_GAP = 0.15     # a quote this far from the snapshot close is skipped
+PAPER_DAILY_LOSS_CAP = 0.03    # equity down this much since the prior close: no trading
+PAPER_MAX_SNAPSHOT_AGE = 3     # trading days
+# Orders go out only inside this ET window (launchd runs in local time).
+PAPER_WINDOW_ET = ((9, 35), (15, 30))
+
 
 def _get_sector_config(sector):
     """Look up sector-specific DCF parameters with default fallback."""
