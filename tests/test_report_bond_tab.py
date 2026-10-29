@@ -126,9 +126,10 @@ def _render(report, after=''):
     start = src.index('var _BV=null,')
     block = src[start:src.index('function renderBondView(){', start)]
     fns = [_fn_src(n, src) for n in ('_esc', '_bvCls', '_bvFmt', '_bvDist', '_bvLine',
-                                     '_bvCard', '_bvHtml', '_bvIdx', '_bvRows')]
+                                     '_bvCard', '_bvHtml', '_bvIdx', '_bvRows', '_fmBar')]
+    fm = src[src.index('var _FM_SUB='):src.index('function _fmBar(')]
     js = '\n'.join([
-        'function isCapped(){return false;}', attr, rb, rc, block, *fns,
+        'function isCapped(){return false;}', attr, rb, rc, fm, block, *fns,
         f'_BV={json.dumps(report)};',
         after or 'process.stdout.write(_bvHtml(_BV));'])
     return subprocess.run(['node', '-e', js], capture_output=True, text=True, check=True).stdout
@@ -142,12 +143,29 @@ def test_render_draws_every_section_from_the_report():
     assert '<b>Prices are monthly.</b> Marks are &lt;old&gt;.' in html
     for t in ('Rating distribution', 'Implied credit bucket', 'Treasury par curve',
               'Spread term structure, fitted vs FRED', 'Why rows are capped',
-              'Mean score by category', 'All 2 Instruments'):
+              'Mean score by category'):
         assert t in html
     assert 'title="Solid investment grade."' in html
     assert 'Fitted from spreads.' in html and 'Dropped, not zero.' in html
     assert html.count('<svg class="bv-svg"') == 2
     assert '<option value="CORP_IG">IG</option>' in html
+
+
+def test_opens_on_the_table_with_the_rest_in_sub_tabs():
+    """The tab is a table: tiles and distributions sit under Summary, the
+    two curves under Charts, the caveats under Notes, in the sector page's
+    sub-tab row."""
+    html = _render(REPORT)
+    assert 'class="d-stmt-tabs sa-chrome pp-subtabs fm-subtabs"' in html
+    for k, label in (('table', 'Table'), ('summary', 'Summary'), ('charts', 'Charts'), ('notes', 'Notes ⚠')):
+        assert f'data-k="{k}"' in html and f'>{label}</button>' in html
+    panes = re.findall(r'<div data-pane="(\w+)"', html)
+    assert panes == ['table', 'summary', 'charts', 'notes']
+    table = html.split('<div data-pane="table">')[1].split('<div data-pane="summary"')[0]
+    assert '<table class="ppi-tbl bv-tbl">' in table
+    assert 'pp-tile' not in table and 'bv-warn' not in table and '<svg' not in table
+    notes = html.split('<div data-pane="notes"')[1]
+    assert 'Marks are 179 days old' in notes
 
 
 def test_rows_filter_and_sort_like_the_bond_page():
