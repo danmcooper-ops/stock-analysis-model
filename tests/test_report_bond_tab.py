@@ -1,4 +1,4 @@
-"""Financial Model › Bonds: the bond model's report
+"""Investing › Bonds: the bond model's report
 (bond-analysis-model's bond_report_<date>.json) staged beside the page and
 drawn in this report's styling. Staging, wiring, the display-only rule, and
 the renderer evaluated in Node with its helpers lifted from the template."""

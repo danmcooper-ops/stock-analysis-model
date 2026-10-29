@@ -1,6 +1,6 @@
 """The currency_report_<date>.json contract the stock report draws.
 
-The parent repo's report (Financial Model › Currencies) reads this file and
+The parent repo's report (Investing › Currencies) reads this file and
 nothing else from this project, so its shape is pinned here: a change that
 breaks it must bump REPORT_DATA_VERSION, which the reader checks.
 """

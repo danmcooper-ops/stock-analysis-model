@@ -2140,7 +2140,7 @@ def _stage_bond_report(out_dir, run_date, src_dir=None):
 
 def _stage_currency_report(out_dir, run_date, src_dir=None):
     """currencies/'s ``currency_report_<date>.json`` as ``currencies.json``,
-    for Financial Model › Currencies (``_stage_model_report``)."""
+    for Investing › Currencies (``_stage_model_report``)."""
     return _stage_model_report(out_dir, run_date, src_dir or _currency_output_dir(),
                                'currency_report', 'currencies.json',
                                CURRENCY_REPORT_VERSION, 'Currencies')

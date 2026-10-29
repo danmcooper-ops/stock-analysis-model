@@ -15,7 +15,7 @@ public domain) and is inlined here rather than fetched, for the same reason.
 
 Beside the page, `build_html` writes `currency_report_<date>.json`: the same
 records, gate metadata and basemap as data. The stock model's report (this
-folder's parent repo) draws it as Financial Model › Currencies in its own
+folder's parent repo) draws it as Investing › Currencies in its own
 styling. That is a file contract, not a code dependency: bump
 `REPORT_DATA_VERSION` on any change of shape.
 """

@@ -1424,7 +1424,7 @@ circle.etfc-spy{fill:var(--etfc-s);}
    controls are Bonds'. */
 #cx{--cx-na:#e3e7ec;--cx-cell:#fff;--cx-edge:#e8e8e8;--cx-hov:#eaf4fd;}
 [data-theme="dark"] #cx{--cx-na:#2b3138;--cx-cell:#161b22;--cx-edge:#21262d;--cx-hov:#1f3a5c;}
-/* Financial Model's ETFs/Bonds/Currencies panes (_fmApply sets hidden). */
+/* Investing's ETFs/Bonds/Currencies panes (_fmApply sets hidden). */
 .fm-tabbed>[hidden]{display:none !important;}
 .fm-tbl{background:var(--ppf-bg);}
 #cx .cx-wrap{overflow:auto;max-height:74vh;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.07);-webkit-overflow-scrolling:touch;margin-bottom:4px;}
@@ -2272,7 +2272,7 @@ button.wind-h{cursor:pointer;}
 [data-theme="dark"] .xsect-dashboard div[style*="background:#f0f0f0"]{background:#21262d !important;}
 /* Cross-Sector Trading by Volume and Value — inline white card containers */
 [data-theme="dark"] .xsect-trading-section div[style*="background:#fff"]{background:#1c2128 !important;box-shadow:0 2px 8px rgba(0,0,0,0.3) !important;}
-/* Financial Model → Dashboard sub-view (#m-overview-view) — inline-styled white cards and progress tracks */
+/* Investing → Dashboard sub-view (#m-overview-view) — inline-styled white cards and progress tracks */
 [data-theme="dark"] #m-overview-view div[style*="background:#fff"]{background:#1c2128 !important;box-shadow:0 2px 8px rgba(0,0,0,0.3) !important;}
 [data-theme="dark"] #m-overview-view div[style*="background:#f0f0f0"]{background:#21262d !important;}
 [data-theme="dark"] #m-overview-view div[style*="background:#e8e8e8"]{background:#21262d !important;}
@@ -3458,7 +3458,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
        a ticker page is open (html.det-open). -->
   <button type="button" class="hdr-close sa-chrome" id="hdr-close" onclick="closeDetail()" aria-label="Close ticker page"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
   <!-- Title stacks over the current view name ("Sector Analysis" /
-       "Financial Model" / "Financial Data"), filled by _syncNavCrumb from
+       "Investing" / "Financial Data"), filled by _syncNavCrumb from
        the same nav group it uses for the button tooltip. The column is
        sized to fit inside the header's existing 64px min-height, so the
        title simply rides higher rather than making the banner taller. -->
@@ -3469,7 +3469,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
     </div>
     <!-- Phones hide .last-updated to fit the one-row header, which left no
          run date anywhere on iOS. It rides here next to the view name
-         ("Financial Model · August 13, 2026") — a sibling span, NOT inside
+         ("Investing · August 13, 2026") — a sibling span, NOT inside
          #hdr-view, whose textContent _syncNavCrumb overwrites. Hidden on
          desktop, where .last-updated already shows the same date. -->
     <div class="hdr-view-row"><span class="hdr-view" id="hdr-view"></span><span class="hdr-date">{{ generated_at }}</span></div>
@@ -3624,7 +3624,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
   </div>
 </div>
 <!-- Shared hover tooltip. Lives outside the .view containers because the World
-     MoS Map (Financial Model -> Dashboard) and the Sector Heatmap / Profit Pool
+     MoS Map (Investing -> Dashboard) and the Sector Heatmap / Profit Pool
      (Sector Analysis) both use it, and `.view{display:none}` would hide it on
      whichever tab isn't active. position:fixed + pointer-events:none, so it has
      no layout effect wherever it sits. -->
@@ -3807,7 +3807,7 @@ var GM={{ gate_meta }};
    whole report blank until the user happened to click Clear. */
 var FD=DATA.slice();
 /* === DASHBOARD CLICK-TO-FILTER ===
-   One drill-down filter driven by the Financial Model dashboard's summary
+   One drill-down filter driven by the Investing dashboard's summary
    boxes: gate rows (pass → fail → clear, in place), histogram bars (score
    bracket, toggle, in place), and category cards (jump to the Gate Matrix
    with the stocks scoring strictly above the average shown on the card).
@@ -3972,7 +3972,7 @@ function drillBack(){
 }
 window.addEventListener('popstate',function(){if(_drillStack.length)_drillRestore();});
 function drillPoolTab(sec,label){_drillPush(label);showPoolTab(sec);_drillSeal();}
-/* Land on Financial Model -> Gate Matrix with whatever filter state the
+/* Land on Investing -> Gate Matrix with whatever filter state the
    caller just set, then re-run the filter pass so the matrix renders the
    drilled-down set. The category cards, rating boxes, and world-map
    countries all funnel through here. */
@@ -7748,7 +7748,7 @@ function swMSub(key){
   _syncHash();
   setTimeout(_setTableH,0);
 }
-/* Financial Model's five sub-tabs: Dashboard, Stocks (the gate
+/* Investing's five sub-tabs: Dashboard, Stocks (the gate
    matrix table), ETFs (the SPDRs read through the model), Bonds (bonds/'s report) and Currencies (currencies/'s screener).
    One view shows at a time. */
 function _mIsMatrix(){return (curMSub||'matrix')==='matrix';}
@@ -12799,7 +12799,7 @@ function _navGroups(){
   _navSectors().forEach(function(s){pool.push({k:s,l:s});});
   var groups=[
     {v:'pool',l:'Sector Analysis',cur:_poolTab||'__performance__',items:pool},
-    {v:'matrix',l:'Financial Model',cur:curMSub||'matrix',
+    {v:'matrix',l:'Investing',cur:curMSub||'matrix',
      items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Stocks'},{k:'etf',l:'ETFs'},{k:'bond',l:'Bonds'},{k:'ccy',l:'Currencies'}]},
     {v:'table',l:'Financial Data',cur:curTSub,
      items:Object.keys(TL).map(function(k){return{k:k,l:TL[k]};})},
@@ -12934,7 +12934,7 @@ function navGo(v,k){
   _drillLeave();
   /* A top-level entry (a sidebar row, or its number hotkey) carries no
      sub-tab: it opens the section on its FIRST sub-tab — Macro Overview,
-     Sector Charts, the Financial Model Dashboard, Financial Data Charts,
+     Sector Charts, the Investing Dashboard, Financial Data Charts,
      the Portfolios overview — rather than wherever it was last left. */
   if(k==null){
     var g=_navGroups().filter(function(x){return x.v===v;})[0];
@@ -14558,7 +14558,7 @@ function _ppEpRows(list,cls,maxV){
       +'</div>';
   }).join('');
 }
-/* Financial Model's ETFs, Bonds and Currencies open on their table; every
+/* Investing's ETFs, Bonds and Currencies open on their table; every
    chart, tile and note sits in a sub-tab beside it, in the sector page's
    sub-tab row (d-stmt-tabs + .pp-subtabs). Each view's panes are rendered
    together and shown one at a time (_fmApply), so a switch redraws nothing
@@ -14663,7 +14663,7 @@ function _etfDetail(r,corner){
 }
 /* A row opens that fund's Detail tab. */
 function _etfPick(t){_etfSel=t;renderEtfView();_fmSubTab('etf','detail');}
-/* Financial Model › ETFs: every fund, best relative value first. */
+/* Investing › ETFs: every fund, best relative value first. */
 function renderEtfLookthrough(){
   if(!ETF_LT||!ETF_LT.funds)return '';
   var F=ETF_LT.funds,base=F[ETF_LT.base];
@@ -14695,7 +14695,7 @@ function renderEtfLookthrough(){
     +'</div></div>';
   return h;
 }
-/* Financial Model › Bonds: the bond model's report
+/* Investing › Bonds: the bond model's report
    (bond-analysis-model's bond_report_<date>.json, staged beside this page as
    bonds.json by report_html._stage_bond_report) drawn in this report's
    styling. Every number and caveat is the bond model's own; this only draws
@@ -14867,7 +14867,7 @@ function _bvDraw(){
 function _bvSortBy(k){if(k===_bvSortK)_bvAsc=!_bvAsc;else{_bvSortK=k;_bvAsc=false;}_bvDraw();}
 function _bvSet(k,v){_bvF[k]=v;_bvDraw();}
 function _bvReset(){_bvF={q:'',r:'',c:'',b:'',u:false};renderBondView();}
-/* Financial Model › Currencies: the currency screener (currencies/, its
+/* Investing › Currencies: the currency screener (currencies/, its
    currency_report_<date>.json staged beside this page as currencies.json by
    report_html._stage_currency_report) drawn in this report's styling: the
    matrix-table look of Stocks, rating pills, the d-stmt-tabs row.
@@ -16270,7 +16270,7 @@ function renderPoolLiquidityInsights(sec){
   return '<div class="lq">'+bullets.map(function(b){return '<div class="lq-item">'+b.fig+'<p class="lq-cap">'+b.cap+'</p></div>';}).join('')+'</div>';
 }
 
-/* Hoisted to module scope so renderWorldMosMap (Financial Model -> Dashboard)
+/* Hoisted to module scope so renderWorldMosMap (Investing -> Dashboard)
    and renderCrossSectorDashboard (Sector Analysis) share one definition. */
 function _xsMed(arr){if(!arr||!arr.length)return null;var s=arr.slice().sort(function(a,b){return a-b;});var m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;}
 
@@ -16651,7 +16651,7 @@ function renderCrossSectorDashboard(){
     :'';
   /* Mount: fill tbody after the dashboard return string is injected. */
   setTimeout(function(){if(window._heatRender)window._heatRender();},0);
-  /* Sector Heatmap. (The World MoS Map moved to Financial Model → Dashboard,
+  /* Sector Heatmap. (The World MoS Map moved to Investing → Dashboard,
      above the Gates Summary; on the Charts sub-tab this heatmap sits between
      the Sector Price Comparison and the Cross-Sector Profit Pool.) */
   /* Same card as the price and profit-pool charts around it: title and

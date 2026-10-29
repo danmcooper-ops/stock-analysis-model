@@ -164,7 +164,7 @@ python scripts/publish.py                              # amend + force-push page
 content as data (tiles, caveats, distributions, chart points, the table),
 built by `report_data`, the same function the page is drawn from. The equity
 model's report reads the newest one on or before its own run date from this
-sibling `output/` and draws it as Financial Model › Bond Valuations, in its
+sibling `output/` and draws it as Investing › Bond Valuations, in its
 own styling; that tab is meant to replace this page. It is a file contract,
 not a code dependency: bump `REPORT_DATA_VERSION` on any change of shape.
 
