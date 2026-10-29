@@ -1122,8 +1122,17 @@ ruff check .
     lets a scroll wrap, or a page wider than the screen (Gate Matrix, data
     tables), pan first. The ticker page keeps its own swipe, which steps
     to the previous/next ticker (`navDet`).
-  - **Search:** the ticker search (`#f-search`) lives in the top bar. On views
-    with no table it lists quick results (`#hdr-qr`) that open the ticker page.
+  - **Search:** the search (`#f-search`) lives in the top bar and filters
+    the view's own table (Stocks, ETFs, Bonds by CUSIP/issuer/maturity,
+    Currencies). Its quick results (`#hdr-qr`, `qrRender`) cover every kind:
+    stocks, the 14 SPDRs, the currencies (from `CCY_META.index`, inlined so
+    nothing loads first) and the bonds (`bonds.json`, fetched once a query
+    reaches 3 characters), grouped with the best match's group first. A pick
+    goes where it lives (`_qrGo`): a stock's page; an ETF's or currency's
+    Detail tab; a bond's sheet over the Bonds table, or "All N bonds" to that
+    table. The non-stock jumps are drills, so ‹ Back returns. On a table view
+    the list leaves out the table's own kind and preselects nothing, so Enter
+    still only filters. Tests: `tests/test_report_search.py`.
   - **Ticker page:** the `#det-modal` popup is now a page beside the sidebar,
     with section tabs (`#d-tabs`). It shows a one-day change taken from the
     `px/` shard. The three filed statements share one Finances tab, right

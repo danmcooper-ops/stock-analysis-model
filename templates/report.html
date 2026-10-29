@@ -2828,11 +2828,14 @@ html.sb-rail .sb-chev-l,html:not(.sb-rail) .sb-chev-r{display:none;}
 .hdr-search .f-suggest{position:absolute;left:0;top:calc(100% + 6px);z-index:30;background:var(--menu-bg);border:1px solid var(--menu-border);border-radius:8px;box-shadow:var(--menu-shadow);padding:8px 12px;white-space:nowrap;}
 /* Quick results: views with no table to filter (Sector Analysis, Macro,
    Portfolios) still search — the matches open the ticker page directly. */
-.hdr-qr{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:31;background:var(--menu-bg);border:1px solid var(--menu-border);border-radius:10px;box-shadow:var(--menu-shadow);padding:6px;display:none;}
+.hdr-qr{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:31;background:var(--menu-bg);border:1px solid var(--menu-border);border-radius:10px;box-shadow:var(--menu-shadow);padding:6px;display:none;max-height:min(70vh,560px);overflow-y:auto;}
+.hdr-qr .qr-grp{--sac:var(--chrome-muted);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:8px 10px 3px;}
+.hdr-qr .qr-grp:first-child{padding-top:4px;}
+.hdr-qr .qr-more .qr-nm{--sac:var(--link);}
 .hdr-qr.open{display:block;}
 .hdr-qr button{--sac:var(--chrome-heading);display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border:0;background:none;border-radius:6px;cursor:pointer;font:inherit;font-size:14px;text-align:left;}
 .hdr-qr button:hover,.hdr-qr button.hi{background:var(--menu-hover);}
-.hdr-qr .qr-tk{--sac:var(--link);font-weight:700;min-width:56px;}
+.hdr-qr .qr-tk{--sac:var(--link);font-weight:700;min-width:56px;flex:0 0 auto;white-space:nowrap;}
 .hdr-qr .qr-nm{--sac:var(--chrome-muted);flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .hdr-qr .qr-empty{--sac:var(--chrome-muted);padding:8px 10px;font-size:13px;}
 .header .hdr-center{order:0;}
@@ -3480,14 +3483,15 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
   <button type="button" class="hdr-menu sa-chrome" id="hdr-menu" onclick="hdrMenuTap()" aria-label="Open menu" aria-controls="sidebar"><svg class="hm-menu" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><svg class="hm-back" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
   <!-- The ticker search, promoted out of the Filters panel into the top bar.
        Same ids (#f-search, #f-suggest), so applyFilters, the hash restore
-       and the / hotkey are unchanged. On views with no table it lists
-       matches in #hdr-qr instead, which open the ticker page. -->
+       and the / hotkey are unchanged. #hdr-qr lists matches across
+       stocks, ETFs, currencies and bonds (qrRender), each opening where it
+       lives. -->
   <div class="hdr-search sa-chrome" role="search">
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></g></svg>
     <span class="search-wrap"><input type="text" id="f-search" placeholder="Search" aria-label="Search tickers or companies" autocomplete="off" oninput="onSearchInput()" onkeydown="qrKey(event)" onfocus="qrRender()"><button type="button" class="search-clear" id="f-search-clear" onclick="clearSearch()" aria-label="Clear search">&times;</button></span>
     <kbd class="hdr-kbd">/</kbd>
     <span class="f-suggest" id="f-suggest"></span>
-    <div class="hdr-qr" id="hdr-qr" role="listbox" aria-label="Matching tickers"></div>
+    <div class="hdr-qr" id="hdr-qr" role="listbox" aria-label="Search results"></div>
   </div>
   <!-- Phones: the ticker page's close button, shown in the top bar only while
        a ticker page is open (html.det-open). -->
@@ -13186,10 +13190,15 @@ document.addEventListener('click',function(e){
   var q=document.getElementById('hdr-qr'),hs=document.querySelector('.hdr-search');
   if(q&&q.classList.contains('open')&&hs&&!hs.contains(e.target))q.classList.remove('open');
 });
-/* === QUICK RESULTS === Sector Analysis, Macro Outlook and Portfolios have
-   no table for the search to filter, so there the top-bar search lists the
-   best matches (same relevance as the table's best-match order) and opens
-   the ticker page. The table views keep filtering as they always have. */
+/* === QUICK RESULTS === The top-bar search finds everything the report
+   holds, grouped: stocks, the SPDRs, the currencies and the bonds, and a
+   pick goes where it lives (a stock's page; an ETF's or a currency's Detail
+   tab; a bond's sheet over the Bonds table, filtered by the same words).
+   Sector Analysis, Macro Outlook, Portfolios and the ticker page have no
+   table for the search to filter, so there the first entry is preselected
+   and Enter opens it. A table view already shows its own kind's matches, so
+   the list leaves that kind out and preselects nothing: Enter still only
+   filters. The non-stock jumps are drills, so ‹ Back returns. */
 function _qrActive(){
   /* The ticker page too: its search switches ticker rather than filtering
      the table hidden underneath it. */
@@ -13218,50 +13227,155 @@ function _detOpenState(on){
   var q=document.getElementById('hdr-qr');if(q)q.classList.remove('open');
   _syncSearchPh();
 }
+/* The kind the visible table filters itself, left out of the list. */
+function _qrOwn(){
+  if(_qrActive())return null;
+  if(curView==='matrix')return curMSub==='etf'?'etf':curMSub==='bond'?'bond':curMSub==='ccy'?'ccy':'stock';
+  return curView==='table'?'stock':null;
+}
+/* Every token must match; an id match outranks a name match, a prefix a
+   word start, a word start anywhere (the stock ranking's tiers). */
+function _qrScore(id,nm,toks){
+  var s=0,i,t;
+  for(i=0;i<toks.length;i++){
+    t=toks[i];
+    if(id===t)s+=1000;
+    else if(id.indexOf(t)===0)s+=500;
+    else if(id.indexOf(t)>=0)s+=200;
+    else if(nm.indexOf(t)===0)s+=100;
+    else if(nm.indexOf(' '+t)>=0)s+=60;
+    else if(nm.indexOf(t)>=0)s+=40;
+    else return 0;
+  }
+  return s;
+}
+/* Per group: [score, shown id, name, key], best first, at most n. */
+var _QR_N={stock:6,etf:3,ccy:3,bond:3},_QR_BOND_MIN=3;
+function _qrTop(list,n){
+  list.sort(function(a,b){return b[0]-a[0]||(a[1]<b[1]?-1:a[1]>b[1]?1:0);});
+  return list.slice(0,n);
+}
 function qrRender(){
   var box=document.getElementById('hdr-qr'),inp=document.getElementById('f-search');
   if(!box||!inp)return;
-  var q=(inp.value||'').toUpperCase().trim();
-  if(!_qrActive()||!q){box.classList.remove('open');box.innerHTML='';return;}
-  var toks=q.split(/\s+/).filter(function(t){return t;}),hits=[];
-  DATA.forEach(function(d){
-    if(d._sTk==null)_buildSearchMemo(d);
-    var sc=_relScore(d,toks);
-    if(sc>0)hits.push([sc,d]);
-  });
-  hits.sort(function(a,b){return b[0]-a[0]||(a[1].ticker<b[1].ticker?-1:1);});
-  hits=hits.slice(0,8);
-  box.innerHTML=hits.length?hits.map(function(h,i){
-    return'<button type="button" role="option" data-qr="'+_attr(h[1].ticker)+'"'+(i===0?' class="hi" aria-selected="true"':' aria-selected="false"')+'>'
-      +'<span class="qr-tk">'+esc(h[1].ticker)+'</span><span class="qr-nm">'+esc(h[1].company_name||'')+'</span></button>';
-  }).join(''):'<div class="qr-empty">No ticker or company matches “'+esc(inp.value.trim())+'”.</div>';
+  var raw=(inp.value||'').trim(),q=raw.toUpperCase(),own=_qrOwn(),lead=_qrActive();
+  if(!q){box.classList.remove('open');box.innerHTML='';return;}
+  var toks=q.split(/\s+/).filter(function(t){return t;}),G=[],l;
+  if(own!=='stock'){
+    l=[];
+    DATA.forEach(function(d){
+      if(d._sTk==null)_buildSearchMemo(d);
+      var sc=_relScore(d,toks);
+      if(sc>0)l.push([sc,d.ticker,d.company_name||'',d.ticker]);
+    });
+    if(l.length)G.push({h:'Stocks',k:'stock',it:_qrTop(l,_QR_N.stock)});
+  }
+  if(own!=='etf'&&ETF_LT&&ETF_LT.funds){
+    l=[];
+    Object.keys(ETF_LT.funds).forEach(function(t){
+      var r=ETF_LT.funds[t],sc=_qrScore(t.toUpperCase(),(String(r.fund_name||'')+' '+(r.sector||'')).toUpperCase(),toks);
+      if(sc)l.push([sc,t,r.fund_name||r.sector||'',t]);
+    });
+    if(l.length)G.push({h:'ETFs',k:'etf',it:_qrTop(l,_QR_N.etf)});
+  }
+  if(own!=='ccy'&&CCY_META){
+    /* The inlined index, so currencies are found before currencies.json
+       loads (the Detail tab loads it when it opens). */
+    l=[];
+    (_CX?_CX.rows.map(function(r){return [r.code,r.name];}):(CCY_META.index||[])).forEach(function(c){
+      var sc=_qrScore(String(c[0]).toUpperCase(),String(c[1]||'').toUpperCase(),toks);
+      if(sc)l.push([sc,c[0],c[1]||'',c[0]]);
+    });
+    if(l.length)G.push({h:'Currencies',k:'ccy',it:_qrTop(l,_QR_N.ccy)});
+  }
+  /* ~9k bonds sit in bonds.json (~2 MB), fetched on the first query long
+     enough to be worth it; the list redraws when it lands. */
+  if(own!=='bond'&&BOND_META&&q.length>=_QR_BOND_MIN&&!_BV_FAILED){
+    if(!_BV){
+      G.push({h:'Bonds',k:'bond',it:[],note:'Searching '+(BOND_META.total||0).toLocaleString()+' bonds…'});
+      _bvLoad(function(){if(box.classList.contains('open'))qrRender();});
+    }else{
+      var I=_bvIdx(),hay=_bvHay();l=[];
+      _BV.rows.forEach(function(r,i){
+        var c=String(r[I.cusip]||'').toUpperCase(),sc=_qrScore(c,hay[i].slice(c.length+1),toks);
+        if(sc){
+          var cp=r[I.coupon_rate],md=r[I.maturity_date];
+          l.push([sc,c,(r[I.issuer_name]||'')+(cp!=null?' · '+(cp*100).toFixed(2)+'%':'')+(md?' '+String(md).slice(0,4):''),i]);
+        }
+      });
+      if(l.length)G.push({h:'Bonds',k:'bond',it:_qrTop(l,_QR_N.bond),more:l.length>_QR_N.bond?l.length:0});
+    }
+  }
+  /* The group holding the best match leads (an exact SPY or EUR before
+     names that merely contain it), so the preselected entry is the best. */
+  G.forEach(function(g,i){g.i=i;g.top=g.it.length?g.it[0][0]:-1;});
+  G.sort(function(a,b){return b.top-a.top||a.i-b.i;});
+  var first=lead,opt=function(k,key,cls,inner){
+    var on=first;first=false;
+    return '<button type="button" role="option" data-qk="'+k+'" data-qr="'+_attr(String(key))+'" class="'+cls+(on?' hi':'')+'" aria-selected="'+on+'">'+inner+'</button>';
+  };
+  var h=G.map(function(g){
+    return '<div class="qr-grp" role="presentation">'+g.h+'</div>'
+      +g.it.map(function(x){return opt(g.k,x[3],'','<span class="qr-tk">'+esc(x[1])+'</span><span class="qr-nm">'+esc(x[2])+'</span>');}).join('')
+      +(g.more?opt('bonds','','qr-more','<span class="qr-nm">All '+g.more.toLocaleString()+' bonds matching “'+esc(raw)+'” ›</span>'):'')
+      +(g.note?'<div class="qr-empty">'+g.note+'</div>':'');
+  }).join('');
+  if(!h){
+    if(!lead){box.classList.remove('open');box.innerHTML='';return;}
+    h='<div class="qr-empty">Nothing matches “'+esc(raw)+'”.</div>';
+  }
+  box.innerHTML=h;
   box.classList.add('open');
 }
-function _qrOpen(tk){
+/* Where the reader is, for the drill's ‹ Back label. */
+var _QR_VIEW={macro:'Macro Outlook',pool:'Sector Analysis',matrix:'Investing',table:'Financial Data',pf:'Portfolios'};
+function _qrHere(){
+  /* Macro Outlook is left out of the nav groups when macro.json is missing. */
+  var sub=_drillSub(),g=_navGroups().filter(function(x){return x.v===curView;})[0]
+    ||{l:_QR_VIEW[curView]||'Back',items:curView==='macro'?MACRO_TABS.map(function(t){return {k:t.k,l:t.l};}):[]};
+  var it=g.items.filter(function(x){return x.k===sub;})[0];
+  return it&&it.l!==g.l?g.l+' · '+it.l:g.l;
+}
+function _qrGo(k,key){
   var box=document.getElementById('hdr-qr');if(box)box.classList.remove('open');
   var inp=document.getElementById('f-search');if(inp)inp.blur();
-  openDet(tk);
+  if(k==='stock'){openDet(key);return;}
+  if(document.documentElement.classList.contains('det-open'))closeDetail();
+  var sub=k==='bonds'?'bond':k;
+  _drillPush(_qrHere());
+  /* The sub-tab is set before the view draws, so it opens on it. */
+  if(k==='etf'){_etfSel=key;_fmKeep('etf','detail');}
+  else if(k==='ccy'){_cxSel=key;_cxView='detail';_fmKeep('ccy','detail');}
+  else _fmKeep('bond','table');
+  curMSub=sub;
+  if(curView!=='matrix')showView('matrix');else swMSub(sub);
+  if(k==='bond'&&_BV)_bvOpenRow(_BV.rows[+key]);
+  _drillSeal();
+  window.scrollTo(0,0);
 }
 function qrKey(e){
   var box=document.getElementById('hdr-qr');
   if(e.key==='Escape'){if(box&&box.classList.contains('open')){e.preventDefault();e.stopPropagation();box.classList.remove('open');}return;}
   if(!box||!box.classList.contains('open'))return;
-  var items=[].slice.call(box.querySelectorAll('[data-qr]'));if(!items.length)return;
+  var items=[].slice.call(box.querySelectorAll('[data-qk]'));if(!items.length)return;
   var i=items.findIndex(function(b){return b.classList.contains('hi');});
   if(e.key==='ArrowDown'||e.key==='ArrowUp'){
     e.preventDefault();
     if(i>=0){items[i].classList.remove('hi');items[i].setAttribute('aria-selected','false');}
-    i=((i<0?0:i)+(e.key==='ArrowDown'?1:-1)+items.length)%items.length;
+    i=i<0?(e.key==='ArrowDown'?0:items.length-1):(i+(e.key==='ArrowDown'?1:-1)+items.length)%items.length;
     items[i].classList.add('hi');items[i].setAttribute('aria-selected','true');
+    items[i].scrollIntoView({block:'nearest'});
   }else if(e.key==='Enter'){
+    /* Nothing chosen on a table view: Enter is the table's, not the list's. */
+    if(i<0)return;
     /* stopPropagation: the popup's own Enter (mark reviewed, next ticker)
        must not see the keystroke that just opened it. */
-    e.preventDefault();e.stopPropagation();_qrOpen(items[Math.max(0,i)].getAttribute('data-qr'));
+    e.preventDefault();e.stopPropagation();_qrGo(items[i].getAttribute('data-qk'),items[i].getAttribute('data-qr'));
   }
 }
 document.addEventListener('click',function(e){
-  var b=e.target.closest?e.target.closest('#hdr-qr [data-qr]'):null;
-  if(b)_qrOpen(b.getAttribute('data-qr'));
+  var b=e.target.closest?e.target.closest('#hdr-qr [data-qk]'):null;
+  if(b)_qrGo(b.getAttribute('data-qk'),b.getAttribute('data-qr'));
 });
 /* === KEYBOARD SHORTCUTS ===
    One table drives both the dispatcher and the ? overlay, so a binding cannot
@@ -14747,9 +14861,12 @@ function _fmApply(root,k){
     var on=b.getAttribute('data-k')===k;b.classList.toggle('cur',on);b.setAttribute('aria-selected',on?'true':'false');
   });
 }
-function _fmSubTab(view,k){
+function _fmKeep(view,k){
   _FM_SUB[view]=k;
   try{localStorage.setItem('stock_fm_subtab_v1',JSON.stringify(_FM_SUB));}catch(e){}
+}
+function _fmSubTab(view,k){
+  _fmKeep(view,k);
   var root=document.getElementById('m-'+view+'-view');
   if(view==='ccy'){_cxView=k;if(k==='table'||k==='matrix'||k==='map')_cxDraw();}
   _fmApply(root,k);
@@ -14822,6 +14939,10 @@ function _etfDetail(r,corner){
   h+=corner?_noteQ(note,'About this read'):'<div class="etf-note">'+note+'</div>';
   return h+'</div>';
 }
+/* The top-bar search (#f-search) filters the fund table by ticker, name or
+   sector, as it does Bonds and Currencies. */
+function _etfOn(){return curView==='matrix'&&curMSub==='etf'&&!document.documentElement.classList.contains('det-open');}
+function _etfQ(){var i=document.getElementById('f-search');return _etfOn()&&i?i.value:'';}
 /* A row opens that fund's Detail tab. */
 function _etfPick(t){_fmDrill('etf');_etfSel=t;renderEtfView();_fmSubTab('etf','detail');}
 /* Investing › ETFs: every fund, best relative value first. */
@@ -14833,10 +14954,16 @@ function renderEtfLookthrough(){
     return (y.status==='ok')-(x.status==='ok')||((y.rel==null?-9:y.rel)-(x.rel==null?-9:x.rel));
   });
   if(!_etfSel||!F[_etfSel])_etfSel=ETF_LT.base in F?ETF_LT.base:ids[0];
+  var toks=_etfQ().toUpperCase().split(/\s+/).filter(function(t){return t;});
+  var shown=ids.filter(function(t){
+    var hay=(t+' '+(F[t].fund_name||'')+' '+(F[t].sector||'')).toUpperCase();
+    return toks.every(function(q){return hay.indexOf(q)>=0;});
+  });
   var h='<div id="etf-lt">'+_fmBar('etf',[['table','Table'],['detail','Detail · '+_etfSel],['notes','Notes']],'ETF sections')
     +'<div class="fm-tabbed">'
     +'<div data-pane="table"><div class="ppi-wrap fm-tbl"><table class="ppi-tbl"><thead><tr><th>Fund</th><th class="etf-sm-hide">Sector</th><th>Value vs '+ETF_LT.base+'</th><th>Model MoS</th><th>Has fair value</th></tr></thead><tbody>';
-  ids.forEach(function(t){
+  if(!shown.length)h+='<tr><td colspan="5">No fund matches “'+_esc(_etfQ().trim())+'”.</td></tr>';
+  shown.forEach(function(t){
     var r=F[t];
     h+='<tr class="ppi-co'+(t===_etfSel?' etf-sel':'')+'" data-tk="'+_attr(t)+'" onclick="_etfPick(this.dataset.tk)" title="'+_attr(r.fund_name||t)+'">'
       +'<td><b>'+_esc(t)+'</b><span class="etf-name">'+_esc(_etfShort(r))+'</span></td>'
@@ -14864,7 +14991,7 @@ function renderEtfLookthrough(){
 var _BV=null,_BV_LOADING=false,_BV_FAILED=false,_BV_LIMIT=1000;
 var _bvSortK='_composite_score',_bvAsc=false,_bvF={r:'',c:'',b:'',u:false},_bvMenuOpen=false;
 /* The top-bar search (#f-search) is the Bonds table's search too: on this
-   tab it matches CUSIP or issuer, so there is one search box in the report.
+   tab it matches CUSIP, issuer or maturity, so there is one search box.
    Its text is shared, as it is across every view: "ally" finds Ally's stock
    on Stocks and Ally's bonds here. applyFilters re-renders this view through
    renderCur, so typing redraws the table with the same debounce. */
@@ -14879,6 +15006,26 @@ function _bvMenu(open){
 }
 var _BV_LEFT={text:1,cls:1,rating:1,caps:1,bucket:1,date:1};
 var _BV_SERIES={'tight':'--bv-c0','mid':'--bv-c1','wide':'--bv-c2','FRED slices':'--bv-c3'};
+/* bonds.json, loaded once for the tab or the top-bar search; cb runs when
+   it has arrived or failed. */
+var _bvWait=[];
+function _bvLoad(cb){
+  if(_BV||_BV_FAILED){cb();return;}
+  _bvWait.push(cb);
+  if(_BV_LOADING)return;
+  _BV_LOADING=true;
+  _loadSidecar('bonds.json',function(d){
+    if(d&&d.rows)_BV=d;else _BV_FAILED=true;
+    _BV_LOADING=false;
+    var w=_bvWait;_bvWait=[];w.forEach(function(f){f();});
+  });
+}
+/* "CUSIP ISSUER MATURITY" per row, upper-cased once, for both searches
+   ("apple 2030" finds Apple's 2030s). */
+function _bvHay(){
+  if(!_BV._hay){var I=_bvIdx();_BV._hay=_BV.rows.map(function(r){return (String(r[I.cusip]||'')+' '+String(r[I.issuer_name]||'')+' '+String(r[I.maturity_date]||'').slice(0,10)).toUpperCase();});}
+  return _BV._hay;
+}
 function renderBondView(){
   var bv=document.getElementById('m-bond-view');if(!bv)return;
   var msg=function(t){bv.innerHTML='<p style="color:#888;padding:20px;font-size:0.9em">'+t+'</p>';};
@@ -14886,11 +15033,7 @@ function renderBondView(){
   if(!_BV){
     if(_BV_FAILED)return msg('The bond report could not be loaded.');
     msg('Loading '+(BOND_META.total||0).toLocaleString()+' bonds…');
-    if(!_BV_LOADING){
-      _BV_LOADING=true;
-      var again=function(){_BV_LOADING=false;if(curView==='matrix'&&curMSub==='bond')renderBondView();};
-      _loadSidecar('bonds.json',function(d){if(d&&d.rows)_BV=d;else _BV_FAILED=true;again();});
-    }
+    _bvLoad(function(){if(curView==='matrix'&&curMSub==='bond')renderBondView();});
     return;
   }
   bv.innerHTML=_bvHtml(_BV);
@@ -14905,7 +15048,7 @@ document.addEventListener('click',function(e){
    what it searches on this view. */
 function _syncSearchPh(){
   var i=document.getElementById('f-search');if(!i)return;
-  var t=_bvOn()?'Search bonds by CUSIP or issuer':_cxOn()?'Search currencies by code or name':'Search tickers or companies';
+  var t=_bvOn()?'Search bonds by CUSIP, issuer or maturity':_cxOn()?'Search currencies by code or name':_etfOn()?'Search ETFs by ticker, name or sector':'Search stocks, ETFs, currencies and bonds';
   if(i.getAttribute('aria-label')!==t)i.setAttribute('aria-label',t);
 }
 function _bvCls(v){return _esc(String(v).replace('TREASURY_BILL','T-BILL').replace('TREASURY','TSY').replace('CORP_',''));}
@@ -15016,13 +15159,14 @@ function _bvIdx(){
   return _BV._idx;
 }
 function _bvRows(){
-  var I=_bvIdx(),f=_bvF,q=_bvQ().trim().toLowerCase(),c=I[_bvSortK],asc=_bvAsc;
-  var out=_BV.rows.filter(function(r){
+  var I=_bvIdx(),f=_bvF,c=I[_bvSortK],asc=_bvAsc;
+  var toks=_bvQ().toUpperCase().split(/\s+/).filter(function(t){return t;}),hay=toks.length?_bvHay():null;
+  var out=_BV.rows.filter(function(r,ri){
     if(f.r&&r[I.rating]!==f.r)return false;
     if(f.c&&r[I.asset_class]!==f.c)return false;
     if(f.b&&r[I.implied_bucket]!==f.b)return false;
     if(f.u&&r[I._caps])return false;
-    if(q&&((r[I.cusip]||'')+' '+(r[I.issuer_name]||'')).toLowerCase().indexOf(q)<0)return false;
+    for(var k=0;k<toks.length;k++)if(hay[ri].indexOf(toks[k])<0)return false;
     return true;
   });
   if(c!=null)out.sort(function(a,b){
@@ -15090,8 +15234,9 @@ function _bvIssuerRow(name){
   }
   return _bvNameIdx[_bvNorm(name)]||null;
 }
-function _bvOpen(i){
-  var r=_bvShown[i];if(!r)return;
+function _bvOpen(i){_bvOpenRow(_bvShown[i]);}
+function _bvOpenRow(r){
+  if(!r)return;
   var I=_bvIdx(),C=_BV.columns,ov=document.getElementById('bv-pop');
   if(!ov){ov=document.createElement('div');ov.id='bv-pop';ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');
     ov.addEventListener('click',function(e){if(e.target===ov)_bvClose();});document.body.appendChild(ov);}

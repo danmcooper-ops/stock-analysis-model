@@ -74,7 +74,8 @@ def test_stage_picks_newest_on_or_before_the_run(tmp_path):
     out.mkdir()
     _write(src, ['2026-10-23', '2026-10-27', '2026-10-28'])
     meta = report_html._stage_currency_report(str(out), date(2026, 10, 27), str(src))
-    assert meta == {'date': '2026-10-27', 'total': 2}
+    assert meta == {'date': '2026-10-27', 'total': 2,
+                    'index': [['JPY', 'Japanese Yen'], ['HKD', 'Hong Kong Dollar']]}
     assert json.loads((out / 'currencies.json').read_text(encoding='utf-8'))['run_date'] == '2026-10-27'
 
 

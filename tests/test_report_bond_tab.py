@@ -100,7 +100,8 @@ def test_subtab_is_wired():
     show = _fn_src('_mShow', src)
     assert "k==='bond'" in show and 'renderBondView()' in show
     assert "var BOND_META={{ bond_meta|default('null') }};" in src
-    assert "_loadSidecar('bonds.json'," in _fn_src('renderBondView', src)
+    assert '_bvLoad(' in _fn_src('renderBondView', src)
+    assert "_loadSidecar('bonds.json'," in _fn_src('_bvLoad', src)
 
 
 def test_publish_ships_the_sidecar():
