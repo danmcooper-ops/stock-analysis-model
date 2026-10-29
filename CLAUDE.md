@@ -1396,6 +1396,46 @@ ruff check .
   dialogs (`pfNewDialog`, `pfAddDialog`, `_pfMsg`).
   Portfolio colors use the dataviz reference categorical palette (validated
   both themes; dark mode swaps in each hue's dark step).
+- **Paper trading (`scripts/paper_trade.py`, `models/paper_trade.py`,
+  `data/alpaca_client.py`, 2026-10-29):** holds the `paper` portfolio (rule
+  BUY + LEAN BUY, equal-weighted: ~950 names at ~0.1%) in an Alpaca **paper**
+  account. The client refuses every endpoint but `paper-api.alpaca.markets`,
+  and no flag relaxes that. Targets come from `resolve_members` and
+  `portfolio_nav.entry_weights`, the arithmetic the NAV ledger uses, so the
+  realized paper return and the ledger's hypothetical one measure the same
+  book, and the gap between them is the cost of trading. Equal weight
+  because `position_weight` is empty on every row: `position_sizes` drops
+  weights under its 1% floor, and ~950 candidates each come to ~0.1%.
+  `plan_orders` rules (`PAPER_*` in `scripts/config.py`):
+  - a member trades only past a band relative to its target (25%) and $1;
+    an exit sells whatever its size;
+  - no position over 10% of equity;
+  - at most 25% of equity traded a day, exits first, so the first build
+    takes ~4 days;
+  - sells before buys, buys scaled to cash;
+  - limit orders at quote ± 0.5%;
+  - a quote more than 15% from the snapshot close is skipped, and so is a
+    ticker that rounds to zero whole shares;
+  - names Alpaca cannot trade (41 OTC lines on 10-28, ~4%) are dropped and
+    the weights renormalized (`tradable_only`), so their share is not a
+    cash drag against the hypothetical NAV, which holds them;
+  - no IEX print since the snapshot date: the limit is priced off the
+    snapshot close;
+  - a held name whose row has no price or identity, or which has no row
+    at all and is not a folded listing (`hold_set`), is kept, not sold, so
+    a data gap below the systemic threshold is not a round trip.
+
+  `safety_checks` sends nothing on any of: the kill switch
+  (`portfolio/paper/STOP`), a coverage-degraded or systemic-day snapshot,
+  one over 3 trading days old, equity −3% since the prior close, a closed
+  market, open orders left over, or a time outside 9:35–15:30 ET. The
+  snapshot is the newest *finished* one: its `run_summary_<date>.json`
+  exists, or no nightly run holds the lock. The launchd agent
+  `scheduled-tasks/mac-mini/com.stockmodel.papertrade.plist` runs `tick` at
+  9:45, 10:20 and 16:10 ET: the first tick inside the window rebalances,
+  the rest reconcile. Orders, fills and equity live only in `portfolio/paper/`
+  (gitignored, 0600). `status` prints paper vs hypothetical vs SPY.
+  Runbook: MAC-MINI-SETUP.md §9. Tests: `tests/test_paper_trade.py`.
 - **Rating = composite bucket (`scripts/scoring.py`, `RATING_CAPS_ENABLED`):**
   the rating is the composite score's bucket alone (BUY ≥ 57, LEAN BUY ≥ 39,
   HOLD ≥ 25, else PASS). The critical-condition caps
@@ -1506,6 +1546,9 @@ by analyze_stock and gitignored):
 - `FMP_API_KEY`, `TIINGO_API_KEY`, `FINNHUB_API_KEY` — optional data sources
   (`FINNHUB_API_KEY` also feeds the Cloudflare site's live quotes, set
   separately as a Pages secret — `cloudflare/README.md`)
+- `ALPACA_API_KEY`, `ALPACA_SECRET_KEY` — optional; the Alpaca **paper**
+  account's keys for `scripts/paper_trade.py` (without them `rebalance`
+  dry-runs against an empty $100k account at snapshot closes)
 - `FRED_API_KEY` — optional; selects FRED's keyed JSON API for the macro
   series and the risk-free rate's `DGS10` fallback (unset falls back to the
   keyless `fredgraph.csv` endpoint)

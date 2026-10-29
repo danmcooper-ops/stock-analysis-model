@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Paper trading (../MAC-MINI-SETUP.md section 9): runs scripts/paper_trade.py
+  tick at 9:45, 10:20 and 16:10 on weekdays. The first tick inside the ET
+  trading window rebalances the Alpaca paper account; the rest reconcile
+  fills and record the day's equity.
+  Install:
+    cp scheduled-tasks/mac-mini/com.stockmodel.papertrade.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.stockmodel.papertrade.plist
+  launchd fires in the machine's local time, which these times assume is
+  America/New_York; the script checks the ET window itself, so a mini in
+  another zone halts (logged) rather than trading at the wrong hour.
+  Keys (ALPACA_API_KEY, ALPACA_SECRET_KEY) come from the repo's .env.
+  Kill switch: .venv/bin/python scripts/paper_trade.py stop
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.stockmodel.papertrade</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/dmcooper/Projects/Workspace Folder/.venv/bin/python</string>
+        <string>/Users/dmcooper/Projects/Workspace Folder/scripts/paper_trade.py</string>
+        <string>tick</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/dmcooper/Projects/Workspace Folder</string>
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>9</integer><key>Minute</key><integer>45</integer></dict>
+        <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>10</integer><key>Minute</key><integer>20</integer></dict>
+        <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>16</integer><key>Minute</key><integer>10</integer></dict>
+        <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>9</integer><key>Minute</key><integer>45</integer></dict>
+        <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>10</integer><key>Minute</key><integer>20</integer></dict>
+        <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>16</integer><key>Minute</key><integer>10</integer></dict>
+        <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>9</integer><key>Minute</key><integer>45</integer></dict>
+        <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>10</integer><key>Minute</key><integer>20</integer></dict>
+        <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>16</integer><key>Minute</key><integer>10</integer></dict>
+        <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>9</integer><key>Minute</key><integer>45</integer></dict>
+        <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>10</integer><key>Minute</key><integer>20</integer></dict>
+        <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>16</integer><key>Minute</key><integer>10</integer></dict>
+        <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>9</integer><key>Minute</key><integer>45</integer></dict>
+        <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>10</integer><key>Minute</key><integer>20</integer></dict>
+        <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>16</integer><key>Minute</key><integer>10</integer></dict>
+    </array>
+    <key>StandardOutPath</key>
+    <string>/Users/dmcooper/Library/Logs/StockModel/paper_trade.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/dmcooper/Library/Logs/StockModel/paper_trade.log</string>
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>
