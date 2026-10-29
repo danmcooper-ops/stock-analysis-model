@@ -1403,6 +1403,32 @@ circle.etfc-spy{fill:var(--etfc-s);}
 .bv-ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 10px;font-size:0.82em;}
 .bv-ctl input[type=search],.bv-ctl select,.bv-ctl button{font:inherit;padding:5px 9px;border:1px solid var(--ppf-line);border-radius:6px;background:var(--ppf-bg);color:var(--ppf-txt);}
 .bv-ctl{position:relative;}
+.bv-tbl tbody tr{cursor:pointer;}
+#bv-pop{position:fixed;inset:0;z-index:1660;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5);padding:16px;}
+#bv-pop.open{display:flex;}
+html.bvp-open{overflow:hidden;}
+.bvp-card{background:var(--ppf-bg);color:var(--ppf-txt);border-radius:14px;width:100%;max-width:760px;max-height:calc(100vh - 32px);overflow:auto;padding:16px 18px;box-shadow:0 18px 48px rgba(0,0,0,.3);font-size:0.9em;-webkit-overflow-scrolling:touch;}
+.bvp-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+.bvp-id{font-size:1.35em;font-weight:800;letter-spacing:.02em;}
+.bvp-nm{color:var(--ppf-sub);margin-top:2px;}
+.bvp-x{font:inherit;font-size:1.6em;line-height:1;width:36px;height:36px;border:1px solid var(--ppf-line);border-radius:8px;background:none;color:var(--ppf-txt);cursor:pointer;flex-shrink:0;}
+.bvp-sum{margin:10px 0 12px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;}
+.bvp-stk{font:inherit;display:inline-flex;align-items:center;gap:6px;margin:0 0 12px;padding:6px 10px;border:1px solid var(--ppf-line);border-radius:8px;background:none;color:var(--accent);cursor:pointer;}
+.bvp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;}
+.bvp-row{border-top:1px solid var(--ppf-line);}
+.bvp-row:first-of-type{border-top:0;}
+.bvp-row summary{display:flex;justify-content:space-between;gap:10px;padding:6px 0;cursor:pointer;list-style:none;}
+.bvp-row summary::-webkit-details-marker{display:none;}
+.bvp-l{text-decoration:underline dotted var(--ppf-sub);text-underline-offset:3px;}
+.bvp-v{font-weight:600;font-variant-numeric:tabular-nums;text-align:right;}
+.bvp-row p{margin:0 0 8px;font-size:0.86em;line-height:1.5;color:var(--ppf-sub);}
+@media (max-width:768px){
+  #bv-pop{padding:0;align-items:flex-end;}
+  .bvp-card{max-height:92vh;border-radius:14px 14px 0 0;padding:14px 16px calc(16px + env(safe-area-inset-bottom));}
+}
+[data-theme="dark"] .bvp-card,[data-theme="dark"] .bvp-card .bvp-v,[data-theme="dark"] .bvp-card .bvp-l,[data-theme="dark"] .bvp-id,[data-theme="dark"] .bvp-x,[data-theme="dark"] .bvp-card h4{color:var(--ppf-txt) !important;}
+[data-theme="dark"] .bvp-nm,[data-theme="dark"] .bvp-row p,[data-theme="dark"] .bvp-card .bv-note{color:var(--ppf-sub) !important;}
+[data-theme="dark"] .bvp-stk{color:var(--accent) !important;}
 .bv-menu-btn{display:inline-flex;align-items:center;gap:6px;font-weight:600;}
 .bv-ham{font-size:1.15em;line-height:1;}
 .bv-menu-btn.on{border-color:var(--accent);color:var(--accent);}
@@ -3982,7 +4008,11 @@ function drillBack(){
   /* A browser that ignores back() (some embedded viewers) still returns. */
   setTimeout(function(){if(_drillStack[_drillStack.length-1]===e)_drillRestore();},400);
 }
-window.addEventListener('popstate',function(){if(_drillStack.length)_drillRestore();});
+window.addEventListener('popstate',function(){
+  /* The bond sheet's own history entry is not a drill (_bvClose). */
+  if(_bvPopRow||_bvSkipPop){_bvSkipPop=false;return;}
+  if(_drillStack.length)_drillRestore();
+});
 function drillPoolTab(sec,label){_drillPush(label);showPoolTab(sec);_drillSeal();}
 /* Land on Investing -> Gate Matrix with whatever filter state the
    caller just set, then re-run the filter pass so the matrix renders the
@@ -12577,6 +12607,11 @@ document.addEventListener('keydown',function(e){
     if(e.key==='Escape'){e.preventDefault();pfManageClose();}
     return;
   }
+  /* The bond detail sheet is modal too (_bvOpen). */
+  if(_bvPopRow){
+    if(e.key==='Escape'){e.preventDefault();_bvClose();}
+    return;
+  }
   if(e.key==='Escape'){
     var pfp=document.getElementById('pf-pop');
     if(pfp&&pfp.classList.contains('open')){e.preventDefault();pfPopClose();return;}
@@ -14909,8 +14944,9 @@ function _bvDraw(){
     return '<th class="'+(_BV_LEFT[c.f]?'bv-l':'')+'" style="min-width:'+c.w+'px" onclick="_bvSortBy(\''+c.k+'\')" data-col-tip="bv_'+_attr(c.k)+'" data-col-label="'+_attr(c.l)+'" data-col-tip-body="'+_attr(c.t)+'"'+(on?' aria-sort="'+(_bvAsc?'ascending':'descending')+'"':'')+'>'+_esc(c.l)+(on?' <span class="arrow">'+(_bvAsc?'▲':'▼')+'</span>':'')+'</th>';
   }).join('');
   var rows=_bvRows(),shown=rows.slice(0,_BV_LIMIT);
-  body.innerHTML=shown.map(function(r){
-    return '<tr>'+C.map(function(c,i){
+  _bvShown=shown;
+  body.innerHTML=shown.map(function(r,ri){
+    return '<tr data-bi="'+ri+'" onclick="_bvOpen(+this.dataset.bi)" title="Bond details">'+C.map(function(c,i){
       var v=r[i],long=(c.f==='caps'||c.f==='text')&&v;
       return '<td'+(_BV_LEFT[c.f]?' class="bv-l"':'')+(long?' title="'+_attr(v)+'"':'')+'>'+_bvFmt(v,c.f)+'</td>';
     }).join('')+'</tr>';
@@ -14919,6 +14955,79 @@ function _bvDraw(){
   if(n)n.textContent=rows.length.toLocaleString()+' match'+(rows.length===1?'':'es')+(rows.length>_BV_LIMIT?' (showing '+_BV_LIMIT.toLocaleString()+')':'')
     +(_BV.vintage?' · marks '+_BV.vintage.age_days+' days old (Notes)':'');
 }
+/* === BOND DETAIL === A row opens one bond on a sheet over the table: its
+   24 fields grouped as the bond model reasons about them, each label
+   tappable for the column's own explanation (the header tooltips' text),
+   and the issuer's stock page when the model rates it. ×, the backdrop,
+   Escape and the browser's Back close it. */
+var _bvShown=[],_bvPopRow=null,_bvSkipPop=false,_BV_GROUPS=[
+  ['Terms',['asset_class','maturity_date','years_to_maturity','coupon_rate']],
+  ['Price & yield',['clean_price_est','_mark_drift','ytw','modified_duration','convexity']],
+  ['Spread',['z_spread','fair_spread','spread_mispricing']],
+  ['Credit',['implied_bucket','market_bucket','bucket_divergence_notches','issuer_credit_score']],
+  ['Liquidity & data',['n_funds','total_held_usd','mark_age_days']],
+  ['Rating',['_composite_score','rating','_caps']]];
+/* The table's headers are abbreviations sized for columns; the sheet has
+   room to say them in full. */
+var _BV_LONG={years_to_maturity:'Years to maturity',clean_price_est:'Price (per 100 face)',
+  _mark_drift:'Drift from fund mark',ytw:'Yield to worst',modified_duration:'Modified duration',
+  convexity:'Convexity',z_spread:'Z-spread (bp)',fair_spread:'Fair spread (bp)',
+  spread_mispricing:'Mispricing (bp)',implied_bucket:'Model credit bucket',
+  market_bucket:'Market credit bucket',bucket_divergence_notches:'Divergence (notches)',
+  issuer_credit_score:'Issuer credit score',n_funds:'Funds holding it',total_held_usd:'Held by funds',
+  mark_age_days:'Mark age',_composite_score:'Composite score',_caps:'Rating caps'};
+/* The issuer's row in DATA, by name with the legal suffixes dropped
+   (N-PORT spellings vary, so no match is the honest answer, not a guess). */
+var _bvNameIdx=null;
+function _bvNorm(n){
+  return String(n||'').toUpperCase().replace(/&/g,' AND ').replace(/[^A-Z0-9 ]/g,' ')
+    .replace(/\b(INC|INCORPORATED|CORP|CORPORATION|CO|COMPANY|LTD|LIMITED|PLC|LLC|LP|HOLDINGS?|GROUP|THE|SA|NV|AG)\b/g,' ')
+    .replace(/\s+/g,' ').trim();
+}
+function _bvIssuerRow(name){
+  if(!_bvNameIdx){
+    _bvNameIdx={};
+    (typeof DATA!=='undefined'?DATA:[]).forEach(function(d){var k=_bvNorm(d.company_name);if(k&&!_bvNameIdx[k])_bvNameIdx[k]=d;});
+  }
+  return _bvNameIdx[_bvNorm(name)]||null;
+}
+function _bvOpen(i){
+  var r=_bvShown[i];if(!r)return;
+  var I=_bvIdx(),C=_BV.columns,ov=document.getElementById('bv-pop');
+  if(!ov){ov=document.createElement('div');ov.id='bv-pop';ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');
+    ov.addEventListener('click',function(e){if(e.target===ov)_bvClose();});document.body.appendChild(ov);}
+  var v=function(k){return r[I[k]];},f=function(k){var c=C[I[k]];return _bvFmt(r[I[k]],c.f);};
+  var stock=_bvIssuerRow(v('issuer_name'));
+  var h='<div class="bvp-card"><div class="bvp-top"><div><div class="bvp-id">'+_esc(v('cusip'))+'</div>'
+    +'<div class="bvp-nm">'+_esc(v('issuer_name')||'')+'</div></div>'
+    +'<button type="button" class="bvp-x" onclick="_bvClose()" aria-label="Close">\u00d7</button></div>'
+    +'<div class="bvp-sum">'+f('rating')+' <b>'+f('_composite_score')+'</b> · '+f('asset_class')+' · '+f('coupon_rate')+' due '+f('maturity_date')+'</div>'
+    +(stock?'<button type="button" class="bvp-stk" onclick="_bvClose();openDet(\''+_attr(stock.ticker)+'\')">Issuer\u2019s stock: <b>'+_esc(stock.ticker)+'</b> '+(stock.rating?rb(stock.rating):'')+' \u203a</button>':'')
+    +'<div class="bvp-grid">'+_BV_GROUPS.map(function(g){
+      return '<div class="bv-card"><h4>'+g[0]+'</h4>'+g[1].filter(function(k){return I[k]!=null;}).map(function(k){
+        var c=C[I[k]];
+        return '<details class="bvp-row"><summary><span class="bvp-l">'+_esc(_BV_LONG[k]||c.l)+'</span><span class="bvp-v">'+_bvFmt(r[I[k]],c.f)+'</span></summary><p>'+_esc(c.t||'')+'</p></details>';
+      }).join('')+'</div>';
+    }).join('')+'</div>'
+    +'<p class="bv-note">Tap a label for what it means. Marks are fund prices aged onto today\u2019s curve; see Notes. Display only: nothing here changes a stock rating.</p></div>';
+  ov.innerHTML=h;ov.classList.add('open');
+  document.documentElement.classList.add('bvp-open');
+  /* Flush the pending hash first (as _drillPush does), so a debounced
+     search write cannot land on the sheet's own history entry. */
+  if(!_bvPopRow){clearTimeout(_hashTimer);_syncHashNow();try{history.pushState({bvp:1},'',location.href);_bvPopRow='pushed';}catch(e){_bvPopRow='open';}}
+  var x=ov.querySelector('.bvp-x');if(x)x.focus({preventScroll:true});
+}
+function _bvHide(){
+  var ov=document.getElementById('bv-pop');if(ov)ov.classList.remove('open');
+  document.documentElement.classList.remove('bvp-open');
+}
+/* Close spends the history entry the open pushed, so Back is not then a
+   no-op; the browser's own Back lands in popstate and just hides it. */
+function _bvClose(){
+  var st=_bvPopRow;_bvPopRow=null;_bvHide();
+  if(st==='pushed'){_bvSkipPop=true;try{history.back();}catch(e){_bvSkipPop=false;}}
+}
+window.addEventListener('popstate',function(){if(_bvPopRow){_bvPopRow=null;_bvHide();}});
 function _bvSortBy(k){if(k===_bvSortK)_bvAsc=!_bvAsc;else{_bvSortK=k;_bvAsc=false;}_bvDraw();}
 function _bvSet(k,v){_bvF[k]=v;renderBondView();}
 /* Reset clears the menu's filters; the search keeps its own × (clearSearch). */
