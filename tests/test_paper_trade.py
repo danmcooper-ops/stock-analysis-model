@@ -200,7 +200,7 @@ def env(tmp_path, monkeypatch):
     pf.write_text(json.dumps({'version': 1, 'portfolios': [
         dict(PAPER, name='Paper', color='#2a78d6', description='', created='2026-10-28',
              alerts='buy_line')]}), encoding='utf-8')
-    monkeypatch.setattr(cli, 'PAPER_DIR', str(tmp_path / 'paper'))
+    monkeypatch.setenv('PAPER_DIR', str(tmp_path / 'paper'))
     args = argparse.Namespace(results_dir=str(out), portfolio='paper',
                               portfolios_file=str(pf), execute=False, snapshot=None, show=5)
     return args, {'A': 10.0, 'B': 10.0, 'C': 10.0}

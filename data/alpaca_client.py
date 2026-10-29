@@ -102,7 +102,20 @@ class AlpacaPaperClient:
 
     def positions(self):
         """{ticker (Yahoo form): qty} of every open position."""
-        return {from_alpaca_symbol(p['symbol']): float(p['qty'])
+        return {t: p['qty'] for t, p in self.positions_detail().items()}
+
+    def positions_detail(self):
+        """{ticker: {qty, avg_cost, value, price, pl}} of every open position;
+        ``pl`` is the unrealized return on cost."""
+        def num(p, k):
+            try:
+                return float(p[k])
+            except (KeyError, TypeError, ValueError):
+                return None
+        return {from_alpaca_symbol(p['symbol']): {
+                    'qty': num(p, 'qty'), 'avg_cost': num(p, 'avg_entry_price'),
+                    'value': num(p, 'market_value'), 'price': num(p, 'current_price'),
+                    'pl': num(p, 'unrealized_plpc')}
                 for p in self._api('GET', '/v2/positions') or []}
 
     def clock(self):
