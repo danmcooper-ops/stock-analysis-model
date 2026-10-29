@@ -434,14 +434,13 @@ def test_portfolio_page_way_back_sits_under_the_sub_tabs():
 
 
 def test_financial_model_has_stock_and_etf_valuations_tabs():
-    """Financial Model's sub-tabs read Dashboard, Stock Valuations (the gate
-    matrix), ETF Valuations (the SPDRs read through the model, moved off
-    the Sector Analysis Charts tab so the table appears once) and Bond
-    Valuations (tests/test_report_bond_tab.py), then Currencies
+    """Financial Model's sub-tabs read Dashboard, Stocks (the gate
+    matrix), ETFs (the SPDRs read through the model, moved off
+    the Sector Analysis Charts tab so the table appears once) and Bonds (tests/test_report_bond_tab.py), then Currencies
     (tests/test_report_currency_tab.py)."""
     src = _tpl()
-    assert ("items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Stock Valuations'},"
-            "{k:'etf',l:'ETF Valuations'},{k:'bond',l:'Bond Valuations'},"
+    assert ("items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Stocks'},"
+            "{k:'etf',l:'ETFs'},{k:'bond',l:'Bonds'},"
             "{k:'ccy',l:'Currencies'}]},") in src
     assert '<div id="m-etf-view" style="display:none"></div>' in src
     show = re.search(r'function _mShow\(\)\{.*?\n\}\n', src, re.S).group(0)

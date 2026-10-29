@@ -999,8 +999,7 @@ ruff check .
   onto the kept row (`listing_aliases`), cash counts at 1, a holding with no
   row is left out. Under 80% of weight with a fair value reads
   INSUFFICIENT; a coverage-degraded run shows nothing. Shown on Financial
-  Model › ETF Valuations (all 14; the sub-tab beside Dashboard and Stock
-  Valuations, the gate matrix's tab label) and each sector's Overview
+  Model › ETFs (all 14; the sub-tab beside Dashboard and Stocks, the gate matrix's tab label) and each sector's Overview
   tab (its own SPDR; a price chart against SPY, rebased to 0% at the
   range start, from the SPDRs' `px/` shards, which `build_html` ships beside
   the stocks' though they are never rows; then lifts and drags,
@@ -1035,12 +1034,12 @@ ruff check .
   staged (one helper, `_stage_model_report`; `CURRENCY_MODEL_OUTPUT`
   overrides `currencies/output`). The template (`renderCcyView`, `_cx*`) has
   Screener, Gate Matrix and Map views plus a per-currency detail panel, on a
-  table of its own (`.cx-tbl`) that copies Stock Valuations' look (navy
+  table of its own (`.cx-tbl`) that copies Stocks' look (navy
   `fixed-header`, `gp/gf/gn` and `sg/sm/sp` cells, `.rb` pills; LONG / LEAN
   LONG / NEUTRAL / AVOID take BUY / LEAN BUY / HOLD / PASS colours) without
   the stock table's fixed column offsets. Display only, like bonds. Tests:
   `tests/test_report_currency_tab.py`, `currencies/tests/test_report_data.py`.
-- **Bond Valuations (Financial Model's fourth sub-tab, 2026-10-27):** the
+- **Bonds (Financial Model's fourth sub-tab, 2026-10-27):** the
   bond model's report (`bonds/`), drawn in this report's styling and
   meant to replace that repo's own HTML page. The bond model's
   `report_html.py` writes `output/bond_report_<date>.json` beside its page:
