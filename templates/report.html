@@ -14770,7 +14770,7 @@ document.addEventListener('click',function(e){
 /* The header search's placeholder names what it searches on this view. */
 function _syncSearchPh(){
   var i=document.getElementById('f-search');if(!i)return;
-  var t=_bvOn()?'Search bonds by CUSIP or issuer':'Search tickers or companies';
+  var t=_bvOn()?'Search bonds by CUSIP or issuer':_cxOn()?'Search currencies by code or name':'Search tickers or companies';
   if(i.placeholder!==t){i.placeholder=t;i.setAttribute('aria-label',t);}
 }
 function _bvCls(v){return _esc(String(v).replace('TREASURY_BILL','T-BILL').replace('TREASURY','TSY').replace('CORP_',''));}
@@ -14929,7 +14929,11 @@ function _bvReset(){_bvF={r:'',c:'',b:'',u:false};renderBondView();}
    Every number, gate and tooltip is the screener's own; this only draws it.
    Display only: no currency reaches the stock rows, a rating or a filter. */
 var _CX=null,_CX_LOADING=false,_CX_FAILED=false;
-var _cxView=_FM_SUB.ccy,_cxSortK='_composite_score',_cxDir=-1,_cxF={q:'',r:'',fl:false},_cxSel=null;
+var _cxView=_FM_SUB.ccy,_cxSortK='_composite_score',_cxDir=-1,_cxF={r:'',fl:false},_cxSel=null;
+/* As on Bonds, the top-bar search (#f-search) is this tab's search: code or
+   currency name here, re-rendered through applyFilters -> renderCur. */
+function _cxOn(){return curView==='matrix'&&curMSub==='ccy'&&!document.documentElement.classList.contains('det-open');}
+function _cxQ(){var i=document.getElementById('f-search');return i?i.value:'';}
 var _CX_RATINGS=['LONG','LEAN LONG','NEUTRAL','AVOID'];
 /* The screener's four ratings take the stock ratings' colours, rank for rank. */
 var _CX_RC={'LONG':'BUY','LEAN LONG':'LEAN BUY','NEUTRAL':'HOLD','AVOID':'PASS'};
@@ -15031,7 +15035,6 @@ function _cxHtml(D){
     +'<div class="fm-tabbed">'
     +'<div data-pane="table matrix map">'
     +'<div class="bv-ctl">'
-    +'<input type="search" placeholder="Search code or name…" value="'+_attr(_cxF.q)+'" oninput="_cxSet(\'q\',this.value)" aria-label="Search code or name">'
     +'<select onchange="_cxSet(\'r\',this.value)" aria-label="Rating"><option value="">All ratings</option>'+_CX_RATINGS.map(function(r){return '<option value="'+r+'"'+(r===_cxF.r?' selected':'')+'>'+r+'</option>';}).join('')+'</select>'
     +'<label title="'+_attr((gm.ui&&gm.ui.regime)||'')+'"><input type="checkbox"'+(_cxF.fl?' checked':'')+' onchange="_cxSet(\'fl\',this.checked)"> Floating only</label>'
     +'<button type="button" onclick="_cxReset()">Reset</button><span class="bv-n" id="cx-n"></span></div>'
@@ -15061,7 +15064,7 @@ function _cxProv(D){
   return p.join(' ');
 }
 function _cxRows(){
-  var f=_cxF,q=f.q.trim().toLowerCase(),k=_cxSortK,d=_cxDir;
+  var f=_cxF,q=_cxQ().trim().toLowerCase(),k=_cxSortK,d=_cxDir;
   return _CX.rows.filter(function(r){
     if(q&&(r.code+' '+r.name).toLowerCase().indexOf(q)<0)return false;
     if(f.r&&r.rating!==f.r)return false;
@@ -15215,7 +15218,8 @@ function _cxPick(code){
 }
 function _cxSortBy(k){if(k===_cxSortK)_cxDir=-_cxDir;else{_cxSortK=k;_cxDir=-1;}_cxDraw();}
 function _cxSet(k,v){_cxF[k]=v;_cxDraw();}
-function _cxReset(){_cxF={q:'',r:'',fl:false};_cxSortK='_composite_score';_cxDir=-1;renderCcyView();}
+/* Reset clears the rating and floating filters; the search has its own ×. */
+function _cxReset(){_cxF={r:'',fl:false};_cxSortK='_composite_score';_cxDir=-1;renderCcyView();}
 /* A sector page's Value creation tab: its own SPDR. */
 function renderPoolEtf(sec){
   var t=ETF_LT&&ETF_LT.sector_fund&&ETF_LT.sector_fund[sec];

@@ -129,7 +129,10 @@ def _render(after):
     pick = [re.search(p, src, re.M).group(0) for p in (
         r'^function _attr\(s\)\{.*?\}$', r"^var RC=\{.*?\};$")]
     fm = src[src.index('var _FM_SUB='):src.index('function _fmApply(')]
-    js = '\n'.join([_fn_src('_esc', src), *pick, fm, block,
+    # The tab's search is the header's #f-search; Q stands in for it.
+    stub = ("var Q='';var document={getElementById:function(id){return id==='f-search'?{value:Q}:null;},"
+            "documentElement:{classList:{contains:function(){return false;}}}};")
+    js = '\n'.join([stub, _fn_src('_esc', src), *pick, fm, block,
                     f'_CX=_cxPrep({json.dumps(REPORT)});', after])
     return subprocess.run(['node', '-e', js], capture_output=True, text=True, check=True).stdout
 
@@ -156,11 +159,13 @@ def test_table_matrix_and_detail():
         "r.matrix=_cxMatrix(_cxRows());"
         "r.order=_cxRows().map(function(x){return x.code;});"
         "_cxF.fl=true;r.float=_cxRows().map(function(x){return x.code;});_cxF.fl=false;"
+        "Q='yen';r.q=_cxRows().map(function(x){return x.code;});Q='';"
         "_cxSortK='reer_z20';_cxDir=1;r.nulls=_cxRows().map(function(x){return x.code;});"
         "process.stdout.write(JSON.stringify(r));")
     r = json.loads(out)
     assert r['order'] == ['HKD', 'JPY']        # composite, high to low
     assert r['float'] == ['JPY']
+    assert r['q'] == ['JPY']                     # the header search matches the name
     assert r['nulls'] == ['JPY', 'HKD']        # missing sorts last either way
     t = r['table']
     assert 'class="fixed-header"' in t and 'data-col-tip-body="Cheapness."' in t
