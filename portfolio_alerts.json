@@ -1,12 +1,12 @@
 {
  "version": 1,
- "date": "2026-10-27",
- "prev_date": "2026-10-26",
+ "date": "2026-10-28",
+ "prev_date": "2026-10-27",
  "systemic": {
-  "n": 3829,
-  "prev_n": 3824,
-  "changed": 23,
-  "changed_share": 0.006,
+  "n": 3843,
+  "prev_n": 3829,
+  "changed": 45,
+  "changed_share": 0.0117,
   "missing_data": 0,
   "missing_share": 0.0,
   "shrink_share": 0.0,
@@ -29,9 +29,9 @@
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": -0.6529222396803027,
+    "median_mos": -0.6783158424223459,
     "median_score": 49.3,
-    "median_spread": 0.22958613443659304,
+    "median_spread": 0.22695235333885072,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -62,13 +62,13 @@
     "n": 53,
     "ratings": {
      "BUY": 10,
-     "LEAN BUY": 31,
-     "HOLD": 7,
+     "LEAN BUY": 32,
+     "HOLD": 6,
      "PASS": 5
     },
-    "median_mos": -0.2047438019082056,
+    "median_mos": -0.20431819062369938,
     "median_score": 48.7,
-    "median_spread": 0.25746000492309085,
+    "median_spread": 0.2568600049230908,
     "sector_weights": {
      "Technology": 0.2641509433962264,
      "Financial Services": 0.11320754716981131,
@@ -83,15 +83,34 @@
     "hhi": 0.17906728373086506,
     "concentrated": false,
     "no_sector": 0,
-    "upgrades": 0,
+    "upgrades": 1,
     "downgrades": 0
    },
    "alerts": [
+    {
+     "ticker": "UL",
+     "from": "HOLD",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "UL moved into the buy zone: HOLD → LEAN BUY",
+     "why": [
+      "Composite score moved 38 → 40, crossing above the LEAN BUY (39) threshold.",
+      "Biggest category moves: Valuation 34 → 38 (+4).",
+      "Largest metric swings: MoS -6.6% → 3.4% (score 7 → 27)."
+     ]
+    },
     {
      "ticker": "AAPL",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "AAPL reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "ACT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ACT reports earnings on 2026-11-04"
     },
     {
      "ticker": "AMZN",
@@ -112,6 +131,12 @@
      "message": "BUD reports earnings on 2026-10-29"
     },
     {
+     "ticker": "COKE",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "COKE reports earnings on 2026-11-04"
+    },
+    {
      "ticker": "F",
      "kind": "earnings_soon",
      "level": "watch",
@@ -130,12 +155,6 @@
      "message": "GOOGL reports earnings on 2026-10-28"
     },
     {
-     "ticker": "ITW",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "ITW reports earnings on 2026-10-27"
-    },
-    {
      "ticker": "KLAC",
      "kind": "earnings_soon",
      "level": "watch",
@@ -146,6 +165,12 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "MA reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "MCD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MCD reports earnings on 2026-11-04"
     },
     {
      "ticker": "MPWR",
@@ -172,16 +197,43 @@
      "message": "STLA reports earnings on 2026-10-28"
     },
     {
-     "ticker": "STX",
+     "ticker": "TPL",
      "kind": "earnings_soon",
      "level": "watch",
-     "message": "STX reports earnings on 2026-10-27"
+     "message": "TPL reports earnings on 2026-11-04"
     },
     {
      "ticker": "XPO",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "XPO reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "AGX",
+     "kind": "buy_below",
+     "mos0": 0.1719,
+     "mos1": 0.1382,
+     "level": "fyi",
+     "into": false,
+     "message": "AGX rose back above its buy-below price $347.87 (MoS 14% at $352.69)"
+    },
+    {
+     "ticker": "LOW",
+     "kind": "buy_below",
+     "mos0": 0.1542,
+     "mos1": 0.1446,
+     "level": "fyi",
+     "into": false,
+     "message": "LOW rose back above its buy-below price $197.14 (MoS 14% at $198.40)"
+    },
+    {
+     "ticker": "RYAAY",
+     "kind": "buy_below",
+     "mos0": 0.1698,
+     "mos1": 0.1082,
+     "level": "fyi",
+     "into": false,
+     "message": "RYAAY rose back above its buy-below price $49.86 (MoS 11% at $52.31)"
     }
    ]
   }
