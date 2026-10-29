@@ -2060,12 +2060,15 @@ def _currency_output_dir():
         _REPO_ROOT, 'currencies', 'output')
 
 
-def _stage_model_report(out_dir, run_date, src_dir, prefix, dest_name, version, label):
+def _stage_model_report(out_dir, run_date, src_dir, prefix, dest_name, version, label,
+                        index=None):
     """Copy a subproject's newest ``<prefix>_<date>.json`` on or before
     *run_date* beside the report as *dest_name*, the sidecar its Financial
     Model tab loads when opened. Returns ``{date, total}`` for the page, or
     None (and removes a stale *dest_name*) when there is no report or its
-    shape is not *version*, the one the template draws. Display only."""
+    shape is not *version*, the one the template draws. Display only.
+    *index*, given the report, returns a small list inlined as the meta's
+    ``index`` so the top-bar search can find rows before the sidecar loads."""
     dest = os.path.join(out_dir, dest_name)
     cutoff = run_date.isoformat() if run_date is not None else '9999-12-31'
     pat = re.escape(prefix) + r'_(\d{4}-\d{2}-\d{2})\.json'
@@ -2092,7 +2095,10 @@ def _stage_model_report(out_dir, run_date, src_dir, prefix, dest_name, version, 
     shutil.copyfile(src, tmp)
     os.replace(tmp, dest)
     print(f"[report_html] {label}: {picks[-1]} ({data.get('total', 0):,} rows)")
-    return {'date': data.get('run_date'), 'total': data.get('total')}
+    meta = {'date': data.get('run_date'), 'total': data.get('total')}
+    if index is not None:
+        meta['index'] = index(data)
+    return meta
 
 
 def _stage_paper_dashboard(out_dir, run_date, pfs):
@@ -2143,7 +2149,14 @@ def _stage_currency_report(out_dir, run_date, src_dir=None):
     for Investing › Currencies (``_stage_model_report``)."""
     return _stage_model_report(out_dir, run_date, src_dir or _currency_output_dir(),
                                'currency_report', 'currencies.json',
-                               CURRENCY_REPORT_VERSION, 'Currencies')
+                               CURRENCY_REPORT_VERSION, 'Currencies',
+                               index=_currency_search_index)
+
+
+def _currency_search_index(data):
+    """``[code, name]`` per currency (~30), for the top-bar search."""
+    return [[r.get('code'), r.get('name') or ''] for r in data.get('rows') or []
+            if r.get('code')]
 
 
 def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=None,
