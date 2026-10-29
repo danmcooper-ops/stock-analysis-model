@@ -129,6 +129,9 @@ def _render(report, after=''):
                                      '_bvCard', '_bvHtml', '_bvIdx', '_bvRows', '_fmBar')]
     fm = src[src.index('var _FM_SUB='):src.index('function _fmBar(')]
     js = '\n'.join([
+        # The table's search is the header's #f-search; Q stands in for it.
+        "var Q='';var document={getElementById:function(id){return id==='f-search'?{value:Q}:null;},"
+        "documentElement:{classList:{contains:function(){return false;}}}};",
         'function isCapped(){return false;}', attr, rb, rc, fm, block, *fns,
         f'_BV={json.dumps(report)};',
         after or 'process.stdout.write(_bvHtml(_BV));'])
@@ -173,7 +176,7 @@ def test_rows_filter_and_sort_like_the_bond_page():
         "var r=[];"
         "r.push(_bvRows().map(function(x){return x[0];}).join(','));"
         "_bvF.u=true;r.push(_bvRows().length);_bvF.u=false;"
-        "_bvF.q='alpha';r.push(_bvRows().length);_bvF.q='';"
+        "Q='alpha';r.push(_bvRows().length);Q='';"
         "_bvF.c='TREASURY';r.push(_bvRows()[0][0]);_bvF.c='';"
         "_bvSortK='spread_mispricing';_bvAsc=true;r.push(_bvRows()[0][0]);"
         "r.push(_bvFmt(0.0212,'bp'),_bvFmt(-0.0003,'bp'),_bvFmt(null,'n1'),_bvFmt('TREASURY_BILL','cls'));"
