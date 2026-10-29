@@ -87,7 +87,7 @@ def _run(tmp_path, body):
     stub = r"""
 var calls=[],curView='pool',_poolTab='Energy',curMSub='matrix',curMacSub='overview',
     curPfSub='overview',curTSub='prices',_hashTimer=null,
-    _filt={search:'',colFilters:[]},_FM_SUB={};
+    _filt={search:'',colFilters:[]},_FM_SUB={},_bvPopRow=null,_bvSkipPop=false;
 function _fmSubTab(v,k){_FM_SUB[v]=k;calls.push(['fm',v,k]);}
 var backBtn={textContent:'',title:''};
 var document={getElementById:function(id){return id==='sn-back'?backBtn:null;}};
