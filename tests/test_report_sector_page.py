@@ -286,7 +286,9 @@ def test_touch_swipe_moves_between_sub_tabs():
     scroll wrap pan first."""
     css = _tpl()
     fn = re.search(r'^function _swipeTab\(dir\)\{.*?^\}', css, re.S | re.M).group(0)
-    assert ".pp-subtabs" in fn and "_ppSubTab(nb)" in fn and "navGo(g.v,nx.k)" in fn
+    assert "_innerSubTabs()" in fn and "nb.click()" in fn and "navGo(g.v,nx.k)" in fn
+    rows = re.search(r'^function _innerSubTabs\(\)\{.*?^\}', css, re.S | re.M).group(0)
+    assert "#pool-chart-area .pp-subtabs" in rows and "#pf-view .pp-subtabs" in rows
     block = css[css.index('function _swipeTab(dir)'):css.index('/* Velocity-based glide scroll')]
     # anywhere on the page, not just inside a .view (blank space, margins,
     # the title rows) — only the chrome, dialogs and drag-owning marks opt out
