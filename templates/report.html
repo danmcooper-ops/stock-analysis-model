@@ -1402,7 +1402,13 @@ circle.etfc-spy{fill:var(--etfc-s);}
 .bv-note{font-size:0.74em;color:var(--ppf-sub);margin:8px 0 0;line-height:1.5;}
 .bv-ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 10px;font-size:0.82em;}
 .bv-ctl input[type=search],.bv-ctl select,.bv-ctl button{font:inherit;padding:5px 9px;border:1px solid var(--ppf-line);border-radius:6px;background:var(--ppf-bg);color:var(--ppf-txt);}
-.bv-ctl input[type=search]{min-width:220px;flex:0 1 260px;}
+.bv-ctl{position:relative;}
+.bv-menu-btn{display:inline-flex;align-items:center;gap:6px;font-weight:600;}
+.bv-ham{font-size:1.15em;line-height:1;}
+.bv-menu-btn.on{border-color:var(--accent);color:var(--accent);}
+.bv-badge{background:var(--accent);color:#fff;border-radius:9px;font-size:0.8em;min-width:16px;padding:0 5px;text-align:center;line-height:16px;}
+.bv-menu{position:absolute;left:0;top:calc(100% + 4px);z-index:20;display:flex;flex-direction:column;align-items:stretch;gap:8px;min-width:220px;padding:10px;background:var(--ppf-bg);border:1px solid var(--ppf-line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.16);}
+.bv-menu[hidden]{display:none;}
 .bv-ctl button{cursor:pointer;}
 .bv-ctl label{display:flex;align-items:center;gap:4px;color:var(--ppf-txt);}
 .bv-n{color:var(--ppf-sub);}
@@ -1414,6 +1420,8 @@ circle.etfc-spy{fill:var(--etfc-s);}
 .bv-pos{color:var(--ppf-tw);}.bv-neg{color:var(--ppf-hw);}.bv-caps{color:var(--bv-warn);}.bv-mut{color:var(--ppf-sub);}
 /* !important beats the blanket dark `body *{color:#fff !important}` rule. */
 [data-theme="dark"] .bv-warn,[data-theme="dark"] .bv-warn li,[data-theme="dark"] .bv-warn p,[data-theme="dark"] .bv-card h4,[data-theme="dark"] .bv-dist span,[data-theme="dark"] .bv-ctl label,[data-theme="dark"] .bv-ctl input,[data-theme="dark"] .bv-ctl select,[data-theme="dark"] .bv-ctl button{color:var(--ppf-txt) !important;}
+[data-theme="dark"] .bv-menu-btn.on{color:var(--accent) !important;}
+[data-theme="dark"] .bv-badge{color:#fff !important;}
 [data-theme="dark"] .bv-warn h4{color:var(--bv-warn) !important;}
 [data-theme="dark"] .bv-dist em,[data-theme="dark"] .bv-key,[data-theme="dark"] .bv-key span,[data-theme="dark"] .bv-note,[data-theme="dark"] .bv-n,[data-theme="dark"] .bv-mut{color:var(--ppf-sub) !important;}
 [data-theme="dark"] .bv-pos{color:var(--ppf-tw) !important;}
@@ -7765,6 +7773,7 @@ function _mShow(){
   else if(k==='bond')renderBondView();
   else if(k==='ccy')renderCcyView();
   else renderMatrix();
+  _syncSearchPh();
 }
 function renderEtfView(){
   var ev=document.getElementById('m-etf-view');if(!ev)return;
@@ -12854,6 +12863,7 @@ var _SB_PF_SHOW=6,_sbPfAll=false;
    Called wherever the current view or sub-tab changes (renderCur and the
    per-view sub-tab switchers), so the active marks are always current. */
 function renderNavMenu(){
+  _syncSearchPh();
   var groups=_navGroups(),al=_sbAlertCount(),isNew=_pfIsNew();
   var sv=document.getElementById('sb-views');
   if(sv){
@@ -13067,6 +13077,7 @@ function _detOpenState(on){
   if(b)b.setAttribute('aria-label',on?'Back':'Open menu');
   if(!on&&b&&_drillStack.length)b.setAttribute('aria-label','Back to '+_drillStack[_drillStack.length-1].label);
   var q=document.getElementById('hdr-qr');if(q)q.classList.remove('open');
+  _syncSearchPh();
 }
 function qrRender(){
   var box=document.getElementById('hdr-qr'),inp=document.getElementById('f-search');
@@ -14701,7 +14712,21 @@ function renderEtfLookthrough(){
    styling. Every number and caveat is the bond model's own; this only draws
    it. Display only: no bond reaches DATA, a rating or a filter. */
 var _BV=null,_BV_LOADING=false,_BV_FAILED=false,_BV_LIMIT=1000;
-var _bvSortK='_composite_score',_bvAsc=false,_bvF={q:'',r:'',c:'',b:'',u:false};
+var _bvSortK='_composite_score',_bvAsc=false,_bvF={r:'',c:'',b:'',u:false},_bvMenuOpen=false;
+/* The top-bar search (#f-search) is the Bonds table's search too: on this
+   tab it matches CUSIP or issuer, so there is one search box in the report.
+   Its text is shared, as it is across every view: "ally" finds Ally's stock
+   on Stocks and Ally's bonds here. applyFilters re-renders this view through
+   renderCur, so typing redraws the table with the same debounce. */
+function _bvOn(){return curView==='matrix'&&curMSub==='bond'&&!document.documentElement.classList.contains('det-open');}
+function _bvQ(){var i=document.getElementById('f-search');return i?i.value:'';}
+function _bvActive(){var f=_bvF;return (f.r?1:0)+(f.c?1:0)+(f.b?1:0)+(f.u?1:0);}
+function _bvMenu(open){
+  _bvMenuOpen=open==null?!_bvMenuOpen:!!open;
+  var m=document.getElementById('bv-menu'),b=document.getElementById('bv-menu-btn');
+  if(m)m.hidden=!_bvMenuOpen;
+  if(b)b.setAttribute('aria-expanded',_bvMenuOpen?'true':'false');
+}
 var _BV_LEFT={text:1,cls:1,rating:1,caps:1,bucket:1,date:1};
 var _BV_SERIES={'tight':'--bv-c0','mid':'--bv-c1','wide':'--bv-c2','FRED slices':'--bv-c3'};
 function renderBondView(){
@@ -14721,6 +14746,17 @@ function renderBondView(){
   bv.innerHTML=_bvHtml(_BV);
   _fmApply(bv,_FM_SUB.bond);
   _bvDraw();
+}
+document.addEventListener('click',function(e){
+  if(!_bvMenuOpen||!e.target.closest)return;
+  if(e.target.closest('#bv-menu,#bv-menu-btn'))return;
+  _bvMenu(false);
+});
+/* The header search's placeholder names what it searches on this view. */
+function _syncSearchPh(){
+  var i=document.getElementById('f-search');if(!i)return;
+  var t=_bvOn()?'Search bonds by CUSIP or issuer':'Search tickers or companies';
+  if(i.placeholder!==t){i.placeholder=t;i.setAttribute('aria-label',t);}
 }
 function _bvCls(v){return _esc(String(v).replace('TREASURY_BILL','T-BILL').replace('TREASURY','TSY').replace('CORP_',''));}
 function _bvFmt(v,f){
@@ -14791,12 +14827,15 @@ function _bvHtml(D){
     +'<div class="fm-tabbed">'
     +'<div data-pane="table">'
     +'<div class="bv-ctl">'
-    +'<input type="search" id="bv-q" placeholder="Search CUSIP or issuer…" value="'+_attr(_bvF.q)+'" oninput="_bvSet(\'q\',this.value)" aria-label="Search CUSIP or issuer">'
+    +'<button type="button" id="bv-menu-btn" class="bv-menu-btn'+(_bvActive()?' on':'')+'" onclick="_bvMenu()" aria-haspopup="true" aria-controls="bv-menu" aria-expanded="'+(_bvMenuOpen?'true':'false')+'" aria-label="Bond filters">'
+    +'<span class="bv-ham" aria-hidden="true">\u2630</span>Filters'+(_bvActive()?'<span class="bv-badge">'+_bvActive()+'</span>':'')+'</button>'
+    +'<div class="bv-menu" id="bv-menu" role="group" aria-label="Bond filters"'+(_bvMenuOpen?'':' hidden')+'>'
     +'<select onchange="_bvSet(\'r\',this.value)" aria-label="Rating">'+opt('','All ratings',_bvF.r)+['BUY','LEAN BUY','HOLD','PASS'].map(function(r){return opt(r,r,_bvF.r);}).join('')+'</select>'
     +'<select onchange="_bvSet(\'c\',this.value)" aria-label="Asset class">'+opt('','All classes',_bvF.c)+Object.keys(cls).sort().map(function(c){return opt(c,_bvCls(c),_bvF.c);}).join('')+'</select>'
     +'<select onchange="_bvSet(\'b\',this.value)" aria-label="Implied credit bucket">'+opt('','All buckets',_bvF.b)+(D.buckets||[]).map(function(b){return opt(b[0],b[0],_bvF.b);}).join('')+'</select>'
     +'<label><input type="checkbox"'+(_bvF.u?' checked':'')+' onchange="_bvSet(\'u\',this.checked)"> Uncapped only</label>'
     +'<button type="button" onclick="_bvReset()">Reset</button>'
+    +'</div>'
     +'<span class="bv-n" id="bv-n"></span></div>'
     +'<div class="ppi-wrap bv-wrap fm-tbl"><table class="ppi-tbl bv-tbl"><thead><tr id="bv-head"></tr></thead><tbody id="bv-body"></tbody></table></div>'
     +'</div>'
@@ -14827,7 +14866,7 @@ function _bvIdx(){
   return _BV._idx;
 }
 function _bvRows(){
-  var I=_bvIdx(),f=_bvF,q=f.q.trim().toLowerCase(),c=I[_bvSortK],asc=_bvAsc;
+  var I=_bvIdx(),f=_bvF,q=_bvQ().trim().toLowerCase(),c=I[_bvSortK],asc=_bvAsc;
   var out=_BV.rows.filter(function(r){
     if(f.r&&r[I.rating]!==f.r)return false;
     if(f.c&&r[I.asset_class]!==f.c)return false;
@@ -14865,8 +14904,9 @@ function _bvDraw(){
     +(_BV.vintage?' · marks '+_BV.vintage.age_days+' days old (Notes)':'');
 }
 function _bvSortBy(k){if(k===_bvSortK)_bvAsc=!_bvAsc;else{_bvSortK=k;_bvAsc=false;}_bvDraw();}
-function _bvSet(k,v){_bvF[k]=v;_bvDraw();}
-function _bvReset(){_bvF={q:'',r:'',c:'',b:'',u:false};renderBondView();}
+function _bvSet(k,v){_bvF[k]=v;renderBondView();}
+/* Reset clears the menu's filters; the search keeps its own × (clearSearch). */
+function _bvReset(){_bvF={r:'',c:'',b:'',u:false};renderBondView();}
 /* Investing › Currencies: the currency screener (currencies/, its
    currency_report_<date>.json staged beside this page as currencies.json by
    report_html._stage_currency_report) drawn in this report's styling: the
