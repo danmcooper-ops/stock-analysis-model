@@ -87,7 +87,8 @@ def _run(tmp_path, body):
     stub = r"""
 var calls=[],curView='pool',_poolTab='Energy',curMSub='matrix',curMacSub='overview',
     curPfSub='overview',curTSub='prices',_hashTimer=null,
-    _filt={search:'',colFilters:[]};
+    _filt={search:'',colFilters:[]},_FM_SUB={};
+function _fmSubTab(v,k){_FM_SUB[v]=k;calls.push(['fm',v,k]);}
 var backBtn={textContent:'',title:''};
 var document={getElementById:function(id){return id==='sn-back'?backBtn:null;}};
 var listeners={};
@@ -205,3 +206,27 @@ process.stdout.write(JSON.stringify({f:_filt,applied:calls.filter(function(c){re
 """)
     assert out['f']['ratings'] == ['HOLD']
     assert out['applied'] == 0
+
+
+def test_detail_drill_returns_to_the_sub_tab_it_came_from(tmp_path):
+    """A currency row (or ETF, or map country) opening Detail is a drill: back
+    lands on Investing › Currencies' Screener, not the Detail it left."""
+    out = _run(tmp_path, r"""
+curView='matrix';curMSub='ccy';_FM_SUB.ccy='map';
+_drillPush('Map');_FM_SUB.ccy='detail';
+var label=backBtn.textContent;
+drillBack();
+process.stdout.write(JSON.stringify({label:label,sub:_FM_SUB.ccy,calls:calls,n:_drillStack.length}));
+""")
+    assert out['label'] == '‹ Map'
+    assert ['nav', 'matrix', 'ccy'] in out['calls']
+    assert out['calls'].index(['nav', 'matrix', 'ccy']) < out['calls'].index(['fm', 'ccy', 'map'])
+    assert out['sub'] == 'map' and out['n'] == 0
+
+
+def test_detail_launchers_push_a_drill_and_the_tab_row_leaves_it():
+    src = _tpl()
+    assert "_fmDrill('ccy');" in _fn_src('_cxPick', src)
+    assert "_fmDrill('etf');" in _fn_src('_etfPick', src)
+    assert '_drillLeave();_fmSubTab(view,k);' in _fn_src('_fmTab', src)
+    assert 'onclick="_fmTab(' in _fn_src('_fmBar', src)

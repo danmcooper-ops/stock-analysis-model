@@ -3884,6 +3884,7 @@ function _drillSub(){
 function _drillPush(label){
   if(_drillRestoring)return;
   var e={label:label,view:curView,sub:_drillSub(),ppTab:_ppSubTabCur(),
+         fm:curView==='matrix'&&_FM_SUB[curMSub]!=null?_FM_SUB[curMSub]:null,
          scrollY:window.scrollY||0,before:_getCurrentFilterState(),after:null,pushed:false};
   _drillStack.push(e);
   if(_drillStack.length>_DRILL_MAX)_drillStack.shift();
@@ -3965,6 +3966,9 @@ function _drillRestore(){
     if(e.view==='pool')window._ppSubTabSel=e.ppTab;
     _drillUndoFilters([e]);
     navGo(e.view,e.sub);
+    /* An ETFs/Bonds/Currencies row opened Detail: back to the sub-tab it
+       was picked from (Screener, Gate Matrix, Map, Table). */
+    if(e.fm)_fmSubTab(e.sub,e.fm);
   }finally{_drillRestoring=false;}
   _drillSyncBack();
   setTimeout(function(){window.scrollTo(0,e.scrollY);},30);
@@ -14585,8 +14589,19 @@ function _fmBar(view,tabs,label){
   if(!tabs.some(function(t){return t[0]===cur;}))cur=_FM_SUB[view]=tabs[0][0];
   return '<div class="d-stmt-tabs sa-chrome pp-subtabs fm-subtabs" role="tablist" aria-label="'+_attr(label)+'">'+tabs.map(function(t){
     var on=t[0]===cur;
-    return '<button type="button" role="tab" class="d-stmt-tab'+(on?' cur':'')+'" aria-selected="'+on+'" data-k="'+t[0]+'" onclick="_fmSubTab(\''+view+'\',\''+t[0]+'\')">'+_esc(t[1])+'</button>';
+    return '<button type="button" role="tab" class="d-stmt-tab'+(on?' cur':'')+'" aria-selected="'+on+'" data-k="'+t[0]+'" onclick="_fmTab(\''+view+'\',\''+t[0]+'\')">'+_esc(t[1])+'</button>';
   }).join('')+'</div>';
+}
+/* A tap on the sub-tab row is a way out of a pending Detail drill, as
+   navGo is for the views (_drillLeave). */
+function _fmTab(view,k){_drillLeave();_fmSubTab(view,k);}
+/* A row, card or map country opening Detail is a drill: #sn-back (and the
+   phone top bar's arrow, and the browser's Back) returns to the sub-tab it
+   came from, labelled with that tab's name. */
+function _fmDrill(view){
+  var b=document.querySelector('#m-'+view+'-view .fm-subtabs .d-stmt-tab.cur');
+  if(_FM_SUB[view]==='detail')return;
+  _drillPush(b?b.textContent:'Back');
 }
 /* Show the pane a tab names: a pane lists every tab it serves (data-pane
    "table matrix map" for the currency grid). */
@@ -14673,7 +14688,7 @@ function _etfDetail(r,corner){
   return h+'</div>';
 }
 /* A row opens that fund's Detail tab. */
-function _etfPick(t){_etfSel=t;renderEtfView();_fmSubTab('etf','detail');}
+function _etfPick(t){_fmDrill('etf');_etfSel=t;renderEtfView();_fmSubTab('etf','detail');}
 /* Investing › ETFs: every fund, best relative value first. */
 function renderEtfLookthrough(){
   if(!ETF_LT||!ETF_LT.funds)return '';
@@ -15193,6 +15208,7 @@ function _cxDetail(){
 }
 /* A row (or a country on the map) opens that currency's Detail tab. */
 function _cxPick(code){
+  _fmDrill('ccy');
   _cxSel=code;
   _cxDetail();
   _fmSubTab('ccy','detail');
