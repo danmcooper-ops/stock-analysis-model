@@ -1,4 +1,4 @@
-"""Financial Model › Bond Valuations: the bond model's report
+"""Financial Model › Bonds: the bond model's report
 (bond-analysis-model's bond_report_<date>.json) staged beside the page and
 drawn in this report's styling. Staging, wiring, the display-only rule, and
 the renderer evaluated in Node with its helpers lifted from the template."""
@@ -95,7 +95,7 @@ def test_stage_refuses_another_shape(tmp_path):
 
 def test_subtab_is_wired():
     src = _tpl()
-    assert "{k:'bond',l:'Bond Valuations'}" in src
+    assert "{k:'bond',l:'Bonds'}" in src
     assert '<div id="m-bond-view" style="display:none"></div>' in src
     show = _fn_src('_mShow', src)
     assert "k==='bond'" in show and 'renderBondView()' in show

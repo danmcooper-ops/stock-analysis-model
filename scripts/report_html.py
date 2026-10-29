@@ -2097,7 +2097,7 @@ def _stage_model_report(out_dir, run_date, src_dir, prefix, dest_name, version, 
 
 def _stage_bond_report(out_dir, run_date, src_dir=None):
     """bonds/'s ``bond_report_<date>.json`` as ``bonds.json``, for Financial
-    Model › Bond Valuations (``_stage_model_report``)."""
+    Model › Bonds (``_stage_model_report``)."""
     return _stage_model_report(out_dir, run_date, src_dir or _bond_output_dir(),
                                'bond_report', 'bonds.json', BOND_REPORT_VERSION,
                                'Bond valuations')
