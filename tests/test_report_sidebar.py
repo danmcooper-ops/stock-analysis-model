@@ -446,7 +446,25 @@ def test_financial_model_has_stock_and_etf_valuations_tabs():
     show = re.search(r'function _mShow\(\)\{.*?\n\}\n', src, re.S).group(0)
     assert "else if(k==='etf')renderEtfView();" in show
     assert "+poolBody+'</div>':'')\n      +renderEtfLookthrough();" not in src
-    assert "l:'Gate Matrix'" not in src
+    # 'Gate Matrix' is a tab inside Stocks, never Investing's own sub-tab.
+    assert "{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Gate Matrix'}" not in src
+
+
+def test_charts_is_its_own_entry_and_stocks_holds_the_data_tables():
+    """The side menu reads Macro, Sector Analysis, Investing, Charts,
+    Portfolios: no Financial Data. Its tables (Market … Dividends) are a
+    second tab row under Investing › Stocks, beside the Gate Matrix."""
+    src = _tpl()
+    groups = re.search(r'function _navGroups\(\)\{.*?\n\}\n', src, re.S).group(0)
+    assert "l:'Financial Data'" not in groups
+    assert groups.index("v:'matrix',l:'Investing'") < groups.index("v:'charts',l:'Charts'") \
+        < groups.index("v:'pf',l:'Portfolios'")
+    assert "function _navView(){if(curView==='table')return curTSub==='prices'?'charts':'matrix';" in src
+    assert "return [{k:'matrix',l:'Gate Matrix'}].concat(Object.keys(TL).filter(function(k){return k!=='prices';})" in src
+    assert 'id="sn-sub2"' in src
+    assert "ch.style.display=g.items.length<2?'none':'';" in src
+    assert "}else if(v==='charts'){\n    curTSub='prices';" in src
+    assert "}else if(v==='matrix'&&k==='matrix'){\n    /* Stocks reopens on whichever of its tabs was last open. */\n    stkGo(_stkLast);" in src
 
 
 def test_sector_analysis_first_sub_tab_is_overview():

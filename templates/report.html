@@ -3136,6 +3136,7 @@ html.stmt-fs-open #det-modal{z-index:1550;}
 #det-modal .dv-big{font-size:26px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums;}
 #det-modal .dv-mut{--sac:var(--chrome-muted);}
 #det-modal .dv-tk{display:inline-block;width:2px;height:10px;margin:0 2px -1px;background:var(--dv-tick);vertical-align:baseline;}
+#ph-cmp td.ph-best{--sac:var(--chrome-pos);font-weight:700;}#ph-cmp td.ph-worst{--sac:var(--chrome-neg);}
 #det-modal .dv-pos{--sac:var(--dv-pos);}#det-modal .dv-neg{--sac:var(--dv-neg);}#det-modal .dv-midc{--sac:var(--dv-mid);}
 /* 52-week range */
 #det-modal .dv-rng{position:relative;height:10px;border-radius:5px;background:linear-gradient(90deg,var(--dv-zone-b),var(--dv-track) 50%,var(--dv-zone-g));margin:14px 0 4px;}
@@ -3638,6 +3639,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
     <button type="button" class="d-back sa-chrome" id="sn-back" onclick="drillBack()"></button>
     <div class="sn-head"><h2 class="sn-title" id="sn-title"></h2><span class="sn-count" id="sn-count"></span><span class="sn-crumb" id="sn-crumb"></span><span class="sn-date">{{ generated_at }}</span></div>
     <div class="sn-chips" id="sn-chips" role="tablist"></div>
+    <div class="d-stmt-tabs sa-chrome pp-subtabs" id="sn-sub2" role="tablist" aria-label="Stocks" hidden></div>
   </div>
   <div id="view-pool" class="view active">
     <div id="pool-chart-area"></div>
@@ -5351,7 +5353,7 @@ function _pfOverviewHtml(){
     +'<span class="pf-spacer"></span><button class="pf-btn" onclick="pfManageOpen()">Manage…</button></div>'+_pfSystemicHtml()+_pfSyncNote();
   if(!defs.length){
     return h+'<div class="pfv-empty"><p><b>No portfolios yet.</b> A portfolio is a named group of stocks — picked by hand, defined by a rule, or both — and a stock can be in as many as you like.</p>'
-      +'<p>Filter the Financial Data table and choose <b>Save filter as portfolio</b> in the Filters panel, add a stock from its popup (the folder button), or start one here.</p>'
+      +'<p>Filter the Investing › Stocks table and choose <b>Save filter as portfolio</b> in the Filters panel, add a stock from its popup (the folder button), or start one here.</p>'
       +'<button class="pf-btn pf-primary" onclick="pfNewEmpty()">+ New portfolio</button></div></div>';
   }
   var sums=_pfOvSorted(defs.map(_pfSummary));
@@ -8292,8 +8294,66 @@ function initPriceChart(){
     +'</div>'
     +'<div id="ph-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>'
     +'<div id="ph-tip-bar" style="min-height:28px"></div>'
-    +'<div id="ph-chart"></div>';
+    +'<div id="ph-chart"></div>'
+    +'<div id="ph-cmp"></div>';
   _buildPHSearch();_buildPHIndexBtns();_buildPHChips();_buildPHMetricBtns();_buildPHRanges();renderPHChart();
+}
+/* Compare by category: the charted stocks side by side over one of the
+   table's own column sets (TC, the Market … Dividends tabs), so any metric the
+   table shows can be compared, not only the ones with a history to chart.
+   Indices have no row and are left out. Each numeric row marks the best and
+   worst of the stocks on DV_DIR, and a Median column gives the run's median
+   (positive values only for DV_POS multiples, as the Data tabs rank). Display
+   only, like the chart. */
+var _phCat=(function(){try{return localStorage.getItem('stock_ph_cat_v1')||'val';}catch(e){return 'val';}})();
+function _phCats(){return Object.keys(TL).filter(function(k){return k!=='prices'&&TC[k]&&TC[k].length;});}
+function phSetCat(k){
+  _phCat=k;
+  try{localStorage.setItem('stock_ph_cat_v1',k);}catch(e){}
+  _renderPHCompare();
+}
+function _renderPHCompare(){
+  var el=document.getElementById('ph-cmp');if(!el)return;
+  var byTk={};DATA.forEach(function(d){byTk[d.ticker]=d;});
+  var rows=_phStocks.map(function(t,i){return{d:byTk[t],col:_phPalette[i%_phPalette.length]};}).filter(function(x){return x.d;});
+  if(!rows.length){el.innerHTML='';return;}
+  var cats=_phCats();if(cats.indexOf(_phCat)<0)_phCat=cats[0];
+  var h='<div class="sec-label" style="margin-top:18px">Compare by Category</div>'
+    +'<div class="d-stmt-tabs sa-chrome" role="tablist" style="margin-bottom:8px">'
+    +cats.map(function(k){var on=k===_phCat;return '<button type="button" class="d-stmt-tab'+(on?' cur':'')+'" role="tab" aria-selected="'+on+'" onclick="phSetCat(\''+k+'\')">'+esc(TL[k])+'</button>';}).join('')
+    +'</div>';
+  h+='<div style="overflow-x:auto"><table class="ppi-tbl ph-cmp-tbl"><thead><tr><th>Metric</th>';
+  rows.forEach(function(x){var tk=x.d.ticker;h+='<th><span onclick="openDet(\''+tk.replace(/'/g,"\\'")+'\')" title="Open '+_attr(tk)+' details" style="cursor:pointer;display:inline-flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:'+x.col+'"></span>'+esc(tk)+'</span></th>';});
+  h+='<th title="Median across every stock in this run">Median</th></tr></thead><tbody>';
+  var cols=[{k:'rating',l:'Rating',f:'rating'},{k:'_composite_score',l:'Score',f:'int'}];
+  TC[_phCat].forEach(function(c){if(c.k!=='ticker'&&c.k!=='rating'&&c.k!=='_composite_score')cols.push(c);});
+  cols.forEach(function(c){
+    var f=c.f||'text',num=f!=='text'&&f!=='rating'&&f!=='bool'&&f!=='ar';
+    var vals=rows.map(function(x){return x.d[c.k];});
+    if(vals.every(function(v){return v==null;}))return;
+    var dir=num?(DV_DIR[c.k]||0):0,best=null,worst=null;
+    if(dir){
+      var ok=vals.map(function(v){var n=_dvNum(v);return n==null||(DV_POS[c.k]&&n<=0)?null:n;});
+      var ns=ok.filter(function(n){return n!=null;});
+      if(ns.length>=2){
+        var hi=Math.max.apply(null,ns),lo=Math.min.apply(null,ns);
+        if(hi!==lo){best=dir>0?hi:lo;worst=dir>0?lo:hi;}
+      }
+      vals._ok=ok;
+    }
+    h+='<tr><td'+_dvTipAttr(c.k)+(tt(c.k)?' class="kl"':'')+'>'+esc(c.l||c.k)+'</td>';
+    vals.forEach(function(v,i){
+      var t=ftc(v,f).t,cls='';
+      if(best!=null&&vals._ok[i]===best)cls=' class="sa-chrome ph-best"';
+      else if(worst!=null&&vals._ok[i]===worst)cls=' class="sa-chrome ph-worst"';
+      h+='<td'+cls+'>'+(f==='rating'&&v!=null?t:esc(t))+'</td>';
+    });
+    var med=num&&!DV_NORANK[c.k]?_dvMedian(_dvVals(c.k)):null;
+    h+='<td class="na">'+(med!=null?esc(ftc(med,f).t):'')+'</td></tr>';
+  });
+  h+='</tbody></table></div>'
+    +'<p style="font-size:0.75em;color:#888;margin:6px 0 0">Best of the charted stocks in green, worst in red, where higher or lower is clearly better. Indices are not listed.</p>';
+  el.innerHTML=h;
 }
 function _buildPHMetricBtns(){
   var el=document.getElementById('ph-metric-btns');if(!el)return;
@@ -8504,6 +8564,7 @@ function _phGetPts(ticker){
   return _phGetHistPts(ticker,_phMetric);
 }
 function renderPHChart(){
+  _renderPHCompare();
   _cmSum('ph',_phMetricDef(_phMetric).lbl+' · '+_phRange
     +' · '+_phStocks.length+' line'+(_phStocks.length===1?'':'s'));
   /* Empty pool = the filters left nothing with price history. Say so rather
@@ -12505,6 +12566,8 @@ function _innerSubTabs(){
   if(curView==='pool')return document.querySelector('#pool-chart-area .pp-subtabs');
   if(curView==='pf')return document.querySelector('#pf-view .pp-subtabs');
   if(curView==='matrix'&&/^(etf|bond|ccy)$/.test(curMSub))return document.querySelector('#m-'+curMSub+'-view .pp-subtabs');
+  var s2=document.getElementById('sn-sub2');
+  if(s2&&!s2.hidden&&s2.children.length)return s2;
   return null;
 }
 function _swipeTab(dir){
@@ -12516,7 +12579,7 @@ function _swipeTab(dir){
     if(nb){nb.click();nb.scrollIntoView({block:'nearest',inline:'nearest'});}
     return !!nb;
   }
-  var g=_navGroups().filter(function(x){return x.v===curView;})[0];
+  var g=_navGroups().filter(function(x){return x.v===_navView();})[0];
   if(!g||!g.items.length)return false;
   var ki=-1;g.items.forEach(function(it,i){if(String(it.k)===String(g.cur))ki=i;});
   var nx=g.items[ki+dir];
@@ -12843,6 +12906,24 @@ function _navSectors(){
   });
   return out.sort();
 }
+/* The menu's views are not the page's views one for one. Charts is its own
+   entry, drawn by #view-table's price chart (curTSub 'prices'); the data
+   tables (Market … Dividends) are Investing › Stocks, beside the Gate Matrix
+   (#view-matrix), in a second tab row (#sn-sub2). _navView names the menu
+   entry the page is on. */
+function _navView(){if(curView==='table')return curTSub==='prices'?'charts':'matrix';return curView;}
+var _stkLast='matrix';
+function _stkTabs(){return [{k:'matrix',l:'Gate Matrix'}].concat(Object.keys(TL).filter(function(k){return k!=='prices';}).map(function(k){return{k:k,l:TL[k]};}));}
+function _stkCur(){return curView==='table'&&curTSub!=='prices'?curTSub:'matrix';}
+/* Investing › Stocks' second row: the Gate Matrix or one data table. */
+function stkGo(k){
+  _drillLeave();
+  _stkLast=k;
+  if(k==='matrix'){curMSub='matrix';if(curView!=='matrix')showView('matrix');else swMSub('matrix');}
+  else{curTSub=k;if(curView!=='table')showView('table');else swTSub(k);}
+  var bar=document.getElementById('sn-sub2'),on=bar&&bar.querySelector('.d-stmt-tab.cur');
+  if(on)on.scrollIntoView({block:'nearest',inline:'nearest'});
+}
 /* One entry per view: its label, the sub-tab key currently selected in it,
    and its sub-tabs. `cur` is read even when the view isn't the active one,
    so re-entering a view via the menu lands back on its last sub-tab. */
@@ -12851,10 +12932,9 @@ function _navGroups(){
   _navSectors().forEach(function(s){pool.push({k:s,l:s});});
   var groups=[
     {v:'pool',l:'Sector Analysis',cur:_poolTab||'__performance__',items:pool},
-    {v:'matrix',l:'Investing',cur:curMSub||'matrix',
+    {v:'matrix',l:'Investing',cur:curView==='table'&&curTSub!=='prices'?'matrix':(curMSub||'matrix'),
      items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Stocks'},{k:'etf',l:'ETFs'},{k:'bond',l:'Bonds'},{k:'ccy',l:'Currencies'}]},
-    {v:'table',l:'Financial Data',cur:curTSub,
-     items:Object.keys(TL).map(function(k){return{k:k,l:TL[k]};})},
+    {v:'charts',l:'Charts',cur:'price',items:[{k:'price',l:'Stock Price Comparison'}]},
     {v:'pf',l:'Portfolios',cur:curPfSub,
      items:[{k:'overview',l:'Overview'}].concat(_pfDefs().map(function(p){return{k:p.id,l:p.name};}))}
   ];
@@ -12873,6 +12953,7 @@ var _SB_IC={
   pool:'<circle cx="12" cy="12" r="9"/><path d="M12 3v9h9"/>',
   matrix:'<path d="M4 7h9M19 7h1M4 17h3M13 17h7"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/>',
   table:'<path d="M4 20h16M7 16V10M12 16V5M17 16v-4"/>',
+  charts:'<path d="M4 4v16h16"/><path d="M7 15l4-5 3 3 5-6"/>',
   pf:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5h6v2M3 12h18"/>',
   trend:'<path d="M3 17l5-5 4 3 8-8"/><path d="M15 7h5v5"/>'
 };
@@ -12915,7 +12996,7 @@ function renderNavMenu(){
        the digit keys onto, read from this same list, so a row can never
        advertise a shortcut that doesn't work. */
     _navGroups().forEach(function(g,gi){
-      var cur=curView===g.v,badge='',dot='';
+      var cur=_navView()===g.v,badge='',dot='';
       if(g.v==='pf'&&al){
         badge='<span class="sb-badge">'+al+(isNew?' NEW':'')+'</span>';
         dot='<span class="sb-dot" aria-hidden="true"></span>';
@@ -12944,9 +13025,19 @@ function renderNavMenu(){
     ph+='<button type="button" class="sb-row sb-pf" onclick="sbClose();pfManageOpen()"><span class="sb-lbl">Create Portfolio</span><span class="sb-sq" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span></button>';
     sp.innerHTML=ph;
   }
-  var g=null;
-  groups.forEach(function(x){if(x.v===curView)g=x;});
+  var g=null,nv=_navView();
+  groups.forEach(function(x){if(x.v===nv)g=x;});
   var st=document.getElementById('sn-title'),sc=document.getElementById('sn-crumb'),ch=document.getElementById('sn-chips');
+  var s2=document.getElementById('sn-sub2');
+  if(s2){
+    var stk=nv==='matrix'&&g&&g.cur==='matrix';
+    s2.hidden=!stk;
+    if(stk){
+      var sk=_stkCur();_stkLast=sk;
+      s2.innerHTML=_stkTabs().map(function(t){var on=t.k===sk;
+        return '<button type="button" role="tab" class="d-stmt-tab'+(on?' cur':'')+'" aria-selected="'+on+'" data-k="'+t.k+'" onclick="stkGo(\''+t.k+'\')">'+esc(t.l)+'</button>';}).join('');
+    }else s2.innerHTML='';
+  }
   if(g){
     var sub='';
     g.items.forEach(function(it){if(it.k===g.cur)sub=it.l;});
@@ -12954,6 +13045,8 @@ function renderNavMenu(){
     if(sc)sc.textContent=sub?g.l+' › '+sub:'';
     if(ch){
       var c='';
+      /* A one-page entry (Charts) has no tab row to show. */
+      ch.style.display=g.items.length<2?'none':'';
       g.items.forEach(function(it){
         var on=g.cur===it.k;
         c+='<button type="button" class="sn-chip'+(on?' cur':'')+'" role="tab" aria-selected="'+(on?'true':'false')+'" data-v="'+g.v+'" data-k="'+_attr(it.k)+'">'+esc(it.l)+'</button>';
@@ -12972,8 +13065,8 @@ function renderNavMenu(){
    and the browser tab title. The on-screen heading is #subnav's. */
 function _syncNavCrumb(){
   _drillSyncBack();
-  var g=null,sub='';
-  _navGroups().forEach(function(x){if(x.v===curView)g=x;});
+  var g=null,sub='',nv=_navView();
+  _navGroups().forEach(function(x){if(x.v===nv)g=x;});
   if(!g)return;
   g.items.forEach(function(it){if(it.k===g.cur)sub=it.l;});
   var hv=document.getElementById('hdr-view');
@@ -12987,7 +13080,7 @@ function navGo(v,k){
   _drillLeave();
   /* A top-level entry (a sidebar row, or its number hotkey) carries no
      sub-tab: it opens the section on its FIRST sub-tab — Macro Overview,
-     Sector Charts, the Investing Dashboard, Financial Data Charts,
+     Sector Charts, the Investing Dashboard, Charts,
      the Portfolios overview — rather than wherever it was last left. */
   if(k==null){
     var g=_navGroups().filter(function(x){return x.v===v;})[0];
@@ -12997,6 +13090,13 @@ function navGo(v,k){
     if(k!=null)_poolTab=k;
     if(curView!=='pool')showView('pool');
     else showPoolTab(_poolTab);
+  }else if(v==='charts'){
+    curTSub='prices';
+    if(curView!=='table')showView('table');
+    else swTSub('prices');
+  }else if(v==='matrix'&&k==='matrix'){
+    /* Stocks reopens on whichever of its tabs was last open. */
+    stkGo(_stkLast);
   }else if(v==='matrix'){
     if(k!=null)curMSub=k;
     if(curView!=='matrix')showView('matrix');
@@ -14943,7 +15043,6 @@ function renderBondView(){
 document.addEventListener('click',function(e){
   if(!e.target.closest)return;
   if(_bvMenuOpen&&!e.target.closest('#bv-menu,#bv-menu-btn'))_bvMenu(false);
-  if(_cxMenuOpen&&!e.target.closest('#cx-menu,#cx-menu-btn'))_cxMenu(false);
 });
 /* The header search's placeholder is just "Search"; its accessible name says
    what it searches on this view. */
@@ -15184,25 +15283,12 @@ function _bvReset(){_bvF={r:'',c:'',b:'',u:false};renderBondView();}
    Every number, gate and tooltip is the screener's own; this only draws it.
    Display only: no currency reaches the stock rows, a rating or a filter. */
 var _CX=null,_CX_LOADING=false,_CX_FAILED=false;
-var _cxView=_FM_SUB.ccy,_cxSortK='_composite_score',_cxDir=-1,_cxF={r:'',fl:false},_cxSel=null;
+var _cxView=_FM_SUB.ccy,_cxSortK='_composite_score',_cxDir=-1,_cxF={r:''},_cxSel=null;
 /* As on Bonds, the top-bar search (#f-search) is this tab's search: code or
    currency name here, re-rendered through applyFilters -> renderCur. */
 function _cxOn(){return curView==='matrix'&&curMSub==='ccy'&&!document.documentElement.classList.contains('det-open');}
 function _cxQ(){var i=document.getElementById('f-search');return i?i.value:'';}
-/* Its rating and floating filters sit behind a ☰ Filters menu, as Bonds'
-   do (the same bv-menu styling); the badge counts the filters set. */
-var _cxMenuOpen=false;
-function _cxBtnInner(){var n=(_cxF.r?1:0)+(_cxF.fl?1:0);return '<span class="bv-ham" aria-hidden="true">\u2630</span>Filters'+(n?'<span class="bv-badge">'+n+'</span>':'');}
-function _cxMenu(open){
-  _cxMenuOpen=open==null?!_cxMenuOpen:!!open;
-  var m=document.getElementById('cx-menu'),b=document.getElementById('cx-menu-btn');
-  if(m)m.hidden=!_cxMenuOpen;
-  if(b)b.setAttribute('aria-expanded',_cxMenuOpen?'true':'false');
-}
-function _cxBtnSync(){
-  var b=document.getElementById('cx-menu-btn');if(!b)return;
-  b.innerHTML=_cxBtnInner();b.classList.toggle('on',!!(_cxF.r||_cxF.fl));
-}
+/* Its one filter, the rating, is a plain dropdown beside the count. */
 var _CX_RATINGS=['LONG','LEAN LONG','NEUTRAL','AVOID'];
 /* The screener's four ratings take the stock ratings' colours, rank for rank. */
 var _CX_RC={'LONG':'BUY','LEAN LONG':'LEAN BUY','NEUTRAL':'HOLD','AVOID':'PASS'};
@@ -15304,11 +15390,8 @@ function _cxHtml(D){
     +'<div class="fm-tabbed">'
     +'<div data-pane="table matrix map">'
     +'<div class="bv-ctl">'
-    +'<button type="button" id="cx-menu-btn" class="bv-menu-btn" onclick="_cxMenu()" aria-haspopup="true" aria-controls="cx-menu" aria-expanded="'+(_cxMenuOpen?'true':'false')+'" aria-label="Currency filters">'+_cxBtnInner()+'</button>'
-    +'<div class="bv-menu" id="cx-menu" role="group" aria-label="Currency filters"'+(_cxMenuOpen?'':' hidden')+'>'
     +'<select onchange="_cxSet(\'r\',this.value)" aria-label="Rating"><option value="">All ratings</option>'+_CX_RATINGS.map(function(r){return '<option value="'+r+'"'+(r===_cxF.r?' selected':'')+'>'+r+'</option>';}).join('')+'</select>'
-    +'<label title="'+_attr((gm.ui&&gm.ui.regime)||'')+'"><input type="checkbox"'+(_cxF.fl?' checked':'')+' onchange="_cxSet(\'fl\',this.checked)"> Floating only</label>'
-    +'<button type="button" onclick="_cxReset()">Reset</button></div><span class="bv-n" id="cx-n"></span></div>'
+    +'<span class="bv-n" id="cx-n"></span></div>'
     +'<div id="cx-body"></div></div>'
     +'<div data-pane="detail" id="cx-det"></div>'
     +'<div data-pane="summary" class="xsect-dashboard">'
@@ -15339,7 +15422,6 @@ function _cxRows(){
   return _CX.rows.filter(function(r){
     if(q&&(r.code+' '+r.name).toLowerCase().indexOf(q)<0)return false;
     if(f.r&&r.rating!==f.r)return false;
-    if(f.fl&&r.regime!=='float')return false;
     return true;
   }).sort(function(a,b){
     var x=a[k],y=b[k],xn=x==null,yn=y==null;
@@ -15488,9 +15570,7 @@ function _cxPick(code){
   _fmSubTab('ccy','detail');
 }
 function _cxSortBy(k){if(k===_cxSortK)_cxDir=-_cxDir;else{_cxSortK=k;_cxDir=-1;}_cxDraw();}
-function _cxSet(k,v){_cxF[k]=v;_cxDraw();_cxBtnSync();}
-/* Reset clears the rating and floating filters; the search has its own ×. */
-function _cxReset(){_cxF={r:'',fl:false};_cxSortK='_composite_score';_cxDir=-1;renderCcyView();}
+function _cxSet(k,v){_cxF[k]=v;_cxDraw();}
 /* A sector page's Value creation tab: its own SPDR. */
 function renderPoolEtf(sec){
   var t=ETF_LT&&ETF_LT.sector_fund&&ETF_LT.sector_fund[sec];
