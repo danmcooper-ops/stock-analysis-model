@@ -106,10 +106,11 @@ MACRO_SERIES = [
          tr='level', fmt='n1', suffix='', good='up', scale=1),
     dict(id='PSAVERT', l='Personal Savings Rate', sec='housing', freq='m',
          tr='level', fmt='pct1', suffix='', good='none', scale=1),
-    # Consumer credit outstanding (revolving + non-revolving, the Fed's G.19;
-    # FRED reports millions of dollars).
-    dict(id='TOTALSL', l='Consumer Credit Outstanding ($T)', sec='housing',
-         freq='m', tr='level', fmt='n2', suffix='', good='none', scale=1e-6),
+    # Consumer credit (revolving + non-revolving, the Fed's G.19), as YoY
+    # growth, since the dollar level only ever climbs.
+    dict(id='TOTALSL', l='Consumer Credit (YoY)', sec='housing', freq='m',
+         tr='yoy', fmt='pct1', suffix='', good='none', scale=1,
+         zero_line=True),
     # --- Commodities ---
     # The price decks Energy and Basic Materials live on, plus the fuel,
     # metal, timber and crop input costs of Utilities, Industrials, airlines,
