@@ -1,4 +1,4 @@
-"""Financial Model › Currencies: the currency screener's report (currencies/'s
+"""Investing › Currencies: the currency screener's report (currencies/'s
 currency_report_<date>.json) staged beside the page and drawn in this
 report's styling. Staging, wiring, the display-only rule, and the renderer
 evaluated in Node with its helpers lifted from the template."""

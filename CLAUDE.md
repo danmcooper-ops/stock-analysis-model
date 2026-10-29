@@ -316,7 +316,7 @@ ruff check .
   +12.5%, CNY +7.6%). For the yfinance-sourced rows the newest year lands
   back near the spot `fx_client` used. Phase 0 found BIS
   real effective rates (`RB<ISO2>BIS`, monthly) for all 32 currencies and
-  OECD 3-month rates for about 20, for the Currencies tab (Financial Model).
+  OECD 3-month rates for about 20, for the Currencies tab (Investing).
 - **Snapshot coverage floor (`data/coverage.py`, `MIN_ROW_RATIO`=0.7):** one
   floor for the database publish (`publish_run` refused that night's 739
   rows — the only guard that asked), the archive and the site. `analyze_stock`
@@ -1025,7 +1025,7 @@ ruff check .
   re-run of a past day leaves it alone. The bond model reads equity snapshots
   from this repo's `output/` by default. Their standalone repos and 17:00
   scheduled tasks keep publishing until cutover, then get archived.
-- **Currencies (Financial Model's fifth sub-tab, 2026-10-28):** the currency
+- **Currencies (Investing's fifth sub-tab, 2026-10-28):** the currency
   screener's own page, drawn in this report's styling. `currencies/`'s
   `build_html` writes `output/currency_report_<date>.json` beside its page
   (rows, gate metadata with every tooltip, provenance and the world basemap;
@@ -1039,7 +1039,7 @@ ruff check .
   LONG / NEUTRAL / AVOID take BUY / LEAN BUY / HOLD / PASS colours) without
   the stock table's fixed column offsets. Display only, like bonds. Tests:
   `tests/test_report_currency_tab.py`, `currencies/tests/test_report_data.py`.
-- **Bonds (Financial Model's fourth sub-tab, 2026-10-27):** the
+- **Bonds (Investing's fourth sub-tab, 2026-10-27):** the
   bond model's report (`bonds/`), drawn in this report's styling and
   meant to replace that repo's own HTML page. The bond model's
   `report_html.py` writes `output/bond_report_<date>.json` beside its page:
@@ -1053,7 +1053,7 @@ ruff check .
   lazy-loaded when the tab opens; `run_daily.sh` publish ships it like
   `macro.json`) and inlines only `BOND_META` (`{date, total}`); no report, or
   another version, removes a stale `bonds.json` and the tab says so. The
-  Financial Model's ETFs, Bonds and Currencies tabs each open on their
+  Investing's ETFs, Bonds and Currencies tabs each open on their
   table; tiles, charts and notes sit in sub-tabs in the sector page's row
   (`_fmBar`/`_fmApply`: ETFs Table/Detail/Notes, Bonds
   Table/Summary/Charts/Notes, Currencies Screener/Gate Matrix/Map/Detail/

@@ -31,7 +31,7 @@
 #   sidemodels start the bond model (bonds/) and the currency screener
 #              (currencies/) in the background, each in its own folder on its
 #              own interpreter; the enrich step's re-render waits for them (at
-#              most 30 min) and draws their reports as Financial Model › Bond
+#              most 30 min) and draws their reports as Investing › Bond
 #              Valuations and Currencies                    (non-blocking)
 #   analyze    analyze_stock.py                            (BLOCKING), then the
 #              companyfacts cache backup to Supabase Storage (non-blocking)
@@ -564,10 +564,10 @@ publish() {
   # macro.json is optional; never publish yesterday's under today's HTML.
   if [ -f output/macro.json ]; then cp output/macro.json "$docs/macro.json" || return 1
   else rm -f "$docs/macro.json"; fi
-  # bonds.json (Financial Model › Bond Valuations) is optional the same way.
+  # bonds.json (Investing › Bond Valuations) is optional the same way.
   if [ -f output/bonds.json ]; then cp output/bonds.json "$docs/bonds.json" || return 1
   else rm -f "$docs/bonds.json"; fi
-  # currencies.json (Financial Model › Currencies) likewise.
+  # currencies.json (Investing › Currencies) likewise.
   if [ -f output/currencies.json ]; then cp output/currencies.json "$docs/currencies.json" || return 1
   else rm -f "$docs/currencies.json"; fi
   # paper.json (Portfolios › the paper portfolio's Paper account tab): only

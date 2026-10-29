@@ -34,7 +34,7 @@ as `from data import ...` / `from models import ...`.
   these. The parent's nightly `scripts/run_daily.sh` runs
   `analyze_currencies.py` (step `sidemodels`, 17:00 weekdays) and draws
   `output/currency_report_<date>.json` (written beside the page by
-  `build_html`) as Financial Model › Currencies. The workflow below lives on
+  `build_html`) as Investing › Currencies. The workflow below lives on
   in the standalone repo until cutover; the parent runs only its root
   workflows.
 - **Publishing (standalone)** is GitHub Actions only (`build.yml`); the github-pages

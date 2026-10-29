@@ -434,7 +434,7 @@ def test_portfolio_page_way_back_sits_under_the_sub_tabs():
 
 
 def test_financial_model_has_stock_and_etf_valuations_tabs():
-    """Financial Model's sub-tabs read Dashboard, Stocks (the gate
+    """Investing's sub-tabs read Dashboard, Stocks (the gate
     matrix), ETFs (the SPDRs read through the model, moved off
     the Sector Analysis Charts tab so the table appears once) and Bonds (tests/test_report_bond_tab.py), then Currencies
     (tests/test_report_currency_tab.py)."""

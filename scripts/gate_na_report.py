@@ -3,7 +3,7 @@
 Report per-gate N/A coverage for a results snapshot.
 
 For every model gate column, counts the records whose raw gate value
-(``_gate_<name>``) is None — rendered as "N/A" in the report's Financial Model
+(``_gate_<name>``) is None — rendered as "N/A" in the report's Investing
 matrix — and prints the percentage of the universe affected. That N/A is split
 in two, because the two score differently (``scripts/scoring.py``):
 
