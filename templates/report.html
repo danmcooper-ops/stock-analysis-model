@@ -1424,7 +1424,9 @@ circle.etfc-spy{fill:var(--etfc-s);}
    controls are Bonds'. */
 #cx{--cx-na:#e3e7ec;--cx-cell:#fff;--cx-edge:#e8e8e8;--cx-hov:#eaf4fd;}
 [data-theme="dark"] #cx{--cx-na:#2b3138;--cx-cell:#161b22;--cx-edge:#21262d;--cx-hov:#1f3a5c;}
-#cx .cx-tabs{margin:14px 0 10px;}
+/* Financial Model's ETFs/Bonds/Currencies panes (_fmApply sets hidden). */
+.fm-tabbed>[hidden]{display:none !important;}
+.fm-tbl{background:var(--ppf-bg);}
 #cx .cx-wrap{overflow:auto;max-height:74vh;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.07);-webkit-overflow-scrolling:touch;margin-bottom:4px;}
 #cx .cx-tbl{border-collapse:separate;border-spacing:0;min-width:100%;background:var(--cx-cell);font-size:0.78em;white-space:nowrap;}
 #cx .cx-tbl th{padding:7px 10px;font-size:0.82em;font-weight:700;text-align:center;border:1px solid #ccc;border-width:0 1px 1px 0;cursor:pointer;user-select:none;}
@@ -7639,6 +7641,8 @@ function _mShow(){
 function renderEtfView(){
   var ev=document.getElementById('m-etf-view');if(!ev)return;
   ev.innerHTML=renderEtfLookthrough()||'<p style="color:#888;padding:20px;font-size:0.9em">No ETF holdings are archived for this run.</p>';
+  _fmApply(ev,_FM_SUB.etf);
+  if(_FM_SUB.etf==='detail')_etfcDrawAll(ev);
 }
 function renderOverview(){
   var ov=document.getElementById('m-overview-view');if(!ov)return;
@@ -12325,6 +12329,7 @@ function navDet(dir){var idx=_detIdx+dir;if(idx<0||idx>=_detNav.length)return;op
 function _innerSubTabs(){
   if(curView==='pool')return document.querySelector('#pool-chart-area .pp-subtabs');
   if(curView==='pf')return document.querySelector('#pf-view .pp-subtabs');
+  if(curView==='matrix'&&/^(etf|bond|ccy)$/.test(curMSub))return document.querySelector('#m-'+curMSub+'-view .pp-subtabs');
   return null;
 }
 function _swipeTab(dir){
@@ -14425,6 +14430,44 @@ function _ppEpRows(list,cls,maxV){
       +'</div>';
   }).join('');
 }
+/* Financial Model's ETFs, Bonds and Currencies open on their table; every
+   chart, tile and note sits in a sub-tab beside it, in the sector page's
+   sub-tab row (d-stmt-tabs + .pp-subtabs). Each view's panes are rendered
+   together and shown one at a time (_fmApply), so a switch redraws nothing
+   but a chart that needs its width. The choice is kept per view and visit
+   (localStorage stock_fm_subtab_v1). */
+var _FM_SUB=(function(){
+  var d={etf:'table',bond:'table',ccy:'table'};
+  try{var v=JSON.parse(localStorage.getItem('stock_fm_subtab_v1')||'{}');Object.keys(d).forEach(function(k){if(typeof v[k]==='string')d[k]=v[k];});}catch(e){}
+  return d;
+})();
+function _fmBar(view,tabs,label){
+  var cur=_FM_SUB[view];
+  if(!tabs.some(function(t){return t[0]===cur;}))cur=_FM_SUB[view]=tabs[0][0];
+  return '<div class="d-stmt-tabs sa-chrome pp-subtabs fm-subtabs" role="tablist" aria-label="'+_attr(label)+'">'+tabs.map(function(t){
+    var on=t[0]===cur;
+    return '<button type="button" role="tab" class="d-stmt-tab'+(on?' cur':'')+'" aria-selected="'+on+'" data-k="'+t[0]+'" onclick="_fmSubTab(\''+view+'\',\''+t[0]+'\')">'+_esc(t[1])+'</button>';
+  }).join('')+'</div>';
+}
+/* Show the pane a tab names: a pane lists every tab it serves (data-pane
+   "table matrix map" for the currency grid). */
+function _fmApply(root,k){
+  if(!root)return;
+  [].forEach.call(root.querySelectorAll('.fm-tabbed>[data-pane]'),function(p){p.hidden=(' '+p.getAttribute('data-pane')+' ').indexOf(' '+k+' ')<0;});
+  [].forEach.call(root.querySelectorAll('.fm-subtabs .d-stmt-tab'),function(b){
+    var on=b.getAttribute('data-k')===k;b.classList.toggle('cur',on);b.setAttribute('aria-selected',on?'true':'false');
+  });
+}
+function _fmSubTab(view,k){
+  _FM_SUB[view]=k;
+  try{localStorage.setItem('stock_fm_subtab_v1',JSON.stringify(_FM_SUB));}catch(e){}
+  var root=document.getElementById('m-'+view+'-view');
+  if(view==='ccy'){_cxView=k;if(k==='table'||k==='matrix'||k==='map')_cxDraw();}
+  _fmApply(root,k);
+  if(view==='etf'&&k==='detail')_etfcDrawAll(root);
+  var bar=root&&root.querySelector('.fm-subtabs');
+  if(bar&&bar.getBoundingClientRect().top<0)bar.scrollIntoView({block:'start'});
+}
 /* === SECTOR ETFs ===
    Each SPDR read through the model: V = sum of weight x FV/P over its
    holdings (clipped to [1/3, 3]), shown relative to SPY because the model's
@@ -14490,7 +14533,8 @@ function _etfDetail(r,corner){
   h+=corner?_noteQ(note,'About this read'):'<div class="etf-note">'+note+'</div>';
   return h+'</div>';
 }
-function _etfPick(t){_etfSel=t;var el=document.getElementById('etf-lt');if(el)el.outerHTML=renderEtfLookthrough();}
+/* A row opens that fund's Detail tab. */
+function _etfPick(t){_etfSel=t;renderEtfView();_fmSubTab('etf','detail');}
 /* Financial Model › ETFs: every fund, best relative value first. */
 function renderEtfLookthrough(){
   if(!ETF_LT||!ETF_LT.funds)return '';
@@ -14500,11 +14544,9 @@ function renderEtfLookthrough(){
     return (y.status==='ok')-(x.status==='ok')||((y.rel==null?-9:y.rel)-(x.rel==null?-9:x.rel));
   });
   if(!_etfSel||!F[_etfSel])_etfSel=ETF_LT.base in F?ETF_LT.base:ids[0];
-  var h='<div class="xsect-dashboard" id="etf-lt">'
-    +_qHelp('<span class="note-q-t">Each fund is valued as the sum of its holdings’ fair values per dollar of price (FV/P, each held to between ⅓ and 3). Because the model values the market as a whole below its price, the fund is compared with '+ETF_LT.base+' rather than read on its own. The outlined box is the range between counting holdings with no fair value at FV/P 1 and at ⅓. A holding that lost its fair value today keeps its last one from the previous week.</span>','How to read this','corner')
-    +'<div class="sec-label">Sector ETFs Through the Model</div>'
-    +'<div class="xsect-sub">The SPDRs valued from the companies they hold. '+(base&&base.status==='ok'?ETF_LT.base+' itself reads '+_etfPct(base.mos)+' on the model. ':'')+'Tap a fund to see what moves its read.</div>'
-    +'<div class="ppi-wrap"><table class="ppi-tbl"><thead><tr><th>Fund</th><th class="etf-sm-hide">Sector</th><th>Value vs '+ETF_LT.base+'</th><th>Model MoS</th><th>Has fair value</th></tr></thead><tbody>';
+  var h='<div id="etf-lt">'+_fmBar('etf',[['table','Table'],['detail','Detail · '+_etfSel],['notes','Notes']],'ETF sections')
+    +'<div class="fm-tabbed">'
+    +'<div data-pane="table"><div class="ppi-wrap fm-tbl"><table class="ppi-tbl"><thead><tr><th>Fund</th><th class="etf-sm-hide">Sector</th><th>Value vs '+ETF_LT.base+'</th><th>Model MoS</th><th>Has fair value</th></tr></thead><tbody>';
   ids.forEach(function(t){
     var r=F[t];
     h+='<tr class="ppi-co'+(t===_etfSel?' etf-sel':'')+'" data-tk="'+_attr(t)+'" onclick="_etfPick(this.dataset.tk)" title="'+_attr(r.fund_name||t)+'">'
@@ -14513,7 +14555,16 @@ function renderEtfLookthrough(){
       +'<td>'+(r.status==='ok'?_etfPct(r.mos):'—')+'</td>'
       +'<td>'+(r.valued_w!=null?(r.valued_w*100).toFixed(0)+'%':'—')+'</td></tr>';
   });
-  h+='</tbody></table></div>'+_etfDetail(F[_etfSel])+'</div>';
+  h+='</tbody></table></div></div>'
+    +'<div data-pane="detail" class="xsect-dashboard"><div class="sec-label">'+_esc(_etfSel)+'</div>'
+    +'<div class="xsect-sub">'+_esc((F[_etfSel]&&F[_etfSel].fund_name)||'')+' · pick another fund in the Table</div>'
+    +_etfcBox(_etfSel)+_etfDetail(F[_etfSel])+'</div>'
+    +'<div data-pane="notes" class="xsect-dashboard"><div class="sec-label">Sector ETFs Through the Model</div>'
+    +'<div class="xsect-sub">The SPDRs valued from the companies they hold. '+(base&&base.status==='ok'?ETF_LT.base+' itself reads '+_etfPct(base.mos)+' on the model.':'')+'</div>'
+    +'<div class="etf-detail fm-notes"><p>Each fund is valued as the sum of its holdings’ fair values per dollar of price (FV/P, each held to between ⅓ and 3). Because the model values the market as a whole below its price, the fund is compared with '+ETF_LT.base+' rather than read on its own.</p>'
+    +'<p>In the Table, the bar is the fund’s value against '+ETF_LT.base+'; the outlined box is the range between counting holdings with no fair value at FV/P 1 and at ⅓. A holding that lost its fair value today keeps its last one from the previous week. Tap a fund for what moves its read.</p>'
+    +'<p>Display only: no fund is rated.</p></div></div>'
+    +'</div></div>';
   return h;
 }
 /* Financial Model › Bonds: the bond model's report
@@ -14540,6 +14591,7 @@ function renderBondView(){
     return;
   }
   bv.innerHTML=_bvHtml(_BV);
+  _fmApply(bv,_FM_SUB.bond);
   _bvDraw();
 }
 function _bvCls(v){return _esc(String(v).replace('TREASURY_BILL','T-BILL').replace('TREASURY','TSY').replace('CORP_',''));}
@@ -14604,24 +14656,12 @@ function _bvCard(title,tip,body){
 }
 function _bvHtml(D){
   var T=D.tips||{},N=D.notes||{},total=(D.total||0).toLocaleString();
-  var h='<div class="xsect-dashboard" id="bv">'
-    +'<div class="sec-label">Bonds</div>'
-    +'<div class="xsect-sub">Run '+_esc(D.run_date)+' · curve '+_esc(D.curve_date)+' · '+total+' instruments · US Treasuries and corporate bonds · free data only</div>'
-    +'<div class="pp-tiles bv-tiles">'+(D.cards||[]).map(function(c){return '<div class="pp-tile" title="'+_attr(c.t)+'"><span>'+_esc(c.k)+'</span><b>'+_esc(c.v)+'</b></div>';}).join('')+'</div>';
-  if(D.vintage)h+='<div class="bv-warn"><h4>Marks are '+D.vintage.age_days+' days old</h4><p>The newest fund mark in this dataset is dated '+_esc(D.vintage.date)+'. A newer quarterly N-PORT release is due or already published but not yet loaded; until it is, every price here leans harder on the curve overlay.</p></div>';
-  h+='<div class="bv-warn"><h4>What this is, and what it is not</h4><ul>'+(D.caveats||[]).map(function(c){return '<li><b>'+_esc(c.lead)+'</b> '+_esc(c.text)+'</li>';}).join('')+'</ul></div>';
   var bt=D.bucket_tips||{};
-  h+='<div class="bv-grid">'
-    +_bvCard('Rating distribution',T.ratings,_bvDist(D.ratings,{total:D.total,col:function(r){return RC[r]||'#888';}}))
-    +_bvCard('Implied credit bucket',T.buckets,_bvDist(D.buckets,{tip:function(b){return bt[b];}}))
-    +_bvCard('Treasury par curve',T.curve,_bvLine([{name:'Treasury par curve',points:D.curve||[]}],'pct'))
-    +_bvCard('Spread term structure, fitted vs FRED',T.term,_bvLine(D.term||[],'x')+(N.term?'<p class="bv-note">'+_esc(N.term)+'</p>':''))
-    +_bvCard('Why rows are capped',T.caps,_bvDist(D.cap_reasons,{col:function(){return 'var(--bv-warn)';},val:function(v){return v.toLocaleString();}}))
-    +_bvCard('Mean score by category',T.categories,_bvDist((D.categories||[]).map(function(c){return [c.label,c.mean];}),{top:100,val:function(v){return Math.round(v);}})+(N.categories?'<p class="bv-note">'+_esc(N.categories)+'</p>':''))
-    +'</div>';
   var cls={};(D.rows||[]).forEach(function(r){var v=r[_bvIdx().asset_class];if(v)cls[v]=1;});
   var opt=function(v,l,cur){return '<option value="'+_attr(v)+'"'+(v===cur?' selected':'')+'>'+l+'</option>';};
-  h+='<div class="sec-label">All '+total+' Instruments</div>'
+  var h='<div id="bv">'+_fmBar('bond',[['table','Table'],['summary','Summary'],['charts','Charts'],['notes','Notes'+(D.vintage?' ⚠':'')]],'Bond sections')
+    +'<div class="fm-tabbed">'
+    +'<div data-pane="table">'
     +'<div class="bv-ctl">'
     +'<input type="search" id="bv-q" placeholder="Search CUSIP or issuer…" value="'+_attr(_bvF.q)+'" oninput="_bvSet(\'q\',this.value)" aria-label="Search CUSIP or issuer">'
     +'<select onchange="_bvSet(\'r\',this.value)" aria-label="Rating">'+opt('','All ratings',_bvF.r)+['BUY','LEAN BUY','HOLD','PASS'].map(function(r){return opt(r,r,_bvF.r);}).join('')+'</select>'
@@ -14630,9 +14670,27 @@ function _bvHtml(D){
     +'<label><input type="checkbox"'+(_bvF.u?' checked':'')+' onchange="_bvSet(\'u\',this.checked)"> Uncapped only</label>'
     +'<button type="button" onclick="_bvReset()">Reset</button>'
     +'<span class="bv-n" id="bv-n"></span></div>'
-    +'<div class="ppi-wrap bv-wrap"><table class="ppi-tbl bv-tbl"><thead><tr id="bv-head"></tr></thead><tbody id="bv-body"></tbody></table></div>'
-    +'<div class="bv-note">Click a header to sort; hover one for what it means. Showing the first '+_BV_LIMIT.toLocaleString()+' matching rows; narrow the filters to see the rest.</div>'
-    +'<div class="etf-note">Sources: '+_esc(D.sources||'')+' Generated '+_esc(D.generated||'')+' by the bond analysis model. Not investment advice. Display only: nothing here changes a stock rating.</div>';
+    +'<div class="ppi-wrap bv-wrap fm-tbl"><table class="ppi-tbl bv-tbl"><thead><tr id="bv-head"></tr></thead><tbody id="bv-body"></tbody></table></div>'
+    +'</div>'
+    +'<div data-pane="summary" class="xsect-dashboard"><div class="sec-label">Bonds</div>'
+    +'<div class="xsect-sub">Run '+_esc(D.run_date)+' · curve '+_esc(D.curve_date)+' · '+total+' instruments · US Treasuries and corporate bonds · free data only</div>'
+    +'<div class="pp-tiles bv-tiles">'+(D.cards||[]).map(function(c){return '<div class="pp-tile" title="'+_attr(c.t)+'"><span>'+_esc(c.k)+'</span><b>'+_esc(c.v)+'</b></div>';}).join('')+'</div>'
+    +'<div class="bv-grid">'
+    +_bvCard('Rating distribution',T.ratings,_bvDist(D.ratings,{total:D.total,col:function(r){return RC[r]||'#888';}}))
+    +_bvCard('Implied credit bucket',T.buckets,_bvDist(D.buckets,{tip:function(b){return bt[b];}}))
+    +_bvCard('Why rows are capped',T.caps,_bvDist(D.cap_reasons,{col:function(){return 'var(--bv-warn)';},val:function(v){return v.toLocaleString();}}))
+    +_bvCard('Mean score by category',T.categories,_bvDist((D.categories||[]).map(function(c){return [c.label,c.mean];}),{top:100,val:function(v){return Math.round(v);}})+(N.categories?'<p class="bv-note">'+_esc(N.categories)+'</p>':''))
+    +'</div></div>'
+    +'<div data-pane="charts" class="xsect-dashboard"><div class="bv-grid">'
+    +_bvCard('Treasury par curve',T.curve,_bvLine([{name:'Treasury par curve',points:D.curve||[]}],'pct'))
+    +_bvCard('Spread term structure, fitted vs FRED',T.term,_bvLine(D.term||[],'x')+(N.term?'<p class="bv-note">'+_esc(N.term)+'</p>':''))
+    +'</div></div>'
+    +'<div data-pane="notes" class="xsect-dashboard">';
+  if(D.vintage)h+='<div class="bv-warn"><h4>Marks are '+D.vintage.age_days+' days old</h4><p>The newest fund mark in this dataset is dated '+_esc(D.vintage.date)+'. A newer quarterly N-PORT release is due or already published but not yet loaded; until it is, every price here leans harder on the curve overlay.</p></div>';
+  h+='<div class="bv-warn"><h4>What this is, and what it is not</h4><ul>'+(D.caveats||[]).map(function(c){return '<li><b>'+_esc(c.lead)+'</b> '+_esc(c.text)+'</li>';}).join('')+'</ul></div>'
+    +'<div class="bv-note">In the Table, click a header to sort; hover one for what it means. It shows the first '+_BV_LIMIT.toLocaleString()+' matching rows; narrow the filters to see the rest.</div>'
+    +'<div class="etf-note">Sources: '+_esc(D.sources||'')+' Generated '+_esc(D.generated||'')+' by the bond analysis model. Not investment advice. Display only: nothing here changes a stock rating.</div>'
+    +'</div></div>';
   return h+'</div>';
 }
 function _bvIdx(){
@@ -14675,7 +14733,8 @@ function _bvDraw(){
     }).join('')+'</tr>';
   }).join('');
   var n=document.getElementById('bv-n');
-  if(n)n.textContent=rows.length.toLocaleString()+' match'+(rows.length===1?'':'es')+(rows.length>_BV_LIMIT?' (showing '+_BV_LIMIT.toLocaleString()+')':'');
+  if(n)n.textContent=rows.length.toLocaleString()+' match'+(rows.length===1?'':'es')+(rows.length>_BV_LIMIT?' (showing '+_BV_LIMIT.toLocaleString()+')':'')
+    +(_BV.vintage?' · marks '+_BV.vintage.age_days+' days old (Notes)':'');
 }
 function _bvSortBy(k){if(k===_bvSortK)_bvAsc=!_bvAsc;else{_bvSortK=k;_bvAsc=false;}_bvDraw();}
 function _bvSet(k,v){_bvF[k]=v;_bvDraw();}
@@ -14687,11 +14746,11 @@ function _bvReset(){_bvF={q:'',r:'',c:'',b:'',u:false};renderBondView();}
    Every number, gate and tooltip is the screener's own; this only draws it.
    Display only: no currency reaches the stock rows, a rating or a filter. */
 var _CX=null,_CX_LOADING=false,_CX_FAILED=false;
-var _cxView='table',_cxSortK='_composite_score',_cxDir=-1,_cxF={q:'',r:'',fl:false},_cxSel=null;
+var _cxView=_FM_SUB.ccy,_cxSortK='_composite_score',_cxDir=-1,_cxF={q:'',r:'',fl:false},_cxSel=null;
 var _CX_RATINGS=['LONG','LEAN LONG','NEUTRAL','AVOID'];
 /* The screener's four ratings take the stock ratings' colours, rank for rank. */
 var _CX_RC={'LONG':'BUY','LEAN LONG':'LEAN BUY','NEUTRAL':'HOLD','AVOID':'PASS'};
-var _CX_VIEWS=[['table','Screener'],['matrix','Gate Matrix'],['map','Map']];
+var _CX_VIEWS=[['table','Screener'],['matrix','Gate Matrix'],['map','Map'],['detail','Detail'],['summary','Summary']];
 /* k=field, t=title, f=format, l=left-aligned, s=hidden on phones */
 var _CX_COLS=[
   {k:'code',t:'CCY',f:'code',l:1},
@@ -14729,6 +14788,7 @@ function renderCcyView(){
     return;
   }
   cv.innerHTML=_cxHtml(_CX);
+  _fmApply(cv,_cxView);
   _cxDraw();
 }
 function _cxPrep(d){
@@ -14784,7 +14844,17 @@ function _cxHtml(D){
   var capped=D.rows.filter(function(r){return r._rating_cap&&r.rating!==r.rating_raw;}).length;
   var top=D.rows.filter(function(r){return _cxNum(r._composite_score);}).sort(function(a,b){return b._composite_score-a._composite_score;})[0];
   var th=gm.thresholds||{};
-  var h='<div class="xsect-dashboard" id="cx">'
+  var h='<div id="cx">'+_fmBar('ccy',_CX_VIEWS,'Currency sections')
+    +'<div class="fm-tabbed">'
+    +'<div data-pane="table matrix map">'
+    +'<div class="bv-ctl">'
+    +'<input type="search" placeholder="Search code or name…" value="'+_attr(_cxF.q)+'" oninput="_cxSet(\'q\',this.value)" aria-label="Search code or name">'
+    +'<select onchange="_cxSet(\'r\',this.value)" aria-label="Rating"><option value="">All ratings</option>'+_CX_RATINGS.map(function(r){return '<option value="'+r+'"'+(r===_cxF.r?' selected':'')+'>'+r+'</option>';}).join('')+'</select>'
+    +'<label title="'+_attr((gm.ui&&gm.ui.regime)||'')+'"><input type="checkbox"'+(_cxF.fl?' checked':'')+' onchange="_cxSet(\'fl\',this.checked)"> Floating only</label>'
+    +'<button type="button" onclick="_cxReset()">Reset</button><span class="bv-n" id="cx-n"></span></div>'
+    +'<div id="cx-body"></div></div>'
+    +'<div data-pane="detail" id="cx-det"></div>'
+    +'<div data-pane="summary" class="xsect-dashboard">'
     +'<div class="sec-label">Currencies</div>'
     +'<div class="xsect-sub">Run '+_esc(D.run_date)+' · '+D.total+' currencies ranked rich to cheap on '+gm.gates.length+' gates in '+gm.categories.length+' weighted pillars · ECB, BIS and World Bank data</div>'
     +'<div class="pp-tiles bv-tiles">'
@@ -14794,16 +14864,10 @@ function _cxHtml(D){
     +(top?'<div class="pp-tile" title="Highest composite score."><span>Top ranked</span><b>'+_esc(top.code)+' · '+top._composite_score.toFixed(0)+'</b></div>':'')
     +'<div class="pp-tile" title="Rows whose rating was capped below what the score reads (pegs, the base currency, thin data, very high inflation)."><span>Capped</span><b>'+capped+'</b></div>'
     +'</div>'
-    +'<div class="d-stmt-tabs sa-chrome cx-tabs" role="tablist" aria-label="Currency views">'
-    +_CX_VIEWS.map(function(v){var on=v[0]===_cxView;return '<button type="button" role="tab" class="d-stmt-tab'+(on?' cur':'')+'" aria-selected="'+on+'" onclick="_cxSetView(\''+v[0]+'\')">'+v[1]+'</button>';}).join('')
-    +'</div>'
-    +'<div class="bv-ctl">'
-    +'<input type="search" placeholder="Search code or name…" value="'+_attr(_cxF.q)+'" oninput="_cxSet(\'q\',this.value)" aria-label="Search code or name">'
-    +'<select onchange="_cxSet(\'r\',this.value)" aria-label="Rating"><option value="">All ratings</option>'+_CX_RATINGS.map(function(r){return '<option value="'+r+'"'+(r===_cxF.r?' selected':'')+'>'+r+'</option>';}).join('')+'</select>'
-    +'<label title="'+_attr((gm.ui&&gm.ui.regime)||'')+'"><input type="checkbox"'+(_cxF.fl?' checked':'')+' onchange="_cxSet(\'fl\',this.checked)"> Floating only</label>'
-    +'<button type="button" onclick="_cxReset()">Reset</button><span class="bv-n" id="cx-n"></span></div>'
-    +'<div id="cx-body"></div><div id="cx-det"></div>'
-    +'<div class="etf-note">'+_cxProv(D)+' Built by the currency screener (currencies/). Not investment advice. Display only: nothing here changes a stock rating.</div>';
+    +'<div class="bv-note">Screener: click a row for its gate-by-gate breakdown (Detail); hover a header for what it measures. Pillar scores are 0–100; the composite is their weighted average over the pillars that apply to that currency.</div>'
+    +'<div class="bv-note">Gate Matrix: green passes the gate, red fails, grey is not applicable: either the data is missing (scored 0, kept in the pillar) or the gate cannot describe this currency (left out of the pillar), as for a peg’s volatility or the dollar’s carry against itself.</div>'
+    +'<div class="etf-note">'+_cxProv(D)+' Built by the currency screener (currencies/). Not investment advice. Display only: nothing here changes a stock rating.</div>'
+    +'</div></div>';
   return h+'</div>';
 }
 function _cxProv(D){
@@ -14850,7 +14914,7 @@ function _cxTable(rows){
       return '<td class="'+cls+'">'+_cxCell(r,c)+'</td>';
     }).join('')+'</tr>';
   }).join('')||'<tr><td colspan="'+_CX_COLS.length+'" class="cx-l">No currencies match these filters.</td></tr>';
-  return h+'</tbody></table></div><div class="bv-note">Click a row for its gate-by-gate breakdown; hover a header for what it measures. Pillar scores are 0–100; the composite is their weighted average over the pillars that apply to that currency.</div>';
+  return h+'</tbody></table></div>';
 }
 function _cxMatrix(rows){
   var cats=_CX.gate_meta.categories;
@@ -14880,7 +14944,7 @@ function _cxMatrix(rows){
     });
     return t+'</tr>';
   }).join('');
-  return h+'</tbody></table></div><div class="bv-note">Green passes the gate, red fails, grey is not applicable: either the data is missing (scored 0, kept in the pillar) or the gate cannot describe this currency (left out of the pillar), as for a peg’s volatility or the dollar’s carry against itself.</div>';
+  return h+'</tbody></table></div>';
 }
 function _cxMapHtml(){
   var lg='<span>Composite score</span>';
@@ -14927,9 +14991,9 @@ function _cxKv(label,val,tip){
 function _cxDetail(){
   var host=document.getElementById('cx-det');if(!host)return;
   var r=_cxSel&&_CX.byCode[_cxSel];
-  if(!r){host.innerHTML='';return;}
+  if(!r){host.innerHTML='<div class="xsect-dashboard"><p class="bv-note">Pick a currency in the Screener, Gate Matrix or Map to see its gate-by-gate breakdown here.</p></div>';return;}
   var gm=_CX.gate_meta,ui=gm.ui||{};
-  var h='<div class="cx-det"><div class="cx-dhead"><h3>'+_esc(r.code)+' · '+_esc(r.name)+'</h3><button type="button" class="cx-x" onclick="_cxPick(null)" aria-label="Close">×</button></div>'
+  var h='<div class="cx-det xsect-dashboard"><div class="cx-dhead"><h3>'+_esc(r.code)+' · '+_esc(r.name)+'</h3></div>'
     +'<div class="cx-dsub">'+_cxPill(r)+' composite <b>'+(_cxNum(r._composite_score)?r._composite_score.toFixed(1):'n/a')+'</b> · gates '+_esc(r._gates_passed||'—')+' · coverage '+(_cxNum(r._data_coverage_score)?r._data_coverage_score.toFixed(0)+'%':'n/a')+' · '+_esc(r.regime||'')+'</div>';
   if(r._rating_cap&&r._rating_cap_reasons&&r._rating_cap_reasons.length)
     h+='<div class="bv-warn"><h4>Flag: rating capped at '+_esc(r._rating_cap)+' (score reads '+_esc(r.rating_raw)+')</h4><p>'+r._rating_cap_reasons.map(_esc).join('; ')+'</p></div>';
@@ -14959,16 +15023,15 @@ function _cxDetail(){
     +'</div></div><p class="bv-note">A dash is not applicable: either the data is missing, or the gate cannot describe this currency.</p></div>';
   host.innerHTML=h;
 }
+/* A row (or a country on the map) opens that currency's Detail tab. */
 function _cxPick(code){
-  _cxSel=code===_cxSel?null:code;
-  _cxDraw();
-  var d=document.querySelector('#cx-det .cx-det');
-  if(d&&d.scrollIntoView)d.scrollIntoView({behavior:'smooth',block:'nearest'});
+  _cxSel=code;
+  _cxDetail();
+  _fmSubTab('ccy','detail');
 }
-function _cxSetView(v){_cxView=v;renderCcyView();}
 function _cxSortBy(k){if(k===_cxSortK)_cxDir=-_cxDir;else{_cxSortK=k;_cxDir=-1;}_cxDraw();}
 function _cxSet(k,v){_cxF[k]=v;_cxDraw();}
-function _cxReset(){_cxF={q:'',r:'',fl:false};_cxSortK='_composite_score';_cxDir=-1;_cxSel=null;renderCcyView();}
+function _cxReset(){_cxF={q:'',r:'',fl:false};_cxSortK='_composite_score';_cxDir=-1;renderCcyView();}
 /* A sector page's Value creation tab: its own SPDR. */
 function renderPoolEtf(sec){
   var t=ETF_LT&&ETF_LT.sector_fund&&ETF_LT.sector_fund[sec];

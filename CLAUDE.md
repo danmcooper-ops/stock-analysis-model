@@ -1053,6 +1053,11 @@ ruff check .
   lazy-loaded when the tab opens; `run_daily.sh` publish ships it like
   `macro.json`) and inlines only `BOND_META` (`{date, total}`); no report, or
   another version, removes a stale `bonds.json` and the tab says so. The
+  Financial Model's ETFs, Bonds and Currencies tabs each open on their
+  table; tiles, charts and notes sit in sub-tabs in the sector page's row
+  (`_fmBar`/`_fmApply`: ETFs Table/Detail/Notes, Bonds
+  Table/Summary/Charts/Notes, Currencies Screener/Gate Matrix/Map/Detail/
+  Summary; a row opens Detail; kept per view in `stock_fm_subtab_v1`). The
   template (`renderBondView`, `_bv*`) draws it with `pp-tiles`, `sec-label`
   sections, cards and a sortable `ppi-tbl` (header tooltips through the
   shared `data-col-tip-body` path), and filters/sorts/limits to 1,000 rows as

@@ -128,7 +128,8 @@ def _render(after):
     block = src[start:src.index('\n/* A sector page', start)]
     pick = [re.search(p, src, re.M).group(0) for p in (
         r'^function _attr\(s\)\{.*?\}$', r"^var RC=\{.*?\};$")]
-    js = '\n'.join([_fn_src('_esc', src), *pick, block,
+    fm = src[src.index('var _FM_SUB='):src.index('function _fmApply(')]
+    js = '\n'.join([_fn_src('_esc', src), *pick, fm, block,
                     f'_CX=_cxPrep({json.dumps(REPORT)});', after])
     return subprocess.run(['node', '-e', js], capture_output=True, text=True, check=True).stdout
 
@@ -139,8 +140,13 @@ def test_render_draws_the_header_tiles_and_views():
     assert '<span>LONG</span><b>1</b>' in html and '<span>NEUTRAL</span><b>1</b>' in html
     assert '<span>Top ranked</span><b>HKD · 66</b>' in html
     assert '<span>Capped</span><b>1</b>' in html
-    for v in ('Screener', 'Gate Matrix', 'Map'):
+    for v in ('Screener', 'Gate Matrix', 'Map', 'Detail', 'Summary'):
         assert '>' + v + '</button>' in html
+    # Opens on the table: the grid pane serves the three table-like tabs;
+    # the tiles and notes are the Summary tab's.
+    assert re.findall(r'<div data-pane="([\w ]+)"', html) == ['table matrix map', 'detail', 'summary']
+    grid = html.split('<div data-pane="table matrix map">')[1].split('data-pane="detail"')[0]
+    assert 'pp-tile' not in grid and 'bv-note' not in grid
 
 
 def test_table_matrix_and_detail():
