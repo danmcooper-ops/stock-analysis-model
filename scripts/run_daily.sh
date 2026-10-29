@@ -570,6 +570,10 @@ publish() {
   # currencies.json (Financial Model › Currencies) likewise.
   if [ -f output/currencies.json ]; then cp output/currencies.json "$docs/currencies.json" || return 1
   else rm -f "$docs/currencies.json"; fi
+  # paper.json (Portfolios › the paper portfolio's Paper account tab): only
+  # this machine has the paper bot's records; public by choice.
+  if [ -f output/paper.json ]; then cp output/paper.json "$docs/paper.json" || return 1
+  else rm -f "$docs/paper.json"; fi
   rm -f "$docs/prices.json"   # retired 2026-08-11
   rm -f "$docs/hist.json" "$docs/details.json"   # split into hist/ and details/ (P4c)
   "$VPY" scripts/publish_vol_shards.py || { echo "publish: shard sync failed"; return 1; }

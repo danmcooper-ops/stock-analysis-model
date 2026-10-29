@@ -4080,6 +4080,7 @@ var SECTOR_POOL={{ sector_pool_json }};
 var ETF_LT={{ etf_json }};
 var BOND_META={{ bond_meta|default('null') }};
 var CCY_META={{ ccy_meta|default('null') }};
+var PAPER_META={{ paper_meta|default('null') }};
 /* PRICES context lives in prices_meta.json (dates axis, manifests, index
    series, sector composites) with per-ticker closes sharded under px/;
    HIST is sharded per ticker under hist/ (the inline _HIST_TICKERS says
@@ -5207,6 +5208,7 @@ function renderPfView(){
     el.innerHTML=curPfSub==='overview'?_pfOverviewHtml():_pfDetailHtml(curPfSub);
     if(ui)_pfUiRestore(el,ui);
     if(curPfSub!=='overview'){_pfDrawChart();_pfmNeedPx();_pfContribDraw();}
+    if(PAPER_META&&curPfSub===PAPER_META.portfolio){_ppaEnsure();_ppaDraw();}
   }finally{_pfMemo=null;}
   _pfLastSub=curPfSub;
   _pfMarkSeen();
@@ -5376,6 +5378,7 @@ function _pfDetailHtml(id){
       +'<div class="pfv-detail-grid"><div class="pfv-panel">'+_pfMixBar(st)
       +'<div class="pfv-legend">'+Object.keys(st.mix).map(function(r){return'<span><i style="background:'+RC[r]+'"></i>'+r+' '+st.mix[r]+'</span>';}).join('')+'</div>'
       +_pfKpis(st,true)+_pfMosDist(st)+'</div>'+_pfBrkPanel(id,st)+'</div>'],
+    PAPER_META&&PAPER_META.portfolio===id&&['paper','Paper account','<h3 class="pfv-h3"><span class="sec-label">Paper account</span> <span class="pf-muted pfv-h3-sub">Alpaca paper, as of '+_pfEsc(PAPER_META.as_of||'')+'</span></h3><div id="pfp-view">'+_ppaHtml()+'</div>'],
     hold&&['hold','Holdings','<h3 class="pfv-h3"><span class="sec-label">Holdings</span> <span class="pf-muted pfv-h3-sub">private to this browser</span></h3><div class="pfv-panel">'+_pfHoldHtml(id)+'</div>'],
     risk&&['risk','Value & risk','<h3 class="pfv-h3"><span class="sec-label">Value &amp; risk</span></h3>'+risk],
     ['members','Members','<h3 class="pfv-h3"><span class="sec-label">Members</span> <span class="pfv-count">'+st.n+'</span></h3>'+_pfmHtml(id)],
@@ -5394,6 +5397,130 @@ function _pfDetailHtml(id){
   }).join('')+'</div>';
   return bar+h+'<div class="pf-tabbed" data-tab="'+cur+'">'+panes.map(function(x){return'<div data-pane="'+x[0]+'">'+x[2]+'</div>';}).join('')+'</div></div>';
 }
+/* Portfolios › the paper portfolio › Paper account: the Alpaca paper account
+   against the model (models/paper_dashboard.py, staged beside this page as
+   paper.json by report_html._stage_paper_dashboard). "Model" is the
+   portfolio's hypothetical NAV, fully invested at no cost; "Paper" is the
+   account's closing equity; both start at 0% on the account's first day,
+   so the gap between them is what trading costs. Display only. */
+var _PPA=null,_PPA_LOADING=false,_PPA_FAILED=false,_PPA_LIMIT=100;
+var _ppaSortK='absdelta',_ppaAsc=false,_ppaAll=false;
+function _ppaEnsure(){
+  if(_PPA||_PPA_LOADING||_PPA_FAILED||!PAPER_META)return;
+  _PPA_LOADING=true;
+  _loadSidecar('paper.json',function(d){
+    _PPA_LOADING=false;
+    if(d&&d.version===1)_PPA=d;else _PPA_FAILED=true;
+    _ppaRefresh();
+  });
+}
+function _ppaRefresh(){
+  var el=document.getElementById('pfp-view');if(!el)return;
+  el.innerHTML=_ppaHtml();_ppaDraw();
+}
+function _ppaTone(v){return v==null?'':v>0?' pos':v<0?' neg':'';}
+function _ppaPp(v){if(v==null)return'—';var s=(v*100).toFixed(2);return(v>0?'+':'')+s+'pp';}
+function _ppaW(v){return v==null?'—':(v*100).toFixed(2)+'%';}
+function _ppaHtml(){
+  if(!PAPER_META)return'';
+  if(_PPA_FAILED)return'<div class="pf-empty">The paper account data could not be loaded.</div>';
+  if(!_PPA)return'<div class="pf-empty">Loading the paper account…</div>';
+  var D=_PPA,R=D.returns||{},B=D.build||{},A=D.account||{};
+  function tile(l,v,sub,cls,tip){return'<div class="pp-tile"'+(tip?' title="'+_pfEsc(tip)+'"':'')+'><span>'+l+'</span><b class="'+(cls||'')+'">'+v+'</b>'+(sub?'<i>'+sub+'</i>':'')+'</div>';}
+  var h='<div class="pp-tiles ppa-tiles">'
+    +tile('Equity',_pfMoney(A.equity),'started '+_pfMoney(A.start_equity)+' on '+_pfEsc(D.start))
+    +tile('Paper',_pfFmtRet(R.paper),'since '+_pfEsc(D.start),_ppaTone(R.paper).trim())
+    +tile('Model',_pfFmtRet(R.model),'hypothetical, fully invested',_ppaTone(R.model).trim(),'The portfolio’s NAV: today’s book held at no cost from the first day')
+    +tile('Paper − model',R.delta==null?'—':_ppaPp(R.delta),'what trading has cost',_ppaTone(R.delta).trim(),'Slippage, the days the book took to build, cash, untradable names and skipped orders')
+    +tile('Paper − SPY',R.vs_spy==null?'—':_ppaPp(R.vs_spy),'SPY '+_pfFmtRet(R.spy),_ppaTone(R.vs_spy).trim())
+    +tile('Book bought',B.target_held==null?'—':Math.round(B.target_held*100)+'%',(B.held||0)+' of '+(B.targets||0)+' names held','','Share of the target weight the account holds (each name counted up to its target)')
+    +tile('Cash',B.cash==null?'—':Math.round(B.cash*100)+'%',B.pending?B.pending+' names not yet bought':'fully built')
+    +tile('To sell',String(B.to_sell||0),'held, no longer in the book')
+    +'</div>';
+  h+='<div class="pfc-top"><div class="pfc-legend">'
+    +'<span><svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" class="pfc-pf" style="stroke:var(--accent)"/></svg>Paper account</span>'
+    +'<span><svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" class="pfc-spy"/></svg>Model</span>'
+    +'<span><svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" class="pfc-ew"/></svg>S&amp;P 500 (SPY)</span></div></div>'
+    +'<div class="pfc-wrap" id="pfp-chart"></div>';
+  h+=_ppaHoldHtml(D)+_ppaActHtml(D);
+  var notes=['Public: an Alpaca paper account (no real money). Positions as of '+_pfEsc(D.as_of)+'’s reconcile; targets from the rebalance on results_'+_pfEsc(D.snapshot||'—')+'.'];
+  if(D.untradable)notes.push(Math.round(D.untradable*1000)/10+'% of the book is not tradable at Alpaca (OTC lines) and is spread over the rest; the model holds it.');
+  var sk=Object.keys(D.skipped||{});
+  if(sk.length)notes.push('Last rebalance skipped: '+sk.map(function(k){return D.skipped[k]+' '+_pfEsc(k);}).join(', ')+'.');
+  return h+'<div class="pfc-notes">'+notes.join('<br>')+'</div>';
+}
+var _PPA_COLS=[['t','Stock'],['rating','Rating'],['status','Status'],['target','Target',1],['actual','Held',1],['absdelta','Held − target',1],['value','Value',1],['pl','P&L',1]];
+function _ppaHoldHtml(D){
+  var rows=(D.holdings||[]).map(function(x){var o=Object.assign({},x);o.absdelta=Math.abs(x.delta);o.rating=(_pfRow[x.t]||{}).rating||'';return o;});
+  if(!rows.length)return'<h3 class="pfv-h3"><span class="sec-label">Held vs target</span></h3><div class="pf-empty">No positions recorded yet: the first reconcile after a rebalance fills this in.</div>';
+  var k=_ppaSortK,asc=_ppaAsc;
+  rows.sort(function(a,b){var va=a[k],vb=b[k];if(va==null||vb==null)return va==null&&vb==null?0:va==null?1:-1;var c=va<vb?-1:va>vb?1:0;return(asc?c:-c)||(a.t<b.t?-1:1);});
+  var shown=_ppaAll?rows:rows.slice(0,_PPA_LIMIT);
+  var h='<h3 class="pfv-h3"><span class="sec-label">Held vs target</span> <span class="pfv-count">'+rows.length+'</span></h3>'
+    +'<div class="pfv-tbl-wrap"><table class="pfv-tbl pfm-tbl ppa-tbl"><thead><tr>'+_PPA_COLS.map(function(c){
+      var on=k===c[0];
+      return'<th class="pfm-th'+(c[2]?' r':'')+(on?' on':'')+'" tabindex="0" aria-sort="'+(on?(asc?'ascending':'descending'):'none')+'" onclick="_ppaSort(\''+c[0]+'\')">'+c[1]+'<span class="pfm-ar">'+(on?(asc?'▲':'▼'):'')+'</span></th>';
+    }).join('')+'</tr></thead><tbody>';
+  shown.forEach(function(x){
+    var d=_pfRow[x.t];
+    h+='<tr><td class="pfm-stk">'+(d?_pfTkLink(x.t):_pfEsc(x.t))+'</td><td>'+(x.rating?rb(x.rating):'<span class="pf-muted">—</span>')+'</td>'
+      +'<td class="ppa-st ppa-'+x.status.replace(/ /g,'-')+'">'+_pfEsc(x.status)+'</td>'
+      +'<td class="r">'+_ppaW(x.target)+'</td><td class="r">'+_ppaW(x.actual)+'</td>'
+      +'<td class="r'+_ppaTone(x.delta)+'">'+_ppaPp(x.delta)+'</td>'
+      +'<td class="r">'+(x.value==null?'—':_pfMoney(x.value))+'</td>'
+      +'<td class="r'+_ppaTone(x.pl)+'">'+_pfFmtRet(x.pl)+'</td></tr>';
+  });
+  h+='</tbody></table></div>';
+  if(rows.length>_PPA_LIMIT)h+='<button class="pf-link" onclick="_ppaAll=!_ppaAll;_ppaRefresh()">'+(_ppaAll?'Show the first '+_PPA_LIMIT:'Show all '+rows.length)+'</button>';
+  return h;
+}
+function _ppaSort(k){
+  if(_ppaSortK===k)_ppaAsc=!_ppaAsc;else{_ppaSortK=k;_ppaAsc=k==='t'||k==='status'||k==='rating';}
+  _ppaRefresh();
+}
+function _ppaActHtml(D){
+  var a=D.activity||[];if(!a.length)return'';
+  var h='<h3 class="pfv-h3"><span class="sec-label">Activity</span> <span class="pf-muted pfv-h3-sub">last '+a.length+' days</span></h3>'
+    +'<div class="pfv-tbl-wrap"><table class="pfv-tbl ppa-act"><thead><tr><th>Date</th><th>Snapshot</th><th class="r">Orders</th><th class="r">Sent</th><th class="r">Failed</th><th class="r">Filled</th><th class="r">Traded</th>'
+    +'<th class="r" title="Average fill against the snapshot close; positive is a cost">Cost vs close</th><th>Halted</th></tr></thead><tbody>';
+  a.forEach(function(x){
+    function n(v){return v==null?'—':String(v);}
+    h+='<tr><td>'+_pfEsc(x.d)+'</td><td>'+_pfEsc(x.snapshot||'—')+'</td><td class="r">'+n(x.orders)+'</td><td class="r">'+n(x.sent)+'</td>'
+      +'<td class="r'+(x.failed?' neg':'')+'">'+n(x.failed)+'</td><td class="r">'+n(x.filled)+'</td>'
+      +'<td class="r">'+(x.filled_dollars==null?'—':_pfMoney(x.filled_dollars))+'</td>'
+      +'<td class="r'+_ppaTone(x.slip==null?null:-x.slip)+'">'+(x.slip==null?'—':(x.slip>0?'+':'')+(x.slip*100).toFixed(2)+'%')+'</td>'
+      +'<td class="ppa-halt">'+(x.halted&&x.halted.length?_pfEsc(x.halted.join('; ')):'')+'</td></tr>';
+  });
+  return h+'</tbody></table></div>';
+}
+/* Cumulative return of the three series, drawn at the container's width
+   with the performance chart's axes and line styles. */
+function _ppaDraw(){
+  var wrap=document.getElementById('pfp-chart');if(!wrap||!_PPA)return;
+  var S=_PPA.series||{},ds=S.d||[];
+  if(ds.length<2){wrap.innerHTML='<div class="pf-empty">The chart starts once the account has two days of equity.</div>';return;}
+  function r(a){return(a||[]).map(function(v){return v==null?null:v/100-1;});}
+  var pa=r(S.paper),mo=r(S.model),sp=r(S.spy);
+  var W=Math.max(280,wrap.clientWidth||600),H=W<500?200:240,L=46,R=12,T=10,B=24;
+  var vals=pa.concat(mo,sp).filter(function(v){return v!=null;});
+  var lo=Math.min(0,Math.min.apply(null,vals)),hi=Math.max(0,Math.max.apply(null,vals));
+  var span=hi-lo||0.01,step=0.005;
+  [0.005,0.01,0.02,0.05,0.1,0.2,0.5,1].some(function(s){step=s;return span/s<=5;});
+  lo=Math.floor(lo/step)*step;hi=Math.ceil(hi/step)*step;if(hi===lo)hi=lo+step;
+  var t=ds.map(function(d){return Date.parse(d+'T00:00:00Z');}),t0=t[0],t1=t[t.length-1];
+  function X(ms){return L+(ms-t0)/(t1-t0||1)*(W-L-R);}
+  function Y(v){return T+(hi-v)/(hi-lo)*(H-T-B);}
+  var xs=t.map(X),g='';
+  for(var v=lo;v<=hi+1e-9;v+=step){var y=Y(v).toFixed(1);
+    g+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y+'" y2="'+y+'" class="'+(Math.abs(v)<1e-9?'pfc-zero':'pfc-grid')+'"/>'
+      +'<text x="'+(L-6)+'" y="'+y+'" class="pfc-ax" text-anchor="end" dominant-baseline="middle">'+(v>0?'+':'')+(step<0.01?(v*100).toFixed(1):Math.round(v*100))+'%</text>';}
+  var every=Math.max(1,Math.ceil(ds.length/Math.floor((W-L-R)/70)));
+  ds.forEach(function(d,i){if(i%every&&i!==ds.length-1)return;g+='<text x="'+xs[i].toFixed(1)+'" y="'+(H-6)+'" class="pfc-ax" text-anchor="middle">'+_pfEsc(d.slice(5))+'</text>';});
+  function ys(a){return a.map(function(v){return v==null?null:Y(v);});}
+  wrap.innerHTML='<svg class="pfc" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Paper account cumulative return versus the model and SPY">'+g
+    +'<path d="'+_pfPath(xs,ys(sp))+'" class="pfc-ew"/><path d="'+_pfPath(xs,ys(mo))+'" class="pfc-spy"/>'
+    +'<path d="'+_pfPath(xs,ys(pa))+'" class="pfc-pf" style="stroke:var(--accent)"/></svg>';
+}
 /* The chosen section carries across portfolios (window._pfSubTabSel) and
    visits (localStorage stock_pf_subtab_v1), as a sector page's does. */
 function _pfSubTabCur(){
@@ -5410,6 +5537,7 @@ function _pfSubTab(btn){
   try{localStorage.setItem('stock_pf_subtab_v1',k);}catch(e){}
   /* Charts measure their container, which is 0 wide while its pane is hidden. */
   if(k==='perf'){_pfDrawChart();_pfContribDraw();}
+  if(k==='paper')_ppaDraw();
   if(btn.parentNode.getBoundingClientRect().top<0)btn.parentNode.scrollIntoView({block:'start'});
 }
 /* A focusable ticker link (Enter opens the popup; see the keydown hook
@@ -17402,6 +17530,13 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .pfc-legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--text);}
 .pfc-legend span{display:inline-flex;align-items:center;gap:6px;}
 .pfc-wrap{position:relative;width:100%;}
+.ppa-tiles{margin-bottom:12px;}
+.ppa-tiles b.pos{color:var(--pf-pos) !important;}
+.ppa-tiles b.neg{color:var(--pf-neg) !important;}
+.ppa-st{white-space:nowrap;font-size:0.85em;}
+.ppa-not-yet-bought{color:var(--text-muted);}
+.ppa-to-sell{color:var(--pf-neg);}
+.ppa-halt{font-size:0.8em;color:var(--text-muted);max-width:340px;}
 /* width:100% + viewBox: the chart scales with its panel even before the
    resize redraw lands (a viewport change need not fire window resize). */
 .pfc{display:block;width:100%;height:auto;touch-action:pan-y;}
@@ -17500,7 +17635,7 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .pf-tabbed[data-tab="summary"]>[data-pane="summary"],.pf-tabbed[data-tab="hold"]>[data-pane="hold"],
 .pf-tabbed[data-tab="risk"]>[data-pane="risk"],.pf-tabbed[data-tab="members"]>[data-pane="members"],
 .pf-tabbed[data-tab="perf"]>[data-pane="perf"],.pf-tabbed[data-tab="alerts"]>[data-pane="alerts"],
-.pf-tabbed[data-tab="recent"]>[data-pane="recent"]{display:block;}
+.pf-tabbed[data-tab="recent"]>[data-pane="recent"],.pf-tabbed[data-tab="paper"]>[data-pane="paper"]{display:block;}
 /* Members table: presets, search, sticky header and stock column. */
 .pfm-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px;}
 .pfm-seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface);}

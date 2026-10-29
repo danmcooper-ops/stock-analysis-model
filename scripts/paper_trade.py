@@ -25,7 +25,6 @@ check, which is logged); 1 an error; 2 bad arguments.
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
 import sys
@@ -50,6 +49,7 @@ if os.path.exists(_env_path):
         print(f"[WARN] Could not read .env ({_e}); continuing with process env only.",
               file=sys.stderr)
 
+from data import paper_account as pa  # noqa: E402
 from data import portfolio_nav as pn  # noqa: E402
 from data.alpaca_client import AlpacaError, AlpacaPaperClient  # noqa: E402
 from data.snapshot_store import (  # noqa: E402
@@ -62,56 +62,9 @@ from scripts.market_open import market_status  # noqa: E402
 
 log = logging.getLogger('paper_trade')
 ET = ZoneInfo('America/New_York')
-PAPER_DIR = os.environ.get('PAPER_DIR', os.path.join(REPO, 'portfolio', 'paper'))
 OFFLINE_EQUITY = 100_000.0
-
-
-def stop_path():
-    return os.path.join(PAPER_DIR, 'STOP')
-
-
-def ledger_path():
-    return os.path.join(PAPER_DIR, 'ledger.jsonl')
-
-
-def nav_path():
-    return os.path.join(PAPER_DIR, 'nav.json')
-
-
-def _private_dir():
-    os.makedirs(PAPER_DIR, mode=0o700, exist_ok=True)
-
-
-def append_ledger(record):
-    _private_dir()
-    fd = os.open(ledger_path(), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
-    with os.fdopen(fd, 'a', encoding='utf-8') as f:
-        f.write(json.dumps(record, separators=(',', ':'), default=str) + '\n')
-
-
-def read_ledger():
-    try:
-        with open(ledger_path(), encoding='utf-8') as f:
-            return [json.loads(line) for line in f if line.strip()]
-    except FileNotFoundError:
-        return []
-
-
-def load_nav():
-    try:
-        with open(nav_path(), encoding='utf-8') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return []
-
-
-def save_nav(series):
-    _private_dir()
-    tmp = nav_path() + '.tmp'
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, 'w', encoding='utf-8') as f:
-        json.dump(series, f, indent=1)
-    os.replace(tmp, nav_path())
+stop_path, read_ledger, append_ledger = pa.stop_path, pa.read_ledger, pa.append_ledger
+load_nav, save_nav, _private_dir = pa.load_nav, pa.save_nav, pa._private_dir
 
 
 # -- snapshot ---------------------------------------------------------------
@@ -278,6 +231,7 @@ def cmd_rebalance(args, broker=None, now=None):
               'execute': bool(args.execute), 'offline': offline,
               'equity': account['equity'], 'cash': account['cash'],
               'targets': len(targets), 'halted': reasons,
+              'weights': {t: round(w, 6) for t, w in targets.items()},
               'orders': [dict(o, close=closes.get(o['ticker'])) for o in plan['orders']],
               'skipped': plan['skipped'], 'turnover': plan['turnover'],
               'priced_at_close': len(at_close), 'untradable_weight': untradable}
@@ -334,6 +288,7 @@ def cmd_reconcile(args, broker=None, now=None):
             f['slip_vs_close'] = round(sign * (avg / p['close'] - 1), 5)
         fills.append(f)
     account = broker.account()
+    held = broker.positions_detail() if hasattr(broker, 'positions_detail') else {}
     filled = [f for f in fills if f['qty'] > 0]
     slips = [f['slip_vs_close'] for f in filled if 'slip_vs_close' in f]
     rec = {'type': 'reconcile', 'date': today, 'at': now.isoformat(),
@@ -341,7 +296,7 @@ def cmd_reconcile(args, broker=None, now=None):
            'orders': len(fills), 'filled': len(filled),
            'filled_dollars': round(sum(f['qty'] * (f['avg'] or 0) for f in filled), 2),
            'mean_slip_vs_close': round(sum(slips) / len(slips), 5) if slips else None,
-           'fills': fills}
+           'fills': fills, 'positions': held}
     append_ledger(rec)
     series = [e for e in load_nav() if e['d'] != today]
     series.append({'d': today, 'equity': account['equity'],

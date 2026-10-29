@@ -1433,8 +1433,21 @@ ruff check .
   exists, or no nightly run holds the lock. The launchd agent
   `scheduled-tasks/mac-mini/com.stockmodel.papertrade.plist` runs `tick` at
   9:45, 10:20 and 16:10 ET: the first tick inside the window rebalances,
-  the rest reconcile. Orders, fills and equity live only in `portfolio/paper/`
-  (gitignored, 0600). `status` prints paper vs hypothetical vs SPY.
+  the rest reconcile. The records (orders, fills, equity, positions) live in
+  `portfolio/paper/` (gitignored, 0600; `data/paper_account.py`). `status`
+  prints paper vs hypothetical vs SPY.
+  **Dashboard (public by choice, 2026-10-29):** the render builds
+  `paper.json` (`models/paper_dashboard.py`, `_stage_paper_dashboard`, after
+  the NAV ledger advances so both cover the same dates, dates ≤ the run)
+  and the paper portfolio's page gets a Paper account sub-tab:
+  - tiles: equity; paper, model and SPY since the account's first day;
+    paper − model (what trading costs); share of the book bought; cash;
+  - a chart of the three, rebased to 0% on that day;
+  - held vs target per name (not yet bought / held / to sell);
+  - the last 15 days of activity: orders, fills, fill cost vs close, halts.
+
+  `run_daily.sh` publish ships `paper.json`. Only the machine that trades
+  has the records, so a render elsewhere has no tab.
   Runbook: MAC-MINI-SETUP.md §9. Tests: `tests/test_paper_trade.py`.
 - **Rating = composite bucket (`scripts/scoring.py`, `RATING_CAPS_ENABLED`):**
   the rating is the composite score's bucket alone (BUY ≥ 57, LEAN BUY ≥ 39,

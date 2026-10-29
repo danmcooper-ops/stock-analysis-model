@@ -2095,6 +2095,41 @@ def _stage_model_report(out_dir, run_date, src_dir, prefix, dest_name, version, 
     return {'date': data.get('run_date'), 'total': data.get('total')}
 
 
+def _stage_paper_dashboard(out_dir, run_date, pfs):
+    """The Alpaca paper account against the model, as ``paper.json`` beside
+    the report (``models/paper_dashboard``), for the Paper account sub-tab
+    of ``PAPER_PORTFOLIO``'s page. Public by choice: a paper account's
+    equity and positions. Runs after the portfolio payload, which advances
+    the NAV ledger to this run, so model and account cover the same dates.
+    Returns ``{portfolio, as_of}`` for the page, or None (and removes a stale
+    ``paper.json``) when there is no such portfolio or no account record.
+    Only the render on the machine that trades has the records; anywhere
+    else the tab is simply absent."""
+    from data import paper_account as pa
+    from data import portfolio_nav as pn
+    from models import paper_dashboard as pd
+    from scripts import config
+    dest = os.path.join(out_dir, 'paper.json')
+    pid = config.PAPER_PORTFOLIO
+    data = None
+    if any(p.get('id') == pid for p in pfs or ()):
+        led = pn.load_ledger(pn.ledger_path(out_dir))
+        data = pd.build(pid, pa.read_ledger(), pa.load_nav(),
+                        led['portfolios'].get(pid, []), led['bench'].get('spy', []),
+                        run_date.isoformat() if run_date else None)
+    if data is None:
+        if os.path.exists(dest):
+            os.remove(dest)
+        return None
+    tmp = dest + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(_sanitize(data), f, separators=(',', ':'), default=_json_default)
+    os.replace(tmp, dest)
+    print(f"[report_html] paper account: {len(data['holdings'])} positions/targets "
+          f"as of {data['as_of']}")
+    return {'portfolio': pid, 'as_of': data['as_of'], 'start': data['start']}
+
+
 def _stage_bond_report(out_dir, run_date, src_dir=None):
     """bonds/'s ``bond_report_<date>.json`` as ``bonds.json``, for Financial
     Model › Bonds (``_stage_model_report``)."""
@@ -2178,6 +2213,13 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         bond_meta = None
 
     try:
+        paper_meta = _stage_paper_dashboard(_out_dir_early, run_date,
+                                            (portfolios_payload or {}).get('portfolios'))
+    except Exception as e:  # display only: never fail a render over it
+        logger.warning("Paper account dashboard failed: %s", e, exc_info=True)
+        paper_meta = None
+
+    try:
         ccy_meta = _stage_currency_report(_out_dir_early, run_date)
     except Exception as e:  # display only: never fail a render over it
         logger.warning("Currencies failed: %s", e, exc_info=True)
@@ -2239,6 +2281,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         etf_json=dumps_for_script(_sanitize(etf_payload), default=_json_default),
         bond_meta=dumps_for_script(bond_meta),
         ccy_meta=dumps_for_script(ccy_meta),
+        paper_meta=dumps_for_script(paper_meta),
         prices_available=('true' if prices_payload is not None else 'false'),
         prices_size_mb=prices_size_mb,
         hist_available=('true' if hist_tickers else 'false'),
