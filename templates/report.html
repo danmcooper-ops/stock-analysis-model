@@ -14765,7 +14765,6 @@ function renderBondView(){
 document.addEventListener('click',function(e){
   if(!e.target.closest)return;
   if(_bvMenuOpen&&!e.target.closest('#bv-menu,#bv-menu-btn'))_bvMenu(false);
-  if(_cxMenuOpen&&!e.target.closest('#cx-menu,#cx-menu-btn'))_cxMenu(false);
 });
 /* The header search's placeholder is just "Search"; its accessible name says
    what it searches on this view. */
@@ -14930,25 +14929,12 @@ function _bvReset(){_bvF={r:'',c:'',b:'',u:false};renderBondView();}
    Every number, gate and tooltip is the screener's own; this only draws it.
    Display only: no currency reaches the stock rows, a rating or a filter. */
 var _CX=null,_CX_LOADING=false,_CX_FAILED=false;
-var _cxView=_FM_SUB.ccy,_cxSortK='_composite_score',_cxDir=-1,_cxF={r:'',fl:false},_cxSel=null;
+var _cxView=_FM_SUB.ccy,_cxSortK='_composite_score',_cxDir=-1,_cxF={r:''},_cxSel=null;
 /* As on Bonds, the top-bar search (#f-search) is this tab's search: code or
    currency name here, re-rendered through applyFilters -> renderCur. */
 function _cxOn(){return curView==='matrix'&&curMSub==='ccy'&&!document.documentElement.classList.contains('det-open');}
 function _cxQ(){var i=document.getElementById('f-search');return i?i.value:'';}
-/* Its rating and floating filters sit behind a ☰ Filters menu, as Bonds'
-   do (the same bv-menu styling); the badge counts the filters set. */
-var _cxMenuOpen=false;
-function _cxBtnInner(){var n=(_cxF.r?1:0)+(_cxF.fl?1:0);return '<span class="bv-ham" aria-hidden="true">\u2630</span>Filters'+(n?'<span class="bv-badge">'+n+'</span>':'');}
-function _cxMenu(open){
-  _cxMenuOpen=open==null?!_cxMenuOpen:!!open;
-  var m=document.getElementById('cx-menu'),b=document.getElementById('cx-menu-btn');
-  if(m)m.hidden=!_cxMenuOpen;
-  if(b)b.setAttribute('aria-expanded',_cxMenuOpen?'true':'false');
-}
-function _cxBtnSync(){
-  var b=document.getElementById('cx-menu-btn');if(!b)return;
-  b.innerHTML=_cxBtnInner();b.classList.toggle('on',!!(_cxF.r||_cxF.fl));
-}
+/* Its one filter, the rating, is a plain dropdown beside the count. */
 var _CX_RATINGS=['LONG','LEAN LONG','NEUTRAL','AVOID'];
 /* The screener's four ratings take the stock ratings' colours, rank for rank. */
 var _CX_RC={'LONG':'BUY','LEAN LONG':'LEAN BUY','NEUTRAL':'HOLD','AVOID':'PASS'};
@@ -15050,11 +15036,8 @@ function _cxHtml(D){
     +'<div class="fm-tabbed">'
     +'<div data-pane="table matrix map">'
     +'<div class="bv-ctl">'
-    +'<button type="button" id="cx-menu-btn" class="bv-menu-btn" onclick="_cxMenu()" aria-haspopup="true" aria-controls="cx-menu" aria-expanded="'+(_cxMenuOpen?'true':'false')+'" aria-label="Currency filters">'+_cxBtnInner()+'</button>'
-    +'<div class="bv-menu" id="cx-menu" role="group" aria-label="Currency filters"'+(_cxMenuOpen?'':' hidden')+'>'
     +'<select onchange="_cxSet(\'r\',this.value)" aria-label="Rating"><option value="">All ratings</option>'+_CX_RATINGS.map(function(r){return '<option value="'+r+'"'+(r===_cxF.r?' selected':'')+'>'+r+'</option>';}).join('')+'</select>'
-    +'<label title="'+_attr((gm.ui&&gm.ui.regime)||'')+'"><input type="checkbox"'+(_cxF.fl?' checked':'')+' onchange="_cxSet(\'fl\',this.checked)"> Floating only</label>'
-    +'<button type="button" onclick="_cxReset()">Reset</button></div><span class="bv-n" id="cx-n"></span></div>'
+    +'<span class="bv-n" id="cx-n"></span></div>'
     +'<div id="cx-body"></div></div>'
     +'<div data-pane="detail" id="cx-det"></div>'
     +'<div data-pane="summary" class="xsect-dashboard">'
@@ -15085,7 +15068,6 @@ function _cxRows(){
   return _CX.rows.filter(function(r){
     if(q&&(r.code+' '+r.name).toLowerCase().indexOf(q)<0)return false;
     if(f.r&&r.rating!==f.r)return false;
-    if(f.fl&&r.regime!=='float')return false;
     return true;
   }).sort(function(a,b){
     var x=a[k],y=b[k],xn=x==null,yn=y==null;
@@ -15234,9 +15216,7 @@ function _cxPick(code){
   _fmSubTab('ccy','detail');
 }
 function _cxSortBy(k){if(k===_cxSortK)_cxDir=-_cxDir;else{_cxSortK=k;_cxDir=-1;}_cxDraw();}
-function _cxSet(k,v){_cxF[k]=v;_cxDraw();_cxBtnSync();}
-/* Reset clears the rating and floating filters; the search has its own ×. */
-function _cxReset(){_cxF={r:'',fl:false};_cxSortK='_composite_score';_cxDir=-1;renderCcyView();}
+function _cxSet(k,v){_cxF[k]=v;_cxDraw();}
 /* A sector page's Value creation tab: its own SPDR. */
 function renderPoolEtf(sec){
   var t=ETF_LT&&ETF_LT.sector_fund&&ETF_LT.sector_fund[sec];

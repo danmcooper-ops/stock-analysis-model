@@ -1063,8 +1063,9 @@ ruff check .
   shared `data-col-tip-body` path), and filters/sorts/limits to 1,000 rows as
   the bond page did. Its search is the top bar's `#f-search` (CUSIP or
   issuer on this tab, `_bvQ`; Currencies does the same with `_cxQ`, and the
-  accessible name says what each tab searches, `_syncSearchPh`), and both
-  tabs' filters sit behind a ☰ Filters menu. Every number and caveat is the bond model's; display
+  accessible name says what each tab searches, `_syncSearchPh`), and Bonds'
+  filters sit behind a ☰ Filters menu (Currencies has one, the rating
+  dropdown, shown plainly). Every number and caveat is the bond model's; display
   only, so no bond reaches `DATA`, a rating or a filter. The macro series
   `DFII10`, `BAMLC0A0CMEY` and `BAMLH0A0HYM2EY` (Macro › Rates and Credit)
   came with the Bonds vs Stocks view this replaced. Tests:

@@ -158,14 +158,14 @@ def test_table_matrix_and_detail():
         "r.table=_cxTable(_cxRows());"
         "r.matrix=_cxMatrix(_cxRows());"
         "r.order=_cxRows().map(function(x){return x.code;});"
-        "_cxF.fl=true;r.float=_cxRows().map(function(x){return x.code;});_cxF.fl=false;"
+        "_cxF.r='LONG';r.long=_cxRows().map(function(x){return x.code;});_cxF.r='';"
         "Q='yen';r.q=_cxRows().map(function(x){return x.code;});Q='';"
         "_cxSortK='reer_z20';_cxDir=1;r.nulls=_cxRows().map(function(x){return x.code;});"
         "process.stdout.write(JSON.stringify(r));")
     r = json.loads(out)
     assert r['order'] == ['HKD', 'JPY']        # composite, high to low
-    assert r['float'] == ['JPY']
     assert r['q'] == ['JPY']                     # the header search matches the name
+    assert r['long'] == ['JPY']                  # the rating dropdown
     assert r['nulls'] == ['JPY', 'HKD']        # missing sorts last either way
     t = r['table']
     assert 'class="fixed-header"' in t and 'data-col-tip-body="Cheapness."' in t
