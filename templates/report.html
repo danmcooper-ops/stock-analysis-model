@@ -17703,6 +17703,35 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   .pfv-alert{flex-wrap:wrap;}
   .pfv-alert-msg{flex-basis:100%;}
 }
+/* TABLE TEMPLATE: every data table in the report is drawn as Stocks
+   (.matrix-table) is: navy header with bold white centred labels, a full
+   cell grid, centred cells with the first (label) column left-aligned, a
+   faint zebra and the blue hover. Last stylesheet in the page, so it wins
+   on order; each table keeps its own widths, sticky columns and sort
+   behaviour. Colours are opaque so sticky cells still cover what scrolls
+   under them. Exceptions: the financial statements keep numbers
+   right-aligned (digits must line up), the gate matrix, #dtbl, the heatmap
+   and Currencies already are this look, and the Summary PDF (#pro-css)
+   is print-only and always light. */
+:is(.ppi-tbl,.pfv-tbl,.dtr-tbl,.ps-tbl,.mac-oas-tbl,.dtxn,.ai-bub table){--tt-cell:#fff;--tt-zebra:#fbfbfb;--tt-hover:#eaf4fd;--tt-line:#e8e8e8;border-collapse:collapse;background:var(--tt-cell);font-variant-numeric:tabular-nums;border-left:1px solid var(--tt-line);}
+.stmt-tbl{border-collapse:separate;border-spacing:0;}
+:is(.ppi-tbl,.pfv-tbl,.dtr-tbl,.ps-tbl,.mac-oas-tbl,.dtxn,.ai-bub table) th{background:var(--hdr-bg) !important;color:var(--hdr-fg) !important;font-weight:700;font-size:0.95em;text-transform:none;letter-spacing:0;text-align:center !important;vertical-align:middle;padding:7px 8px;line-height:1.2;border:solid var(--hdr-line);border-width:0 1px 1px 0;box-shadow:none !important;}
+:is(.ppi-tbl,.pfv-tbl,.dtr-tbl,.ps-tbl,.mac-oas-tbl,.dtxn,.ai-bub table) th:hover{background:var(--hdr-bg-hover) !important;}
+:is(.ppi-tbl,.pfv-tbl,.dtr-tbl,.ps-tbl,.mac-oas-tbl,.dtxn,.ai-bub table) td{background:var(--tt-cell) !important;text-align:center;vertical-align:middle;padding:5px 7px;border:solid var(--tt-line);border-width:0 1px 1px 0;box-shadow:none;}
+:is(.ppi-tbl,.pfv-tbl,.dtr-tbl,.ps-tbl,.mac-oas-tbl,.dtxn,.ai-bub table) tr:nth-child(even) td{background:var(--tt-zebra) !important;}
+:is(.ppi-tbl,.pfv-tbl,.dtr-tbl,.ps-tbl,.mac-oas-tbl,.dtxn,.ai-bub table) tr:hover td{background:var(--tt-hover) !important;}
+:is(.ppi-tbl,.pfv-tbl,.dtr-tbl,.ps-tbl,.mac-oas-tbl,.dtxn,.ai-bub table) td:first-child{text-align:left;font-weight:600;}
+.pfv-tbl td.r,.pfv-tbl th.r{text-align:center;}
+.ps-tbl td:nth-child(2){text-align:left;}
+.stmt-tbl td:not(.stmt-lbl){text-align:right;}
+.stmt-tbl td.stmt-lbl{font-weight:400;}
+.stmt-tbl tr.stmt-sub td,.stmt-tbl tr.stmt-tot td,.stmt-tbl tr.stmt-hdr td{font-weight:700;}
+.mac-oas-tbl th:first-child,.mac-oas-tbl td:first-child{padding-left:8px;}
+[data-theme="dark"] :is(.ppi-tbl,.pfv-tbl,.dtr-tbl,.ps-tbl,.mac-oas-tbl,.dtxn,.ai-bub table){--tt-cell:#161b22;--tt-zebra:#1c2128;--tt-hover:#1f3a5c;--tt-line:#21262d;}
+@media (max-width:768px){
+  :is(.ppi-tbl,.pfv-tbl,.dtr-tbl,.ps-tbl,.mac-oas-tbl,.dtxn,.ai-bub table) th{padding:5px 6px;}
+  :is(.ppi-tbl,.pfv-tbl,.dtr-tbl,.ps-tbl,.mac-oas-tbl,.dtxn,.ai-bub table) td{padding:4px 6px;}
+}
 </style>
 <div id="pf-pop" role="menu" onclick="event.stopPropagation()"></div>
 <div id="pf-overlay" role="dialog" aria-modal="true" aria-labelledby="pf-ov-title" onclick="if(event.target===this)pfManageClose()">

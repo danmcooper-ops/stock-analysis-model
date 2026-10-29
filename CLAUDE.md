@@ -1547,6 +1547,11 @@ ruff check .
   swallow silently.
 - `open()` always passes `encoding=` (enforced by ruff PLW1514).
 - Statement DataFrames: rows = line items, columns = periods newest-first.
+- Report tables all take the Stocks table's look (navy header, bold white
+  centred labels, cell grid, centred cells with a left label column, zebra,
+  blue hover): add a new table's class to the TABLE TEMPLATE block at the
+  end of `templates/report.html`'s last stylesheet.
+  `tests/test_report_table_template.py` fails on a table class it misses.
 - CI (`.github/workflows/ci.yml`) runs ruff + the offline suite with a
   coverage floor (`--cov-fail-under`, a ratchet: raise it when coverage
   rises, never lower it).
