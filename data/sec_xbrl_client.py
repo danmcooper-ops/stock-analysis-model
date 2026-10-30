@@ -1925,6 +1925,16 @@ class SECXBRLClient:
             facts, 'wavg_diluted', units_key='shares')
 
         fx_years_missing = []
+        # Each fiscal-year label's real period end ({'2025': '2026-02-01'}).
+        # The report's Charts view dates a year's figures from it (end plus
+        # the filing window), so a multiple never uses a year before it was
+        # filed. Best effort: a filer it cannot read keeps the label alone.
+        try:
+            fy_ends = {str(k): v for k, v in
+                       (self.fiscal_year_ends(facts, reporting_ccy) or {}).items() if v}
+        except Exception as e:
+            logger.debug("fiscal_year_ends failed for %s: %s", ticker, e)
+            fy_ends = {}
         if fx_converted:
             # Flows at each fiscal year's average rate, balance-sheet
             # instants at its closing rate (data/fx_convert.py). A year with
@@ -2054,6 +2064,7 @@ class SECXBRLClient:
             'reporting_currency':       reporting_ccy,
             'fx_converted':             fx_converted,
             'fx_years_missing':         fx_years_missing,
+            'fy_ends':                  fy_ends,
         }
         if facts.get('_predecessor_cik'):
             # Provenance: this history was read from the predecessor registrant.

@@ -1073,6 +1073,24 @@ ruff check .
   `DFII10`, `BAMLC0A0CMEY` and `BAMLH0A0HYM2EY` (Macro › Rates and Credit)
   came with the Bonds vs Stocks view this replaced. Tests:
   `tests/test_report_bond_tab.py`.
+- **Charts › Stock Comparison history (2026-10-30):** the metric dropdown
+  charts a table column over time when it can be rebuilt from filings
+  (`_PH_TC2H` → `_PH_METRICS` entries with `tc:1`). Annual ratios (DuPont,
+  capex, coverage, payout ...) are one point per fiscal year from `hist/`.
+  Daily multiples (src `hpx`: P/E, EV/EBITDA, P/FCF, P/B, dividend yield,
+  net cash/market cap, 52-week position) divide the day's *actual* close by
+  the latest fiscal year already public: `px/` closes are dividend-adjusted,
+  so `_phRawCloses` undoes each ex-dividend factor from the shard's `dv`
+  events, and `fya` dates each year at its real end (`edgar_history.fy_ends`,
+  recorded by `fetch_historical_financials` since this date) plus 90 days
+  (120 for a non-USD filer), else Dec 31 of the label year + 90. Both are
+  written into the shards by `report_html._hist_avail_and_dividends`;
+  dividends cover 25 years, so the daily series start 24 years back. They
+  are their own definition (filed fiscal years), so they can differ from the
+  table's trailing-twelve-month value, and the chart says so. Lenders
+  (`_phIsLender`, the sector pages' industry rule) get no EV, ND/EBITDA or
+  net cash. Everything else (model outputs, analyst, ownership) is today's
+  bars. Tests: `tests/test_chart_derived_history.py`.
 - **Report sidecars and the Pages size limits:** the HTML lazy-loads
   everything heavy from files beside it, through `_loadSidecar` (relative
   paths). Per-ticker shards: `vol/`, `px/` (manifested in `prices_meta.json`)
