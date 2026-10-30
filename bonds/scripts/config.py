@@ -32,11 +32,11 @@ RATING_THRESHOLD_PASS = 25
 # Populated by calibrate.py; kept explicit from v1 so the comparability
 # problem can never be silently ignored.
 RATING_THRESHOLDS_BY_CLASS = {
-    'TREASURY': {'buy': 73.0, 'lean': 65.4, 'pass': 55.9},
-    'TREASURY_BILL': {'buy': 57.3, 'lean': 53.0, 'pass': 44.8},
+    'TREASURY': {'buy': 70.4, 'lean': 63.6, 'pass': 55.5},
+    'TREASURY_BILL': {'buy': 57.5, 'lean': 52.5, 'pass': 42.7},
     'AGENCY': {},
-    'CORP_IG': {'buy': 64.8, 'lean': 45.4, 'pass': 32.3},
-    'CORP_HY': {'buy': 66.6, 'lean': 54.9, 'pass': 37.8},
+    'CORP_IG': {'buy': 64.9, 'lean': 44.0, 'pass': 30.0},
+    'CORP_HY': {'buy': 64.3, 'lean': 54.0, 'pass': 35.0},
 }
 
 # ---------------------------------------------------------------------------
@@ -99,12 +99,12 @@ CREDIT_BUCKETS = ('AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC')
 # Score cutpoints, high to low. Written by scripts/calibrate_credit.py: they are
 # the credit-score quantiles that reproduce INDEX_RATING_MIX, subject to each
 # bucket's median observed spread widening from AAA to CCC.
-CREDIT_CUT_AAA = 99.0
-CREDIT_CUT_AA = 82.1
-CREDIT_CUT_A = 51.9
-CREDIT_CUT_BBB = 33.2
-CREDIT_CUT_BB = 23.4
-CREDIT_CUT_B = 11.9
+CREDIT_CUT_AAA = 99.4
+CREDIT_CUT_AA = 85.6
+CREDIT_CUT_A = 57.0
+CREDIT_CUT_BBB = 37.5
+CREDIT_CUT_BB = 27.2
+CREDIT_CUT_B = 11.8
 
 # The rating mix the cutpoints reproduce. EXTERNAL on purpose: the previous
 # target was the model's own market_bucket counts, which came from anchors

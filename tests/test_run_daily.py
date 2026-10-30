@@ -350,7 +350,7 @@ def _sidemodels(tmp_path, bonds_body, ccy_body, wait_sec=60, rundate=None):
 
 def test_side_models_run_in_their_own_folders_and_fail_soft(tmp_path):
     out, steps, calls, notes = _sidemodels(tmp_path, 'exit 0', 'exit 1')
-    assert steps == {'sidemodel_bonds': '0', 'sidemodel_currencies': '1'}
+    assert steps == {'sidemodel_bonds': '0', 'sidemodel_currencies': '1', 'bond_checks': '0'}
     assert 'SOFT_FAIL=1' in out
     assert '/bonds scripts/analyze_bonds.py --as-of' in calls
     assert '/bonds scripts/report_html.py --run-date' in calls
@@ -367,5 +367,17 @@ def test_a_side_model_that_overruns_is_stopped(tmp_path):
 
 def test_a_past_date_leaves_the_currency_screener_alone(tmp_path):
     _, steps, calls, _ = _sidemodels(tmp_path, 'exit 0', 'exit 0', rundate='2026-09-25')
-    assert steps == {'sidemodel_bonds': '0'}
+    assert steps == {'sidemodel_bonds': '0', 'bond_checks': '0'}
     assert 'analyze_currencies' not in calls
+
+
+def test_bond_n_port_alerts_reach_the_run_notes(tmp_path):
+    body = ('[ "$1" = scripts/daily_checks.py ] && { echo "N-PORT ingested: 2026q2; newest published: 2026q3"; '
+            'echo "ALERT N-PORT 2026q3 is published but not ingested"; echo "ALERT newest N-PORT mark is 182 days old"; }\n'
+            'exit 0')
+    out, steps, calls, notes = _sidemodels(tmp_path, body, 'exit 0')
+    assert steps['bond_checks'] == '0'
+    assert '/bonds scripts/daily_checks.py nport' in calls
+    assert 'newest published: 2026q3' in out
+    assert notes.splitlines() == ['bonds: N-PORT 2026q3 is published but not ingested',
+                                  'bonds: newest N-PORT mark is 182 days old']
