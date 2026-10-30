@@ -3322,6 +3322,9 @@ html body .cm-panel.cm-uline button:focus-visible{outline:2px solid var(--chrome
    through --sac / !important to clear the blanket dark `body *` rule. */
 html body #ph-menu{--sac:var(--chrome-heading);padding:12px 14px;}
 #ph-menu[hidden]{display:none;}
+.ph-clip{margin:6px 0 0;font-size:12px;line-height:1.5;color:#7f8c9a;}
+.ph-clip button{margin-left:4px;padding:2px 10px;border:1px solid var(--tab-line);border-radius:12px;background:transparent;font:inherit;font-weight:600;cursor:pointer;}
+html body .ph-clip,html body .ph-clip button{color:var(--chrome-muted) !important;}
 html body #ph-menu .phm-load{margin:0;font-size:13px;color:var(--chrome-muted) !important;}
 #ph-menu .phm-sec{padding:0 0 12px;margin:0 0 12px;border-bottom:1px solid var(--tab-line);}
 #ph-menu .phm-sec:last-child,#ph-menu.phm-norange .phm-sec:nth-child(2){padding:0;margin:0;border-bottom:0;}
@@ -8846,6 +8849,8 @@ function _phGetPts(ticker){
   if(def.src==='price')return _phGetPricePts(ticker);
   return _phGetHistPts(ticker,_phMetric);
 }
+var _phFullY=false;
+function phFullY(on){_phFullY=!!on;renderPHChart();}
 function renderPHChart(){
   _renderPHMetricSel();
   var _sdef=_phMetricDef(_phMetric);
@@ -8951,6 +8956,16 @@ function _phRenderSVG(allRaw,refs,ctx){
   var VW=narrow?Math.max(280,_cw):900,PL=narrow?50:72,PR=narrow?8:20,PT=narrow?14:20,PB=narrow?30:42;
   var VOL_GAP=12,VOL_H=hasVol?(narrow?36:44):0;
   var iW=VW-PL-PR,iH=narrow?Math.round(Math.max(180,Math.min(300,VW*0.62))):(hasVol?200:218);
+  /* The Charts view fills the screen under it: a fixed strip left most of a
+     tablet's height empty. The plot takes the height from its top to the
+     window's bottom (at least today's size, at most ~1100px), converted to
+     viewBox units since the box scales to the container's width. */
+  if(K===''){
+    var _top=el.getBoundingClientRect().top+(window.scrollY||0);
+    var _hpx=Math.min(1100,(window.innerHeight||800)-_top-(annual?72:24)); // annual: room for the trimmed-axis note
+    var _fix=PT+PB+(hasVol?VOL_GAP+VOL_H:0);
+    iH=Math.max(iH,Math.round(_hpx*VW/Math.max(_cw,1)-_fix));
+  }
   var volTop=PT+iH+VOL_GAP,volBase=volTop+VOL_H;
   var xBase=hasVol?volBase:PT+iH;
   var VH=xBase+PB;
@@ -9016,6 +9031,27 @@ function _phRenderSVG(allRaw,refs,ctx){
     if(refs.hi)maxP=Math.max(maxP,refs.hi);
     if(refs.lo)minP=Math.min(minP,refs.lo);
   }
+  /* Ratio series (margins, returns, multiples) on the Charts view: one
+     stock's extreme years (a −353% FCF margin) set the scale and flatten
+     every other line. The axis fits most values instead — 3 IQRs beyond the
+     quartiles of every plotted point — and points past it sit on the edge
+     with a marker; the note under the chart names them and offers the full
+     range (_phFullY). Dollar series are left alone: there a large company
+     dwarfing a small one is the comparison. */
+  var clipLo=null,clipHi=null,wouldClip=false;
+  if(K===''&&annual&&(def.fmt==='pct'||def.fmt==='n2')){
+    var _all=[];series.forEach(function(s){s.pts.forEach(function(p){_all.push(p.c);});});
+    _all.sort(function(a,b){return a-b;});
+    var _q=function(f){var i=(_all.length-1)*f,a=Math.floor(i),b=Math.ceil(i);return _all[a]+(_all[b]-_all[a])*(i-a);};
+    var _q1=_q(0.25),_q3=_q(0.75),_iqr=Math.max(_q3-_q1,Math.abs(_q3)*0.1,1e-9);
+    var _loF=_q1-3*_iqr,_hiF=_q3+3*_iqr;
+    wouldClip=minP<_loF||maxP>_hiF;
+    if(wouldClip&&!_phFullY){
+      if(minP<_loF){clipLo=_loF;minP=_loF;}
+      if(maxP>_hiF){clipHi=_hiF;maxP=_hiF;}
+    }
+  }
+  var cv=function(v){return clipLo!=null&&v<clipLo?clipLo:clipHi!=null&&v>clipHi?clipHi:v;};
   /* for non-price, include 0 in the y range when all values same sign */
   var anchorZero=annual&&minP>=0;
   if(annual&&minP>0)minP=0;
@@ -9091,8 +9127,8 @@ function _phRenderSVG(allRaw,refs,ctx){
   }
   var xH='';var nX=Math.min(narrow?(annual?Math.min(uLen,5):4):(annual?Math.min(uLen,10):7),uLen);var xstep=Math.max(1,Math.floor((uLen-1)/Math.max(1,nX-1)));
   var _xa=function(i){if(!narrow)return 'middle';var x=xOf(i);return x<PL+24?'start':x>VW-PR-24?'end':'middle';};
-  for(var xi=0;xi<uLen;xi+=xstep){xH+='<text x="'+xOf(xi).toFixed(1)+'" y="'+(xBase+17)+'" text-anchor="'+_xa(xi)+'" font-size="'+(narrow?11:10)+'" fill="#9aaab8">'+_phFmtDate(uDates[xi],uSpan,false)+'</text>';}
-  if(uLen>1&&(uLen-1)%xstep>=xstep/2){xH+='<text x="'+xOf(uLen-1).toFixed(1)+'" y="'+(xBase+17)+'" text-anchor="'+(narrow?'end':'middle')+'" font-size="'+(narrow?11:10)+'" fill="#9aaab8">'+_phFmtDate(uDates[uLen-1],uSpan,false)+'</text>';}
+  for(var xi=0;xi<uLen;xi+=xstep){xH+='<text x="'+xOf(xi).toFixed(1)+'" y="'+(xBase+17)+'" text-anchor="'+_xa(xi)+'" font-size="'+(narrow?11:10)+'" fill="#9aaab8">'+_phFmtDate(uDates[xi],uSpan,annual)+'</text>';}
+  if(uLen>1&&(uLen-1)%xstep>=xstep/2){xH+='<text x="'+xOf(uLen-1).toFixed(1)+'" y="'+(xBase+17)+'" text-anchor="'+(narrow?'end':'middle')+'" font-size="'+(narrow?11:10)+'" fill="#9aaab8">'+_phFmtDate(uDates[uLen-1],uSpan,annual)+'</text>';}
   var volSVG=hasVol?_volStripSVG(ref0,{PL:PL,PR:PR,VW:VW,iW:iW,volTop:volTop,
     volBase:volBase,VOL_H:VOL_H,volMax:volMax,xOf:xOf}):'';
   /* reference lines (single stock only) */
@@ -9117,25 +9153,51 @@ function _phRenderSVG(allRaw,refs,ctx){
   /* polylines + dot markers */
   var linesSVG='',dotsSVG='';
   series.forEach(function(s,si){
-    var pp=s.pts.map(function(p,i){return xOf(s.ux[i]).toFixed(1)+','+yOf(p.c).toFixed(1);}).join(' ');
+    var pp=s.pts.map(function(p,i){return xOf(s.ux[i]).toFixed(1)+','+yOf(cv(p.c)).toFixed(1);}).join(' ');
     if(!cmpMode){var fp=pp+' '+xOf(s.ux[s.pts.length-1]).toFixed(1)+','+(PT+iH)+' '+xOf(s.ux[0]).toFixed(1)+','+(PT+iH);linesSVG+='<polygon points="'+fp+'" fill="url(#ph-g'+K+')"/>';}
     linesSVG+='<polyline points="'+pp+'" fill="none" stroke="'+s.col+'" stroke-width="'+(cmpMode?1.6:1.8)+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>';
+    /* Annual series: a dot per fiscal year, so ~16 yearly values read as
+       points rather than a continuous line; a point past a trimmed axis is
+       a triangle on the edge, pointing the way it went. */
+    if(annual&&K===''){
+      s.pts.forEach(function(p,i){
+        var x=xOf(s.ux[i]),out=(clipLo!=null&&p.c<clipLo)?1:(clipHi!=null&&p.c>clipHi)?-1:0,y=yOf(cv(p.c));
+        if(out)linesSVG+='<path d="M'+(x-5).toFixed(1)+','+(y-3*out).toFixed(1)+' L'+(x+5).toFixed(1)+','+(y-3*out).toFixed(1)+' L'+x.toFixed(1)+','+(y+5*out).toFixed(1)+' Z" fill="'+s.col+'"/>';
+        else linesSVG+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="2.6" fill="'+s.col+'"/>';
+      });
+    }
     dotsSVG+='<circle id="ph-dc'+K+si+'" cx="0" cy="0" r="4" fill="white" stroke="'+s.col+'" stroke-width="2" opacity="0" pointer-events="none"/>';
   });
+  /* The trimmed-axis note: which lines run past it, how far, and the
+     switch between fitting most values and the full range. */
+  var clipNote='';
+  if(wouldClip){
+    var _outs=[];
+    if(!_phFullY)series.forEach(function(s){
+      var ext=null;s.pts.forEach(function(p){if((clipLo!=null&&p.c<clipLo)||(clipHi!=null&&p.c>clipHi)){if(!ext||Math.abs(p.c)>Math.abs(ext.c))ext=p;}});
+      if(ext)_outs.push('<b class="sa-chrome" style="--sac:'+s.col+'">'+esc(s.tk)+'</b> '+esc(_phFmtVal(ext.c,def.fmt))+' (FY'+ext.d.slice(0,4)+')');
+    });
+    clipNote='<p class="ph-clip">'+(_phFullY?'Full range shown.':'Scale fits most values; \u25B2\u25BC mark points beyond it: '+_outs.join(', ')+'.')
+      +' <button type="button" onclick="phFullY('+(_phFullY?'false':'true')+')">'+(_phFullY?'Fit to most values':'Show full range')+'</button></p>';
+  }
   /* tip bar */
   var tb=document.getElementById(ctx.tipId);
   if(tb)tb.innerHTML=_phTipHtml(series,cmpMode,null,def,annual,uDates);
   var svg='<svg id="ph-svg'+K+'" viewBox="0 0 '+VW+' '+VH+'" style="width:100%;display:block;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y"'
     +' onmousemove="phMove(event,\''+K+'\')" onmouseleave="phLeave(\''+K+'\')"'
-    +' ontouchstart="phTouch(event,\''+K+'\')" ontouchmove="phTouch(event,\''+K+'\')" ontouchend="phLeave(\''+K+'\')" ontouchcancel="phLeave(\''+K+'\')">'
+    +' ontouchstart="phTouch(event,\''+K+'\')" ontouchmove="phTouch(event,\''+K+'\')"'
+    /* The Charts view keeps a tapped date's readout after the finger lifts
+       (a tap otherwise flashed the values away); a touch anywhere else
+       clears it. The popup's chart keeps the old behaviour. */
+    +(K===''?'':' ontouchend="phLeave(\''+K+'\')" ontouchcancel="phLeave(\''+K+'\')"')+'>'
     +'<defs><linearGradient id="ph-g'+K+'" x1="0" y1="0" x2="0" y2="1">'
     +'<stop offset="0%" stop-color="'+series[0].col+'" stop-opacity="0.15"/><stop offset="100%" stop-color="'+series[0].col+'" stop-opacity="0.01"/>'
     +'</linearGradient></defs>'
     +yH+xH+zeroSVG+refSVG+volSVG+noteSVG+linesSVG+dotsSVG
     +'<line id="ph-vl'+K+'" x1="0" y1="'+PT+'" x2="0" y2="'+xBase+'" class="mac-zero" stroke-width="1" stroke-dasharray="3,2" opacity="0"/>'
     +'</svg>';
-  el.innerHTML=svg;
-  _phStates[K]={series:series,VW:VW,VH:VH,PL:PL,PR:PR,PT:PT,PB:PB,iW:iW,iH:iH,minP:minP,pRange:pRange,tf:tf,cw:_cw,cmpMode:cmpMode,def:def,annual:annual,ctx:ctx,
+  el.innerHTML=svg+clipNote;
+  _phStates[K]={cv:cv,wh:window.innerHeight||0,series:series,VW:VW,VH:VH,PL:PL,PR:PR,PT:PT,PB:PB,iW:iW,iH:iH,minP:minP,pRange:pRange,tf:tf,cw:_cw,cmpMode:cmpMode,def:def,annual:annual,ctx:ctx,
                 volMax:volMax,xBase:xBase,uLen:uLen,uDates:uDates};
 }
 function _phTipHtml(series,cmpMode,relX,def,annual,uDates){
@@ -9175,8 +9237,11 @@ function _phTipHtml(series,cmpMode,relX,def,annual,uDates){
     var uc0=Math.max(0,Math.min((s0.u2p?s0.u2p.length:s0.pts.length)-1,Math.round(relX)));
     refIdx=s0.u2p?s0.u2p[uc0]:Math.max(0,Math.min(s0.pts.length-1,uc0));
     dateStr=(uDates&&uDates[uc0])||s0.pts[refIdx].d;
+    /* Annual points are keyed by fiscal-year label (YYYY-12-31), not the
+       year's real end date: say FY2025, never a Dec 31 that may not exist. */
+    if(annual)dateStr='FY'+dateStr.slice(0,4);
   }else if(uDates&&uDates.length){
-    dateStr=uDates[0]+' \u2013 '+uDates[uDates.length-1];
+    dateStr=annual?'FY'+uDates[0].slice(0,4)+' \u2013 FY'+uDates[uDates.length-1].slice(0,4):uDates[0]+' \u2013 '+uDates[uDates.length-1];
   }else{
     var a=series[0].pts[0],b=series[0].pts[series[0].pts.length-1];
     dateStr=a.d+' \u2013 '+b.d;
@@ -9209,7 +9274,7 @@ function phMove(e,key){
   s.series.forEach(function(sr,si){
     var idx=sr.u2p?sr.u2p[uc]:Math.max(0,Math.min(sr.pts.length-1,uc));
     var ux=sr.ux?sr.ux[idx]:idx;
-    var x=(s.PL+(ux/((s.uLen-1)||1))*s.iW).toFixed(1),y=(s.PT+s.iH-(((s.tf?s.tf(sr.pts[idx].c):sr.pts[idx].c)-s.minP)/s.pRange)*s.iH).toFixed(1);
+    var x=(s.PL+(ux/((s.uLen-1)||1))*s.iW).toFixed(1),_v=s.cv?s.cv(sr.pts[idx].c):sr.pts[idx].c,y=(s.PT+s.iH-(((s.tf?s.tf(_v):_v)-s.minP)/s.pRange)*s.iH).toFixed(1);
     var dc=document.getElementById('ph-dc'+key+si);if(dc){dc.setAttribute('cx',x);dc.setAttribute('cy',y);dc.setAttribute('opacity','1');}
   });
   var tb=document.getElementById(s.ctx.tipId);if(tb)tb.innerHTML=_phTipHtml(s.series,s.cmpMode,uc,s.def,s.annual,s.uDates);
@@ -9221,6 +9286,9 @@ function phLeave(key){
   s.series.forEach(function(sr,si){var dc=document.getElementById('ph-dc'+key+si);if(dc)dc.setAttribute('opacity','0');});
   var tb=document.getElementById(s.ctx.tipId);if(tb)tb.innerHTML=_phTipHtml(s.series,s.cmpMode,null,s.def,s.annual,s.uDates);
 }
+document.addEventListener('touchstart',function(e){
+  if(_phStates['']&&!(e.target&&e.target.closest&&e.target.closest('#ph-svg')))phLeave('');
+},{passive:true});
 function phTouch(e,key){
   key=key||'';
   if(!_phStates[key]||!e.touches||!e.touches.length)return;
@@ -9238,8 +9306,11 @@ function phTouch(e,key){
       var st=_phStates[c[0]],el=document.getElementById(c[1]);
       if(!st||!el)return;
       var w=Math.round(el.clientWidth||0);
-      if(!w||w===st.cw)return;
-      if(w>=600&&st.VW===900&&(st.cw>=600||!st.cw))return;
+      /* The Charts view also follows the window's height (it fills it);
+         120px of slack ignores the mobile toolbar sliding in and out. */
+      var hch=c[0]===''&&st.wh&&Math.abs((window.innerHeight||0)-st.wh)>120;
+      if(!w||(w===st.cw&&!hch))return;
+      if(!hch&&w>=600&&st.VW===900&&(st.cw>=600||!st.cw))return;
       c[2]();
     });
   }
