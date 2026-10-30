@@ -3137,6 +3137,20 @@ html.stmt-fs-open #det-modal{z-index:1550;}
 #det-modal .dv-big{font-size:26px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums;}
 #det-modal .dv-mut{--sac:var(--chrome-muted);}
 #det-modal .dv-tk{display:inline-block;width:2px;height:10px;margin:0 2px -1px;background:var(--dv-tick);vertical-align:baseline;}
+#ph-cmp tr.ph-pick{cursor:pointer;}
+#ph-cmp tr.ph-pick.ph-on td{box-shadow:inset 0 2px 0 var(--chrome-accent),inset 0 -2px 0 var(--chrome-accent);}
+#ph-cmp tr.ph-pick.ph-on td:first-child{box-shadow:inset 3px 0 0 var(--chrome-accent),inset 0 2px 0 var(--chrome-accent),inset 0 -2px 0 var(--chrome-accent);}
+#ph-cmp .ph-hist{--sac:var(--chrome-accent);font-weight:700;}
+.ph-bars{display:grid;grid-template-columns:auto 1fr auto;gap:9px 10px;align-items:center;padding:8px 0 4px;font-variant-numeric:tabular-nums;}
+.ph-bl{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:0.85em;}
+.ph-bl i{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.ph-bt{position:relative;height:18px;background:rgba(127,140,154,.12);border-radius:3px;}
+.ph-bt span{position:absolute;top:0;bottom:0;border-radius:3px;opacity:.9;}
+.ph-bt b{position:absolute;top:-3px;bottom:-3px;width:1px;background:#7f8c9a;}
+.ph-bt em,.ph-bnote em{position:absolute;top:-4px;bottom:-4px;width:0;border-left:2px dashed #7f8c9a;}
+.ph-bv{font-weight:700;font-size:0.85em;text-align:right;}
+.ph-bnote{position:relative;font-size:0.75em;color:#888;margin:4px 0 0;padding-left:12px;}
+.ph-bnote em{top:2px;bottom:2px;left:0;}
 #ph-cmp td.ph-best{--sac:var(--chrome-pos);font-weight:700;}#ph-cmp td.ph-worst{--sac:var(--chrome-neg);}
 #det-modal .dv-pos{--sac:var(--dv-pos);}#det-modal .dv-neg{--sac:var(--dv-neg);}#det-modal .dv-midc{--sac:var(--dv-mid);}
 /* 52-week range */
@@ -5400,7 +5414,9 @@ function _pfOverviewHtml(){
 function _pfDetailHtml(id){
   var p=_pfById[id],st=_pfStats(id),al=_pfAlertsFor(id),jid=_pfJsArg(id);
   var miss=(p.tickers||[]).filter(function(t){return !_pfTk[t];});
-  var h='<div class="pfv pfv-detail"><button class="pf-link pfv-back" onclick="navGo(\'pf\',\'overview\')">← All portfolios</button>'
+  /* No "All portfolios" link: the Overview tab beside the portfolio's own
+     tab already leads there. */
+  var h='<div class="pfv pfv-detail">'
     +'<div class="pfv-head pfv-detail-head" style="--pf:'+_pfEsc(_pfCol(p.color))+'"><span class="pfv-swatch"></span><h2>'+_pfEsc(p.name)+'</h2>'
     +'<span class="pf-spacer"></span>'
     +'<button class="pf-btn pf-primary" onclick="pfShowOnly(\''+jid+'\')">Open in table</button>'
@@ -8199,9 +8215,30 @@ var _PH_METRICS=[
   {k:'shares', lbl:'Shares Out.',   unit:'M',  fmt:'mil',    src:'hist'},
   {k:'dps',    lbl:'Dividends/Share',unit:'$', fmt:'money2', src:'hist',derived:true},
   {k:'debt',   lbl:'Total Debt',    unit:'$B', fmt:'bil',    src:'hist'},
-  {k:'ndebt',  lbl:'Net Debt',      unit:'$B', fmt:'bil',    src:'hist',derived:true}
+  {k:'ndebt',  lbl:'Net Debt',      unit:'$B', fmt:'bil',    src:'hist',derived:true},
+  {k:'opm',    lbl:'Operating Margin',unit:'%', fmt:'pct',    src:'hist',derived:true,xt:1},
+  {k:'npm',    lbl:'Net Margin',    unit:'%',  fmt:'pct',    src:'hist',derived:true,xt:1},
+  {k:'fcfm',   lbl:'FCF Margin',    unit:'%',  fmt:'pct',    src:'hist',derived:true,xt:1},
+  {k:'eps',    lbl:'EPS (diluted)', unit:'$',  fmt:'money2', src:'hist',xt:1},
+  {k:'roe',    lbl:'ROE',           unit:'%',  fmt:'pct',    src:'hist',derived:true,xt:1},
+  {k:'de',     lbl:'Debt/Equity',   unit:'x',  fmt:'n2',     src:'hist',derived:true,xt:1},
+  {k:'cr',     lbl:'Current Ratio', unit:'x',  fmt:'n2',     src:'hist',derived:true,xt:1}
 ];
-function _phMetricDef(k){for(var i=0;i<_PH_METRICS.length;i++)if(_PH_METRICS[i].k===k)return _PH_METRICS[i];return _PH_METRICS[0];}
+/* Charts › Stock Comparison: a table column with a filed history charts
+   that history (its key here); every other column is today's value only,
+   drawn as bars ('s:<key>'). */
+var _PH_TC2H={price:'price',gross_margin:'gm',fcf_margin:'fcfm',roe:'roe',de:'de',cr:'cr',total_debt:'debt',net_debt:'ndebt',shares_out:'shares'};
+/* +1 higher is better, -1 lower, 0 no verdict — for the Financials rows. */
+var _PH_HDIR={rev:1,ni:1,fcf:1,gm:1,opm:1,npm:1,fcfm:1,roe:1,de:-1,cr:1};
+function _phMetricDef(k){
+  for(var i=0;i<_PH_METRICS.length;i++)if(_PH_METRICS[i].k===k)return _PH_METRICS[i];
+  if(typeof k==='string'&&k.indexOf('s:')===0){
+    var key=k.slice(2),c=null;
+    Object.keys(TC).forEach(function(t){(TC[t]||[]).forEach(function(x){if(!c&&x.k===key)c=x;});});
+    if(c)return {k:k,key:key,lbl:c.l||key,f:c.f||'n2',fmt:'snap',src:'snap'};
+  }
+  return _PH_METRICS[0];
+}
 function _phFmtVal(v,fmt){
   if(v==null||isNaN(v))return '\u2014';
   if(fmt==='money')return '$'+v.toFixed(2);
@@ -8209,6 +8246,7 @@ function _phFmtVal(v,fmt){
   if(fmt==='bil')return '$'+(v/1e9).toFixed(2)+'B';
   if(fmt==='mil')return (v/1e6).toFixed(1)+'M';
   if(fmt==='pct')return (v*100).toFixed(1)+'%';
+  if(fmt==='n2')return v.toFixed(2)+'x';
   return v.toFixed(2);
 }
 function _phFmtAxis(v,fmt){
@@ -8220,6 +8258,7 @@ function _phFmtAxis(v,fmt){
   if(fmt==='bil'){var b=v/1e9;return '$'+(Math.abs(b)>=10?b.toFixed(0):b.toFixed(1))+'B';}
   if(fmt==='mil')return (v/1e6).toFixed(0)+'M';
   if(fmt==='pct')return (v*100).toFixed(0)+'%';
+  if(fmt==='n2')return v.toFixed(Math.abs(v)<10?1:0)+'x';
   return v.toFixed(0);
 }
 /* The five names actually on the FILTERED table for purchase: BUY then LEAN
@@ -8281,15 +8320,14 @@ function initPriceChart(){
      shared with the ticker page's chart); the ticker chips stay outside it
      because they are the chart's legend (colour \u2194 line) as much as a
      control. */
-  phv.innerHTML='<div class="sec-label">Stock Price Comparison</div><div class="cm-wrap">'
-    +'<button type="button" class="cm-btn" onclick="cmToggle(\'ph\',event)" title="Chart options \u2014 stocks, metric, range">&#9776;</button>'
+  phv.innerHTML='<div class="sec-label">Stock Comparison</div><div class="cm-wrap">'
+    +'<button type="button" class="cm-btn" onclick="cmToggle(\'ph\',event)" title="Chart options \u2014 stocks, range">&#9776;</button>'
     +'<span class="cm-sum" id="ph-cm-sum"></span>'
     +'<div class="cm-panel cm-uline" id="ph-cm-panel">'
     +  '<div class="cm-row"><div class="cm-lbl">Stocks</div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
     +    '<div class="ph-sw"><input class="ph-sinp" id="ph-s1" type="text" placeholder="Add stock\u2026" autocomplete="off" style="width:190px"><div class="ph-sdrop" id="ph-s1-drop"></div></div>'
     +    '<div class="cm-tabs" id="ph-index-btns"></div>'
     +  '</div></div>'
-    +  '<div class="cm-row"><div class="cm-lbl">Metric</div><div class="cm-tabs" id="ph-metric-btns"></div></div>'
     +  '<div class="cm-row"><div class="cm-lbl">Range</div><div class="cm-tabs" id="ph-ranges"></div></div>'
     +'</div>'
     +'</div>'
@@ -8299,19 +8337,64 @@ function initPriceChart(){
     +'<div id="ph-cmp"></div>';
   _buildPHSearch();_buildPHIndexBtns();_buildPHChips();_buildPHMetricBtns();_buildPHRanges();renderPHChart();
 }
-/* Compare by category: the charted stocks side by side over one of the
-   table's own column sets (TC, the Market … Dividends tabs), so any metric the
-   table shows can be compared, not only the ones with a history to chart.
-   Indices have no row and are left out. Each numeric row marks the best and
-   worst of the stocks on DV_DIR, and a Median column gives the run's median
-   (positive values only for DV_POS multiples, as the Data tabs rank). Display
-   only, like the chart. */
+/* The table under the chart: the charted stocks side by side over one of
+   the table's own column sets (TC, the Market … Dividends tabs) or their
+   filed history (Financials, latest year), and the chart's metric picker:
+   tapping a row charts it, over time where a history exists (_PH_TC2H, every
+   Financials row) and as today's bars otherwise. Indices have no row and are
+   left out. Each numeric row marks the best and worst of the stocks, and
+   Median gives the run's median (positive values only for DV_POS multiples,
+   as the Data tabs rank). Display only, like the chart. */
 var _phCat=(function(){try{return localStorage.getItem('stock_ph_cat_v1')||'val';}catch(e){return 'val';}})();
-function _phCats(){return Object.keys(TL).filter(function(k){return k!=='prices'&&TC[k]&&TC[k].length;});}
+function _phCats(){
+  var c=Object.keys(TL).filter(function(k){return k!=='prices'&&TC[k]&&TC[k].length;});
+  var vi=c.indexOf('val');c.splice(vi<0?c.length:vi+1,0,'fin');
+  return c;
+}
+function _phCatLbl(k){return k==='fin'?'Financials':TL[k];}
 function phSetCat(k){
   _phCat=k;
   try{localStorage.setItem('stock_ph_cat_v1',k);}catch(e){}
   _renderPHCompare();
+}
+function phPickMetric(k){
+  phSetMetric(k);
+  var c=document.getElementById('ph-chart');
+  if(c&&c.getBoundingClientRect().top<0)c.scrollIntoView({block:'start'});
+}
+/* Today's value of a column across the charted stocks, as bars on one axis
+   (diverging at zero), in each stock's line colour, with the run's median. */
+function _phRenderBars(def){
+  var el=document.getElementById('ph-chart');if(!el)return;
+  _phStates['']=null;
+  var tb=document.getElementById('ph-tip-bar');
+  var byTk={};DATA.forEach(function(d){byTk[d.ticker]=d;});
+  var items=[];
+  _phStocks.forEach(function(t,i){var d=byTk[t];if(!d)return;var v=_dvNum(d[def.key]);items.push({tk:t,col:_phPalette[i%_phPalette.length],v:v});});
+  var vals=items.filter(function(x){return x.v!=null;});
+  if(tb)tb.innerHTML='<span style="font-size:0.72em;font-weight:700;color:#7f8c9a;text-transform:uppercase;letter-spacing:0.04em">'+esc(def.lbl)+'</span>'
+    +'<span style="color:#aab;font-size:0.82em;margin-left:8px">today\u2019s value \u2014 no history is kept for this metric</span>';
+  if(!vals.length){el.innerHTML='<p style="color:#888;padding:20px;text-align:center">No values for this metric.</p>';return;}
+  var med=DV_NORANK[def.key]?null:_dvMedian(_dvVals(def.key));
+  var lo=0,hi=0;vals.forEach(function(x){lo=Math.min(lo,x.v);hi=Math.max(hi,x.v);});
+  if(med!=null){lo=Math.min(lo,med);hi=Math.max(hi,med);}
+  if(hi===lo)hi=lo+1;
+  var span=hi-lo,z=(0-lo)/span*100;
+  var h='<div class="ph-bars">';
+  items.forEach(function(x){
+    var t=ftc(x.v,def.f).t;
+    h+='<span class="ph-bl"><i style="background:'+x.col+'"></i>'+esc(x.tk)+'</span><div class="ph-bt">';
+    if(x.v!=null){
+      var a=(Math.min(0,x.v)-lo)/span*100,b=(Math.max(0,x.v)-lo)/span*100;
+      h+='<span style="left:'+a.toFixed(2)+'%;width:'+Math.max(b-a,0.6).toFixed(2)+'%;background:'+x.col+'"></span>';
+    }
+    if(lo<0)h+='<b style="left:'+z.toFixed(2)+'%"></b>';
+    if(med!=null)h+='<em style="left:'+((med-lo)/span*100).toFixed(2)+'%"></em>';
+    h+='</div><span class="ph-bv">'+esc(t)+'</span>';
+  });
+  h+='</div>';
+  if(med!=null)h+='<p class="ph-bnote"><em></em>Run median '+esc(ftc(med,def.f).t)+'</p>';
+  el.innerHTML=h;
 }
 function _renderPHCompare(){
   var el=document.getElementById('ph-cmp');if(!el)return;
@@ -8319,41 +8402,60 @@ function _renderPHCompare(){
   var rows=_phStocks.map(function(t,i){return{d:byTk[t],col:_phPalette[i%_phPalette.length]};}).filter(function(x){return x.d;});
   if(!rows.length){el.innerHTML='';return;}
   var cats=_phCats();if(cats.indexOf(_phCat)<0)_phCat=cats[0];
-  var h='<div class="sec-label" style="margin-top:18px">Compare by Category</div>'
-    +'<div class="d-stmt-tabs sa-chrome" role="tablist" style="margin-bottom:8px">'
-    +cats.map(function(k){var on=k===_phCat;return '<button type="button" class="d-stmt-tab'+(on?' cur':'')+'" role="tab" aria-selected="'+on+'" onclick="phSetCat(\''+k+'\')">'+esc(TL[k])+'</button>';}).join('')
+  var fin=_phCat==='fin';
+  if(fin){
+    var pend=rows.map(function(x){return x.d.ticker;}).filter(_histPending);
+    if(pend.length){
+      var snap=_phStocks.join(',');
+      _ensureHist(pend,function(){if(_phStocks.join(',')===snap&&_phCat==='fin')_renderPHCompare();});
+    }
+  }
+  var h='<div class="d-stmt-tabs sa-chrome" role="tablist" style="margin:14px 0 8px">'
+    +cats.map(function(k){var on=k===_phCat;return '<button type="button" class="d-stmt-tab'+(on?' cur':'')+'" role="tab" aria-selected="'+on+'" onclick="phSetCat(\''+k+'\')">'+esc(_phCatLbl(k))+'</button>';}).join('')
     +'</div>';
   h+='<div style="overflow-x:auto"><table class="ppi-tbl ph-cmp-tbl"><thead><tr><th>Metric</th>';
   rows.forEach(function(x){var tk=x.d.ticker;h+='<th><span onclick="openDet(\''+tk.replace(/'/g,"\\'")+'\')" title="Open '+_attr(tk)+' details" style="cursor:pointer;display:inline-flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:50%;background:'+x.col+'"></span>'+esc(tk)+'</span></th>';});
   h+='<th title="Median across every stock in this run">Median</th></tr></thead><tbody>';
-  var cols=[{k:'rating',l:'Rating',f:'rating'},{k:'_composite_score',l:'Score',f:'int'}];
-  TC[_phCat].forEach(function(c){if(c.k!=='ticker'&&c.k!=='rating'&&c.k!=='_composite_score')cols.push(c);});
+  var cols;
+  if(fin){
+    cols=_PH_METRICS.filter(function(m){return m.src==='hist';}).map(function(m){return{m:m.k,l:m.lbl,fmt:m.fmt,dir:_PH_HDIR[m.k]||0};});
+  }else{
+    cols=[{k:'rating',l:'Rating',f:'rating'},{k:'_composite_score',l:'Score',f:'int'}];
+    TC[_phCat].forEach(function(c){if(c.k!=='ticker'&&c.k!=='rating'&&c.k!=='_composite_score')cols.push({k:c.k,l:c.l,f:c.f});});
+  }
   cols.forEach(function(c){
-    var f=c.f||'text',num=f!=='text'&&f!=='rating'&&f!=='bool'&&f!=='ar';
-    var vals=rows.map(function(x){return x.d[c.k];});
+    var f=c.f||'text',num=fin||(f!=='text'&&f!=='rating'&&f!=='bool'&&f!=='ar');
+    var vals=fin
+      ?rows.map(function(x){var p=_histHas(x.d.ticker)?_phGetHistPts(x.d.ticker,c.m,'MAX'):[];return p.length?p[p.length-1].c:null;})
+      :rows.map(function(x){return x.d[c.k];});
     if(vals.every(function(v){return v==null;}))return;
-    var dir=num?(DV_DIR[c.k]||0):0,best=null,worst=null;
+    var dir=fin?c.dir:(num?(DV_DIR[c.k]||0):0),best=null,worst=null,ok=null;
     if(dir){
-      var ok=vals.map(function(v){var n=_dvNum(v);return n==null||(DV_POS[c.k]&&n<=0)?null:n;});
+      ok=vals.map(function(v){var n=_dvNum(v);return n==null||(!fin&&DV_POS[c.k]&&n<=0)?null:n;});
       var ns=ok.filter(function(n){return n!=null;});
       if(ns.length>=2){
         var hi=Math.max.apply(null,ns),lo=Math.min.apply(null,ns);
         if(hi!==lo){best=dir>0?hi:lo;worst=dir>0?lo:hi;}
       }
-      vals._ok=ok;
     }
-    h+='<tr><td'+_dvTipAttr(c.k)+(tt(c.k)?' class="kl"':'')+'>'+esc(c.l||c.k)+'</td>';
+    /* The metric this row charts: its history where one is filed, today's
+       value otherwise; text columns (rating, sector) chart nothing. */
+    var mk=fin?c.m:(_PH_TC2H[c.k]||(num?'s:'+c.k:null));
+    var on=mk&&mk===_phMetric;
+    h+='<tr'+(mk?' class="ph-pick'+(on?' ph-on':'')+'" onclick="phPickMetric(\''+mk+'\')" title="Chart '+_attr(c.l||c.k)+'"':'')+'>'
+      +'<td'+(fin?'':_dvTipAttr(c.k)+(tt(c.k)?' class="kl"':''))+'>'+esc(c.l||c.k)
+      +(mk&&mk.indexOf('s:')!==0?' <span class="sa-chrome ph-hist" title="Charts over time">\u2197</span>':'')+'</td>';
     vals.forEach(function(v,i){
-      var t=ftc(v,f).t,cls='';
-      if(best!=null&&vals._ok[i]===best)cls=' class="sa-chrome ph-best"';
-      else if(worst!=null&&vals._ok[i]===worst)cls=' class="sa-chrome ph-worst"';
+      var t=fin?_phFmtVal(v,c.fmt):ftc(v,f).t,cls='';
+      if(best!=null&&ok[i]===best)cls=' class="sa-chrome ph-best"';
+      else if(worst!=null&&ok[i]===worst)cls=' class="sa-chrome ph-worst"';
       h+='<td'+cls+'>'+(f==='rating'&&v!=null?t:esc(t))+'</td>';
     });
-    var med=num&&!DV_NORANK[c.k]?_dvMedian(_dvVals(c.k)):null;
+    var med=(!fin&&num&&!DV_NORANK[c.k])?_dvMedian(_dvVals(c.k)):null;
     h+='<td class="na">'+(med!=null?esc(ftc(med,f).t):'')+'</td></tr>';
   });
   h+='</tbody></table></div>'
-    +'<p style="font-size:0.75em;color:#888;margin:6px 0 0">Best of the charted stocks in green, worst in red, where higher or lower is clearly better. Indices are not listed.</p>';
+    +'<p style="font-size:0.75em;color:#888;margin:6px 0 0">Tap a row to chart it: \u2197 rows chart their filed history, the rest today\u2019s value. Best of these stocks in green, worst in red, where higher or lower is clearly better. Financials show the latest filed year. Indices are not listed.</p>';
   el.innerHTML=h;
 }
 function _buildPHMetricBtns(){
@@ -8370,6 +8472,7 @@ function phSetMetric(k){
   if(_phMetric===k)return;
   var def=_phMetricDef(k);
   _phMetric=k;
+  if(def.src==='snap'){_buildPHIndexBtns();renderPHChart();return;}
   if(def.src==='hist'){
     // Quarterly data is meaningful at 1YR (4 points) — only force up if we're
     // on a sub-1YR range that would have <2 points.
@@ -8539,6 +8642,16 @@ function _phGetHistPts(ticker,metricKey,range){
     return _build(function(k){var g=h.gp[k],r=h.rev[k];if(g==null||r==null||r<=0)return null;return g/r;},_keys(h.rev));
   }
   if(metricKey==='debt'&&h.debt)return _build(function(k){return h.debt[k];},_keys(h.debt));
+  function _ratio(num,den,pos){return _build(function(k){var a=num[k],b=den[k];if(a==null||b==null||(pos?b<=0:b===0))return null;return a/b;},_keys(den));}
+  if(metricKey==='opm'&&h.op&&h.rev)return _ratio(h.op,h.rev,true);
+  if(metricKey==='npm'&&h.ni&&h.rev)return _ratio(h.ni,h.rev,true);
+  if(metricKey==='fcfm'&&h.ocf&&h.rev){
+    return _build(function(k){var o=h.ocf[k],c=(h.capex&&h.capex[k])||0,r=h.rev[k];if(o==null||r==null||r<=0)return null;return (o-c)/r;},_keys(h.rev));
+  }
+  if(metricKey==='eps'&&h.epsd)return _build(function(k){return h.epsd[k];},_keys(h.epsd));
+  if(metricKey==='roe'&&h.ni&&h.equity)return _ratio(h.ni,h.equity,true);
+  if(metricKey==='de'&&h.debt&&h.equity)return _ratio(h.debt,h.equity,true);
+  if(metricKey==='cr'&&h.ca&&h.cl)return _ratio(h.ca,h.cl,true);
   if(metricKey==='ndebt'&&h.debt&&h.cash){
     return _build(function(k){var b=h.debt[k],c=h.cash[k];if(b==null||c==null)return null;return b-c;},_keys(h.debt));
   }
@@ -8566,8 +8679,10 @@ function _phGetPts(ticker){
 }
 function renderPHChart(){
   _renderPHCompare();
-  _cmSum('ph',_phMetricDef(_phMetric).lbl+' · '+_phRange
-    +' · '+_phStocks.length+' line'+(_phStocks.length===1?'':'s'));
+  var _sdef=_phMetricDef(_phMetric);
+  _cmSum('ph',_sdef.lbl+' · '+(_sdef.src==='snap'?'today':_phRange)
+    +' · '+_phStocks.length+' stock'+(_phStocks.length===1?'':'s'));
+  if(_sdef.src==='snap'&&_phStocks.length){_phRenderBars(_sdef);return;}
   /* Empty pool = the filters left nothing with price history. Say so rather
      than leaving the previous filter's lines on screen. */
   if(!_phStocks.length){
@@ -9346,7 +9461,7 @@ function _dtcButtons(){
   if(mb){
     /* Enabled when this company has a hist shard; _dtcRender fetches it. */
     var hasHist=_histHas(_dpTicker);
-    mb.innerHTML=_PH_METRICS.map(function(m){
+    mb.innerHTML=_PH_METRICS.filter(function(m){return !m.xt;}).map(function(m){
       var dis=(m.src==='hist'&&!hasHist)?' disabled':'';
       return '<button class="ph-metric-btn'+(m.k===_dtcMetric?' active':'')+'"'+dis+' onclick="dtcSetMetric(\''+m.k+'\')" title="'+m.lbl+'">'+m.lbl+'</button>';
     }).join('');
@@ -12935,7 +13050,7 @@ function _navGroups(){
     {v:'pool',l:'Sector Analysis',cur:_poolTab||'__performance__',items:pool},
     {v:'matrix',l:'Investing',cur:curView==='table'&&curTSub!=='prices'?'matrix':(curMSub||'matrix'),
      items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Stocks'},{k:'etf',l:'ETFs'},{k:'bond',l:'Bonds'},{k:'ccy',l:'Currencies'}]},
-    {v:'charts',l:'Charts',cur:'price',items:[{k:'price',l:'Stock Price Comparison'}]},
+    {v:'charts',l:'Charts',cur:'price',items:[{k:'price',l:'Stock Comparison'}]},
     {v:'pf',l:'Portfolios',cur:curPfSub,
      items:[{k:'overview',l:'Overview'}].concat(_pfDefs().map(function(p){return{k:p.id,l:p.name};}))}
   ];
@@ -18008,7 +18123,6 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 /* A portfolio's page opens with its way back, hung as close under the
    sub-tabs as a sector page's sub-tab row, not the overview's 18px. */
 .pfv-detail{padding-top:0;}
-.pfv-back{padding-left:0;padding-top:0;margin-bottom:6px;}
 .pfv-detail-head .pfv-swatch{width:14px;height:14px;border-radius:4px;background:var(--pf);}
 .pfv-desc{font-size:13.5px;margin:0 0 6px;}
 .pfv-detail-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:12px;}

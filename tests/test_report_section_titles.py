@@ -32,7 +32,7 @@ def test_section_headings_are_boxed():
     assert src.count('<span class="dg-icon"></span>') == \
         src.count('<span class="dg-icon"></span><span class="sec-label">')
     for title in ('Gates Summary', 'Composite Score Distribution', 'Gate Pass Rates',
-                  'World MoS Map', 'Stock Price Comparison', 'The US Economy',
+                  'World MoS Map', 'Stock Comparison', 'The US Economy',
                   'The International Economy',
                   'Your Portfolios', 'Summary'):
         assert re.search(r'class="sec-label"[^>]*>' + re.escape(title) + '<', src), title
