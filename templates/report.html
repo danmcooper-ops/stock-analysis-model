@@ -8478,23 +8478,25 @@ function initPriceChart(){
     return;
   }
   _phBuildPool();
-  /* Controls live in the hamburger, drawn as underline tabs (.cm-uline,
-     shared with the ticker page's chart); the ticker chips stay outside it
-     because they are the chart's legend (colour \u2194 line) as much as a
-     control. */
+  /* Every control lives in the hamburger, drawn as underline tabs
+     (.cm-uline, shared with the ticker page's chart): the metric, the stocks
+     (their chips are removable pins and carry each line's colour) and the
+     range. The chart's own labels name each stock, so the view is just the
+     summary line and the chart. */
   phv.innerHTML='<div class="sec-label">Stock Comparison</div><div class="cm-wrap">'
-    +'<button type="button" class="cm-btn" onclick="cmToggle(\'ph\',event)" title="Chart options \u2014 stocks, range">&#9776;</button>'
+    +'<button type="button" class="cm-btn" onclick="cmToggle(\'ph\',event)" title="Chart options \u2014 metric, stocks, range">&#9776;</button>'
     +'<span class="cm-sum" id="ph-cm-sum"></span>'
     +'<div class="cm-panel cm-uline" id="ph-cm-panel">'
-    +  '<div class="cm-row"><div class="cm-lbl">Stocks</div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
-    +    '<div class="ph-sw"><input class="ph-sinp" id="ph-s1" type="text" placeholder="Add stock\u2026" autocomplete="off" style="width:190px"><div class="ph-sdrop" id="ph-s1-drop"></div></div>'
-    +    '<div class="cm-tabs" id="ph-index-btns"></div>'
-    +  '</div></div>'
+    +  '<div class="cm-row"><div class="cm-lbl">Metric</div><div id="ph-metric" style="flex:1;min-width:0"></div></div>'
+    +  '<div class="cm-row"><div class="cm-lbl">Stocks</div><div style="flex:1;min-width:0">'
+    +    '<div id="ph-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>'
+    +    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+    +      '<div class="ph-sw"><input class="ph-sinp" id="ph-s1" type="text" placeholder="Add stock\u2026" autocomplete="off" style="width:190px"><div class="ph-sdrop" id="ph-s1-drop"></div></div>'
+    +      '<div class="cm-tabs" id="ph-index-btns"></div>'
+    +  '</div></div></div>'
     +  '<div class="cm-row"><div class="cm-lbl">Range</div><div class="cm-tabs" id="ph-ranges"></div></div>'
     +'</div>'
     +'</div>'
-    +'<div id="ph-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>'
-    +'<div id="ph-metric" style="margin-bottom:8px"></div>'
     +'<div id="ph-tip-bar" style="min-height:28px"></div>'
     +'<div id="ph-chart"></div>';
   _buildPHSearch();_buildPHIndexBtns();_buildPHChips();_buildPHMetricBtns();_buildPHRanges();renderPHChart();
