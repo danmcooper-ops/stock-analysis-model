@@ -202,7 +202,7 @@ def test_chart_controls_are_underline_tabs_behind_the_menu():
     assert '<div class="cm-panel cm-uline" id="dtc-cm-panel">' in src
     assert """'<div class="cm-panel cm-uline" id="ph-cm-panel">'""" in src
     for tabs in ('dtc-metric-btns', 'dtc-ranges', 'dtc-bench-btns',
-                 'ph-metric-btns', 'ph-ranges', 'ph-index-btns'):
+                 'ph-ranges', 'ph-index-btns'):
         assert f'<div class="cm-tabs" id="{tabs}"></div>' in src, tabs
     # Behind the menu: nothing forces the panel open or hides the ☰ button.
     assert 'cm-inline' not in src
@@ -427,10 +427,11 @@ def test_ticker_sub_tabs_use_the_section_tabs_type_size():
     assert '  .d-tab{font-size:15px;padding:0 10px;height:42px;}\n  #det-modal .d-stmt-tab{font-size:15px;}' in src
 
 
-def test_portfolio_page_way_back_sits_under_the_sub_tabs():
+def test_portfolio_page_has_no_all_portfolios_link():
+    """The Overview tab beside the portfolio's tab is the way back."""
     src = _tpl()
     assert '.pfv-detail{padding-top:0;}' in src
-    assert '.pfv-back{padding-left:0;padding-top:0;margin-bottom:6px;}' in src
+    assert 'pfv-back' not in src and 'All portfolios</button>' not in src
 
 
 def test_financial_model_has_stock_and_etf_valuations_tabs():

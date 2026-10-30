@@ -1,5 +1,8 @@
-"""Charts › Compare by Category: the charted stocks side by side over any of
-the table's column sets, with the best and worst of them marked per metric.
+"""Charts › Stock Comparison: the table under the chart puts the charted
+stocks side by side over any of the table's column sets (or their filed
+history), marks the best and worst per metric, and picks the chart's metric:
+a row with a filed history charts it over time, any other numeric row charts
+today's values as bars.
 """
 import os
 import re
@@ -37,7 +40,9 @@ var TC={prof:[{k:'ticker',f:'text'},{k:'rating',f:'rating'},{k:'roic',l:'ROIC',f
 var DATA=[{ticker:'A',rating:'BUY',_composite_score:70,roic:0.3,pe:-5,price:10},
           {ticker:'B',rating:'HOLD',_composite_score:40,roic:0.1,pe:20,price:20},
           {ticker:'C',rating:'PASS',_composite_score:10,roic:0.2,pe:12,price:30}];
-var _phStocks=['A','SPY','B','C'],_phCat='prof';
+var _phStocks=['A','SPY','B','C'],_phCat='prof',_phMetric='s:roic';
+var _PH_TC2H={price:'price'},_PH_HDIR={},_PH_METRICS=[];
+function _histPending(){return false;} function _histHas(){return false;}
 function esc(s){return String(s);} function _attr(s){return String(s);}
 function tt(){return '';} function _dvTipAttr(){return '';}
 function rb(v){return '<b>'+v+'</b>';}
@@ -49,18 +54,25 @@ var el={innerHTML:''};var document={getElementById:function(){return el;}};
 var localStorage={setItem:function(){}};
 """
     script = tmp_path / 't.js'
-    script.write_text(stubs + _fn('_phCats') + '\n' + _fn('phSetCat') + '\n'
+    script.write_text(stubs + _fn('_phCats') + '\n' + _fn('_phCatLbl') + '\n' + _fn('phSetCat') + '\n'
                       + _fn('_renderPHCompare') + '\n'
                       + "_renderPHCompare();console.log(el.innerHTML);", encoding='utf-8')
     r = subprocess.run(['node', str(script)], capture_output=True, text=True, check=False)
     assert r.returncode == 0, r.stderr
     h = r.stdout
     # Tabs follow the table's own order; Charts is not a category.
-    assert h.index('Valuation') < h.index('Profitability') and 'Charts' not in h
+    assert h.index('Valuation') < h.index('Profitability') and '>Charts<' not in h
     # The index (no row) is left out; the stocks keep their chart colours.
     assert 'SPY' not in h
     assert re.findall(r"openDet\('(\w+)'\)", h) == ['A', 'B', 'C']
-    rows = dict(re.findall(r'<tr><td>([^<]+)</td>(.*?)</tr>', h))
+    # Financials sits right after Valuation.
+    assert h.index('Valuation') < h.index('Financials') < h.index('Profitability')
+    # Every numeric row picks the chart's metric: Price its history, the rest
+    # today's bars; the charted one is marked; Rating charts nothing.
+    picks = re.findall(r'<tr class="ph-pick( ph-on)?" onclick="phPickMetric\(.([^\']+).\)"', h)
+    assert ('', 'price') in picks and (' ph-on', 's:roic') in picks and ('', 's:pe') in picks
+    assert '<tr><td>Rating' in h
+    rows = dict(re.findall(r'<tr[^>]*><td>([^<]+?)(?: <span[^>]*>[^<]*</span>)?</td>(.*?)</tr>', h))
     # Higher ROIC is better: A best, B worst.
     roic = re.findall(r'<td( class="[^"]+")?>([^<]*)</td>', rows['ROIC'])
     assert roic[0] == (' class="sa-chrome ph-best"', '30.0%')
