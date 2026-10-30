@@ -27,6 +27,7 @@ EPS). A series already on one basis is left alone, so adjusting an adjusted
 series is a no-op.
 """
 
+import functools
 import logging
 import math
 import os
@@ -95,6 +96,47 @@ def is_split_ratio(r):
     return False
 
 
+@functools.lru_cache(maxsize=8192)
+def _corporate_actions(path, mtime):
+    """``(splits, dividends)`` from one price parquet, each ``[(date, value),
+    ...]`` oldest first (raw: split ratios unfiltered, dividends > 0). Cached
+    by path and mtime, because the render reads both for every ticker."""
+    try:
+        import pandas as pd
+        df = pd.read_parquet(path)
+    except Exception as e:
+        logger.debug("splits: unreadable parquet %s (%s)", path, e)
+        return (), ()
+
+    def _events(col, keep):
+        if col not in df.columns:
+            return ()
+        s = df[col]
+        out = []
+        for idx, v in s[keep(s)].items():
+            try:
+                d = idx.date() if hasattr(idx, 'date') else _to_date(idx)
+                r = float(v)
+            except (TypeError, ValueError):
+                continue
+            if d:
+                out.append((d, r))
+        return tuple(sorted(out))
+    return (_events('Stock Splits', lambda s: (s > 0) & (s != 1)),
+            _events('Dividends', lambda s: s > 0))
+
+
+def _actions_for(prices_dir, ticker):
+    if not prices_dir or not ticker:
+        return (), ()
+    path = os.path.join(prices_dir, f"{ticker}.parquet")
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return (), ()
+    return _corporate_actions(path, mtime)
+
+
 def split_events_from_prices(prices_dir, ticker):
     """``[(date, ratio), ...]`` oldest first from ``<prices_dir>/<ticker>.parquet``.
 
@@ -102,30 +144,16 @@ def split_events_from_prices(prices_dir, ticker):
     Empty when there is no file, no ``Stock Splits`` column (a close-only
     write-through) or no split.
     """
-    if not prices_dir or not ticker:
-        return []
-    path = os.path.join(prices_dir, f"{ticker}.parquet")
-    if not os.path.exists(path):
-        return []
-    try:
-        import pandas as pd
-        df = pd.read_parquet(path)
-    except Exception as e:
-        logger.debug("splits: unreadable parquet for %s (%s)", ticker, e)
-        return []
-    if 'Stock Splits' not in df.columns:
-        return []
-    s = df['Stock Splits']
-    out = []
-    for idx, v in s[(s > 0) & (s != 1)].items():
-        try:
-            d = idx.date() if hasattr(idx, 'date') else _to_date(idx)
-            r = float(v)
-        except (TypeError, ValueError):
-            continue
-        if d and is_split_ratio(r):
-            out.append((d, r))
-    return sorted(out)
+    return [(d, r) for d, r in _actions_for(prices_dir, ticker)[0] if is_split_ratio(r)]
+
+
+def dividend_events_from_prices(prices_dir, ticker, since=None):
+    """``[(date, amount), ...]`` oldest first: the ex-dividend dates and
+    per-share amounts (split-adjusted, as Yahoo reports them beside its
+    adjusted closes), on or after ``since`` when given. Empty without a
+    ``Dividends`` column."""
+    return [(d, a) for d, a in _actions_for(prices_dir, ticker)[1]
+            if since is None or d >= since]
 
 
 def _choose_factors(points, events):

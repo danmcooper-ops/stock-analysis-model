@@ -3183,13 +3183,14 @@ html.stmt-fs-open #det-modal{z-index:1550;}
 #det-modal .dv-mut{--sac:var(--chrome-muted);}
 #det-modal .dv-tk{display:inline-block;width:2px;height:10px;margin:0 2px -1px;background:var(--dv-tick);vertical-align:baseline;}
 .ph-bars{display:grid;grid-template-columns:auto 1fr auto;gap:9px 10px;align-items:center;padding:8px 0 4px;font-variant-numeric:tabular-nums;}
-.ph-bl{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:0.85em;}
+.ph-bl{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:1em;}
 .ph-bl i{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
-.ph-bt{position:relative;height:18px;background:rgba(127,140,154,.12);border-radius:3px;}
+.ph-bt{position:relative;height:var(--bh,18px);background:rgba(127,140,154,.12);border-radius:3px;}
 .ph-bt span{position:absolute;top:0;bottom:0;border-radius:3px;opacity:.9;}
 .ph-bt b{position:absolute;top:-3px;bottom:-3px;width:1px;background:#7f8c9a;}
 .ph-bt em,.ph-bnote em{position:absolute;top:-4px;bottom:-4px;width:0;border-left:2px dashed #7f8c9a;}
-.ph-bv{font-weight:700;font-size:0.85em;text-align:right;}
+.ph-bt em{top:calc(-1 * var(--gh,4px));bottom:calc(-1 * var(--gh,4px));}
+.ph-bv{font-weight:700;font-size:1em;text-align:right;}
 .ph-bnote{position:relative;font-size:0.75em;color:#888;margin:4px 0 0;padding-left:12px;}
 .ph-bnote em{top:2px;bottom:2px;left:0;}
 #det-modal .dv-pos{--sac:var(--dv-pos);}#det-modal .dv-neg{--sac:var(--dv-neg);}#det-modal .dv-midc{--sac:var(--dv-mid);}
@@ -8435,12 +8436,39 @@ var _PH_METRICS=[
   {k:'eps',    lbl:'EPS (diluted)', unit:'$',  fmt:'money2', src:'hist',xt:1},
   {k:'roe',    lbl:'ROE',           unit:'%',  fmt:'pct',    src:'hist',derived:true,xt:1},
   {k:'de',     lbl:'Debt/Equity',   unit:'x',  fmt:'n2',     src:'hist',derived:true,xt:1},
-  {k:'cr',     lbl:'Current Ratio', unit:'x',  fmt:'n2',     src:'hist',derived:true,xt:1}
+  {k:'cr',     lbl:'Current Ratio', unit:'x',  fmt:'n2',     src:'hist',derived:true,xt:1},
+  /* Rebuilt from filings for the dropdown's table columns (tc: listed under
+     their own tab, not Financials). Annual ratios, one point a fiscal year: */
+  {k:'dpm',  lbl:'DuPont Margin',   fmt:'pct',src:'hist',xt:1,tc:1},
+  {k:'dpt',  lbl:'DuPont Turnover', fmt:'n2', src:'hist',xt:1,tc:1},
+  {k:'dpl',  lbl:'DuPont Leverage', fmt:'n2', src:'hist',xt:1,tc:1},
+  {k:'fcfx', lbl:'FCF ex-SBC',      fmt:'pct',src:'hist',xt:1,tc:1},
+  {k:'rdi',  lbl:'R&D/Revenue',     fmt:'pct',src:'hist',xt:1,tc:1},
+  {k:'sbci', lbl:'SBC/Revenue',     fmt:'pct',src:'hist',xt:1,tc:1},
+  {k:'ccv',  lbl:'Cash Conversion', fmt:'n2', src:'hist',xt:1,tc:1},
+  {k:'icov', lbl:'Interest Coverage',fmt:'n2',src:'hist',xt:1,tc:1},
+  {k:'ndeb', lbl:'ND/EBITDA',       fmt:'n2', src:'hist',xt:1,tc:1},
+  {k:'cxi',  lbl:'Capex/Sales',     fmt:'pct',src:'hist',xt:1,tc:1},
+  {k:'cxd',  lbl:'Capex/D&A',       fmt:'n2', src:'hist',xt:1,tc:1},
+  {k:'pay',  lbl:'Payout Ratio',    fmt:'pct',src:'hist',xt:1,tc:1},
+  /* ...and daily, from the fiscal year in effect each day (src 'hpx', see
+     _phGetHpxPts) and the dividend-unadjusted close: */
+  {k:'pe_h', lbl:'P/E',             fmt:'n2', src:'hpx',xt:1,tc:1},
+  {k:'evx',  lbl:'EV/EBITDA',       fmt:'n2', src:'hpx',xt:1,tc:1},
+  {k:'pfcf_h',lbl:'P/FCF',          fmt:'n2', src:'hpx',xt:1,tc:1},
+  {k:'pb_h', lbl:'P/B',             fmt:'n2', src:'hpx',xt:1,tc:1},
+  {k:'dy',   lbl:'Dividend Yield',  fmt:'pct',src:'hpx',xt:1,tc:1},
+  {k:'ncm',  lbl:'Net Cash/Mkt Cap',fmt:'pct',src:'hpx',xt:1,tc:1},
+  {k:'hi52', lbl:'% from 52W High', fmt:'pct',src:'hpx',xt:1,tc:1,px:1},
+  {k:'rp52', lbl:'52W Range Position',fmt:'n0',src:'hpx',xt:1,tc:1,px:1}
 ];
 /* Charts › Stock Comparison: a table column with a filed history charts
    that history (its key here); every other column is today's value only,
    drawn as bars ('s:<key>'). */
-var _PH_TC2H={price:'price',gross_margin:'gm',fcf_margin:'fcfm',roe:'roe',de:'de',cr:'cr',total_debt:'debt',net_debt:'ndebt',shares_out:'shares'};
+var _PH_TC2H={price:'price',gross_margin:'gm',fcf_margin:'fcfm',roe:'roe',de:'de',cr:'cr',total_debt:'debt',net_debt:'ndebt',shares_out:'shares',
+  dupont_margin:'dpm',dupont_turnover:'dpt',dupont_leverage:'dpl',fcf_margin_ex_sbc:'fcfx',rd_intensity_xbrl:'rdi',sbc_pct_rev_xbrl:'sbci',
+  cash_conv:'ccv',int_cov:'icov',nd_ebitda:'ndeb',capex_intensity:'cxi',capex_to_dd_ratio:'cxd',payout_ratio:'pay',
+  pe:'pe_h',ev_ebitda:'evx',pfcf:'pfcf_h',pb:'pb_h',div_yield:'dy',net_cash_to_mcap:'ncm',pct_from_52w_high:'hi52',range_52w_position:'rp52'};
 /* +1 higher is better, -1 lower, 0 no verdict — for the Financials rows. */
 var _PH_HDIR={rev:1,ni:1,fcf:1,gm:1,opm:1,npm:1,fcfm:1,roe:1,de:-1,cr:1};
 function _phMetricDef(k){
@@ -8460,6 +8488,7 @@ function _phFmtVal(v,fmt){
   if(fmt==='mil')return (v/1e6).toFixed(1)+'M';
   if(fmt==='pct')return (v*100).toFixed(1)+'%';
   if(fmt==='n2')return v.toFixed(2)+'x';
+  if(fmt==='n0')return v.toFixed(0);
   return v.toFixed(2);
 }
 function _phFmtAxis(v,fmt){
@@ -8572,7 +8601,7 @@ function _renderPHMetricSel(){
   _phCats().forEach(function(cat){
     var o='';
     if(cat==='fin'){
-      _PH_METRICS.forEach(function(m){if(m.src!=='hist'||seen[m.k])return;seen[m.k]=1;o+=opt(m.k,m.lbl,!hasHist);});
+      _PH_METRICS.forEach(function(m){if(m.src!=='hist'||m.tc||seen[m.k])return;seen[m.k]=1;o+=opt(m.k,m.lbl,!hasHist);});
     }else{
       TC[cat].forEach(function(c){
         var f=c.f||'text';
@@ -8610,7 +8639,14 @@ function _phRenderBars(def){
   if(med!=null){lo=Math.min(lo,med);hi=Math.max(hi,med);}
   if(hi===lo)hi=lo+1;
   var span=hi-lo,z=(0-lo)/span*100;
-  var h='<div class="ph-bars">';
+  /* Fill the screen under the title, as the line chart does: each row gets
+     an even share of the height left (bars 18-64px, labels growing with
+     them), instead of a short strip over empty space. */
+  var _top=el.getBoundingClientRect().top+(window.scrollY||0);
+  var _row=((window.innerHeight||800)-_top-(med!=null?64:40))/Math.max(items.length,1);
+  var _bh=Math.round(Math.max(18,Math.min(64,_row*0.6))),_gap=Math.round(Math.max(9,Math.min(40,_row-_bh)));
+  var _fs=Math.round(Math.max(13,Math.min(20,_bh*0.42)));
+  var h='<div class="ph-bars" style="--bh:'+_bh+'px;--gh:'+Math.ceil(_gap/2)+'px;row-gap:'+_gap+'px;font-size:'+_fs+'px">';
   items.forEach(function(x){
     var t=ftc(x.v,def.f).t;
     h+='<span class="ph-bl"><i style="background:'+x.col+'"></i>'+esc(x.tk)+'</span><div class="ph-bt">';
@@ -8824,6 +8860,24 @@ function _phGetHistPts(ticker,metricKey,range){
   if(metricKey==='roe'&&h.ni&&h.equity)return _ratio(h.ni,h.equity,true);
   if(metricKey==='de'&&h.debt&&h.equity)return _ratio(h.debt,h.equity,true);
   if(metricKey==='cr'&&h.ca&&h.cl)return _ratio(h.ca,h.cl,true);
+  /* The table's own definitions, a filed fiscal year at a time. */
+  var _abs=function(o){var r={};for(var k in o)r[k]=o[k]==null?null:Math.abs(o[k]);return r;};
+  if(metricKey==='dpm'&&h.ni&&h.rev)return _ratio(h.ni,h.rev,true);
+  if(metricKey==='dpt'&&h.rev&&h.assets)return _ratio(h.rev,h.assets,true);
+  if(metricKey==='dpl'&&h.assets&&h.equity)return _ratio(h.assets,h.equity,true);
+  if(metricKey==='rdi'&&h.rd&&h.rev)return _ratio(h.rd,h.rev,true);
+  if(metricKey==='sbci'&&h.sbccf&&h.rev)return _ratio(h.sbccf,h.rev,true);
+  if(metricKey==='ccv'&&h.ocf&&h.ni)return _ratio(h.ocf,h.ni,true);
+  if(metricKey==='icov'&&h.op&&h.intexp)return _ratio(h.op,_abs(h.intexp),true);
+  if(metricKey==='cxi'&&h.capex&&h.rev)return _ratio(_abs(h.capex),h.rev,true);
+  if(metricKey==='cxd'&&h.capex&&h.dna)return _ratio(_abs(h.capex),h.dna,true);
+  if(metricKey==='pay'&&h.div&&h.ni)return _ratio(_abs(h.div),h.ni,true);
+  if(metricKey==='fcfx'&&h.ocf&&h.rev){
+    return _build(function(k){var o=h.ocf[k],c=(h.capex&&h.capex[k])||0,sb=(h.sbccf&&h.sbccf[k])||0,r=h.rev[k];if(o==null||r==null||r<=0)return null;return (o-Math.abs(c)-sb)/r;},_keys(h.rev));
+  }
+  if(metricKey==='ndeb'&&h.op&&h.dna&&!_phIsLender(ticker)){
+    return _build(function(k){var o=h.op[k],a=h.dna[k],b=(h.debt&&h.debt[k])||0,c=(h.cash&&h.cash[k])||0;if(o==null||a==null||o+a<=0)return null;return (b-c)/(o+a);},_keys(h.op));
+  }
   if(metricKey==='ndebt'&&h.debt&&h.cash){
     return _build(function(k){var b=h.debt[k],c=h.cash[k];if(b==null||c==null)return null;return b-c;},_keys(h.debt));
   }
@@ -8844,9 +8898,97 @@ function _phGetHistPts(ticker,metricKey,range){
   }
   return [];
 }
+/* Daily multiples rebuilt from filings and price (src 'hpx'). Two things
+   make them honest:
+   - the close is the real one: px/ closes are adjusted for dividends too
+     (yfinance auto_adjust), which shrinks old prices; walking back from
+     today, each ex-dividend date undoes its factor (Yahoo's 1 − D/close
+     the day before), using the shard's dv events. Splits stay adjusted,
+     matching the split-restated share counts and EPS in hist/;
+   - each day uses the latest fiscal year already filed: fya gives the date
+     a year became public (its real end + the filing window, or Dec 31 of
+     the label year + 90 days for a shard without it), so no day sees a
+     year before its 10-K existed. */
+var _PH_RAW={};
+/* A lender's debt and cash are its funding and deposits, so EV, net debt
+   and net cash say nothing about it (the table leaves them blank): the
+   sector pages' industry rule (models/sector_pool.is_balance_sheet_financial). */
+function _phIsLender(tk){
+  for(var i=0;i<DATA.length;i++)if(DATA[i].ticker===tk){var d=DATA[i];
+    return d.sector==='Financial Services'&&/Bank|Mortgage|Credit Services|Capital Markets/.test(d.industry||'');}
+  return false;
+}
+function _phRawCloses(tk){
+  /* Cached per hist shard: a shard landing later brings the dividends. */
+  var c=_PH_RAW[tk];if(c&&c.h===HIST[tk]&&c.p===PRICES.prices[tk])return c.out;
+  var D=PRICES.dates,P=PRICES.prices[tk]||[],h=HIST[tk]||{},dv=h.dv||[];
+  var out=new Array(D.length),F=1,j=dv.length-1;
+  for(var i=D.length-1;i>=0;i--){
+    var a=P[i];
+    if(a==null||!(a>0)||a>=1e9){out[i]=null;continue;}
+    while(j>=0&&dv[j][0]>D[i]){var raw=a/F+dv[j][1];if(raw>dv[j][1])F*=1-dv[j][1]/raw;j--;}
+    out[i]=a/F;
+  }
+  _PH_RAW[tk]={h:HIST[tk],p:PRICES.prices[tk],out:out};
+  return out;
+}
+function _phGetHpxPts(tk,mk,range){
+  if(!PRICES||!PRICES.prices[tk])return[];
+  var def=_phMetricDef(mk),h=HIST[tk];
+  if(!def.px&&!h)return[];
+  if((mk==='evx'||mk==='ncm')&&_phIsLender(tk))return[];
+  h=h||{};
+  var D=PRICES.dates,R=_phRawCloses(tk),cutoff=_phRangeCutoff(range||_phRange);
+  var cut=cutoff?cutoff.toISOString().slice(0,10):'';
+  /* The shard keeps 25 years of dividends (report_html._DIVIDEND_YEARS):
+     before that the close cannot be un-adjusted or a trailing yield
+     summed, so the series starts a year inside the window. */
+  var floor=(+D[D.length-1].slice(0,4)-24)+'-01-01';
+  if(cut<floor)cut=floor;
+  /* fiscal years by the date they became public */
+  var fys=[];
+  var yrs={};['rev','ni','shares','equity','op','ocf'].forEach(function(k){if(h[k])for(var d in h[k])yrs[d.slice(0,4)]=1;});
+  Object.keys(yrs).forEach(function(y){var a=(h.fya&&h.fya[y])||((+y+1)+'-03-31');fys.push([a,y+'-12-31']);});
+  fys.sort(function(a,b){return a[0]<b[0]?-1:a[0]>b[0]?1:0;});
+  var g=function(s,k){return s&&s[k]!=null?s[k]:null;};
+  var fi=-1,dv=h.dv||[],dj=0,dk=0,ttm=0,hasDv=!!h.fya;
+  var qmax=[],qmin=[],out=[];
+  for(var i=0;i<D.length;i++){
+    var r=R[i],d=D[i];
+    while(fi+1<fys.length&&fys[fi+1][0]<=d)fi++;
+    /* trailing-year dividends: add ex-dates up to today, drop those over a year old */
+    while(dj<dv.length&&dv[dj][0]<=d){ttm+=dv[dj][1];dj++;}
+    var yago=(+d.slice(0,4)-1)+d.slice(4);
+    while(dk<dj&&dv[dk][0]<=yago){ttm-=dv[dk][1];dk++;}
+    if(r==null)continue;
+    /* 52-week window (252 bars) of real closes: monotonic queues */
+    while(qmax.length&&R[qmax[qmax.length-1]]<=r)qmax.pop();qmax.push(i);
+    while(qmin.length&&R[qmin[qmin.length-1]]>=r)qmin.pop();qmin.push(i);
+    while(qmax[0]<=i-252)qmax.shift();while(qmin[0]<=i-252)qmin.shift();
+    if(cut&&d<cut)continue;
+    var v=null,k=fi>=0?fys[fi][1]:null;
+    if(mk==='hi52')v=r/R[qmax[0]]-1;
+    else if(mk==='rp52'){var hi=R[qmax[0]],lo=R[qmin[0]];v=hi>lo?(r-lo)/(hi-lo)*100:null;}
+    else if(mk==='dy')v=hasDv?ttm/r:null;
+    else if(k){
+      var sh=g(h.shares,k)||g(h.wavgd,k),mc=sh?r*sh:null;
+      if(mk==='pe_h'){var e=g(h.epsd,k);if(e==null){var n=g(h.ni,k),w=g(h.wavgd,k);e=(n!=null&&w)?n/w:null;}v=e>0?r/e:null;}
+      else if(mc){
+        var debt=g(h.debt,k)||0,cash=g(h.cash,k)||0;
+        if(mk==='evx'){var op=g(h.op,k),da=g(h.dna,k);v=(op!=null&&da!=null&&op+da>0)?(mc+debt-cash)/(op+da):null;}
+        else if(mk==='pfcf_h'){var o=g(h.ocf,k);if(o!=null){var f=o-Math.abs(g(h.capex,k)||0);v=f>0?mc/f:null;}}
+        else if(mk==='pb_h'){var eq=g(h.equity,k);v=eq>0?mc/eq:null;}
+        else if(mk==='ncm')v=(h.cash||h.debt)?(cash-debt)/mc:null;
+      }
+    }
+    if(v!=null&&isFinite(v))out.push({d:d,c:v});
+  }
+  return out;
+}
 function _phGetPts(ticker){
   var def=_phMetricDef(_phMetric);
   if(def.src==='price')return _phGetPricePts(ticker);
+  if(def.src==='hpx')return _phGetHpxPts(ticker,_phMetric);
   return _phGetHistPts(ticker,_phMetric);
 }
 var _phFullY=false;
@@ -8878,7 +9020,7 @@ function renderPHChart(){
   }
   /* Same for a fundamentals metric: fetch the charted tickers' hist shards
      (~10 KB each) before drawing. */
-  if(_phMetricDef(_phMetric).src==='hist'){
+  if(_phMetricDef(_phMetric).src==='hist'||_phMetricDef(_phMetric).src==='hpx'){
     var _hpend=_phStocks.filter(_histPending);
     if(_hpend.length){
       var _e3=document.getElementById('ph-chart');
@@ -8943,7 +9085,7 @@ function _phRenderSVG(allRaw,refs,ctx){
   /* Volume strip: single stock, price metric only. Stacking five companies'
      bars in one 44px strip would be unreadable, and an annual fundamental
      series has no daily volume to pair with. */
-  var volMax=(!cmpMode&&!annual)?_volMaxOf(series[0].raw):0;
+  var volMax=(!cmpMode&&def.src==='price')?_volMaxOf(series[0].raw):0;
   var hasVol=volMax>0;
   /* On a narrow screen the viewBox is the container's width in CSS pixels,
      so one unit is one pixel, as in _renderPolylineSVG. A fixed 900-wide
@@ -8977,7 +9119,7 @@ function _phRenderSVG(allRaw,refs,ctx){
      fundamentals keep their real units, where absolute scale is the point
      (and where benchmarks are not offered). c0 keeps the true value for the
      tooltip. */
-  var rebase=cmpMode&&!annual;
+  var rebase=cmpMode&&def.src==='price';
   if(rebase){
     /* Base every line at the pool's common start — the latest first-date
        across the drawn lines — so 100 means the same date on all of them.
@@ -9039,7 +9181,7 @@ function _phRenderSVG(allRaw,refs,ctx){
      range (_phFullY). Dollar series are left alone: there a large company
      dwarfing a small one is the comparison. */
   var clipLo=null,clipHi=null,wouldClip=false;
-  if(K===''&&annual&&(def.fmt==='pct'||def.fmt==='n2')){
+  if(K===''&&(annual||def.src==='hpx')&&(def.fmt==='pct'||def.fmt==='n2')){
     var _all=[];series.forEach(function(s){s.pts.forEach(function(p){_all.push(p.c);});});
     _all.sort(function(a,b){return a-b;});
     var _q=function(f){var i=(_all.length-1)*f,a=Math.floor(i),b=Math.ceil(i);return _all[a]+(_all[b]-_all[a])*(i-a);};
@@ -9155,7 +9297,19 @@ function _phRenderSVG(allRaw,refs,ctx){
   series.forEach(function(s,si){
     var pp=s.pts.map(function(p,i){return xOf(s.ux[i]).toFixed(1)+','+yOf(cv(p.c)).toFixed(1);}).join(' ');
     if(!cmpMode){var fp=pp+' '+xOf(s.ux[s.pts.length-1]).toFixed(1)+','+(PT+iH)+' '+xOf(s.ux[0]).toFixed(1)+','+(PT+iH);linesSVG+='<polygon points="'+fp+'" fill="url(#ph-g'+K+')"/>';}
-    linesSVG+='<polyline points="'+pp+'" fill="none" stroke="'+s.col+'" stroke-width="'+(cmpMode?1.6:1.8)+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>';
+    /* A rebuilt daily multiple has no value for a stretch with nothing to
+       divide by (a loss year's P/E): break the line there (over 10 days
+       without a point) rather than bridge it with a straight segment. */
+    var segs=[pp];
+    if(def.src==='hpx'){
+      segs=[];var cur=[];
+      s.pts.forEach(function(p,i){
+        if(i&&(new Date(p.d)-new Date(s.pts[i-1].d))>10*86400000){segs.push(cur.join(' '));cur=[];}
+        cur.push(xOf(s.ux[i]).toFixed(1)+','+yOf(cv(p.c)).toFixed(1));
+      });
+      segs.push(cur.join(' '));
+    }
+    segs.forEach(function(sp){if(sp.indexOf(' ')>0)linesSVG+='<polyline points="'+sp+'" fill="none" stroke="'+s.col+'" stroke-width="'+(cmpMode?1.6:1.8)+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>';});
     /* Annual series: a dot per fiscal year, so ~16 yearly values read as
        points rather than a continuous line; a point past a trimmed axis is
        a triangle on the edge, pointing the way it went. */
@@ -9175,7 +9329,7 @@ function _phRenderSVG(allRaw,refs,ctx){
     var _outs=[];
     if(!_phFullY)series.forEach(function(s){
       var ext=null;s.pts.forEach(function(p){if((clipLo!=null&&p.c<clipLo)||(clipHi!=null&&p.c>clipHi)){if(!ext||Math.abs(p.c)>Math.abs(ext.c))ext=p;}});
-      if(ext)_outs.push('<b class="sa-chrome" style="--sac:'+s.col+'">'+esc(s.tk)+'</b> '+esc(_phFmtVal(ext.c,def.fmt))+' (FY'+ext.d.slice(0,4)+')');
+      if(ext)_outs.push('<b class="sa-chrome" style="--sac:'+s.col+'">'+esc(s.tk)+'</b> '+esc(_phFmtVal(ext.c,def.fmt))+' ('+(annual?'FY'+ext.d.slice(0,4):ext.d)+')');
     });
     clipNote='<p class="ph-clip">'+(_phFullY?'Full range shown.':'Scale fits most values; \u25B2\u25BC mark points beyond it: '+_outs.join(', ')+'.')
       +' <button type="button" onclick="phFullY('+(_phFullY?'false':'true')+')">'+(_phFullY?'Fit to most values':'Show full range')+'</button></p>';
@@ -9196,6 +9350,7 @@ function _phRenderSVG(allRaw,refs,ctx){
     +yH+xH+zeroSVG+refSVG+volSVG+noteSVG+linesSVG+dotsSVG
     +'<line id="ph-vl'+K+'" x1="0" y1="'+PT+'" x2="0" y2="'+xBase+'" class="mac-zero" stroke-width="1" stroke-dasharray="3,2" opacity="0"/>'
     +'</svg>';
+  if(def.src==='hpx'&&!def.px)clipNote+='<p class="ph-clip">Rebuilt from each filed fiscal year, counted from its filing, and the day\u2019s actual close. The table\u2019s current value can come from trailing-twelve-month figures and differ.</p>';
   el.innerHTML=svg+clipNote;
   _phStates[K]={cv:cv,wh:window.innerHeight||0,series:series,VW:VW,VH:VH,PL:PL,PR:PR,PT:PT,PB:PB,iW:iW,iH:iH,minP:minP,pRange:pRange,tf:tf,cw:_cw,cmpMode:cmpMode,def:def,annual:annual,ctx:ctx,
                 volMax:volMax,xBase:xBase,uLen:uLen,uDates:uDates};

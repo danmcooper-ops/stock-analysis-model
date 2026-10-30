@@ -7,7 +7,7 @@ import math
 import re
 import shutil
 import jinja2
-from datetime import date
+from datetime import date, timedelta
 import numpy as np
 
 import sys as _sys
@@ -31,7 +31,7 @@ from scripts.config import (CARRY_FORWARD_MAX_PRICE_LAG_BARS,
 from data import etf_holdings
 from models.etf_lookthrough import lookthrough as etf_lookthrough, relative_to
 from data.price_store import mass_stop, stopped_trading
-from data.splits import adjust_for_ticker
+from data.splits import adjust_for_ticker, dividend_events_from_prices
 from data.news_tags import TAG_LABELS
 from scripts.safe_json import dumps_for_script
 
@@ -1470,6 +1470,7 @@ def _build_hist_payload(rows, prices_dir=None):
                         tick_hist[out_key] = out
                         has_any = True
             if has_any:
+                _hist_avail_and_dividends(tick_hist, eh, tk, prices_dir)
                 _hist_out[tk] = tick_hist
         if _hist_out:
             hist_payload = _hist_out
@@ -1477,6 +1478,48 @@ def _build_hist_payload(rows, prices_dir=None):
     except Exception as _e:
         print(f"[warn] edgar history load failed: {_e}")
     return hist_payload
+
+
+# Days after a fiscal year's end before its figures count as known on the
+# Charts view's daily multiples: the 10-K deadline (90 days), and 120 for a
+# filer reporting in another currency (a 20-F has four months).
+_FILING_LAG_DAYS = 90
+_FILING_LAG_DAYS_FOREIGN = 120
+_DIVIDEND_YEARS = 25
+
+
+def _hist_avail_and_dividends(tick_hist, eh, ticker, prices_dir):
+    """Add what the Charts view needs to rebuild daily multiples from a
+    shard: ``fya``, the date each fiscal year's figures became public (its
+    real end from ``fy_ends`` when the history has it, else Dec 31 of the
+    label year, plus the filing window), and ``dv``, ex-dividend dates and
+    amounts, which undo the dividend adjustment in the ``px/`` closes and
+    give a trailing yield. Never raises: a shard without them charts the
+    annual figures as before."""
+    try:
+        years = set()
+        for series in tick_hist.values():
+            if isinstance(series, dict):
+                years.update(k[:4] for k in series if isinstance(k, str))
+        ends = {str(k): str(v)[:10] for k, v in (eh.get('fy_ends') or {}).items() if v}
+        foreign = str(eh.get('reporting_currency') or 'USD').upper() != 'USD'
+        lag = timedelta(days=_FILING_LAG_DAYS_FOREIGN if foreign else _FILING_LAG_DAYS)
+        fya = {}
+        for y in sorted(years):
+            try:
+                end = date.fromisoformat(ends.get(y) or f'{y}-12-31')
+            except ValueError:
+                continue
+            fya[y] = (end + lag).isoformat()
+        if fya:
+            tick_hist['fya'] = fya
+        since = date(date.today().year - _DIVIDEND_YEARS, 1, 1)
+        dv = [[d.isoformat(), round(a, 6)]
+              for d, a in dividend_events_from_prices(prices_dir, ticker, since)]
+        if dv:
+            tick_hist['dv'] = dv
+    except Exception as e:
+        logger.debug("hist availability/dividends failed for %s: %s", ticker, e)
 
 
 _SHARD_TICKER = re.compile(r'[A-Za-z0-9._-]{1,15}')
