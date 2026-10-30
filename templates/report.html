@@ -608,22 +608,62 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .filt-panel{max-width:min(880px,calc(100vw - 20px));max-height:calc(100vh - 68px);}
 .filt-header-actions{display:flex;gap:8px;align-items:center;}
 .filt-header-actions .filter-clear{padding:3px 10px;font-size:0.85em;}
-.filt-cols{display:flex;gap:18px;align-items:flex-start;}
-.filt-col{flex:0 0 auto;min-width:130px;max-width:230px;display:flex;flex-direction:column;min-height:0;}
+.filt-cols{display:flex;flex-direction:column;gap:0;}
+.filt-col{display:flex;flex-direction:column;min-height:0;}
 #filt-panel .ms-wrap{position:static;display:block;min-width:0;}
 /* Viewport-relative cap so the checkbox lists — Countries runs to dozens of
    rows and always pins to the cap — give way first on a short window. They
    already scroll internally, so shrinking them costs nothing, while letting
    them hold 314px would push the Column Filters section back below the fold
    on anything under ~600px tall. */
-#filt-panel .ms-drop{display:block;position:static;min-width:0;max-height:min(314px,32vh);border:none;border-radius:0;box-shadow:none;background:none;}
+#filt-panel .ms-drop{display:block;position:static;min-width:0;max-height:none;overflow:visible;border:none;border-radius:0;box-shadow:none;background:none;}
 #filt-panel .ms-drop label{padding:4px 8px;border-radius:5px;}
 /* Narrow screens: the filter columns stack into one scrolling list, same
    as the nav menu's. */
+/* One column of sections: a header line (name, what it holds now, a
+   chevron) and, when open, its controls. */
+#filt-panel{width:400px;}
+#filt-panel .fpop-body{padding:4px 0 8px;gap:0;}
+.fsec{border-bottom:1px solid #edf0f3;}
+.fsec-h{display:flex;align-items:center;gap:10px;width:100%;padding:12px 16px;border:0;background:none;font:inherit;text-align:left;cursor:pointer;}
+.fsec-t{font-weight:700;font-size:0.92em;flex:0 0 auto;}
+.fsec-s{flex:1 1 auto;min-width:0;text-align:right;color:#8a94a0;font-size:0.85em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.fsec-s.on{color:var(--accent);font-weight:600;}
+.fsec-c{width:8px;height:8px;border-right:2px solid #9aa5b1;border-bottom:2px solid #9aa5b1;transform:rotate(45deg);margin:-4px 2px 0 4px;transition:transform .15s;flex:0 0 auto;}
+.fsec.open .fsec-c{transform:rotate(-135deg);margin-top:4px;}
+#filt-panel .fsec:not(.open) .fsec-b{display:none !important;}
+.fsec.open .fsec-b{display:block;padding:0 16px 14px;}
+.fsec.open .qf-menu.fsec-b,.fsec.open #ms-rating .ms-drop{display:flex;}
+/* Rating and Quick filters: chips. The checkbox stays (it is the state);
+   the chip is its label, filled when on. */
+#ms-rating .ms-drop{flex-wrap:wrap;gap:8px;}
+#ms-rating .ms-all{display:none !important;}
+#ms-rating .ms-drop label{padding:7px 14px;border:1.5px solid #cfd6de;border-radius:18px;font-weight:600;font-size:0.85em;gap:0;}
+#ms-rating .ms-drop label input,.qf-menu .qf-chk{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;}
+#ms-rating label:has(input:checked){color:#fff !important;}
+#ms-rating label:has(input[value="BUY"]:checked){background:#276221;border-color:#276221;}
+#ms-rating label:has(input[value="LEAN BUY"]:checked){background:#5d8a26;border-color:#5d8a26;}
+#ms-rating label:has(input[value="HOLD"]:checked){background:#b07d00;border-color:#b07d00;}
+#ms-rating label:has(input[value="PASS"]:checked){background:#9c1d1d;border-color:#9c1d1d;}
+.qf-menu.fsec-b{flex-direction:row;flex-wrap:wrap;gap:8px;}
+#filt-panel .qf-menu .fpop-toggle-btn{width:auto;padding:7px 14px;border:1.5px solid #cfd6de;border-radius:18px;background:none;font-size:0.85em;font-weight:600;}
+#filt-panel .qf-menu .fpop-toggle-btn:has(.qf-chk:checked){background:var(--accent);border-color:var(--accent);color:#fff !important;}
+#filt-panel .qf-menu .fpop-toggle-btn:has(.qf-chk:checked) *{color:#fff !important;}
+/* Lists: the whole list, the panel scrolls (no box-in-a-box). */
+#filt-panel .fsec .ms-drop label{padding:7px 4px;font-size:0.9em;}
+#filt-panel .fsec .ms-drop .ms-all{border-bottom:1px solid #edf0f3;margin-bottom:2px;}
+.fsec-q{width:100%;box-sizing:border-box;margin:0 0 6px;padding:7px 10px;border:1px solid #cfd6de;border-radius:8px;font:inherit;font-size:0.9em;background:transparent;}
+.fsec .add-filter-btn{margin-top:6px;}
+.filt-foot{flex-shrink:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom));border-top:1px solid #edf0f3;}
+.filt-show{width:100%;padding:11px;border:0;border-radius:10px;background:var(--accent);color:#fff;font:inherit;font-weight:700;cursor:pointer;}
+#filt-panel #alt-filt{padding:8px 16px;}
+[data-theme="dark"] .fsec,[data-theme="dark"] .filt-foot,[data-theme="dark"] #filt-panel .fsec .ms-drop .ms-all{border-color:#30363d;}
+[data-theme="dark"] #ms-rating .ms-drop label,[data-theme="dark"] #filt-panel .qf-menu .fpop-toggle-btn,[data-theme="dark"] .fsec-q{border-color:#3d444d;background:none;}
+[data-theme="dark"] .fsec-s{color:#8b949e;}
+[data-theme="dark"] .fsec-s.on{color:var(--accent);}
+[data-theme="dark"] .filt-show{color:#0d1117 !important;}
 @media(max-width:700px){
-  .filt-cols{flex-direction:column;gap:12px;}
-  .filt-col{max-width:none;}
-  #filt-panel .ms-drop{max-height:170px;}
+  #filt-panel{width:auto;}
 }
 .fpop-clear-filters{padding:4px 12px;font-size:0.85em;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#f9f9f9;color:#555;}
 .fpop-clear-filters:hover{background:#feecec;border-color:#e88;color:#c33;}
@@ -3564,9 +3604,9 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
                are hidden: those tabs have no stock rows to filter. -->
           <div class="alt-filt" id="alt-filt" hidden></div>
           <div class="filt-cols" id="filt-stock">
-            <div class="filt-col">
-              <div class="fpop-section-label">Ratings</div>
-              <div class="ms-wrap" id="ms-rating">
+            <div class="filt-col fsec" data-fsec="rating">
+              <button type="button" class="fsec-h" onclick="_fsecToggle('rating')" aria-expanded="false"><span class="fsec-t">Rating</span><span class="fsec-s" id="fsum-rating"></span><span class="fsec-c" aria-hidden="true"></span></button>
+              <div class="ms-wrap fsec-b" id="ms-rating">
                 <div class="ms-drop">
                   <label class="ms-all"><input type="checkbox" checked onchange="msToggleAll('ms-rating',this.checked)"> All Ratings</label>
                   <label><input type="checkbox" value="BUY" checked onchange="msChanged('ms-rating')"> BUY</label>
@@ -3576,16 +3616,8 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
                 </div>
               </div>
             </div>
-            <div class="filt-col">
-              <div class="fpop-section-label">Sectors</div>
-              <div class="ms-wrap" id="ms-sector"><div class="ms-drop" id="ms-sector-opts"></div></div>
-            </div>
-            <div class="filt-col">
-              <div class="fpop-section-label">Countries</div>
-              <div class="ms-wrap" id="ms-country"><div class="ms-drop" id="ms-country-opts"></div></div>
-            </div>
-            <div class="filt-col">
-              <div class="fpop-section-label">Quick Filters</div>
+            <div class="filt-col fsec" data-fsec="quick">
+              <button type="button" class="fsec-h" onclick="_fsecToggle('quick')" aria-expanded="false"><span class="fsec-t">Quick filters</span><span class="fsec-s" id="fsum-quick"></span><span class="fsec-c" aria-hidden="true"></span></button>
               <!-- Each row leads with a checkbox mirroring the Ratings /
                    Sectors / Countries lists. The boxes are display-only
                    (pointer-events:none, synced by _syncQfChecks from the
@@ -3594,7 +3626,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
                    All unchecked by default. Reviewed/Unreviewed are a
                    mutually-exclusive pair over one state var, the same shape
                    as Upgrades/Downgrades below. -->
-              <div class="qf-menu">
+              <div class="qf-menu fsec-b">
                 <button class="fpop-toggle-btn" id="f-reviewed" onclick="setRevFilter(2)" title="Only stocks you have marked reviewed (&check;). Marks are saved in this browser's local storage."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Reviewed<span id="rev-count-label"></span></button>
                 <button class="fpop-toggle-btn" id="f-unreviewed" onclick="setRevFilter(1)" title="Only stocks you have not marked reviewed — what is still left to work through."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Unreviewed</button>
                 <button class="fpop-toggle-btn" id="f-flagged" onclick="toggleFlagFilter()"><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Flagged<span class="flag-count" id="flag-count-label"></span></button>
@@ -3605,20 +3637,36 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
                 <button class="fpop-toggle-btn" id="f-downgrades" onclick="setRcFilter(2)" title="Only stocks whose rating declined vs the prior run's snapshot (Yesterday's Rating). Stocks new since the prior run don't count."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Downgrades</button>
               </div>
             </div>
-            <div class="filt-col" id="pf-filt-col">
-              <div class="fpop-section-label">Portfolios<span class="pf-sync-badge" id="pf-sync-badge" style="display:none">&#9679;</span></div>
-              <div class="ms-drop pf-filt-opts" id="pf-filt-opts"></div>
-              <div class="pf-filt-actions"><button type="button" class="pf-link" onclick="pfSaveFilterOpen()">Save filter as portfolio&hellip;</button><button type="button" class="pf-link" onclick="pfManageOpen()">Manage&hellip;</button></div>
+            <div class="filt-col fsec" data-fsec="sector">
+              <button type="button" class="fsec-h" onclick="_fsecToggle('sector')" aria-expanded="false"><span class="fsec-t">Sectors</span><span class="fsec-s" id="fsum-sector"></span><span class="fsec-c" aria-hidden="true"></span></button>
+              <div class="ms-wrap fsec-b" id="ms-sector"><div class="ms-drop" id="ms-sector-opts"></div></div>
+            </div>
+            <div class="filt-col fsec" data-fsec="country">
+              <button type="button" class="fsec-h" onclick="_fsecToggle('country')" aria-expanded="false"><span class="fsec-t">Countries</span><span class="fsec-s" id="fsum-country"></span><span class="fsec-c" aria-hidden="true"></span></button>
+              <div class="fsec-b">
+                <input type="search" class="fsec-q" placeholder="Find a country" aria-label="Find a country" oninput="_fsecFind(this,'ms-country')">
+                <div class="ms-wrap" id="ms-country"><div class="ms-drop" id="ms-country-opts"></div></div>
+              </div>
+            </div>
+            <div class="filt-col fsec" id="pf-filt-col" data-fsec="pf">
+              <button type="button" class="fsec-h" onclick="_fsecToggle('pf')" aria-expanded="false"><span class="fsec-t">Portfolios</span><span class="fsec-s" id="fsum-pf"></span><span class="fsec-c" aria-hidden="true"></span></button>
+              <div class="fsec-b">
+                <span class="pf-sync-badge" id="pf-sync-badge" style="display:none">&#9679;</span>
+                <div class="ms-drop pf-filt-opts" id="pf-filt-opts"></div>
+                <div class="pf-filt-actions"><button type="button" class="pf-link" onclick="pfSaveFilterOpen()">Save filter as portfolio&hellip;</button><button type="button" class="pf-link" onclick="pfManageOpen()">Manage&hellip;</button></div>
+              </div>
             </div>
           </div>
-          <div id="filt-stock-cols">
-          <div class="fpop-divider"></div>
-          <div class="fpop-section-label">Column Filters</div>
+          <div id="filt-stock-cols" class="fsec" data-fsec="cols">
+          <button type="button" class="fsec-h" onclick="_fsecToggle('cols')" aria-expanded="false"><span class="fsec-t">Column filters</span><span class="fsec-s" id="fsum-cols"></span><span class="fsec-c" aria-hidden="true"></span></button>
+          <div class="fsec-b">
           <div id="dash-filt-row" style="display:none"></div>
           <div id="col-filters" class="col-filters-wrap"></div>
-          <button class="add-filter-btn" onclick="addColFilter()">&#65291; Add Filter</button>
+          <button class="add-filter-btn" onclick="addColFilter()">&#65291; Add a filter on any column</button>
+          </div>
           </div>
         </div>
+        <div class="filt-foot"><button type="button" class="filt-show" id="filt-show" onclick="closeFiltMenu()">Done</button></div>
       </div>
     </div>
   </div>
@@ -7180,6 +7228,7 @@ function applyFilters(){
   if(fbadge){fbadge.style.display=fn>0?'':'none';fbadge.textContent=fn>0?fn:'';}
   _altFiltBadge();
   _syncQfChecks();
+  _fsecSync(false);
   _updateFlagCount();
   /* FD moved, so the Charts view's auto-seeded five are stale. renderCur()
      resyncs it if it's the visible view; otherwise the flag holds until the
@@ -7402,6 +7451,109 @@ function _positionFpop(panel,btn){
   if(top+ph>vh-10)top=Math.max(10,r.top-ph-6);
   panel.style.top=(top-wr.top)+'px';panel.style.left=(left-wr.left)+'px';
 }
+/* The top bar's Filters panel is every tab's one filter control. On Bonds
+   and Currencies it shows that tab's filters in place of the stock ones
+   (which have no rows there to filter), titled for the tab, and the funnel's
+   badge counts them. */
+function _altFiltKind(){return _bvOn()?'bond':_cxOn()?'ccy':'';}
+function _altFiltActive(k){return k==='bond'?_bvActive():k==='ccy'?(_cxF.r?1:0):0;}
+function _altFiltSync(){
+  var k=_altFiltKind(),box=document.getElementById('alt-filt');if(!box)return;
+  var s1=document.getElementById('filt-stock'),s2=document.getElementById('filt-stock-cols'),pc=document.getElementById('pf-filt-col');
+  box.hidden=!k;
+  if(s1)s1.style.display=k?'none':'';
+  if(s2)s2.style.display=k?'none':'';
+  var tl=document.querySelector('#filt-panel .fpop-title');
+  if(tl)tl.textContent=k==='bond'?'Bond filters':k==='ccy'?'Currency filters':'Filters';
+  var fb=document.getElementById('filt-show');if(fb&&k)fb.textContent='Done';
+  var fc=document.getElementById('filt-count');
+  if(fc&&k){var n=document.getElementById(k==='bond'?'bv-n':'cx-n');fc.textContent=n?n.textContent:'';}
+  var opt=function(v,l,cur){return '<option value="'+_attr(v)+'"'+(v===cur?' selected':'')+'>'+_esc(l)+'</option>';};
+  var lab=function(t){return '<div class="fpop-section-label">'+t+'</div>';};
+  if(k==='bond'){
+    var D=_BV||{},cls={},I=_BV?_bvIdx():{};
+    (D.rows||[]).forEach(function(r){var v=r[I.asset_class];if(v)cls[v]=1;});
+    box.innerHTML=lab('Rating')+'<select onchange="_bvSet(\'r\',this.value)" aria-label="Rating">'+opt('','All ratings',_bvF.r)+['BUY','LEAN BUY','HOLD','PASS'].map(function(r){return opt(r,r,_bvF.r);}).join('')+'</select>'
+      +lab('Asset class')+'<select onchange="_bvSet(\'c\',this.value)" aria-label="Asset class">'+opt('','All classes',_bvF.c)+Object.keys(cls).sort().map(function(c){return opt(c,_bvCls(c),_bvF.c);}).join('')+'</select>'
+      +lab('Implied credit bucket')+'<select onchange="_bvSet(\'b\',this.value)" aria-label="Implied credit bucket">'+opt('','All buckets',_bvF.b)+(D.buckets||[]).map(function(b){return opt(b[0],b[0],_bvF.b);}).join('')+'</select>'
+      +'<label class="alt-chk"><input type="checkbox"'+(_bvF.u?' checked':'')+' onchange="_bvSet(\'u\',this.checked)"> Uncapped only</label>';
+  }else if(k==='ccy'){
+    box.innerHTML=lab('Rating')+'<select onchange="_cxSet(\'r\',this.value)" aria-label="Rating">'+opt('','All ratings',_cxF.r)+_CX_RATINGS.map(function(r){return opt(r,r,_cxF.r);}).join('')+'</select>';
+  }else box.innerHTML='';
+  _altFiltBadge();
+}
+var _filtStockN=0;
+/* The Filters panel is one column of sections, each a header line saying
+   what it holds now ("All", "BUY, LEAN BUY", "3 of 11") that opens its
+   controls. Rating and Quick filters are short chip rows and start open;
+   the long lists (Sectors, Countries, Portfolios) and Column filters start
+   shut unless they hold a filter. A section the reader opened or shut keeps
+   that state for the visit. The checkbox lists underneath are unchanged:
+   applyFilters, presets and the URL hash still read them. */
+var _fsecUser={};
+function _fsecChecked(id){
+  var b=[].slice.call(document.querySelectorAll('#'+id+' .ms-drop input[type="checkbox"][value]'));
+  return {n:b.length,on:b.filter(function(x){return x.checked;}).map(function(x){return x.value;})};
+}
+function _fsecListSum(id){
+  var c=_fsecChecked(id);
+  if(!c.n||c.on.length===c.n)return '';
+  if(!c.on.length)return 'None';
+  return c.on.length<=2?c.on.join(', '):c.on.length+' of '+c.n;
+}
+function _fsecSums(){
+  var q=[];
+  [['f-reviewed','Reviewed'],['f-unreviewed','Unreviewed'],['f-flagged','Flagged'],['f-founder','Founder-led'],['f-bluechip','Blue chip'],['f-r2000','Russell 2000'],['f-upgrades','Upgrades'],['f-downgrades','Downgrades']]
+    .forEach(function(x){var c=document.querySelector('#'+x[0]+' .qf-chk');if(c&&c.checked)q.push(x[1]);});
+  var st=_getCurrentFilterState(),cf=((st&&st.colFilters)||[]).length+(_dashFilter?1:0);
+  return {rating:_fsecListSum('ms-rating'),sector:_fsecListSum('ms-sector'),country:_fsecListSum('ms-country'),
+    quick:q.length?(q.length<=2?q.join(', '):q.length+' on'):'',
+    pf:_pfSel.length?(_pfSel.length===1?(function(){var d=_pfDefs().filter(function(p){return p.id===_pfSel[0];})[0];return d?d.name:'1 portfolio';})():_pfSel.length+' portfolios'):'',
+    cols:cf?cf+' active':''};
+}
+function _fsecSync(opening){
+  var sums=_fsecSums();
+  [].forEach.call(document.querySelectorAll('#filt-panel .fsec'),function(sec){
+    var k=sec.getAttribute('data-fsec'),v=sums[k]||'';
+    var el=document.getElementById('fsum-'+k);
+    if(el){el.textContent=v||(k==='quick'||k==='cols'?'None':k==='pf'?'Any':'All');el.classList.toggle('on',!!v);}
+    var open=(k in _fsecUser)?_fsecUser[k]:(k==='rating'||k==='quick'||!!v);
+    if(opening||(k in _fsecUser))_fsecSet(sec,open);
+  });
+  var b=document.getElementById('filt-show');
+  if(b&&!_altFiltKind())b.textContent='Show '+FD.length.toLocaleString()+' stock'+(FD.length===1?'':'s');
+}
+function _fsecSet(sec,open){
+  sec.classList.toggle('open',open);
+  var h=sec.querySelector('.fsec-h');if(h)h.setAttribute('aria-expanded',open?'true':'false');
+}
+function _fsecToggle(k){
+  var sec=document.querySelector('#filt-panel .fsec[data-fsec="'+k+'"]');if(!sec)return;
+  _fsecUser[k]=!sec.classList.contains('open');
+  _fsecSet(sec,_fsecUser[k]);
+}
+/* Narrows a long list as you type; hides rows only, so nothing is unchecked. */
+function _fsecFind(inp,id){
+  var q=inp.value.trim().toLowerCase();
+  [].forEach.call(document.querySelectorAll('#'+id+' .ms-drop label'),function(l){
+    l.style.display=!q||l.textContent.toLowerCase().indexOf(q)>=0?'':'none';
+  });
+}
+function _altFiltBadge(){
+  var k=_altFiltKind();
+  var n=k?_altFiltActive(k):_filtStockN,b=document.getElementById('filt-badge'),btn=document.getElementById('filt-btn');
+  if(b){b.style.display=n?'':'none';b.textContent=n?n:'';}
+  var p=document.getElementById('filt-panel');
+  if(btn)btn.classList.toggle('active',n>0||!!(p&&p.classList.contains('open')));
+}
+/* Clear empties the filters of the tab the panel is showing. */
+function _filtClear(){
+  var k=_altFiltKind();
+  if(k==='bond')_bvReset();
+  else if(k==='ccy')_cxSet('r','');
+  else clearFilters();
+  closeFiltMenu();
+}
 /* The unified Filters dropdown — same open/close pattern as the nav menu.
    The button's active state is shared with the badge logic in applyFilters
    (lit while any filter is engaged), so closing only unlights it when
@@ -7414,6 +7566,7 @@ function toggleFiltMenu(e){
   closeNavMenu();
   if(wasOpen){closeFiltMenu();return;}
   _altFiltSync();
+  _fsecSync(true);
   panel.classList.add('open');
   var btn=document.getElementById('filt-btn');
   if(btn){
@@ -15674,52 +15827,7 @@ function _cxPick(code){
 }
 function _cxSortBy(k){if(k===_cxSortK)_cxDir=-_cxDir;else{_cxSortK=k;_cxDir=-1;}_cxDraw();}
 function _cxSet(k,v){_cxF[k]=v;_cxDraw();_altFiltSync();}
-/* The top bar's Filters panel is every tab's one filter control. On Bonds
-   and Currencies it shows that tab's filters in place of the stock ones
-   (which have no rows there to filter), titled for the tab, and the funnel's
-   badge counts them. */
-function _altFiltKind(){return _bvOn()?'bond':_cxOn()?'ccy':'';}
-function _altFiltActive(k){return k==='bond'?_bvActive():k==='ccy'?(_cxF.r?1:0):0;}
-function _altFiltSync(){
-  var k=_altFiltKind(),box=document.getElementById('alt-filt');if(!box)return;
-  var s1=document.getElementById('filt-stock'),s2=document.getElementById('filt-stock-cols'),pc=document.getElementById('pf-filt-col');
-  box.hidden=!k;
-  if(s1)s1.style.display=k?'none':'';
-  if(s2)s2.style.display=k?'none':'';
-  var tl=document.querySelector('#filt-panel .fpop-title');
-  if(tl)tl.textContent=k==='bond'?'Bond filters':k==='ccy'?'Currency filters':'Filters';
-  var fc=document.getElementById('filt-count');
-  if(fc&&k){var n=document.getElementById(k==='bond'?'bv-n':'cx-n');fc.textContent=n?n.textContent:'';}
-  var opt=function(v,l,cur){return '<option value="'+_attr(v)+'"'+(v===cur?' selected':'')+'>'+_esc(l)+'</option>';};
-  var lab=function(t){return '<div class="fpop-section-label">'+t+'</div>';};
-  if(k==='bond'){
-    var D=_BV||{},cls={},I=_BV?_bvIdx():{};
-    (D.rows||[]).forEach(function(r){var v=r[I.asset_class];if(v)cls[v]=1;});
-    box.innerHTML=lab('Rating')+'<select onchange="_bvSet(\'r\',this.value)" aria-label="Rating">'+opt('','All ratings',_bvF.r)+['BUY','LEAN BUY','HOLD','PASS'].map(function(r){return opt(r,r,_bvF.r);}).join('')+'</select>'
-      +lab('Asset class')+'<select onchange="_bvSet(\'c\',this.value)" aria-label="Asset class">'+opt('','All classes',_bvF.c)+Object.keys(cls).sort().map(function(c){return opt(c,_bvCls(c),_bvF.c);}).join('')+'</select>'
-      +lab('Implied credit bucket')+'<select onchange="_bvSet(\'b\',this.value)" aria-label="Implied credit bucket">'+opt('','All buckets',_bvF.b)+(D.buckets||[]).map(function(b){return opt(b[0],b[0],_bvF.b);}).join('')+'</select>'
-      +'<label class="alt-chk"><input type="checkbox"'+(_bvF.u?' checked':'')+' onchange="_bvSet(\'u\',this.checked)"> Uncapped only</label>';
-  }else if(k==='ccy'){
-    box.innerHTML=lab('Rating')+'<select onchange="_cxSet(\'r\',this.value)" aria-label="Rating">'+opt('','All ratings',_cxF.r)+_CX_RATINGS.map(function(r){return opt(r,r,_cxF.r);}).join('')+'</select>';
-  }else box.innerHTML='';
-  _altFiltBadge();
-}
-var _filtStockN=0;
-function _altFiltBadge(){
-  var k=_altFiltKind();
-  var n=k?_altFiltActive(k):_filtStockN,b=document.getElementById('filt-badge'),btn=document.getElementById('filt-btn');
-  if(b){b.style.display=n?'':'none';b.textContent=n?n:'';}
-  var p=document.getElementById('filt-panel');
-  if(btn)btn.classList.toggle('active',n>0||!!(p&&p.classList.contains('open')));
-}
-/* Clear empties the filters of the tab the panel is showing. */
-function _filtClear(){
-  var k=_altFiltKind();
-  if(k==='bond')_bvReset();
-  else if(k==='ccy')_cxSet('r','');
-  else clearFilters();
-  closeFiltMenu();
-}
+
 /* A sector page's Value creation tab: its own SPDR. */
 function renderPoolEtf(sec){
   var t=ETF_LT&&ETF_LT.sector_fund&&ETF_LT.sector_fund[sec];

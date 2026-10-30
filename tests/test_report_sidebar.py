@@ -552,3 +552,30 @@ def test_model_gate_categories_fold():
     assert 'onclick="_gvToggle(this)"' in src
     assert "localStorage.setItem('stock_gv_shut_v1',JSON.stringify(st));" in src
     assert '.gv-shut .gv-items,.gv-shut .gv-wt{display:none;}' in src
+
+
+def test_filters_panel_is_one_column_of_summarised_sections():
+    """The Filters panel reads top to bottom: Rating and Quick filters as
+    chips, then Sectors, Countries (with a find box), Portfolios and Column
+    filters, each a header line saying what it holds now that opens its
+    controls, and a Show-N button pinned at the bottom."""
+    src = _tpl()
+    keys = re.findall(r'<div class="filt-col fsec"(?: id="pf-filt-col")? data-fsec="(\w+)">', src)
+    assert keys == ['rating', 'quick', 'sector', 'country', 'pf']
+    assert '<div id="filt-stock-cols" class="fsec" data-fsec="cols">' in src
+    for k in ('rating', 'quick', 'sector', 'country', 'pf', 'cols'):
+        assert f'<span class="fsec-s" id="fsum-{k}"></span>' in src, k
+    # The checkbox lists stay the filter state (applyFilters / hash read them).
+    for i in ('ms-rating', 'ms-sector', 'ms-country', 'pf-filt-opts'):
+        assert f'id="{i}"' in src
+    assert "oninput=\"_fsecFind(this,'ms-country')\"" in src
+    assert '<button type="button" class="filt-show" id="filt-show" onclick="closeFiltMenu()">' in src
+    sync = _fn(src, '_fsecSync')
+    # Short chip rows start open; a list opens itself only when it filters.
+    assert "(k==='rating'||k==='quick'||!!v)" in sync
+    assert "'Show '+FD.length.toLocaleString()+' stock'" in sync
+    # Collapsed means hidden, over the older id-level display rules.
+    assert '#filt-panel .fsec:not(.open) .fsec-b{display:none !important;}' in src
+    # Summaries follow the chips: synced after _syncQfChecks in applyFilters.
+    af = _fn(src, 'applyFilters')
+    assert af.index('_syncQfChecks();') < af.index('_fsecSync(false);')
