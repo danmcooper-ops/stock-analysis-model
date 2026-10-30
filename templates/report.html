@@ -1290,6 +1290,7 @@ td.ct{font-weight:700;}
 .km-k[data-km-tip]{cursor:default;}
 .legend{font-size:0.75em;color:#888;margin:6px 0 10px;padding:6px 0;}
 .pp-subtabs{margin:0 0 14px;}
+#sn-sub2{margin:0;}
 .pp-tabbed:not([data-tab="overview"])>[data-pane="overview"]{display:none;}
 .pp-tabbed:not([data-tab="forces"])>[data-pane="forces"]{display:none;}
 .pp-tabbed:not([data-tab="pool"])>[data-pane="pool"]{display:none;}
@@ -3639,7 +3640,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
     <button type="button" class="d-back sa-chrome" id="sn-back" onclick="drillBack()"></button>
     <div class="sn-head"><h2 class="sn-title" id="sn-title"></h2><span class="sn-count" id="sn-count"></span><span class="sn-crumb" id="sn-crumb"></span><span class="sn-date">{{ generated_at }}</span></div>
     <div class="sn-chips" id="sn-chips" role="tablist"></div>
-    <div class="d-stmt-tabs sa-chrome pp-subtabs" id="sn-sub2" role="tablist" aria-label="Stocks" hidden></div>
+    <div class="d-stmt-tabs sa-chrome pp-subtabs" id="sn-sub2" role="tablist" aria-label="Stocks" style="display:none"></div>
   </div>
   <div id="view-pool" class="view active">
     <div id="pool-chart-area"></div>
@@ -12567,7 +12568,7 @@ function _innerSubTabs(){
   if(curView==='pf')return document.querySelector('#pf-view .pp-subtabs');
   if(curView==='matrix'&&/^(etf|bond|ccy)$/.test(curMSub))return document.querySelector('#m-'+curMSub+'-view .pp-subtabs');
   var s2=document.getElementById('sn-sub2');
-  if(s2&&!s2.hidden&&s2.children.length)return s2;
+  if(s2&&s2.style.display!=='none'&&s2.children.length)return s2;
   return null;
 }
 function _swipeTab(dir){
@@ -13031,7 +13032,9 @@ function renderNavMenu(){
   var s2=document.getElementById('sn-sub2');
   if(s2){
     var stk=nv==='matrix'&&g&&g.cur==='matrix';
-    s2.hidden=!stk;
+    /* style, not the hidden attribute: .d-stmt-tabs' display:flex outranks
+       [hidden], which left an empty underline and its margin on every page. */
+    s2.style.display=stk?'':'none';
     if(stk){
       var sk=_stkCur();_stkLast=sk;
       s2.innerHTML=_stkTabs().map(function(t){var on=t.k===sk;
