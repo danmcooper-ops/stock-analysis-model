@@ -381,4 +381,3 @@ def test_bond_n_port_alerts_reach_the_run_notes(tmp_path):
     assert 'newest published: 2026q3' in out
     assert notes.splitlines() == ['bonds: N-PORT 2026q3 is published but not ingested',
                                   'bonds: newest N-PORT mark is 182 days old']
-
