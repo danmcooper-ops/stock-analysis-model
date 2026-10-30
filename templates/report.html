@@ -3182,19 +3182,17 @@ html.stmt-fs-open #det-modal{z-index:1550;}
 #det-modal .dv-big{font-size:26px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums;}
 #det-modal .dv-mut{--sac:var(--chrome-muted);}
 #det-modal .dv-tk{display:inline-block;width:2px;height:10px;margin:0 2px -1px;background:var(--dv-tick);vertical-align:baseline;}
-.ph-cols{position:relative;padding:26px 0 26px;font-variant-numeric:tabular-nums;box-sizing:border-box;}
-.ph-cplot{position:relative;height:100%;display:flex;justify-content:space-around;}
-.ph-col{position:relative;flex:1 1 0;max-width:96px;}
-.ph-col i{position:absolute;left:18%;right:18%;border-radius:4px 4px 0 0;opacity:.9;}
-.ph-col span{position:absolute;left:-10px;right:-10px;text-align:center;font-weight:700;font-size:13px;white-space:nowrap;}
-.ph-czero{position:absolute;left:0;right:0;height:1px;background:#7f8c9a;}
-.ph-cmed{position:absolute;left:0;right:0;height:0;border-top:2px dashed #7f8c9a;z-index:1;}
-.ph-cx{display:flex;justify-content:space-around;margin-top:6px;}
-.ph-cx span{flex:1 1 0;max-width:96px;display:inline-flex;align-items:center;justify-content:center;gap:5px;font-weight:700;font-size:13px;}
-.ph-cx i{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
-.ph-col i.neg{border-radius:0 0 4px 4px;}
-.ph-bnote{position:relative;font-size:0.75em;color:#888;margin:4px 0 0;padding-left:16px;}
-.ph-bnote em{position:absolute;left:0;top:50%;width:11px;height:0;border-top:2px dashed #7f8c9a;}
+.ph-bars{display:grid;grid-template-columns:auto 1fr auto;gap:9px 10px;align-items:center;padding:8px 0 4px;font-variant-numeric:tabular-nums;}
+.ph-bl{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:1em;}
+.ph-bl i{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.ph-bt{position:relative;height:var(--bh,18px);background:rgba(127,140,154,.12);border-radius:3px;}
+.ph-bt span{position:absolute;top:0;bottom:0;border-radius:3px;opacity:.9;}
+.ph-bt b{position:absolute;top:-3px;bottom:-3px;width:1px;background:#7f8c9a;}
+.ph-bt em,.ph-bnote em{position:absolute;top:-4px;bottom:-4px;width:0;border-left:2px dashed #7f8c9a;}
+.ph-bt em{top:calc(-1 * var(--gh,4px));bottom:calc(-1 * var(--gh,4px));}
+.ph-bv{font-weight:700;font-size:1em;text-align:right;}
+.ph-bnote{position:relative;font-size:0.75em;color:#888;margin:4px 0 0;padding-left:12px;}
+.ph-bnote em{top:2px;bottom:2px;left:0;}
 #det-modal .dv-pos{--sac:var(--dv-pos);}#det-modal .dv-neg{--sac:var(--dv-neg);}#det-modal .dv-midc{--sac:var(--dv-mid);}
 /* 52-week range */
 #det-modal .dv-rng{position:relative;height:10px;border-radius:5px;background:linear-gradient(90deg,var(--dv-zone-b),var(--dv-track) 50%,var(--dv-zone-g));margin:14px 0 4px;}
@@ -8641,29 +8639,23 @@ function _phRenderBars(def){
   if(med!=null){lo=Math.min(lo,med);hi=Math.max(hi,med);}
   if(hi===lo)hi=lo+1;
   var span=hi-lo,z=(0-lo)/span*100;
-  /* Columns, one per stock, rising or falling from a zero line, with the
-     run's median as a dashed level across them. The plot takes the height
-     left under the title, held to 240px-480px and to no taller than it is
-     wide, so a phone gets a compact chart rather than five slabs. */
-  var _top=el.getBoundingClientRect().top+(window.scrollY||0);
-  var _cw=el.clientWidth||Math.max(280,(window.innerWidth||400)-32);
-  var H=Math.round(Math.max(240,Math.min((window.innerHeight||800)-_top-90,480,_cw)));
-  var pct=function(v){return ((v-lo)/span*100).toFixed(2)+'%';};
-  var h='<div class="ph-cols" style="height:'+H+'px"><div class="ph-cplot">';
-  if(lo<0)h+='<b class="ph-czero" style="bottom:'+z.toFixed(2)+'%"></b>';
-  if(med!=null)h+='<em class="ph-cmed" style="bottom:'+pct(med)+'"></em>';
+  /* A fixed, moderate size: bars of 28px on a phone and 32px wider, with
+     12px between rows. Stretching the rows to fill the screen made five
+     stocks a wall of slabs. */
+  var _wide=(el.clientWidth||0)>=600;
+  var _bh=_wide?32:28,_gap=12,_fs=_wide?15:14;
+  var h='<div class="ph-bars" style="--bh:'+_bh+'px;--gh:'+Math.ceil(_gap/2)+'px;row-gap:'+_gap+'px;font-size:'+_fs+'px">';
   items.forEach(function(x){
-    h+='<div class="ph-col">';
+    var t=ftc(x.v,def.f).t;
+    h+='<span class="ph-bl"><i style="background:'+x.col+'"></i>'+esc(x.tk)+'</span><div class="ph-bt">';
     if(x.v!=null){
-      var a=(Math.min(0,x.v)-lo)/span*100,b=(Math.max(0,x.v)-lo)/span*100,t=esc(ftc(x.v,def.f).t);
-      h+='<i'+(x.v<0?' class="neg"':'')+' style="bottom:'+a.toFixed(2)+'%;height:'+Math.max(b-a,0.6).toFixed(2)+'%;background:'+x.col+'"></i>'
-        +(x.v>=0?'<span style="bottom:calc('+b.toFixed(2)+'% + 4px)">'+t+'</span>'
-                :'<span style="top:calc('+(100-a).toFixed(2)+'% + 4px)">'+t+'</span>');
-    }else h+='<span style="bottom:calc('+z.toFixed(2)+'% + 4px)">—</span>';
-    h+='</div>';
+      var a=(Math.min(0,x.v)-lo)/span*100,b=(Math.max(0,x.v)-lo)/span*100;
+      h+='<span style="left:'+a.toFixed(2)+'%;width:'+Math.max(b-a,0.6).toFixed(2)+'%;background:'+x.col+'"></span>';
+    }
+    if(lo<0)h+='<b style="left:'+z.toFixed(2)+'%"></b>';
+    if(med!=null)h+='<em style="left:'+((med-lo)/span*100).toFixed(2)+'%"></em>';
+    h+='</div><span class="ph-bv">'+esc(t)+'</span>';
   });
-  h+='</div></div><div class="ph-cx">';
-  items.forEach(function(x){h+='<span><i style="background:'+x.col+'"></i>'+esc(x.tk)+'</span>';});
   h+='</div>';
   if(med!=null)h+='<p class="ph-bnote"><em></em>Run median '+esc(ftc(med,def.f).t)+'</p>';
   el.innerHTML=h;
