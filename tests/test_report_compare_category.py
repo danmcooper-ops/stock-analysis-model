@@ -24,9 +24,11 @@ def _fn(name):
 
 def test_picker_renders_with_the_chart_and_no_table():
     src = _src()
-    # The metric, the stock pins and the range all sit in the hamburger panel.
-    panel = re.search(r"id=\"ph-cm-panel\">'(.*?)\+'<div id=\"ph-tip-bar\"", src, re.S).group(1)
-    assert 'id="ph-metric"' in panel and 'id="ph-chips"' in panel and 'id="ph-ranges"' in panel
+    # The metric, the stock pins and the range fill the Filters panel's
+    # #ph-menu, which shows on this tab in place of the stock filters.
+    menu = re.search(r"if\(pm\)pm\.innerHTML=(.*?);\n", src, re.S).group(1)
+    assert 'id="ph-metric"' in menu and 'id="ph-chips"' in menu and 'id="ph-ranges"' in menu
+    assert "_phOn()?'chart'" in src and "k==='chart'?'Chart options'" in src
     assert re.search(r'function renderPHChart\(\)\{\s*_renderPHMetricSel\(\);', src)
     assert 'ph-cmp' not in src and '_renderPHCompare' not in src
 

@@ -3315,40 +3315,45 @@ html body .cm-panel.cm-uline button:focus-visible{outline:2px solid var(--chrome
   html body .cm-panel.cm-uline .cm-row{flex-direction:column;align-items:stretch;gap:2px;}
   html body .cm-panel.cm-uline .cm-lbl{min-width:0;}
 }
-/* Charts › Stock Comparison menu (.ph-menu): three short sections on
+/* Charts › Stock Comparison options (#ph-menu, in the Filters panel): three short sections on
    hairlines. Metric is a full-width select; Stocks are compact pins in their
    line colour with an inline dashed Add field and a "vs" row of index pills
    (lit in the index's line colour); Range is one segmented row. Colours go
    through --sac / !important to clear the blanket dark `body *` rule. */
-html body #ph-cm-panel.ph-menu{--sac:var(--chrome-heading);width:min(92vw,420px);min-width:0;max-width:none;padding:14px 14px 12px;}
-#ph-cm-panel .phm-sec{padding:0 0 12px;margin:0 0 12px;border-bottom:1px solid var(--tab-line);}
-#ph-cm-panel .phm-sec:last-child,#ph-cm-panel.phm-norange .phm-sec:nth-child(2){padding:0;margin:0;border-bottom:0;}
-html body #ph-cm-panel .phm-h,html body #ph-cm-panel .phm-h span,html body #ph-cm-panel .phm-sub{color:var(--chrome-muted) !important;}
-#ph-cm-panel .phm-h{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 7px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;}
-#ph-cm-panel .phm-h span{font-weight:500;letter-spacing:0;text-transform:none;font-size:12px;}
-html body #ph-cm-panel #ph-select{max-width:none;width:100%;height:38px;padding:0 10px;border-radius:8px;font-size:15px;}
-#ph-cm-panel .phm-chips{position:relative;display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
-#ph-cm-panel .ph-chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 2px 0 10px;border:1.5px solid var(--c);border-radius:14px;font-size:12.5px;white-space:nowrap;}
-#ph-cm-panel .ph-chip i{width:7px;height:7px;border-radius:50%;background:var(--c);flex-shrink:0;}
-#ph-cm-panel .ph-chip b{font-weight:700;cursor:pointer;}
-#ph-cm-panel .ph-chip button{width:24px;height:24px;padding:0;border:0;background:none;font-size:16px;line-height:1;cursor:pointer;opacity:.6;}
-#ph-cm-panel .ph-chip button:hover{opacity:1;}
-#ph-cm-panel .ph-sw{position:static;flex:1 1 104px;min-width:104px;}
-html body #ph-cm-panel .ph-sinp{width:100%;height:28px;padding:0 12px;border:1.5px dashed var(--tab-line);border-radius:14px;background:transparent;font-size:12.5px;color:var(--chrome-heading) !important;}
-#ph-cm-panel .ph-sinp:focus{border-style:solid;border-color:var(--chrome-accent);box-shadow:none;}
-#ph-cm-panel .ph-sinp:disabled{opacity:.55;}
-#ph-cm-panel .ph-sdrop{left:0;right:0;min-width:0;}
-#ph-cm-panel .phm-ix{display:flex;align-items:center;gap:8px;margin-top:10px;}
-#ph-cm-panel .phm-sub{font-size:12px;font-weight:600;flex-shrink:0;}
-#ph-cm-panel .phm-pills{display:flex;flex-wrap:wrap;gap:6px;}
-html body #ph-cm-panel .ph-index-btn{height:26px;padding:0 10px;border:1px solid var(--tab-line) !important;border-radius:13px;background:transparent !important;color:var(--chrome-muted) !important;font:inherit;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;}
-html body #ph-cm-panel .ph-index-btn.active{border-color:var(--ix) !important;color:var(--ix) !important;box-shadow:inset 0 0 0 1px var(--ix);}
-html body #ph-cm-panel .ph-index-btn[disabled]{opacity:.4;cursor:not-allowed;}
-#ph-cm-panel .phm-seg{display:flex;border:1px solid var(--tab-line);border-radius:8px;overflow:hidden;}
-html body #ph-cm-panel .ph-range-btn{flex:1 1 0;min-width:0;height:32px;padding:0;border:0 !important;border-left:1px solid var(--tab-line) !important;border-radius:0;background:transparent !important;color:var(--chrome-muted) !important;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;}
-html body #ph-cm-panel .ph-range-btn:first-child{border-left:0 !important;}
-html body #ph-cm-panel .ph-range-btn.active{background:var(--chrome-heading) !important;color:var(--surface,#fff) !important;}
-html body #ph-cm-panel button:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:-2px;}
+html body #ph-menu{--sac:var(--chrome-heading);padding:12px 14px;}
+#ph-menu[hidden]{display:none;}
+html body #ph-menu .phm-load{margin:0;font-size:13px;color:var(--chrome-muted) !important;}
+.ph-sum{display:inline-flex;align-items:center;gap:6px;margin:0 0 8px;padding:5px 12px;border:1px solid var(--tab-line);border-radius:16px;background:transparent;font:inherit;font-size:13px;font-weight:600;cursor:pointer;}
+html body .ph-sum,html body .ph-sum span{color:var(--chrome-muted) !important;}
+.ph-sum::after{content:'\203A';font-size:15px;line-height:1;}
+#ph-menu .phm-sec{padding:0 0 12px;margin:0 0 12px;border-bottom:1px solid var(--tab-line);}
+#ph-menu .phm-sec:last-child,#ph-menu.phm-norange .phm-sec:nth-child(2){padding:0;margin:0;border-bottom:0;}
+html body #ph-menu .phm-h,html body #ph-menu .phm-h span,html body #ph-menu .phm-sub{color:var(--chrome-muted) !important;}
+#ph-menu .phm-h{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 7px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;}
+#ph-menu .phm-h span{font-weight:500;letter-spacing:0;text-transform:none;font-size:12px;}
+html body #ph-menu #ph-select{max-width:none;width:100%;height:38px;padding:0 10px;border-radius:8px;font-size:15px;}
+#ph-menu .phm-chips{position:relative;display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+#ph-menu .ph-chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 2px 0 10px;border:1.5px solid var(--c);border-radius:14px;font-size:12.5px;white-space:nowrap;}
+#ph-menu .ph-chip i{width:7px;height:7px;border-radius:50%;background:var(--c);flex-shrink:0;}
+#ph-menu .ph-chip b{font-weight:700;cursor:pointer;}
+#ph-menu .ph-chip button{width:24px;height:24px;padding:0;border:0;background:none;font-size:16px;line-height:1;cursor:pointer;opacity:.6;}
+#ph-menu .ph-chip button:hover{opacity:1;}
+#ph-menu .ph-sw{position:static;flex:1 1 104px;min-width:104px;}
+html body #ph-menu .ph-sinp{width:100%;height:28px;padding:0 12px;border:1.5px dashed var(--tab-line);border-radius:14px;background:transparent;font-size:12.5px;color:var(--chrome-heading) !important;}
+#ph-menu .ph-sinp:focus{border-style:solid;border-color:var(--chrome-accent);box-shadow:none;}
+#ph-menu .ph-sinp:disabled{opacity:.55;}
+#ph-menu .ph-sdrop{left:0;right:0;min-width:0;}
+#ph-menu .phm-ix{display:flex;align-items:center;gap:8px;margin-top:10px;}
+#ph-menu .phm-sub{font-size:12px;font-weight:600;flex-shrink:0;}
+#ph-menu .phm-pills{display:flex;flex-wrap:wrap;gap:6px;}
+html body #ph-menu .ph-index-btn{height:26px;padding:0 10px;border:1px solid var(--tab-line) !important;border-radius:13px;background:transparent !important;color:var(--chrome-muted) !important;font:inherit;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;}
+html body #ph-menu .ph-index-btn.active{border-color:var(--ix) !important;color:var(--ix) !important;box-shadow:inset 0 0 0 1px var(--ix);}
+html body #ph-menu .ph-index-btn[disabled]{opacity:.4;cursor:not-allowed;}
+#ph-menu .phm-seg{display:flex;border:1px solid var(--tab-line);border-radius:8px;overflow:hidden;}
+html body #ph-menu .ph-range-btn{flex:1 1 0;min-width:0;height:32px;padding:0;border:0 !important;border-left:1px solid var(--tab-line) !important;border-radius:0;background:transparent !important;color:var(--chrome-muted) !important;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;}
+html body #ph-menu .ph-range-btn:first-child{border-left:0 !important;}
+html body #ph-menu .ph-range-btn.active{background:var(--chrome-heading) !important;color:var(--surface,#fff) !important;}
+html body #ph-menu button:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:-2px;}
 #det-modal .d-kmetrics{background:var(--surface);border:1px solid var(--border);box-shadow:none;border-radius:14px;}
 #det-modal .d-kmetrics .km-cell{border-right:1px solid var(--border);padding:12px 16px;}
 #det-modal .d-kmetrics .km-k{color:var(--chrome-muted);font-size:.62em;}
@@ -3640,6 +3645,9 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
                tab's own filters (_altFiltSync), and the stock filters below
                are hidden: those tabs have no stock rows to filter. -->
           <div class="alt-filt" id="alt-filt" hidden></div>
+          <!-- On Charts › Stock Comparison it holds the chart's options
+               (metric, stocks, range), filled by initPriceChart. -->
+          <div class="ph-menu" id="ph-menu" hidden></div>
           <div class="filt-cols" id="filt-stock">
             <div class="filt-col fsec" data-fsec="rating">
               <button type="button" class="fsec-h" onclick="_fsecToggle('rating')" aria-expanded="false"><span class="fsec-t">Rating</span><span class="fsec-s" id="fsum-rating"></span><span class="fsec-c" aria-hidden="true"></span></button>
@@ -7492,19 +7500,24 @@ function _positionFpop(panel,btn){
    and Currencies it shows that tab's filters in place of the stock ones
    (which have no rows there to filter), titled for the tab, and the funnel's
    badge counts them. */
-function _altFiltKind(){return _bvOn()?'bond':_cxOn()?'ccy':'';}
+function _phOn(){return curView==='table'&&curTSub==='prices'&&!document.documentElement.classList.contains('det-open');}
+function _altFiltKind(){return _bvOn()?'bond':_cxOn()?'ccy':_phOn()?'chart':'';}
 function _altFiltActive(k){return k==='bond'?_bvActive():k==='ccy'?(_cxF.r?1:0):0;}
 function _altFiltSync(){
   var k=_altFiltKind(),box=document.getElementById('alt-filt');if(!box)return;
   var s1=document.getElementById('filt-stock'),s2=document.getElementById('filt-stock-cols'),pc=document.getElementById('pf-filt-col');
-  box.hidden=!k;
+  box.hidden=!k||k==='chart';
+  var pm=document.getElementById('ph-menu');
+  if(pm){pm.hidden=k!=='chart';if(k==='chart'&&!pm.firstChild)pm.innerHTML='<p class="phm-load">Chart loading\u2026</p>';}
   if(s1)s1.style.display=k?'none':'';
   if(s2)s2.style.display=k?'none':'';
   var tl=document.querySelector('#filt-panel .fpop-title');
-  if(tl)tl.textContent=k==='bond'?'Bond filters':k==='ccy'?'Currency filters':'Filters';
+  if(tl)tl.textContent=k==='bond'?'Bond filters':k==='ccy'?'Currency filters':k==='chart'?'Chart options':'Filters';
   var fb=document.getElementById('filt-show');if(fb&&k)fb.textContent='Done';
   var fc=document.getElementById('filt-count');
-  if(fc&&k){var n=document.getElementById(k==='bond'?'bv-n':'cx-n');fc.textContent=n?n.textContent:'';}
+  if(fc&&k){var n=document.getElementById(k==='bond'?'bv-n':k==='ccy'?'cx-n':'');fc.textContent=n?n.textContent:'';}
+  var cl=document.querySelector('#filt-panel .filter-clear');
+  if(cl){cl.textContent=k==='chart'?'Reset':'Clear';cl.title=k==='chart'?'Back to Price, Max and the top five':'Clear every filter and close this panel';}
   var opt=function(v,l,cur){return '<option value="'+_attr(v)+'"'+(v===cur?' selected':'')+'>'+_esc(l)+'</option>';};
   var lab=function(t){return '<div class="fpop-section-label">'+t+'</div>';};
   if(k==='bond'){
@@ -7588,6 +7601,7 @@ function _filtClear(){
   var k=_altFiltKind();
   if(k==='bond')_bvReset();
   else if(k==='ccy')_cxSet('r','');
+  else if(k==='chart'){phReset();return;}
   else clearFilters();
   closeFiltMenu();
 }
@@ -7633,6 +7647,9 @@ document.addEventListener('click',function(e){
   if(cp&&cp.contains(e.target))return;
   /* Closes through closeFiltMenu (not a bare classList.remove) so the
      button's pressed state and aria-expanded reset with it. */
+  /* A control that rebuilds its own row (the chart's stock pins) detaches
+     the clicked node mid-bubble: that is a click inside, not outside. */
+  if(e.target&&e.target.isConnected===false)return;
   var fw=document.getElementById('filt-wrap');
   if(fw&&!fw.contains(e.target))closeFiltMenu();
 
@@ -8512,27 +8529,25 @@ function initPriceChart(){
     return;
   }
   _phBuildPool();
-  /* Every control lives in the hamburger (.ph-menu): the metric, the stocks
-     as removable pins (each in its line colour) with an inline Add field,
-     the indices as pills (Price only, the one metric they have), and the
-     range as one segmented row (hidden for today-only metrics). The view
-     itself is just the summary line and the chart. */
-  phv.innerHTML='<div class="sec-label">Stock Comparison</div><div class="cm-wrap">'
-    +'<button type="button" class="cm-btn" onclick="cmToggle(\'ph\',event)" title="Chart options \u2014 metric, stocks, range">&#9776;</button>'
-    +'<span class="cm-sum" id="ph-cm-sum"></span>'
-    +'<div class="cm-panel ph-menu" id="ph-cm-panel">'
-    +  '<div class="phm-sec"><div class="phm-h">Metric</div><div id="ph-metric"></div></div>'
-    +  '<div class="phm-sec"><div class="phm-h">Stocks<span id="ph-count"></span></div>'
-    +    '<div class="phm-chips"><div id="ph-chips" style="display:contents"></div>'
-    +      '<div class="ph-sw"><input class="ph-sinp" id="ph-s1" type="text" placeholder="+ Add stock" autocomplete="off" aria-label="Add a stock"><div class="ph-sdrop" id="ph-s1-drop"></div></div>'
-    +    '</div>'
-    +    '<div class="phm-ix" id="ph-ix-row"><span class="phm-sub">vs</span><div class="phm-pills" id="ph-index-btns"></div></div>'
-    +  '</div>'
-    +  '<div class="phm-sec" id="ph-range-row"><div class="phm-h">Range</div><div class="phm-seg" id="ph-ranges"></div></div>'
-    +'</div>'
-    +'</div>'
+  /* The chart's options live in the top bar's Filters panel (#ph-menu,
+     shown there on this tab by _altFiltSync): the metric, the stocks as
+     removable pins (each in its line colour) with an inline Add field, the
+     indices as pills (Price only, the one metric they have), and the range
+     as one segmented row (hidden for today-only metrics). The view itself is
+     the summary line, which opens that panel, and the chart. */
+  phv.innerHTML='<div class="sec-label">Stock Comparison</div>'
+    +'<button type="button" class="ph-sum" onclick="toggleFiltMenu(event)" title="Chart options — metric, stocks, range"><span id="ph-cm-sum"></span></button>'
     +'<div id="ph-tip-bar" style="min-height:28px"></div>'
     +'<div id="ph-chart"></div>';
+  var pm=document.getElementById('ph-menu');
+  if(pm)pm.innerHTML='<div class="phm-sec"><div class="phm-h">Metric</div><div id="ph-metric"></div></div>'
+    +'<div class="phm-sec"><div class="phm-h">Stocks<span id="ph-count"></span></div>'
+    +  '<div class="phm-chips"><div id="ph-chips" style="display:contents"></div>'
+    +    '<div class="ph-sw"><input class="ph-sinp" id="ph-s1" type="text" placeholder="+ Add stock" autocomplete="off" aria-label="Add a stock"><div class="ph-sdrop" id="ph-s1-drop"></div></div>'
+    +  '</div>'
+    +  '<div class="phm-ix" id="ph-ix-row"><span class="phm-sub">vs</span><div class="phm-pills" id="ph-index-btns"></div></div>'
+    +'</div>'
+    +'<div class="phm-sec" id="ph-range-row"><div class="phm-h">Range</div><div class="phm-seg" id="ph-ranges"></div></div>';
   _buildPHSearch();_buildPHIndexBtns();_buildPHChips();_buildPHMetricBtns();_buildPHRanges();renderPHChart();
 }
 /* The chart's metric picker: one dropdown listing every metric, grouped as
@@ -8576,7 +8591,7 @@ function _renderPHMetricSel(){
   var src=_phMetricDef(_phMetric).src;
   var ix=document.getElementById('ph-ix-row');if(ix)ix.style.display=src==='price'&&PRICES&&(PRICES.indices||[]).length?'':'none';
   var rr=document.getElementById('ph-range-row');if(rr)rr.style.display=src==='snap'?'none':'';
-  var pn=document.getElementById('ph-cm-panel');if(pn)pn.classList.toggle('phm-norange',src==='snap');
+  var pn=document.getElementById('ph-menu');if(pn)pn.classList.toggle('phm-norange',src==='snap');
 }
 /* Today's value of a column across the charted stocks, as bars on one axis
    (diverging at zero), in each stock's line colour, with the run's median. */
@@ -8725,6 +8740,14 @@ function _buildPHRanges(){
     return '<button type="button" class="ph-range-btn'+(r===_phRange?' active':'')+'" data-range="'+r+'" onclick="phSetRange(\''+r+'\')">'+lbl+'</button>';
   }).join('');
   rc.innerHTML=ranges;
+}
+/* Reset (the Filters panel's Clear on this tab): Price over Max, and the
+   pins dropped so the pool is the filter set's top five again. The panel
+   stays open to show the result. */
+function phReset(){
+  _phMetric='price';_phRange='MAX';_phPinned=[];
+  if(!PRICES)return;
+  _phBuildPool();_buildPHChips();_buildPHIndexBtns();_buildPHRanges();renderPHChart();
 }
 function phSetRange(r){
   _phRange=r;
