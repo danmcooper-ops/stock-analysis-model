@@ -387,7 +387,11 @@ def test_filters_clear_button_closes_the_panel():
     src = _tpl()
     m = re.search(r'<button class="filter-clear" onclick="([^"]*)"[^>]*>Clear</button>', src)
     assert m, 'Filters panel Clear button not found'
-    assert m.group(1) == 'clearFilters();closeFiltMenu()'
+    assert m.group(1) == '_filtClear()'
+    clear = _fn(src, '_filtClear')
+    # Stock filters on the stock views; Bonds' or Currencies' own on theirs.
+    assert 'else clearFilters();' in clear and '_bvReset()' in clear and "_cxSet('r','')" in clear
+    assert clear.rstrip().endswith('closeFiltMenu();\n}') or 'closeFiltMenu();' in clear
     assert 'closeFiltMenu' not in _fn(src, 'clearFilters')
 
 

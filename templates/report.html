@@ -440,6 +440,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .fpop-btn.active .fpop-badge{background:rgba(255,255,255,0.25);color:#fff;}
 .fpop-panel{display:none;position:absolute;top:0;left:0;z-index:1200;background:#fff;border:1px solid #ccd;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,0.14);min-width:340px;max-width:480px;max-height:min(72vh,520px);flex-direction:column;}
 .fpop-panel.open{display:flex;}
+.alt-filt{display:flex;flex-direction:column;gap:6px;min-width:240px;}
+.alt-filt[hidden]{display:none;}
+.alt-filt select{width:100%;padding:6px 8px;border:1px solid #ccd;border-radius:6px;background:transparent;font:inherit;}
+.alt-filt .fpop-section-label{margin-top:6px;}
+.alt-filt .alt-chk{display:flex;align-items:center;gap:6px;margin-top:8px;}
 .fpop-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 8px;border-bottom:1px solid #eee;flex-shrink:0;}
 .fpop-title{font-size:0.95em;font-weight:700;color:#1a252f;}
 .fpop-close{border:none;background:none;cursor:pointer;color:#aaa;font-size:1em;line-height:1;padding:2px 4px;}
@@ -1430,12 +1435,6 @@ html.bvp-open{overflow:hidden;}
 [data-theme="dark"] .bvp-card,[data-theme="dark"] .bvp-card .bvp-v,[data-theme="dark"] .bvp-card .bvp-l,[data-theme="dark"] .bvp-id,[data-theme="dark"] .bvp-x,[data-theme="dark"] .bvp-card h4{color:var(--ppf-txt) !important;}
 [data-theme="dark"] .bvp-nm,[data-theme="dark"] .bvp-row p,[data-theme="dark"] .bvp-card .bv-note{color:var(--ppf-sub) !important;}
 [data-theme="dark"] .bvp-stk{color:var(--accent) !important;}
-.bv-menu-btn{display:inline-flex;align-items:center;gap:6px;font-weight:600;}
-.bv-ham{font-size:1.15em;line-height:1;}
-.bv-menu-btn.on{border-color:var(--accent);color:var(--accent);}
-.bv-badge{background:var(--accent);color:#fff;border-radius:9px;font-size:0.8em;min-width:16px;padding:0 5px;text-align:center;line-height:16px;}
-.bv-menu{position:absolute;left:0;top:calc(100% + 4px);z-index:20;display:flex;flex-direction:column;align-items:stretch;gap:8px;min-width:220px;padding:10px;background:var(--ppf-bg);border:1px solid var(--ppf-line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.16);}
-.bv-menu[hidden]{display:none;}
 .bv-ctl button{cursor:pointer;}
 .bv-ctl label{display:flex;align-items:center;gap:4px;color:var(--ppf-txt);}
 .bv-n{color:var(--ppf-sub);}
@@ -1447,8 +1446,6 @@ html.bvp-open{overflow:hidden;}
 .bv-pos{color:var(--ppf-tw);}.bv-neg{color:var(--ppf-hw);}.bv-caps{color:var(--bv-warn);}.bv-mut{color:var(--ppf-sub);}
 /* !important beats the blanket dark `body *{color:#fff !important}` rule. */
 [data-theme="dark"] .bv-warn,[data-theme="dark"] .bv-warn li,[data-theme="dark"] .bv-warn p,[data-theme="dark"] .bv-card h4,[data-theme="dark"] .bv-dist span,[data-theme="dark"] .bv-ctl label,[data-theme="dark"] .bv-ctl input,[data-theme="dark"] .bv-ctl select,[data-theme="dark"] .bv-ctl button{color:var(--ppf-txt) !important;}
-[data-theme="dark"] .bv-menu-btn.on{color:var(--accent) !important;}
-[data-theme="dark"] .bv-badge{color:#fff !important;}
 [data-theme="dark"] .bv-warn h4{color:var(--bv-warn) !important;}
 [data-theme="dark"] .bv-dist em,[data-theme="dark"] .bv-key,[data-theme="dark"] .bv-key span,[data-theme="dark"] .bv-note,[data-theme="dark"] .bv-n,[data-theme="dark"] .bv-mut{color:var(--ppf-sub) !important;}
 [data-theme="dark"] .bv-pos{color:var(--ppf-tw) !important;}
@@ -3559,10 +3556,14 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
                the drill-down chip rides #f-count and #sn-count, and Clear
                below resets it). -->
           <span class="fpop-title-wrap"><span class="fpop-title">Filters</span><span class="filter-count" id="filt-count"></span></span>
-          <span class="filt-header-actions"><button class="filter-clear" onclick="clearFilters();closeFiltMenu()" title="Clear every filter and close this panel">Clear</button><button class="fpop-close" onclick="toggleFiltMenu(event)">&#215;</button></span>
+          <span class="filt-header-actions"><button class="filter-clear" onclick="_filtClear()" title="Clear every filter and close this panel">Clear</button><button class="fpop-close" onclick="toggleFiltMenu(event)">&#215;</button></span>
         </div>
         <div class="fpop-body">
-          <div class="filt-cols">
+          <!-- On Investing › Bonds and Currencies this panel holds that
+               tab's own filters (_altFiltSync), and the stock filters below
+               are hidden: those tabs have no stock rows to filter. -->
+          <div class="alt-filt" id="alt-filt" hidden></div>
+          <div class="filt-cols" id="filt-stock">
             <div class="filt-col">
               <div class="fpop-section-label">Ratings</div>
               <div class="ms-wrap" id="ms-rating">
@@ -3610,11 +3611,13 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
               <div class="pf-filt-actions"><button type="button" class="pf-link" onclick="pfSaveFilterOpen()">Save filter as portfolio&hellip;</button><button type="button" class="pf-link" onclick="pfManageOpen()">Manage&hellip;</button></div>
             </div>
           </div>
+          <div id="filt-stock-cols">
           <div class="fpop-divider"></div>
           <div class="fpop-section-label">Column Filters</div>
           <div id="dash-filt-row" style="display:none"></div>
           <div id="col-filters" class="col-filters-wrap"></div>
           <button class="add-filter-btn" onclick="addColFilter()">&#65291; Add Filter</button>
+          </div>
         </div>
       </div>
     </div>
@@ -7173,7 +7176,9 @@ function applyFilters(){
   fopen=fopen&&fopen.classList.contains('open');
   if(fbtn)fbtn.classList.toggle('active',fn>0||fopen);
   var fbadge=document.getElementById('filt-badge');
+  _filtStockN=fn;
   if(fbadge){fbadge.style.display=fn>0?'':'none';fbadge.textContent=fn>0?fn:'';}
+  _altFiltBadge();
   _syncQfChecks();
   _updateFlagCount();
   /* FD moved, so the Charts view's auto-seeded five are stale. renderCur()
@@ -7408,6 +7413,7 @@ function toggleFiltMenu(e){
   var wasOpen=panel.classList.contains('open');
   closeNavMenu();
   if(wasOpen){closeFiltMenu();return;}
+  _altFiltSync();
   panel.classList.add('open');
   var btn=document.getElementById('filt-btn');
   if(btn){
@@ -13104,6 +13110,7 @@ var _SB_PF_SHOW=6,_sbPfAll=false;
    per-view sub-tab switchers), so the active marks are always current. */
 function renderNavMenu(){
   _syncSearchPh();
+  _altFiltSync();
   var groups=_navGroups(),al=_sbAlertCount(),isNew=_pfIsNew();
   var sv=document.getElementById('sb-views');
   if(sv){
@@ -15107,7 +15114,7 @@ function renderEtfLookthrough(){
    styling. Every number and caveat is the bond model's own; this only draws
    it. Display only: no bond reaches DATA, a rating or a filter. */
 var _BV=null,_BV_LOADING=false,_BV_FAILED=false,_BV_LIMIT=1000;
-var _bvSortK='_composite_score',_bvAsc=false,_bvF={r:'',c:'',b:'',u:false},_bvMenuOpen=false;
+var _bvSortK='_composite_score',_bvAsc=false,_bvF={r:'',c:'',b:'',u:false};
 /* The top-bar search (#f-search) is the Bonds table's search too: on this
    tab it matches CUSIP, issuer or maturity, so there is one search box.
    Its text is shared, as it is across every view: "ally" finds Ally's stock
@@ -15116,12 +15123,6 @@ var _bvSortK='_composite_score',_bvAsc=false,_bvF={r:'',c:'',b:'',u:false},_bvMe
 function _bvOn(){return curView==='matrix'&&curMSub==='bond'&&!document.documentElement.classList.contains('det-open');}
 function _bvQ(){var i=document.getElementById('f-search');return i?i.value:'';}
 function _bvActive(){var f=_bvF;return (f.r?1:0)+(f.c?1:0)+(f.b?1:0)+(f.u?1:0);}
-function _bvMenu(open){
-  _bvMenuOpen=open==null?!_bvMenuOpen:!!open;
-  var m=document.getElementById('bv-menu'),b=document.getElementById('bv-menu-btn');
-  if(m)m.hidden=!_bvMenuOpen;
-  if(b)b.setAttribute('aria-expanded',_bvMenuOpen?'true':'false');
-}
 var _BV_LEFT={text:1,cls:1,rating:1,caps:1,bucket:1,date:1};
 var _BV_SERIES={'tight':'--bv-c0','mid':'--bv-c1','wide':'--bv-c2','FRED slices':'--bv-c3'};
 /* bonds.json, loaded once for the tab or the top-bar search; cb runs when
@@ -15158,10 +15159,6 @@ function renderBondView(){
   _fmApply(bv,_FM_SUB.bond);
   _bvDraw();
 }
-document.addEventListener('click',function(e){
-  if(!e.target.closest)return;
-  if(_bvMenuOpen&&!e.target.closest('#bv-menu,#bv-menu-btn'))_bvMenu(false);
-});
 /* The header search's placeholder is just "Search"; its accessible name says
    what it searches on this view. */
 function _syncSearchPh(){
@@ -15232,21 +15229,10 @@ function _bvCard(title,tip,body){
 function _bvHtml(D){
   var T=D.tips||{},N=D.notes||{},total=(D.total||0).toLocaleString();
   var bt=D.bucket_tips||{};
-  var cls={};(D.rows||[]).forEach(function(r){var v=r[_bvIdx().asset_class];if(v)cls[v]=1;});
-  var opt=function(v,l,cur){return '<option value="'+_attr(v)+'"'+(v===cur?' selected':'')+'>'+l+'</option>';};
   var h='<div id="bv">'+_fmBar('bond',[['table','Table'],['summary','Summary'],['charts','Charts'],['notes','Notes'+(D.vintage?' ⚠':'')]],'Bond sections')
     +'<div class="fm-tabbed">'
     +'<div data-pane="table">'
     +'<div class="bv-ctl">'
-    +'<button type="button" id="bv-menu-btn" class="bv-menu-btn'+(_bvActive()?' on':'')+'" onclick="_bvMenu()" aria-haspopup="true" aria-controls="bv-menu" aria-expanded="'+(_bvMenuOpen?'true':'false')+'" aria-label="Bond filters">'
-    +'<span class="bv-ham" aria-hidden="true">\u2630</span>Filters'+(_bvActive()?'<span class="bv-badge">'+_bvActive()+'</span>':'')+'</button>'
-    +'<div class="bv-menu" id="bv-menu" role="group" aria-label="Bond filters"'+(_bvMenuOpen?'':' hidden')+'>'
-    +'<select onchange="_bvSet(\'r\',this.value)" aria-label="Rating">'+opt('','All ratings',_bvF.r)+['BUY','LEAN BUY','HOLD','PASS'].map(function(r){return opt(r,r,_bvF.r);}).join('')+'</select>'
-    +'<select onchange="_bvSet(\'c\',this.value)" aria-label="Asset class">'+opt('','All classes',_bvF.c)+Object.keys(cls).sort().map(function(c){return opt(c,_bvCls(c),_bvF.c);}).join('')+'</select>'
-    +'<select onchange="_bvSet(\'b\',this.value)" aria-label="Implied credit bucket">'+opt('','All buckets',_bvF.b)+(D.buckets||[]).map(function(b){return opt(b[0],b[0],_bvF.b);}).join('')+'</select>'
-    +'<label><input type="checkbox"'+(_bvF.u?' checked':'')+' onchange="_bvSet(\'u\',this.checked)"> Uncapped only</label>'
-    +'<button type="button" onclick="_bvReset()">Reset</button>'
-    +'</div>'
     +'<span class="bv-n" id="bv-n"></span></div>'
     +'<div class="ppi-wrap bv-wrap fm-tbl"><table class="ppi-tbl bv-tbl"><thead><tr id="bv-head"></tr></thead><tbody id="bv-body"></tbody></table></div>'
     +'</div>'
@@ -15391,9 +15377,9 @@ function _bvClose(){
 }
 window.addEventListener('popstate',function(){if(_bvPopRow){_bvPopRow=null;_bvHide();}});
 function _bvSortBy(k){if(k===_bvSortK)_bvAsc=!_bvAsc;else{_bvSortK=k;_bvAsc=false;}_bvDraw();}
-function _bvSet(k,v){_bvF[k]=v;renderBondView();}
+function _bvSet(k,v){_bvF[k]=v;renderBondView();_altFiltSync();}
 /* Reset clears the menu's filters; the search keeps its own × (clearSearch). */
-function _bvReset(){_bvF={r:'',c:'',b:'',u:false};renderBondView();}
+function _bvReset(){_bvF={r:'',c:'',b:'',u:false};renderBondView();_altFiltSync();}
 /* Investing › Currencies: the currency screener (currencies/, its
    currency_report_<date>.json staged beside this page as currencies.json by
    report_html._stage_currency_report) drawn in this report's styling: the
@@ -15508,7 +15494,6 @@ function _cxHtml(D){
     +'<div class="fm-tabbed">'
     +'<div data-pane="table matrix map">'
     +'<div class="bv-ctl">'
-    +'<select onchange="_cxSet(\'r\',this.value)" aria-label="Rating"><option value="">All ratings</option>'+_CX_RATINGS.map(function(r){return '<option value="'+r+'"'+(r===_cxF.r?' selected':'')+'>'+r+'</option>';}).join('')+'</select>'
     +'<span class="bv-n" id="cx-n"></span></div>'
     +'<div id="cx-body"></div></div>'
     +'<div data-pane="detail" id="cx-det"></div>'
@@ -15688,7 +15673,53 @@ function _cxPick(code){
   _fmSubTab('ccy','detail');
 }
 function _cxSortBy(k){if(k===_cxSortK)_cxDir=-_cxDir;else{_cxSortK=k;_cxDir=-1;}_cxDraw();}
-function _cxSet(k,v){_cxF[k]=v;_cxDraw();}
+function _cxSet(k,v){_cxF[k]=v;_cxDraw();_altFiltSync();}
+/* The top bar's Filters panel is every tab's one filter control. On Bonds
+   and Currencies it shows that tab's filters in place of the stock ones
+   (which have no rows there to filter), titled for the tab, and the funnel's
+   badge counts them. */
+function _altFiltKind(){return _bvOn()?'bond':_cxOn()?'ccy':'';}
+function _altFiltActive(k){return k==='bond'?_bvActive():k==='ccy'?(_cxF.r?1:0):0;}
+function _altFiltSync(){
+  var k=_altFiltKind(),box=document.getElementById('alt-filt');if(!box)return;
+  var s1=document.getElementById('filt-stock'),s2=document.getElementById('filt-stock-cols'),pc=document.getElementById('pf-filt-col');
+  box.hidden=!k;
+  if(s1)s1.style.display=k?'none':'';
+  if(s2)s2.style.display=k?'none':'';
+  var tl=document.querySelector('#filt-panel .fpop-title');
+  if(tl)tl.textContent=k==='bond'?'Bond filters':k==='ccy'?'Currency filters':'Filters';
+  var fc=document.getElementById('filt-count');
+  if(fc&&k){var n=document.getElementById(k==='bond'?'bv-n':'cx-n');fc.textContent=n?n.textContent:'';}
+  var opt=function(v,l,cur){return '<option value="'+_attr(v)+'"'+(v===cur?' selected':'')+'>'+_esc(l)+'</option>';};
+  var lab=function(t){return '<div class="fpop-section-label">'+t+'</div>';};
+  if(k==='bond'){
+    var D=_BV||{},cls={},I=_BV?_bvIdx():{};
+    (D.rows||[]).forEach(function(r){var v=r[I.asset_class];if(v)cls[v]=1;});
+    box.innerHTML=lab('Rating')+'<select onchange="_bvSet(\'r\',this.value)" aria-label="Rating">'+opt('','All ratings',_bvF.r)+['BUY','LEAN BUY','HOLD','PASS'].map(function(r){return opt(r,r,_bvF.r);}).join('')+'</select>'
+      +lab('Asset class')+'<select onchange="_bvSet(\'c\',this.value)" aria-label="Asset class">'+opt('','All classes',_bvF.c)+Object.keys(cls).sort().map(function(c){return opt(c,_bvCls(c),_bvF.c);}).join('')+'</select>'
+      +lab('Implied credit bucket')+'<select onchange="_bvSet(\'b\',this.value)" aria-label="Implied credit bucket">'+opt('','All buckets',_bvF.b)+(D.buckets||[]).map(function(b){return opt(b[0],b[0],_bvF.b);}).join('')+'</select>'
+      +'<label class="alt-chk"><input type="checkbox"'+(_bvF.u?' checked':'')+' onchange="_bvSet(\'u\',this.checked)"> Uncapped only</label>';
+  }else if(k==='ccy'){
+    box.innerHTML=lab('Rating')+'<select onchange="_cxSet(\'r\',this.value)" aria-label="Rating">'+opt('','All ratings',_cxF.r)+_CX_RATINGS.map(function(r){return opt(r,r,_cxF.r);}).join('')+'</select>';
+  }else box.innerHTML='';
+  _altFiltBadge();
+}
+var _filtStockN=0;
+function _altFiltBadge(){
+  var k=_altFiltKind();
+  var n=k?_altFiltActive(k):_filtStockN,b=document.getElementById('filt-badge'),btn=document.getElementById('filt-btn');
+  if(b){b.style.display=n?'':'none';b.textContent=n?n:'';}
+  var p=document.getElementById('filt-panel');
+  if(btn)btn.classList.toggle('active',n>0||!!(p&&p.classList.contains('open')));
+}
+/* Clear empties the filters of the tab the panel is showing. */
+function _filtClear(){
+  var k=_altFiltKind();
+  if(k==='bond')_bvReset();
+  else if(k==='ccy')_cxSet('r','');
+  else clearFilters();
+  closeFiltMenu();
+}
 /* A sector page's Value creation tab: its own SPDR. */
 function renderPoolEtf(sec){
   var t=ETF_LT&&ETF_LT.sector_fund&&ETF_LT.sector_fund[sec];

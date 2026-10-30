@@ -152,7 +152,27 @@ def test_render_draws_every_section_from_the_report():
     assert 'title="Solid investment grade."' in html
     assert 'Fitted from spreads.' in html and 'Dropped, not zero.' in html
     assert html.count('<svg class="bv-svg"') == 2
-    assert '<option value="CORP_IG">IG</option>' in html
+    # The filters live in the top bar's Filters panel, not on the page.
+    assert '<select' not in html and 'bv-menu' not in html
+
+
+def test_filters_are_in_the_top_bar_panel():
+    """On this tab the funnel's panel holds the bond filters: rating,
+    asset class (by its label), implied bucket and Uncapped only."""
+    out = _render(REPORT, after='''
+var box={hidden:true,innerHTML:''},el={};
+document.getElementById=function(id){if(id==='alt-filt')return box;if(id==='f-search')return {value:''};return el[id]||(el[id]={style:{},classList:{toggle:function(){}}});};
+document.querySelector=function(){return {textContent:''};};
+var curView='matrix',curMSub='bond',_cxF={r:''},_CX_RATINGS=[];
+function _cxOn(){return false;} function _cxDraw(){}
+''' + '\n'.join(_fn_src(n, _tpl()) for n in ('_bvOn', '_bvActive', '_altFiltKind', '_altFiltActive', '_altFiltSync', '_altFiltBadge')) + '''
+_bvF.c='CORP_IG';_altFiltSync();
+process.stdout.write(JSON.stringify({h:box.innerHTML,hidden:box.hidden,stock:el['filt-stock'].style.display}));''')
+    d = json.loads(out)
+    assert d['hidden'] is False and d['stock'] == 'none'
+    assert '<option value="CORP_IG" selected>IG</option>' in d['h']
+    for t in ('All ratings', 'All classes', 'All buckets', 'Uncapped only'):
+        assert t in d['h']
 
 
 def test_opens_on_the_table_with_the_rest_in_sub_tabs():
