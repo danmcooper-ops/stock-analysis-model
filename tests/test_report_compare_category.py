@@ -39,9 +39,10 @@ var TC={prof:[{k:'ticker',f:'text'},{k:'rating',f:'rating'},{k:'roic',l:'ROIC',f
         val:[{k:'ticker',f:'text'},{k:'pe',l:'P/E',f:'n1'}]};
 var _PH_TC2H={price:'price',roe:'roe'};
 var _PH_METRICS=[{k:'price',lbl:'Price',src:'price'},{k:'rev',lbl:'Revenue',src:'hist'},{k:'roe',lbl:'ROE',src:'hist'}];
-var _phMetric='s:roic',_HIST_AVAILABLE=true,_HIST_TICKERS=['A'];
+var _phMetric='s:roic',_HIST_AVAILABLE=true,_HIST_TICKERS=['A'],PRICES=null;
+function _phMetricDef(){return {src:'snap'};}
 function esc(s){return String(s);} function _attr(s){return String(s);}
-var el={innerHTML:''};var document={getElementById:function(){return el;}};
+var el={innerHTML:'',style:{},classList:{toggle:function(){}}};var document={getElementById:function(){return el;}};
 """
     script = tmp_path / 't.js'
     script.write_text(stubs + _fn('_phCats') + '\n' + _fn('_phCatLbl') + '\n'

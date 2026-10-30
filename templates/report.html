@@ -3315,6 +3315,40 @@ html body .cm-panel.cm-uline button:focus-visible{outline:2px solid var(--chrome
   html body .cm-panel.cm-uline .cm-row{flex-direction:column;align-items:stretch;gap:2px;}
   html body .cm-panel.cm-uline .cm-lbl{min-width:0;}
 }
+/* Charts › Stock Comparison menu (.ph-menu): three short sections on
+   hairlines. Metric is a full-width select; Stocks are compact pins in their
+   line colour with an inline dashed Add field and a "vs" row of index pills
+   (lit in the index's line colour); Range is one segmented row. Colours go
+   through --sac / !important to clear the blanket dark `body *` rule. */
+html body #ph-cm-panel.ph-menu{--sac:var(--chrome-heading);width:min(92vw,420px);min-width:0;max-width:none;padding:14px 14px 12px;}
+#ph-cm-panel .phm-sec{padding:0 0 12px;margin:0 0 12px;border-bottom:1px solid var(--tab-line);}
+#ph-cm-panel .phm-sec:last-child,#ph-cm-panel.phm-norange .phm-sec:nth-child(2){padding:0;margin:0;border-bottom:0;}
+html body #ph-cm-panel .phm-h,html body #ph-cm-panel .phm-h span,html body #ph-cm-panel .phm-sub{color:var(--chrome-muted) !important;}
+#ph-cm-panel .phm-h{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 7px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;}
+#ph-cm-panel .phm-h span{font-weight:500;letter-spacing:0;text-transform:none;font-size:12px;}
+html body #ph-cm-panel #ph-select{max-width:none;width:100%;height:38px;padding:0 10px;border-radius:8px;font-size:15px;}
+#ph-cm-panel .phm-chips{position:relative;display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+#ph-cm-panel .ph-chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 2px 0 10px;border:1.5px solid var(--c);border-radius:14px;font-size:12.5px;white-space:nowrap;}
+#ph-cm-panel .ph-chip i{width:7px;height:7px;border-radius:50%;background:var(--c);flex-shrink:0;}
+#ph-cm-panel .ph-chip b{font-weight:700;cursor:pointer;}
+#ph-cm-panel .ph-chip button{width:24px;height:24px;padding:0;border:0;background:none;font-size:16px;line-height:1;cursor:pointer;opacity:.6;}
+#ph-cm-panel .ph-chip button:hover{opacity:1;}
+#ph-cm-panel .ph-sw{position:static;flex:1 1 104px;min-width:104px;}
+html body #ph-cm-panel .ph-sinp{width:100%;height:28px;padding:0 12px;border:1.5px dashed var(--tab-line);border-radius:14px;background:transparent;font-size:12.5px;color:var(--chrome-heading) !important;}
+#ph-cm-panel .ph-sinp:focus{border-style:solid;border-color:var(--chrome-accent);box-shadow:none;}
+#ph-cm-panel .ph-sinp:disabled{opacity:.55;}
+#ph-cm-panel .ph-sdrop{left:0;right:0;min-width:0;}
+#ph-cm-panel .phm-ix{display:flex;align-items:center;gap:8px;margin-top:10px;}
+#ph-cm-panel .phm-sub{font-size:12px;font-weight:600;flex-shrink:0;}
+#ph-cm-panel .phm-pills{display:flex;flex-wrap:wrap;gap:6px;}
+html body #ph-cm-panel .ph-index-btn{height:26px;padding:0 10px;border:1px solid var(--tab-line) !important;border-radius:13px;background:transparent !important;color:var(--chrome-muted) !important;font:inherit;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;}
+html body #ph-cm-panel .ph-index-btn.active{border-color:var(--ix) !important;color:var(--ix) !important;box-shadow:inset 0 0 0 1px var(--ix);}
+html body #ph-cm-panel .ph-index-btn[disabled]{opacity:.4;cursor:not-allowed;}
+#ph-cm-panel .phm-seg{display:flex;border:1px solid var(--tab-line);border-radius:8px;overflow:hidden;}
+html body #ph-cm-panel .ph-range-btn{flex:1 1 0;min-width:0;height:32px;padding:0;border:0 !important;border-left:1px solid var(--tab-line) !important;border-radius:0;background:transparent !important;color:var(--chrome-muted) !important;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;}
+html body #ph-cm-panel .ph-range-btn:first-child{border-left:0 !important;}
+html body #ph-cm-panel .ph-range-btn.active{background:var(--chrome-heading) !important;color:var(--surface,#fff) !important;}
+html body #ph-cm-panel button:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:-2px;}
 #det-modal .d-kmetrics{background:var(--surface);border:1px solid var(--border);box-shadow:none;border-radius:14px;}
 #det-modal .d-kmetrics .km-cell{border-right:1px solid var(--border);padding:12px 16px;}
 #det-modal .d-kmetrics .km-k{color:var(--chrome-muted);font-size:.62em;}
@@ -8478,23 +8512,23 @@ function initPriceChart(){
     return;
   }
   _phBuildPool();
-  /* Every control lives in the hamburger, drawn as underline tabs
-     (.cm-uline, shared with the ticker page's chart): the metric, the stocks
-     (their chips are removable pins and carry each line's colour) and the
-     range. The chart's own labels name each stock, so the view is just the
-     summary line and the chart. */
+  /* Every control lives in the hamburger (.ph-menu): the metric, the stocks
+     as removable pins (each in its line colour) with an inline Add field,
+     the indices as pills (Price only, the one metric they have), and the
+     range as one segmented row (hidden for today-only metrics). The view
+     itself is just the summary line and the chart. */
   phv.innerHTML='<div class="sec-label">Stock Comparison</div><div class="cm-wrap">'
     +'<button type="button" class="cm-btn" onclick="cmToggle(\'ph\',event)" title="Chart options \u2014 metric, stocks, range">&#9776;</button>'
     +'<span class="cm-sum" id="ph-cm-sum"></span>'
-    +'<div class="cm-panel cm-uline" id="ph-cm-panel">'
-    +  '<div class="cm-row"><div class="cm-lbl">Metric</div><div id="ph-metric" style="flex:1;min-width:0"></div></div>'
-    +  '<div class="cm-row"><div class="cm-lbl">Stocks</div><div style="flex:1;min-width:0">'
-    +    '<div id="ph-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>'
-    +    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
-    +      '<div class="ph-sw"><input class="ph-sinp" id="ph-s1" type="text" placeholder="Add stock\u2026" autocomplete="off" style="width:190px"><div class="ph-sdrop" id="ph-s1-drop"></div></div>'
-    +      '<div class="cm-tabs" id="ph-index-btns"></div>'
-    +  '</div></div></div>'
-    +  '<div class="cm-row"><div class="cm-lbl">Range</div><div class="cm-tabs" id="ph-ranges"></div></div>'
+    +'<div class="cm-panel ph-menu" id="ph-cm-panel">'
+    +  '<div class="phm-sec"><div class="phm-h">Metric</div><div id="ph-metric"></div></div>'
+    +  '<div class="phm-sec"><div class="phm-h">Stocks<span id="ph-count"></span></div>'
+    +    '<div class="phm-chips"><div id="ph-chips" style="display:contents"></div>'
+    +      '<div class="ph-sw"><input class="ph-sinp" id="ph-s1" type="text" placeholder="+ Add stock" autocomplete="off" aria-label="Add a stock"><div class="ph-sdrop" id="ph-s1-drop"></div></div>'
+    +    '</div>'
+    +    '<div class="phm-ix" id="ph-ix-row"><span class="phm-sub">vs</span><div class="phm-pills" id="ph-index-btns"></div></div>'
+    +  '</div>'
+    +  '<div class="phm-sec" id="ph-range-row"><div class="phm-h">Range</div><div class="phm-seg" id="ph-ranges"></div></div>'
     +'</div>'
     +'</div>'
     +'<div id="ph-tip-bar" style="min-height:28px"></div>'
@@ -8537,6 +8571,12 @@ function _renderPHMetricSel(){
     if(o)h+='<optgroup label="'+_attr(_phCatLbl(cat))+'">'+o+'</optgroup>';
   });
   el.innerHTML=h+'</select>';
+  /* Show only what applies: the indices have a price and nothing else, and a
+     today-only metric has no range. */
+  var src=_phMetricDef(_phMetric).src;
+  var ix=document.getElementById('ph-ix-row');if(ix)ix.style.display=src==='price'&&PRICES&&(PRICES.indices||[]).length?'':'none';
+  var rr=document.getElementById('ph-range-row');if(rr)rr.style.display=src==='snap'?'none':'';
+  var pn=document.getElementById('ph-cm-panel');if(pn)pn.classList.toggle('phm-norange',src==='snap');
 }
 /* Today's value of a column across the charted stocks, as bars on one axis
    (diverging at zero), in each stock's line colour, with the run's median. */
@@ -8631,25 +8671,20 @@ function _phSDrop(q){
 function _buildPHChips(){
   var el=document.getElementById('ph-chips');if(!el)return;
   var indices=PRICES&&PRICES.indices?PRICES.indices:[];
+  /* Stocks only: an index that is on shows as its lit pill in the vs row.
+     The ticker opens its page; the × unpins it (never the last line). */
   el.innerHTML=_phStocks.map(function(tk,i){
-    var col=_phPalette[i%_phPalette.length];
-    var ix=indices.find(function(x){return x.ticker===tk;});
-    var label=ix?ix.label:tk;
-    var tk2=tk.replace(/'/g,"\\'");
-    /* Indices (S&P 500, NASDAQ, Dow) have no company detail panel; only make
-       real company chips clickable so the cursor/tooltip don't over-promise.
-       Clicking the dot+label opens the detail popup; the × stays separate. */
-    var isCompany=!ix&&DATA.some(function(x){return x.ticker===tk;});
-    var inner='<span style="width:8px;height:8px;border-radius:50%;background:'+col+';flex-shrink:0"></span>'+label;
-    var labelHtml=isCompany
-      ? '<span onclick="openDet(\''+tk2+'\')" title="Open '+tk+' details" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer">'+inner+'</span>'
-      : '<span style="display:inline-flex;align-items:center;gap:5px">'+inner+'</span>';
-    return '<span style="display:inline-flex;align-items:center;gap:5px;background:'+col+'1a;border:1.5px solid '+col+';border-radius:20px;padding:3px 6px 3px 10px;font-size:0.8em;font-weight:700;color:'+col+';white-space:nowrap">'
-      +labelHtml
-      +(_phStocks.length>1?'<button onmousedown="phRemoveTicker(\''+tk2+'\')" style="background:none;border:none;color:'+col+';cursor:pointer;font-size:1.1em;padding:1px 2px;line-height:1;margin-left:2px;opacity:0.7">&times;</button>':'')
+    if(indices.some(function(x){return x.ticker===tk;}))return '';
+    var col=_phPalette[i%_phPalette.length],tk2=tk.replace(/'/g,"\\'");
+    var isCompany=DATA.some(function(x){return x.ticker===tk;});
+    return '<span class="ph-chip sa-chrome" style="--sac:'+col+';--c:'+col+';background:'+col+'14"><i></i>'
+      +(isCompany?'<b onclick="openDet(\''+tk2+'\')" title="Open '+_attr(tk)+' details">'+esc(tk)+'</b>':'<b>'+esc(tk)+'</b>')
+      +(_phStocks.length>1?'<button type="button" onmousedown="phRemoveTicker(\''+tk2+'\')" aria-label="Remove '+_attr(tk)+'">&times;</button>':'')
       +'</span>';
   }).join('');
-  if(_phStocks.length>=10)el.innerHTML+='<span style="font-size:0.75em;color:#aaa;align-self:center">max 10 reached</span>';
+  var full=_phStocks.length>=10,s=document.getElementById('ph-s1');
+  if(s){s.disabled=full;s.placeholder=full?'Max 10 lines':'+ Add stock';}
+  var c=document.getElementById('ph-count');if(c)c.textContent=_phStocks.length+' of 10';
 }
 function _buildPHIndexBtns(){
   var el=document.getElementById('ph-index-btns');if(!el)return;
@@ -8661,9 +8696,9 @@ function _buildPHIndexBtns(){
     var inPool=_phStocks.indexOf(ix.ticker)>=0;
     var atMax=_phStocks.length>=10&&!inPool;
     var dis=!isPrice||atMax;
-    var col=inPool?_phPalette[_phStocks.indexOf(ix.ticker)%_phPalette.length]:'#555';
+    var col=inPool?_phPalette[_phStocks.indexOf(ix.ticker)%_phPalette.length]:'currentColor';
     var tip=isPrice?'':'title="Indices have no fundamentals — switch to Price"';
-    return '<button onclick="phToggleIndex(\''+ix.ticker+'\')" class="ph-index-btn'+(inPool?' active':'')+'" '+(dis?'disabled':'')+' '+tip+' style="--ix:'+col+'">'+ix.label+'</button>';
+    return '<button onclick="phToggleIndex(\''+ix.ticker+'\')" class="ph-index-btn'+(inPool?' active':'')+'" '+(dis?'disabled':'')+' '+tip+' style="--ix:'+col+'">'+({'Russell 2000':'Russell','Dow Jones':'Dow'}[ix.label]||ix.label)+'</button>';
   }).join('');
 }
 function phAddTicker(tk){
@@ -8686,7 +8721,8 @@ function phToggleIndex(tk){
 function _buildPHRanges(){
   var rc=document.getElementById('ph-ranges');if(!rc)return;
   var ranges=['1M','3M','6M','1YR','5YR','10YR','20YR','MAX'].map(function(r){
-    return '<button class="ph-range-btn'+(r===_phRange?' active':'')+'" data-range="'+r+'" onclick="phSetRange(\''+r+'\')">'+r+'</button>';
+    var lbl={'1YR':'1Y','5YR':'5Y','10YR':'10Y','20YR':'20Y','MAX':'Max'}[r]||r;
+    return '<button type="button" class="ph-range-btn'+(r===_phRange?' active':'')+'" data-range="'+r+'" onclick="phSetRange(\''+r+'\')">'+lbl+'</button>';
   }).join('');
   rc.innerHTML=ranges;
 }

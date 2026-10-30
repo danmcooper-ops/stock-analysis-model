@@ -200,9 +200,9 @@ def test_chart_controls_are_underline_tabs_behind_the_menu():
     src = _tpl()
     p = 'html body .cm-panel.cm-uline'
     assert '<div class="cm-panel cm-uline" id="dtc-cm-panel">' in src
-    assert """'<div class="cm-panel cm-uline" id="ph-cm-panel">'""" in src
-    for tabs in ('dtc-metric-btns', 'dtc-ranges', 'dtc-bench-btns',
-                 'ph-ranges', 'ph-index-btns'):
+    # The Charts view's menu has its own compact layout (.ph-menu).
+    assert """'<div class="cm-panel ph-menu" id="ph-cm-panel">'""" in src
+    for tabs in ('dtc-metric-btns', 'dtc-ranges', 'dtc-bench-btns'):
         assert f'<div class="cm-tabs" id="{tabs}"></div>' in src, tabs
     # Behind the menu: nothing forces the panel open or hides the ☰ button.
     assert 'cm-inline' not in src
@@ -211,7 +211,7 @@ def test_chart_controls_are_underline_tabs_behind_the_menu():
     assert (f'{p} .ph-metric-btn.active,{p} .ph-range-btn.active,{p} .ph-index-btn.active'
             '{--sac:var(--chrome-heading);font-weight:700;box-shadow:inset 0 -3px 0 var(--chrome-accent);}') in src
     assert f'{p} .ph-index-btn.active{{box-shadow:inset 0 -3px 0 var(--ix,var(--chrome-accent));}}' in src
-    assert src.count("""style="--ix:'+col+'">""") == 2
+    assert src.count("""style="--ix:'+col+'">""") == 2  # ticker page + Charts pills
 
 
 def test_portfolio_day_change_from_nav_ledger(tmp_path):
