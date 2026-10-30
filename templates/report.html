@@ -3323,9 +3323,6 @@ html body .cm-panel.cm-uline button:focus-visible{outline:2px solid var(--chrome
 html body #ph-menu{--sac:var(--chrome-heading);padding:12px 14px;}
 #ph-menu[hidden]{display:none;}
 html body #ph-menu .phm-load{margin:0;font-size:13px;color:var(--chrome-muted) !important;}
-.ph-sum{display:inline-flex;align-items:center;gap:6px;margin:0 0 8px;padding:5px 12px;border:1px solid var(--tab-line);border-radius:16px;background:transparent;font:inherit;font-size:13px;font-weight:600;cursor:pointer;}
-html body .ph-sum,html body .ph-sum span{color:var(--chrome-muted) !important;}
-.ph-sum::after{content:'\203A';font-size:15px;line-height:1;}
 #ph-menu .phm-sec{padding:0 0 12px;margin:0 0 12px;border-bottom:1px solid var(--tab-line);}
 #ph-menu .phm-sec:last-child,#ph-menu.phm-norange .phm-sec:nth-child(2){padding:0;margin:0;border-bottom:0;}
 html body #ph-menu .phm-h,html body #ph-menu .phm-h span,html body #ph-menu .phm-sub{color:var(--chrome-muted) !important;}
@@ -8534,9 +8531,8 @@ function initPriceChart(){
      removable pins (each in its line colour) with an inline Add field, the
      indices as pills (Price only, the one metric they have), and the range
      as one segmented row (hidden for today-only metrics). The view itself is
-     the summary line, which opens that panel, and the chart. */
+     just the chart, under the title. */
   phv.innerHTML='<div class="sec-label">Stock Comparison</div>'
-    +'<button type="button" class="ph-sum" onclick="toggleFiltMenu(event)" title="Chart options — metric, stocks, range"><span id="ph-cm-sum"></span></button>'
     +'<div id="ph-tip-bar" style="min-height:28px"></div>'
     +'<div id="ph-chart"></div>';
   var pm=document.getElementById('ph-menu');
@@ -8853,8 +8849,6 @@ function _phGetPts(ticker){
 function renderPHChart(){
   _renderPHMetricSel();
   var _sdef=_phMetricDef(_phMetric);
-  _cmSum('ph',_sdef.lbl+' · '+(_sdef.src==='snap'?'today':_phRange)
-    +' · '+_phStocks.length+' stock'+(_phStocks.length===1?'':'s'));
   if(_sdef.src==='snap'&&_phStocks.length){_phRenderBars(_sdef);return;}
   /* Empty pool = the filters left nothing with price history. Say so rather
      than leaving the previous filter's lines on screen. */
