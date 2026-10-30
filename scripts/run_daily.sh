@@ -347,13 +347,31 @@ sidemodel_wait() {
   done
   wait "$pid"
 }
+# The bond model's N-PORT freshness check (report-only). Its marks come from
+# SEC's quarterly N-PORT data sets, and loading a new quarter is a manual job
+# (bonds/CLAUDE.md, "New N-PORT quarter"); 2026q3 sat published but unloaded
+# for weeks because this check only ran in the retired standalone task. Each
+# ALERT line becomes a run note, so it lands in the run summary.
+bond_checks() {
+  local out rc line
+  out=$(cd bonds || exit 1
+        SSL_CERT_FILE=$("$BONDS_PY" -m certifi 2>/dev/null) && export SSL_CERT_FILE
+        "$BONDS_PY" scripts/daily_checks.py nport 2>&1); rc=$?
+  printf '%s\n' "$out"
+  while IFS= read -r line; do
+    case "$line" in ALERT*) note "bonds: ${line#ALERT }" ;; esac
+  done <<<"$out"
+  return "$rc"
+}
 sidemodels_join() {
-  local e
+  local e bonds=0
   for e in "${SIDE_PIDS[@]+"${SIDE_PIDS[@]}"}"; do
+    [ "${e%%:*}" = bonds ] && bonds=1
     run "sidemodel_${e%%:*}" soft sidemodel_wait "${e%%:*}" "${e#*:}" \
       || note "${e%%:*} model failed — its tab draws the newest earlier report (see $LOGDIR/sidemodels_${RUNDATE}_${e%%:*}.log)"
   done
   SIDE_PIDS=()
+  if [ "$bonds" = 1 ]; then run bond_checks soft bond_checks; fi
 }
 
 if wants sidemodels; then
