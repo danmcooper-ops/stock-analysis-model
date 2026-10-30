@@ -1,15 +1,15 @@
 {
  "version": 1,
- "date": "2026-10-28",
- "prev_date": "2026-10-27",
+ "date": "2026-10-29",
+ "prev_date": "2026-10-28",
  "systemic": {
-  "n": 3843,
-  "prev_n": 3829,
-  "changed": 45,
-  "changed_share": 0.0117,
+  "n": 3838,
+  "prev_n": 3842,
+  "changed": 23,
+  "changed_share": 0.006,
   "missing_data": 0,
   "missing_share": 0.0,
-  "shrink_share": 0.0,
+  "shrink_share": 0.001,
   "flood": false,
   "cause": null,
   "message": null
@@ -29,9 +29,9 @@
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": -0.6783158424223459,
-    "median_score": 49.3,
-    "median_spread": 0.22695235333885072,
+    "median_mos": -0.6340313767849941,
+    "median_score": 49.25,
+    "median_spread": 0.2275672973760265,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -66,9 +66,9 @@
      "HOLD": 6,
      "PASS": 5
     },
-    "median_mos": -0.20431819062369938,
-    "median_score": 48.7,
-    "median_spread": 0.2568600049230908,
+    "median_mos": -0.2349629275385252,
+    "median_score": 48.6,
+    "median_spread": 0.2571527105425483,
     "sector_weights": {
      "Technology": 0.2641509433962264,
      "Financial Services": 0.11320754716981131,
@@ -83,23 +83,10 @@
     "hhi": 0.17906728373086506,
     "concentrated": false,
     "no_sector": 0,
-    "upgrades": 1,
+    "upgrades": 0,
     "downgrades": 0
    },
    "alerts": [
-    {
-     "ticker": "UL",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "kind": "entered_buy",
-     "level": "action",
-     "message": "UL moved into the buy zone: HOLD → LEAN BUY",
-     "why": [
-      "Composite score moved 38 → 40, crossing above the LEAN BUY (39) threshold.",
-      "Biggest category moves: Valuation 34 → 38 (+4).",
-      "Largest metric swings: MoS -6.6% → 3.4% (score 7 → 27)."
-     ]
-    },
     {
      "ticker": "AAPL",
      "kind": "earnings_soon",
@@ -117,6 +104,19 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "AMZN reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "AMZN",
+     "kind": "fv_jump",
+     "level": "watch",
+     "move": -0.517,
+     "message": "AMZN fair value moved -52% ($150.78 → $72.83)"
+    },
+    {
+     "ticker": "AXON",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AXON reports earnings on 2026-11-05"
     },
     {
      "ticker": "BKNG",
@@ -137,30 +137,6 @@
      "message": "COKE reports earnings on 2026-11-04"
     },
     {
-     "ticker": "F",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "F reports earnings on 2026-10-28"
-    },
-    {
-     "ticker": "FTNT",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "FTNT reports earnings on 2026-10-28"
-    },
-    {
-     "ticker": "GOOGL",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "GOOGL reports earnings on 2026-10-28"
-    },
-    {
-     "ticker": "KLAC",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "KLAC reports earnings on 2026-10-28"
-    },
-    {
      "ticker": "MA",
      "kind": "earnings_soon",
      "level": "watch",
@@ -179,10 +155,10 @@
      "message": "MPWR reports earnings on 2026-10-29"
     },
     {
-     "ticker": "MSFT",
+     "ticker": "NVMI",
      "kind": "earnings_soon",
      "level": "watch",
-     "message": "MSFT reports earnings on 2026-10-28"
+     "message": "NVMI reports earnings on 2026-11-05"
     },
     {
      "ticker": "RYAAY",
@@ -191,10 +167,10 @@
      "message": "RYAAY reports earnings on 2026-11-02"
     },
     {
-     "ticker": "STLA",
+     "ticker": "TDG",
      "kind": "earnings_soon",
      "level": "watch",
-     "message": "STLA reports earnings on 2026-10-28"
+     "message": "TDG reports earnings on 2026-11-05"
     },
     {
      "ticker": "TPL",
@@ -207,33 +183,3086 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "XPO reports earnings on 2026-10-29"
+    }
+   ]
+  },
+  {
+   "id": "paper",
+   "name": "Paper book",
+   "color": "#2a78d6",
+   "mode": "buy_line",
+   "missing": [],
+   "stats": {
+    "n": 951,
+    "ratings": {
+     "BUY": 126,
+     "LEAN BUY": 825,
+     "HOLD": 0,
+     "PASS": 0
+    },
+    "median_mos": 0.20041703101261035,
+    "median_score": 47.1,
+    "median_spread": 0.09060194875194634,
+    "sector_weights": {
+     "Healthcare": 0.11263157894736844,
+     "Basic Materials": 0.06842105263157912,
+     "Industrials": 0.20947368421052603,
+     "Technology": 0.19368421052631557,
+     "Real Estate": 0.03684210526315801,
+     "Consumer Defensive": 0.09052631578947379,
+     "Consumer Cyclical": 0.1894736842105261,
+     "Utilities": 0.015789473684210575,
+     "Communication Services": 0.05052631578947384,
+     "Energy": 0.03263157894736852
+    },
+    "top_sector": "Industrials",
+    "top_sector_weight": 0.20947368421052603,
+    "hhi": 0.1480797783933516,
+    "concentrated": false,
+    "no_sector": 1,
+    "upgrades": 6,
+    "downgrades": 3
+   },
+   "alerts": [
+    {
+     "ticker": "EPAC",
+     "from": "HOLD",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "EPAC moved into the buy zone: HOLD → LEAN BUY",
+     "why": [
+      "Composite score moved 36 → 44, crossing above the LEAN BUY (39) threshold.",
+      "Biggest category moves: Growth 16 → 46 (+30), Quality 40 → 45 (+6), Valuation 38 → 43 (+5).",
+      "Largest metric swings: 5Y FCF CAGR N/A → 23.2% (score 0 → 100); MoS 6.9% → 15.5% (score 34 → 51); Accruals -2.2% → -4.7% (score 31 → 59)."
+     ]
     },
     {
-     "ticker": "AGX",
-     "kind": "buy_below",
-     "mos0": 0.1719,
-     "mos1": 0.1382,
-     "level": "fyi",
-     "into": false,
-     "message": "AGX rose back above its buy-below price $347.87 (MoS 14% at $352.69)"
+     "ticker": "UGP",
+     "from": "HOLD",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "UGP moved into the buy zone: HOLD → LEAN BUY",
+     "why": [
+      "Composite score moved 38.8 → 39.3, crossing above the LEAN BUY (39) threshold."
+     ]
     },
     {
-     "ticker": "LOW",
-     "kind": "buy_below",
-     "mos0": 0.1542,
-     "mos1": 0.1446,
-     "level": "fyi",
-     "into": false,
-     "message": "LOW rose back above its buy-below price $197.14 (MoS 14% at $198.40)"
+     "ticker": "AAON",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AAON reports earnings on 2026-11-05"
     },
     {
-     "ticker": "RYAAY",
+     "ticker": "AAPL",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AAPL reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "AAT",
+     "kind": "fv_jump",
+     "level": "watch",
+     "move": 0.9851,
+     "message": "AAT fair value moved +99% ($21.33 → $42.35)"
+    },
+    {
+     "ticker": "ABBV",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ABBV reports earnings on 2026-10-30"
+    },
+    {
+     "ticker": "ABEV",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ABEV reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "ABNB",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ABNB reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "ABR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ABR reports earnings on 2026-10-30"
+    },
+    {
+     "ticker": "ACEL",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ACEL reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "ACIW",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ACIW reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "ACLS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ACLS reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "ACMR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ACMR reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "ADM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ADM reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "ADMA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ADMA reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "ADP",
      "kind": "buy_below",
-     "mos0": 0.1698,
-     "mos1": 0.1082,
+     "mos0": 0.1634,
+     "mos1": 0.1947,
+     "level": "watch",
+     "into": true,
+     "confirmed": true,
+     "message": "ADP has held below its buy-below price $301.97 for two runs (MoS 19% at $286.08)"
+    },
+    {
+     "ticker": "ADT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ADT reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "ADUS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ADUS reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "AES",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AES reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "AG",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AG reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "AGCO",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AGCO reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "AKAM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AKAM reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "ALG",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ALG reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "ALKS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ALKS reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "ALMMF",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ALMMF reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "ALRM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ALRM reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "ALSN",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ALSN reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "AMCR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AMCR reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "AMD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AMD reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "AME",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AME reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "AMPH",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AMPH reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "AMZN",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AMZN reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "AMZN",
+     "kind": "fv_jump",
+     "level": "watch",
+     "move": -0.517,
+     "message": "AMZN fair value moved -52% ($150.78 → $72.83)"
+    },
+    {
+     "ticker": "AN",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AN reports earnings on 2026-10-30"
+    },
+    {
+     "ticker": "ANET",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ANET reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "ANIP",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ANIP reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "AOS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AOS reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "APTV",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "APTV reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "ARHS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ARHS reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "AROC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AROC reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "ASAIY",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ASAIY reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "ASC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ASC reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "ATDRF",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ATDRF reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "ATEN",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ATEN reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "ATHM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ATHM reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "ATNI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ATNI reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "ATR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ATR reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "AU",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AU reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "AVA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AVA reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "AVY",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AVY reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "AWR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AWR reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "AXTA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AXTA reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "AZN",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AZN reports earnings on 2026-10-30"
+    },
+    {
+     "ticker": "BALL",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "BALL reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "BBSI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "BBSI reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "BCC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "BCC reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "BCE",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "BCE reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "BCO",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "BCO reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "BDC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "BDC reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "BFAM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "BFAM reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "BFS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "BFS reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "BKNG",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "BKNG reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "BLDR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "BLDR reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "BMY",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "BMY reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "BR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "BR reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "BSY",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "BSY reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "BUD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "BUD reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "BWA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "BWA reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "BXC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "BXC reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "CAH",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CAH reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "CAJPY",
+     "kind": "fv_jump",
+     "level": "watch",
+     "move": 0.5857,
+     "message": "CAJPY fair value moved +59% ($24.80 → $39.32)"
+    },
+    {
+     "ticker": "CAJPY",
+     "portfolio": "paper",
+     "kind": "joined",
+     "level": "watch",
+     "message": "CAJPY joined Paper book (rating HOLD → LEAN BUY)"
+    },
+    {
+     "ticker": "CAJPY",
+     "from": "HOLD",
+     "to": "LEAN BUY",
+     "kind": "reversal",
+     "level": "watch",
+     "reversal_of": "2026-10-28",
+     "message": "CAJPY moved into the buy zone: HOLD → LEAN BUY (reverses the 2026-10-28 move)",
+     "why": [
+      "Composite score moved 38 → 42, crossing above the LEAN BUY (39) threshold.",
+      "Biggest category moves: Valuation 33 → 53 (+20).",
+      "Largest metric swings: MoS -18.1% → 24.6% (score 0 → 69)."
+     ]
+    },
+    {
+     "ticker": "CALX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CALX reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "CALY",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CALY reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "CAMT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CAMT reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "CARG",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CARG reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "CAT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CAT reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "CBT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CBT reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "CCSI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CCSI reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "CCU",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CCU reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "CDE",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CDE reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "CDP",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CDP reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "CDW",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CDW reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "CF",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CF reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "CGNX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CGNX reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "CHD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CHD reports earnings on 2026-10-30"
+    },
+    {
+     "ticker": "CHH",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CHH reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "CHKP",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CHKP reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "CHT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CHT reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "CIGI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CIGI reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "CIX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CIX reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "CL",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CL reports earnings on 2026-10-30"
+    },
+    {
+     "ticker": "CLX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CLX reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "CMI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CMI reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "COKE",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "COKE reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "COLL",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "COLL reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "COLM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "COLM reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "COP",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "COP reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "COR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "COR reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "CORT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CORT reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "CPAY",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CPAY reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "CRAI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CRAI reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "CRCT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CRCT reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "CRI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CRI reports earnings on 2026-10-30"
+    },
+    {
+     "ticker": "CROX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CROX reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "CRTO",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CRTO reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "CRUS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CRUS reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "CSV",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CSV reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "CSW",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CSW reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "CTRE",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CTRE reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "CTSH",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CTSH reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "CUZ",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CUZ reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "CVCO",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CVCO reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "CVSA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CVSA reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "CW",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CW reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "CXT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CXT reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "DAVE",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "DAVE reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "DBD",
+     "kind": "fv_jump",
+     "level": "watch",
+     "move": -0.64,
+     "message": "DBD fair value moved -64% ($296.53 → $106.75)"
+    },
+    {
+     "ticker": "DBX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "DBX reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "DFH",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "DFH reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "DFIN",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "DFIN reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "DHI",
+     "kind": "buy_below",
+     "mos0": 0.1582,
+     "mos1": 0.2594,
+     "level": "watch",
+     "into": true,
+     "confirmed": true,
+     "message": "DHI has held below its buy-below price $168.18 for two runs (MoS 26% at $146.53)"
+    },
+    {
+     "ticker": "DHI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "DHI reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "DIN",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "DIN reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "DINRF",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "DINRF reports earnings on 2026-10-30"
+    },
+    {
+     "ticker": "DLX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "DLX reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "DOCS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "DOCS reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "DOX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "DOX reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "DRS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "DRS reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "DT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "DT reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "DUOL",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "DUOL reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "DV",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "DV reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "DVA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "DVA reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "DXC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "DXC reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "DXCM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "DXCM reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "EIX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "EIX reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "ELA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ELA reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "ELF",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ELF reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "EME",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "EME reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "ENLT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ENLT reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "ENPH",
+     "kind": "fv_jump",
+     "level": "watch",
+     "move": -0.553,
+     "message": "ENPH fair value moved -55% ($13.29 → $5.94)"
+    },
+    {
+     "ticker": "EOG",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "EOG reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "EPAC",
+     "portfolio": "paper",
+     "kind": "joined",
+     "level": "watch",
+     "message": "EPAC joined Paper book (rating HOLD → LEAN BUY)"
+    },
+    {
+     "ticker": "EPAM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "EPAM reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "EQT",
+     "kind": "fv_jump",
+     "level": "watch",
+     "move": 2.7835,
+     "message": "EQT fair value moved +278% ($5.53 → $20.92)"
+    },
+    {
+     "ticker": "ERII",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ERII reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "ERO",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ERO reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "ETN",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ETN reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "EVTC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "EVTC reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "EW",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "EW reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "EXEL",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "EXEL reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "EXP",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "EXP reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "EXPD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "EXPD reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "EXPO",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "EXPO reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "FBIN",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "FBIN reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "FCN",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "FCN reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "FICO",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "FICO reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "FIGS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "FIGS reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "FIS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "FIS reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "FISV",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "FISV reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "FN",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "FN reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "FND",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "FND reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "FOR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "FOR reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "FSLR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "FSLR reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "FSM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "FSM reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "FSS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "FSS reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "FTDR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "FTDR reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "FVRR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "FVRR reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "G",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "G reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "GCT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GCT reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "GD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GD reports earnings on 2026-10-30"
+    },
+    {
+     "ticker": "GDDY",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GDDY reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "GHC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GHC reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "GIC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GIC reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "GILD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GILD reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "GLPI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GLPI reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "GMED",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GMED reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "GNE",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GNE reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "GNL",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GNL reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "GOLF",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GOLF reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "GOOS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GOOS reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "GPI",
+     "kind": "fv_jump",
+     "level": "watch",
+     "move": 1.7431,
+     "message": "GPI fair value moved +174% ($542.45 → $1,488.01)"
+    },
+    {
+     "ticker": "GPK",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GPK reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "GPN",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GPN reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "GPOR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GPOR reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "GRND",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GRND reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "GSK",
+     "kind": "fv_jump",
+     "level": "watch",
+     "move": 0.6626,
+     "message": "GSK fair value moved +66% ($46.46 → $77.25)"
+    },
+    {
+     "ticker": "GTBIF",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GTBIF reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "GTES",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GTES reports earnings on 2026-10-30"
+    },
+    {
+     "ticker": "GTM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GTM reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "GTX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GTX reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "GVA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GVA reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "GWW",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GWW reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "HAE",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "HAE reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "HALO",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "HALO reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "HBB",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "HBB reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "HCKT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "HCKT reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "HII",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "HII reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "HL",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "HL reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "HLF",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "HLF reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "HNI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "HNI reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "HOG",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "HOG reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "HOS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "HOS reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "HRMY",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "HRMY reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "HSIC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "HSIC reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "HSTM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "HSTM reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "HSY",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "HSY reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "HVT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "HVT reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "IAG",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "IAG reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "IBEX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "IBEX reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "IBP",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "IBP reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "ICFI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ICFI reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "IDCC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "IDCC reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "IDXX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "IDXX reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "INCY",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "INCY reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "INGR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "INGR reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "INSW",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "INSW reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "INVA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "INVA reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "IOSP",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "IOSP reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "IPAR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "IPAR reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "IRMD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "IRMD reports earnings on 2026-10-30"
+    },
+    {
+     "ticker": "IRWD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "IRWD reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "IT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "IT reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "ITT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ITT reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "JKHY",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "JKHY reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "KAI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "KAI reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "KBR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "KBR reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "KE",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "KE reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "KMT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "KMT reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "KRT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "KRT reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "KTB",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "KTB reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "LAMR",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "watch",
+     "message": "LAMR left Paper book (rating LEAN BUY → HOLD)"
+    },
+    {
+     "ticker": "LAUR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "LAUR reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "LCII",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "LCII reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "LDOS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "LDOS reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "LEA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "LEA reports earnings on 2026-10-30"
+    },
+    {
+     "ticker": "LKNCY",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "LKNCY reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "LKQ",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "LKQ reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "LLY",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "LLY reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "LMAT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "LMAT reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "LMB",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "LMB reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "LNTH",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "LNTH reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "LNWO",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "LNWO reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "LOPE",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "LOPE reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "LPX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "LPX reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "LTC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "LTC reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "LVS",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "watch",
+     "message": "LVS left Paper book (rating LEAN BUY → HOLD)"
+    },
+    {
+     "ticker": "LYTS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "LYTS reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "MAR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MAR reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "MAT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MAT reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "MATX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MATX reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "MCD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MCD reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "MD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MD reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "MELI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MELI reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "MFA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MFA reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "MGA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MGA reports earnings on 2026-10-30"
+    },
+    {
+     "ticker": "MGPI",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "watch",
+     "message": "MGPI left Paper book (rating LEAN BUY → HOLD)"
+    },
+    {
+     "ticker": "MGY",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MGY reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "MHK",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MHK reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "MIDD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MIDD reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "MLKN",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "watch",
+     "message": "MLKN left Paper book (rating LEAN BUY → HOLD)"
+    },
+    {
+     "ticker": "MLM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MLM reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "MLR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MLR reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "MMSI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MMSI reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "MNST",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MNST reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "MO",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MO reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "MOD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MOD reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "MONRF",
+     "kind": "buy_below",
+     "mos0": 0.1583,
+     "mos1": 0.1789,
+     "level": "watch",
+     "into": true,
+     "confirmed": true,
+     "message": "MONRF has held below its buy-below price $48.53 for two runs (MoS 18% at $46.88)"
+    },
+    {
+     "ticker": "MOS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MOS reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "MPWR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MPWR reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "MRK",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MRK reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "MSA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MSA reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "MSI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MSI reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "MTCH",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MTCH reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "MTD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MTD reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "MTDR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MTDR reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "MTSI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MTSI reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "MWA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MWA reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "MYE",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MYE reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "MZTI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MZTI reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "NATR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NATR reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "NBIX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NBIX reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "NFG",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NFG reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "NGVT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NGVT reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "NICE",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NICE reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "NNN",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NNN reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "NOA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NOA reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "NOG",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NOG reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "NOMD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NOMD reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "NRDS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NRDS reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "NSIT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NSIT reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "NSSC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NSSC reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "NTCT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NTCT reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "NTR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NTR reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "NTTYY",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NTTYY reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "NUTX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NUTX reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "NVGS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NVGS reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "NVMI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NVMI reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "NVO",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NVO reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "NXST",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NXST reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "NYT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NYT reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "O",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "O reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "OLP",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "OLP reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "OPCH",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "OPCH reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "OSIS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "OSIS reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "OSK",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "OSK reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "OSPN",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "OSPN reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "OTEX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "OTEX reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "OTTR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "OTTR reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "PAAS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PAAS reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "PAHC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PAHC reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "PANL",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PANL reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "PARR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PARR reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "PATK",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PATK reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "PAY",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PAY reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "PAYC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PAYC reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "PAYO",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PAYO reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "PBH",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PBH reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "PBYI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PBYI reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "PCAR",
+     "kind": "buy_below",
+     "mos0": 0.216,
+     "mos1": 0.2253,
+     "level": "watch",
+     "into": true,
+     "confirmed": true,
+     "message": "PCAR has held below its buy-below price $112.23 for two runs (MoS 23% at $102.29)"
+    },
+    {
+     "ticker": "PCRX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PCRX reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "PCTY",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PCTY reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "PFGC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PFGC reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "PGNY",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PGNY reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "PH",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PH reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "PKOH",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PKOH reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "PLNT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PLNT reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "PLTK",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PLTK reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "PLUS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PLUS reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "PODD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PODD reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "POR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "POR reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "PPC",
+     "kind": "fv_jump",
+     "level": "watch",
+     "move": 0.5631,
+     "message": "PPC fair value moved +56% ($23.01 → $35.97)"
+    },
+    {
+     "ticker": "PRDO",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PRDO reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "PRIM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PRIM reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "PRTH",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PRTH reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "PSIX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PSIX reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "PTC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PTC reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "PXED",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PXED reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "QCOM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "QCOM reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "QGEN",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "QGEN reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "QNST",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "watch",
+     "message": "QNST left Paper book (rating LEAN BUY → HOLD)"
+    },
+    {
+     "ticker": "QSR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "QSR reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "RACE",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "RACE reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "RBC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "RBC reports earnings on 2026-10-30"
+    },
+    {
+     "ticker": "RCI",
+     "kind": "fv_jump",
+     "level": "watch",
+     "move": 4283.3315,
+     "message": "RCI fair value moved +428333% ($0.04 → $157.97)"
+    },
+    {
+     "ticker": "REG",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "REG reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "REGN",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "REGN reports earnings on 2026-10-30"
+    },
+    {
+     "ticker": "REPX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "REPX reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "REYN",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "REYN reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "RGLD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "RGLD reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "RL",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "RL reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "RMD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "RMD reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "RMNI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "RMNI reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "ROCK",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ROCK reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "ROK",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ROK reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "RRR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "RRR reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "RRX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "RRX reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "RSG",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "RSG reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "RVLV",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "RVLV reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "SAH",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SAH reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "SAIA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SAIA reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "SATLF",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SATLF reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "SBAC",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "watch",
+     "message": "SBAC left Paper book (rating LEAN BUY → HOLD)"
+    },
+    {
+     "ticker": "SBS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SBS reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "SBUX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SBUX reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "SCSC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SCSC reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "SD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SD reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "SENEA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SENEA reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "SHOP",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SHOP reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "SIRI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SIRI reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "SKY",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SKY reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "SKYW",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SKYW reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "SLGN",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SLGN reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "SM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SM reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "SMCI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SMCI reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "SMP",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SMP reports earnings on 2026-10-30"
+    },
+    {
+     "ticker": "SNDK",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SNDK reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "SNROY",
+     "portfolio": "paper",
+     "kind": "joined",
+     "level": "watch",
+     "message": "SNROY joined Paper book (rating HOLD → LEAN BUY)"
+    },
+    {
+     "ticker": "SNROY",
+     "from": "HOLD",
+     "to": "LEAN BUY",
+     "kind": "reversal",
+     "level": "watch",
+     "reversal_of": "2026-10-28",
+     "message": "SNROY moved into the buy zone: HOLD → LEAN BUY (reverses the 2026-10-28 move)",
+     "why": [
+      "Composite score moved 38.9 → 39.0, crossing above the LEAN BUY (39) threshold."
+     ]
+    },
+    {
+     "ticker": "SONY",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SONY reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "SPSC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SPSC reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "SPXC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SPXC reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "SRAD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SRAD reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "SSTK",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SSTK reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "STE",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "STE reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "STRA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "STRA reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "SVM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SVM reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "SXI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SXI reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "SYK",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SYK reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "SYY",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SYY reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "TAL",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TAL reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "TASK",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TASK reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "TATT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TATT reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "TCMD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TCMD reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "TDC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TDC reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "TDG",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TDG reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "TGLS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TGLS reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "THC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "THC reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "TIGO",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TIGO reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "TM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TM reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "TNET",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TNET reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "TPC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TPC reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "TPL",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TPL reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "TPR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TPR reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "TREX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TREX reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "TRMD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TRMD reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "TRN",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TRN reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "TS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TS reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "TT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TT reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "TTAM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TTAM reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "TXRH",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TXRH reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "TXT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TXT reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "UFPT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "UFPT reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "UGP",
+     "portfolio": "paper",
+     "kind": "joined",
+     "level": "watch",
+     "message": "UGP joined Paper book (rating HOLD → LEAN BUY)"
+    },
+    {
+     "ticker": "UPBD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "UPBD reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "UPS",
+     "kind": "buy_below",
+     "mos0": 0.3137,
+     "mos1": 0.3039,
+     "level": "watch",
+     "into": true,
+     "confirmed": true,
+     "message": "UPS has held below its buy-below price $131.05 for two runs (MoS 30% at $107.33)"
+    },
+    {
+     "ticker": "UPWK",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "UPWK reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "USLM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "USLM reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "USNA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "USNA reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "USPH",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "USPH reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "UTHR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "UTHR reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "UVV",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "UVV reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "VGNT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "VGNT reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "VITL",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "VITL reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "VLTO",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "VLTO reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "VMC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "VMC reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "VNO",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "VNO reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "VNT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "VNT reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "VRRM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "VRRM reports earnings on 2026-10-30"
+    },
+    {
+     "ticker": "VRSK",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "VRSK reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "VRTX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "VRTX reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "VVX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "VVX reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "WAT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "WAT reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "WEN",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "WEN reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "WEYS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "WEYS reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "WLKP",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "WLKP reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "WMK",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "WMK reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "WMS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "WMS reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "WPM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "WPM reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "WST",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "WST reports earnings on 2026-10-29"
+    },
+    {
+     "ticker": "WTS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "WTS reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "XPEL",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "XPEL reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "YELP",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "YELP reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "YUM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "YUM reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "YUMC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "YUMC reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "ZD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ZD reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "ZTS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ZTS reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "AAT",
+     "kind": "buy_below",
+     "mos0": -0.0139,
+     "mos1": 0.473,
+     "level": "fyi",
+     "into": true,
+     "message": "AAT crossed below its buy-below price $36.00 (MoS 47% at $22.32); a Watch follows if it holds"
+    },
+    {
+     "ticker": "BOOT",
+     "from": "BUY",
+     "to": "LEAN BUY",
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "BOOT BUY → LEAN BUY",
+     "why": [
+      "Composite score moved 58 → 57, crossing below the BUY (57) threshold.",
+      "Biggest category moves: Valuation 44 → 35 (-9).",
+      "Largest metric swings: MoS 1.5% → -12.8% (score 23 → 0)."
+     ]
+    },
+    {
+     "ticker": "BSX",
+     "kind": "buy_below",
+     "mos0": 0.174,
+     "mos1": -0.3313,
      "level": "fyi",
      "into": false,
-     "message": "RYAAY rose back above its buy-below price $49.86 (MoS 11% at $52.31)"
+     "message": "BSX rose back above its buy-below price $27.26 (MoS -33% at $42.69)"
+    },
+    {
+     "ticker": "CAJPY",
+     "kind": "buy_below",
+     "mos0": -0.1811,
+     "mos1": 0.2463,
+     "level": "fyi",
+     "into": true,
+     "message": "CAJPY crossed below its buy-below price $33.42 (MoS 25% at $29.64); a Watch follows if it holds"
+    },
+    {
+     "ticker": "CHRW",
+     "kind": "buy_below",
+     "mos0": 0.1054,
+     "mos1": 0.1529,
+     "level": "fyi",
+     "into": true,
+     "message": "CHRW crossed below its buy-below price $127.87 (MoS 15% at $127.43); a Watch follows if it holds"
+    },
+    {
+     "ticker": "DAKT",
+     "from": "LEAN BUY",
+     "to": "BUY",
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "DAKT LEAN BUY → BUY",
+     "why": [
+      "Composite score moved 56.8 → 57.0, crossing above the BUY (57) threshold."
+     ]
+    },
+    {
+     "ticker": "EACO",
+     "from": "BUY",
+     "to": "LEAN BUY",
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "EACO BUY → LEAN BUY",
+     "why": [
+      "Composite score moved 58 → 56, crossing below the BUY (57) threshold.",
+      "Biggest category moves: Valuation 55 → 45 (-10).",
+      "Largest metric swings: MoS 40.9% → 29.4% (score 100 → 79); P/TBV 3.90× → 4.68× (score 28 → 8)."
+     ]
+    },
+    {
+     "ticker": "EHC",
+     "kind": "buy_below",
+     "mos0": 0.2009,
+     "mos1": 0.1277,
+     "level": "fyi",
+     "into": false,
+     "message": "EHC rose back above its buy-below price $128.12 (MoS 13% at $131.49)"
+    },
+    {
+     "ticker": "EPAC",
+     "kind": "buy_below",
+     "mos0": 0.0688,
+     "mos1": 0.155,
+     "level": "fyi",
+     "into": true,
+     "message": "EPAC crossed below its buy-below price $39.65 (MoS 16% at $39.42); a Watch follows if it holds"
+    },
+    {
+     "ticker": "EPR",
+     "kind": "buy_below",
+     "mos0": 0.155,
+     "mos1": 0.1132,
+     "level": "fyi",
+     "into": false,
+     "message": "EPR rose back above its buy-below price $55.92 (MoS 11% at $58.34)"
+    },
+    {
+     "ticker": "EXLS",
+     "kind": "buy_below",
+     "mos0": 0.0037,
+     "mos1": 0.1601,
+     "level": "fyi",
+     "into": true,
+     "message": "EXLS crossed below its buy-below price $41.61 (MoS 16% at $41.12); a Watch follows if it holds"
+    },
+    {
+     "ticker": "FELE",
+     "kind": "buy_below",
+     "mos0": 0.0648,
+     "mos1": 0.2022,
+     "level": "fyi",
+     "into": true,
+     "message": "FELE crossed below its buy-below price $103.07 (MoS 20% at $96.74); a Watch follows if it holds"
+    },
+    {
+     "ticker": "FTDR",
+     "kind": "buy_below",
+     "mos0": 0.1682,
+     "mos1": 0.1372,
+     "level": "fyi",
+     "into": false,
+     "message": "FTDR rose back above its buy-below price $86.05 (MoS 14% at $87.35)"
+    },
+    {
+     "ticker": "GRC",
+     "kind": "buy_below",
+     "mos0": 0.1376,
+     "mos1": 0.1538,
+     "level": "fyi",
+     "into": true,
+     "message": "GRC crossed below its buy-below price $74.72 (MoS 15% at $74.39); a Watch follows if it holds"
+    },
+    {
+     "ticker": "GSK",
+     "kind": "buy_below",
+     "mos0": -0.049,
+     "mos1": 0.3699,
+     "level": "fyi",
+     "into": true,
+     "message": "GSK crossed below its buy-below price $65.66 (MoS 37% at $48.68); a Watch follows if it holds"
+    },
+    {
+     "ticker": "HL",
+     "kind": "buy_below",
+     "mos0": 0.1182,
+     "mos1": 0.1543,
+     "level": "fyi",
+     "into": true,
+     "message": "HL crossed below its buy-below price $14.52 (MoS 15% at $14.45); a Watch follows if it holds"
+    },
+    {
+     "ticker": "HMY",
+     "kind": "buy_below",
+     "mos0": 0.1327,
+     "mos1": 0.1619,
+     "level": "fyi",
+     "into": true,
+     "message": "HMY crossed below its buy-below price $15.95 (MoS 16% at $15.73); a Watch follows if it holds"
+    },
+    {
+     "ticker": "JOE",
+     "kind": "buy_below",
+     "mos0": 0.1591,
+     "mos1": 0.1274,
+     "level": "fyi",
+     "into": false,
+     "message": "JOE rose back above its buy-below price $69.94 (MoS 13% at $71.80)"
+    },
+    {
+     "ticker": "OFLX",
+     "from": "BUY",
+     "to": "LEAN BUY",
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "OFLX BUY → LEAN BUY",
+     "why": [
+      "Composite score moved 57.2 → 56.9, crossing below the BUY (57) threshold."
+     ]
+    },
+    {
+     "ticker": "OSIS",
+     "kind": "buy_below",
+     "mos0": 0.1569,
+     "mos1": 0.1314,
+     "level": "fyi",
+     "into": false,
+     "message": "OSIS rose back above its buy-below price $203.71 (MoS 13% at $208.17)"
+    },
+    {
+     "ticker": "PODD",
+     "kind": "buy_below",
+     "mos0": 0.1508,
+     "mos1": 0.1322,
+     "level": "fyi",
+     "into": false,
+     "message": "PODD rose back above its buy-below price $149.36 (MoS 13% at $152.50)"
+    },
+    {
+     "ticker": "PPC",
+     "kind": "buy_below",
+     "mos0": -0.1464,
+     "mos1": 0.2324,
+     "level": "fyi",
+     "into": true,
+     "message": "PPC crossed below its buy-below price $30.57 (MoS 23% at $27.61); a Watch follows if it holds"
+    },
+    {
+     "ticker": "PPC",
+     "from": "LEAN BUY",
+     "to": "BUY",
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "PPC LEAN BUY → BUY",
+     "why": [
+      "Composite score moved 57 → 61, crossing above the BUY (57) threshold.",
+      "Biggest category moves: Valuation 43 → 66 (+22).",
+      "Largest metric swings: MoS -14.6% → 23.2% (score 0 → 66); FV Dispersion 59.4% → 36.2% (score 15 → 48)."
+     ]
+    },
+    {
+     "ticker": "RCI",
+     "kind": "buy_below",
+     "mos0": -847.8998,
+     "mos1": 0.8008,
+     "level": "fyi",
+     "into": true,
+     "message": "RCI crossed below its buy-below price $134.27 (MoS 80% at $31.47); a Watch follows if it holds"
+    },
+    {
+     "ticker": "RRR",
+     "kind": "buy_below",
+     "mos0": 0.1553,
+     "mos1": 0.1392,
+     "level": "fyi",
+     "into": false,
+     "message": "RRR rose back above its buy-below price $48.58 (MoS 14% at $49.20)"
+    },
+    {
+     "ticker": "TEL",
+     "kind": "buy_below",
+     "mos0": 0.1152,
+     "mos1": 0.2195,
+     "level": "fyi",
+     "into": true,
+     "message": "TEL crossed below its buy-below price $242.60 (MoS 22% at $222.76); a Watch follows if it holds"
+    },
+    {
+     "ticker": "TPR",
+     "kind": "buy_below",
+     "mos0": 0.162,
+     "mos1": 0.1163,
+     "level": "fyi",
+     "into": false,
+     "message": "TPR rose back above its buy-below price $113.34 (MoS 12% at $117.84)"
+    },
+    {
+     "ticker": "UGP",
+     "kind": "buy_below",
+     "mos0": 0.1333,
+     "mos1": 0.1611,
+     "level": "fyi",
+     "into": true,
+     "message": "UGP crossed below its buy-below price $6.05 (MoS 16% at $5.97); a Watch follows if it holds"
+    },
+    {
+     "ticker": "WEN",
+     "kind": "buy_below",
+     "mos0": 0.1961,
+     "mos1": 0.1489,
+     "level": "fyi",
+     "into": false,
+     "message": "WEN rose back above its buy-below price $7.16 (MoS 15% at $7.17)"
+    },
+    {
+     "ticker": "WMS",
+     "kind": "buy_below",
+     "mos0": 0.1747,
+     "mos1": 0.1376,
+     "level": "fyi",
+     "into": false,
+     "message": "WMS rose back above its buy-below price $134.56 (MoS 14% at $136.52)"
     }
    ]
   }
