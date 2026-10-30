@@ -462,6 +462,10 @@ def test_charts_is_its_own_entry_and_stocks_holds_the_data_tables():
     assert "function _navView(){if(curView==='table')return curTSub==='prices'?'charts':'matrix';" in src
     assert "return [{k:'matrix',l:'Gate Matrix'}].concat(Object.keys(TL).filter(function(k){return k!=='prices';})" in src
     assert 'id="sn-sub2"' in src
+    # Hidden by style: .d-stmt-tabs' display:flex outranks the hidden
+    # attribute, which drew an empty underline under every view's tabs.
+    assert 'id="sn-sub2" role="tablist" aria-label="Stocks" style="display:none"' in src
+    assert "s2.style.display=stk?'':'none';" in src and 's2.hidden' not in src
     assert "ch.style.display=g.items.length<2?'none':'';" in src
     assert "}else if(v==='charts'){\n    curTSub='prices';" in src
     assert "}else if(v==='matrix'&&k==='matrix'){\n    /* Stocks reopens on whichever of its tabs was last open. */\n    stkGo(_stkLast);" in src
