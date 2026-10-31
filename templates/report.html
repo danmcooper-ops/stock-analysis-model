@@ -355,8 +355,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
    left behind (or dropped, in Chrome) when the cell sticks. The right edge
    is a shadow, not a border, so it does not widen the column. */
 .stmt-body{padding:14px 16px;background:var(--surface);}
-.stmt-note{position:-webkit-sticky;position:sticky;left:0;font-size:0.68em;color:var(--text-muted);
-  margin-top:8px;white-space:normal;}
 .stmt-tbl{--stmt-lbl-w:min(44vw,22em);border-collapse:separate;border-spacing:0;}
 .stmt-tbl th:first-child,.stmt-tbl td.stmt-lbl{position:-webkit-sticky;position:sticky;left:0;z-index:2;
   background:var(--surface);box-shadow:1px 0 0 #dde5f5;}
@@ -1301,6 +1299,7 @@ td.ct{font-weight:700;}
 }
 /* Track Record annual-fundamentals table */
 .dtr-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+#d-section-track{position:relative;}  /* anchors the card's ? (_noteQ) */
 .dtr-tbl{border-collapse:collapse;width:100%;font-size:0.78em;}
 .dtr-tbl th{text-align:right;padding:5px 8px;color:var(--text-muted);font-weight:600;border-bottom:1px solid #dde5f5;white-space:nowrap;}
 .dtr-tbl td{text-align:right;padding:4px 8px;white-space:nowrap;border-bottom:1px solid #eef1f6;color:#2c3e50;}
@@ -5529,7 +5528,7 @@ function _pfDetailHtml(id){
       +'<div class="pfv-legend">'+Object.keys(st.mix).map(function(r){return'<span><i style="background:'+RC[r]+'"></i>'+r+' '+st.mix[r]+'</span>';}).join('')+'</div>'
       +_pfKpis(st,true)+_pfMosDist(st)+'</div>'+_pfBrkPanel(id,st)+'</div>'],
     PAPER_META&&PAPER_META.portfolio===id&&['paper','Paper account','<h3 class="pfv-h3"><span class="sec-label">Paper account</span> <span class="pf-muted pfv-h3-sub">Alpaca paper, as of '+_pfEsc(PAPER_META.as_of||'')+'</span></h3><div id="pfp-view">'+_ppaHtml()+'</div>'],
-    hold&&['hold','Holdings','<h3 class="pfv-h3"><span class="sec-label">Holdings</span> <span class="pf-muted pfv-h3-sub">private to this browser</span></h3><div class="pfv-panel">'+_pfHoldHtml(id)+'</div>'],
+    hold&&['hold','Holdings','<h3 class="pfv-h3"><span class="sec-label">Holdings</span> <span class="pf-muted pfv-h3-sub">private to this browser</span></h3><div class="pfv-panel qh-card">'+_pfHoldHtml(id)+'</div>'],
     risk&&['risk','Value & risk','<h3 class="pfv-h3"><span class="sec-label">Value &amp; risk</span></h3>'+risk],
     ['members','Members','<h3 class="pfv-h3"><span class="sec-label">Members</span> <span class="pfv-count">'+st.n+'</span></h3>'+_pfmHtml(id)],
     ['perf','Performance','<h3 class="pfv-h3"><span class="sec-label">Performance</span></h3><div class="pfv-panel pfc-panel">'+_pfChartHtml(id)+'</div>'],
@@ -5587,17 +5586,17 @@ function _ppaHtml(){
     +tile('Cash',B.cash==null?'—':Math.round(B.cash*100)+'%',B.pending?B.pending+' names not yet bought':'fully built')
     +tile('To sell',String(B.to_sell||0),'held, no longer in the book')
     +'</div>';
+  var how=['Public: an Alpaca paper account (no real money). Positions as of '+_pfEsc(D.as_of)+'’s reconcile; targets from the rebalance on results_'+_pfEsc(D.snapshot||'—')+'.'];
+  if(D.untradable)how.push(Math.round(D.untradable*1000)/10+'% of the book is not tradable at Alpaca (OTC lines) and is spread over the rest; the model holds it.');
   h+='<div class="pfc-top"><div class="pfc-legend">'
     +'<span><svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" class="pfc-pf" style="stroke:var(--accent)"/></svg>Paper account</span>'
     +'<span><svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" class="pfc-spy"/></svg>Model</span>'
-    +'<span><svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" class="pfc-ew"/></svg>S&amp;P 500 (SPY)</span></div></div>'
+    +'<span><svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" class="pfc-ew"/></svg>S&amp;P 500 (SPY)</span></div><span class="pf-spacer"></span>'+_pfNoteQ(how.join('<br>'))+'</div>'
     +'<div class="pfc-wrap" id="pfp-chart"></div>';
   h+=_ppaHoldHtml(D)+_ppaActHtml(D);
-  var notes=['Public: an Alpaca paper account (no real money). Positions as of '+_pfEsc(D.as_of)+'’s reconcile; targets from the rebalance on results_'+_pfEsc(D.snapshot||'—')+'.'];
-  if(D.untradable)notes.push(Math.round(D.untradable*1000)/10+'% of the book is not tradable at Alpaca (OTC lines) and is spread over the rest; the model holds it.');
   var sk=Object.keys(D.skipped||{});
-  if(sk.length)notes.push('Last rebalance skipped: '+sk.map(function(k){return D.skipped[k]+' '+_pfEsc(k);}).join(', ')+'.');
-  return h+'<div class="pfc-notes">'+notes.join('<br>')+'</div>';
+  if(sk.length)h+='<div class="pfc-notes">Last rebalance skipped: '+sk.map(function(k){return D.skipped[k]+' '+_pfEsc(k);}).join(', ')+'.</div>';
+  return h;
 }
 var _PPA_COLS=[['t','Stock'],['rating','Rating'],['status','Status'],['target','Target',1],['actual','Held',1],['absdelta','Held − target',1],['value','Value',1],['pl','P&L',1]];
 function _ppaHoldHtml(D){
@@ -6022,8 +6021,10 @@ function _pfChartHtml(id){
       +'<span class="pf-spacer"></span>'+_pfRangeBtns(id)+'</div>'+contrib;
   }
   var notes=[];
-  if(pf.bfEnd>=0)notes.push('Shaded: backfilled — today’s definition replayed over past runs (hypothetical, not what was tracked then).');
-  if(pf.defchg.length)notes.push('Dotted verticals: the definition changed.');
+  var how=[];
+  if(pf.bfEnd>=0)how.push('Shaded: backfilled — today’s definition replayed over past runs (hypothetical, not what was tracked then).');
+  if(pf.defchg.length)how.push('Dotted verticals: the definition changed.');
+  how.push('Weighted as the portfolio is set (equal unless chosen otherwise; a portfolio weighted by your holdings shows equal weights here, since holdings are never published) and rebalanced at every run; members are recorded as they stood each day. Returns include dividends (closes are dividend-adjusted).');
   if(pf.empty)notes.push(pf.empty+' day'+(pf.empty===1?'':'s')+' held no stocks (nothing matched the rule), counted as cash.');
   if(pf.lowcov)notes.push(pf.lowcov+' day'+(pf.lowcov===1?'':'s')+' priced under 80% of members.');
   if(!_pfPubUnchanged(id))notes.push('This history follows the published definition; your local edits apply from the next run after you publish them.');
@@ -6039,12 +6040,11 @@ function _pfChartHtml(id){
       +'<td class="r">'+_pfFmtRet(_pfMaxDD(pf,key))+'</td><td class="r">'+(vol==null?'—':(vol*100).toFixed(1)+'%')+'</td></tr>';
   }
   var ex='<tr class="pfc-ex"><td>Excess vs SPY</td>'+cells(function(w){var a=_pfWin(pf,'pf',w),b=_pfWin(pf,'spy',w);return a==null||b==null?null:a-b;})+'<td></td><td></td></tr>';
-  return'<div class="pfc-top">'+legend+'<span class="pf-spacer"></span>'+_pfRangeBtns(id)+'</div>'
+  return'<div class="pfc-top">'+legend+'<span class="pf-spacer"></span>'+_pfRangeBtns(id)+_pfNoteQ(how.map(_pfEsc).join('<br>'))+'</div>'
     +'<div class="pfc-wrap" id="pfc-wrap" data-id="'+_pfEsc(id)+'" tabindex="0" aria-label="Performance chart; use the arrow keys to step through dates"></div>'
     +(notes.length?'<div class="pfc-notes">'+notes.map(_pfEsc).join('<br>')+'</div>':'')
     +'<div class="pfv-tbl-wrap pfc-tbl"><table class="pfv-tbl"><thead><tr><th></th><th class="r">1M</th><th class="r">3M</th><th class="r">YTD</th><th class="r">Since '+_pfEsc(pf.dates[0])+'</th><th class="r">Max drawdown</th><th class="r" title="Annualised standard deviation of the step returns">Volatility</th></tr></thead><tbody>'
     +row(_pfEsc(p.name),'pf')+ex+row('S&amp;P 500 (SPY)','spy')+row('Equal-weight universe','ew')+'</tbody></table></div>'
-    +'<div class="pfc-notes">Weighted as the portfolio is set (equal unless chosen otherwise; a portfolio weighted by your holdings shows equal weights here, since holdings are never published) and rebalanced at every run; members are recorded as they stood each day. Returns include dividends (closes are dividend-adjusted).</div>'
     +contrib;
 }
 /* Contributors over the chart's range. For a published definition they are
@@ -6319,9 +6319,9 @@ function _pfHoldHtml(id){
   if(al.length)h+='<div class="pfv-alerts pfv-hold-al">'+al.map(function(a){
     return'<div class="pfv-alert"><span class="pfv-lv pfv-lv-watch">Watch</span>'+_pfTkLink(a.ticker)
       +'<span class="pfv-alert-msg">'+_pfEsc(a.message.slice(a.ticker.length+1))+'</span></div>';}).join('')+'</div>';
-  var notes=['From '+_pfEsc(_pfBooks.file||'positions.json')+' loaded '+_pfEsc(_pfBooks.loaded||'')+', kept only in this browser and never published. Prices are this run’s closes.'];
-  if(t.unpriced.length)notes.push('No price today for '+_pfEsc(t.unpriced.join(', '))+': left out of value, P&amp;L and weights.');
-  return h+'<div class="pfc-notes">'+notes.join('<br>')+'</div>';
+  h=_pfNoteQ('From '+_pfEsc(_pfBooks.file||'positions.json')+' loaded '+_pfEsc(_pfBooks.loaded||'')+', kept only in this browser and never published. Prices are this run’s closes.',true)+h;
+  if(t.unpriced.length)h+='<div class="pfc-notes">No price today for '+_pfEsc(t.unpriced.join(', '))+': left out of value, P&amp;L and weights.</div>';
+  return h;
 }
 
 /* --- Dialogs: the overlay's form mode replaces prompt()/alert(). --- */
@@ -6416,7 +6416,8 @@ function _pfRiskHtml(id){
       +'<div class="pfv-kpi-u">'+(sub||'&nbsp;')+'</div></div>';
   }
   function tone(x){return x==null?'':x>0?'pos':x<0?'neg':'';}
-  var h='<div class="pfv-panel">';
+  var h='<div class="pfv-panel qh-card">'+_pfNoteQ('Weighted '+_pfEsc(_PF_WLBL[a.w]||'equally')+'. Risk is ex ante: today’s weights over past prices, not what was held then (that is the Performance chart). '
+    +(r.status==='ok'?'Daily data '+_pfEsc(r.from)+' to '+_pfEsc(r.to)+'.':''),true);
   if(v.status==='ok'){
     h+='<div class="pfv-kpis pfv-kpis-full">'
       +k('Upside vs universe',_pfPct(v.rel,true),tone(v.rel),'look-through',
@@ -6447,8 +6448,6 @@ function _pfRiskHtml(id){
   }else if(r.status==='insufficient'){
     h+='<div class="pf-muted">Risk: only '+_pfPct(r.cov)+' of the weight has a year of prices.</div>';
   }
-  h+='<div class="pfc-notes">Weighted '+_pfEsc(_PF_WLBL[a.w]||'equally')+'. Risk is ex ante: today’s weights over past prices, not what was held then (that is the Performance chart). '
-    +(r.status==='ok'?'Daily data '+_pfEsc(r.from)+' to '+_pfEsc(r.to)+'.':'')+'</div>';
   return h+'</div>';
 }
 /* Attribution of what was held each run (P3), for the chart's range. */
@@ -8407,7 +8406,7 @@ function tSort(col){_tUserSorted=true;if(tSC===col)tSA=!tSA;else{tSC=col;tSA=tru
    elements, so generated SVG ids are suffixed with the key to keep the two
    instances from colliding (incl. the ph-g gradient, which resolves
    document-wide). */
-var _phStocks=[],_phRange='MAX',_phInited=false,_phStates={},_phMetric='price';
+var _phStocks=[],_phRange='MAX',_phInited=false,_phStates={},_phMetric='price',_phFocus={};
 /* The chart pool is two layers. The auto layer is the five best names in the
    CURRENT filter set (FD), so filtering to e.g. Energy re-seeds the chart with
    the five best energy names. The pinned layer is whatever the user added by
@@ -9287,22 +9286,44 @@ function _phRenderSVG(allRaw,refs,ctx){
   }
   /* polylines + dot markers */
   var linesSVG='',dotsSVG='';
+  /* Drawn path only: one point per ~1.5 screen pixels, keeping each bucket's
+     last close (a resample, like weekly or monthly bars). MAX on a phone puts
+     ~25 daily closes in every pixel, and five such lines drew as overlapping
+     fuzz. Hover and the readout still use every point. */
+  var _bw=1.5*VW/Math.max(_cw||VW,1);
+  var _thin=function(ix){
+    if(annual||ix.length<3)return ix;
+    var out=[];
+    for(var t=0;t<ix.length;t++){
+      var i=ix[t],b=Math.floor(xOf(s_ux[i])/_bw);
+      var nb=t<ix.length-1?Math.floor(xOf(s_ux[ix[t+1]])/_bw):null;
+      if(t===0||nb!==b)out.push(i);
+    }
+    return out;
+  };
+  var s_ux=null;
+  var _foc=_phFocus[K];
+  if(_foc&&!series.some(function(s){return s.tk===_foc;}))_foc=_phFocus[K]=null;
+  var _lineSVG={};
   series.forEach(function(s,si){
-    var pp=s.pts.map(function(p,i){return xOf(s.ux[i]).toFixed(1)+','+yOf(cv(p.c)).toFixed(1);}).join(' ');
-    if(!cmpMode){var fp=pp+' '+xOf(s.ux[s.pts.length-1]).toFixed(1)+','+(PT+iH)+' '+xOf(s.ux[0]).toFixed(1)+','+(PT+iH);linesSVG+='<polygon points="'+fp+'" fill="url(#ph-g'+K+')"/>';}
+    s_ux=s.ux;
+    var _pt=function(i){return xOf(s.ux[i]).toFixed(1)+','+yOf(cv(s.pts[i].c)).toFixed(1);};
     /* A rebuilt daily multiple has no value for a stretch with nothing to
        divide by (a loss year's P/E): break the line there (over 10 days
        without a point) rather than bridge it with a straight segment. */
-    var segs=[pp];
-    if(def.src==='hpx'){
-      segs=[];var cur=[];
-      s.pts.forEach(function(p,i){
-        if(i&&(new Date(p.d)-new Date(s.pts[i-1].d))>10*86400000){segs.push(cur.join(' '));cur=[];}
-        cur.push(xOf(s.ux[i]).toFixed(1)+','+yOf(cv(p.c)).toFixed(1));
-      });
-      segs.push(cur.join(' '));
-    }
-    segs.forEach(function(sp){if(sp.indexOf(' ')>0)linesSVG+='<polyline points="'+sp+'" fill="none" stroke="'+s.col+'" stroke-width="'+(cmpMode?1.6:1.8)+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>';});
+    var segIx=[],cur=[];
+    s.pts.forEach(function(p,i){
+      if(def.src==='hpx'&&i&&(new Date(p.d)-new Date(s.pts[i-1].d))>10*86400000){segIx.push(cur);cur=[];}
+      cur.push(i);
+    });
+    segIx.push(cur);
+    var segs=segIx.map(function(ix){return _thin(ix).map(_pt).join(' ');});
+    if(!cmpMode){var pp=segs.join(' ');var fp=pp+' '+xOf(s.ux[s.pts.length-1]).toFixed(1)+','+(PT+iH)+' '+xOf(s.ux[0]).toFixed(1)+','+(PT+iH);linesSVG+='<polygon points="'+fp+'" fill="url(#ph-g'+K+')"/>';}
+    /* Tapping a legend entry (phFocus) lifts that line to the top and fades
+       the others, so one company can be followed through the tangle. */
+    var _op=!_foc?0.9:(s.tk===_foc?1:0.18),_sw=cmpMode?(s.tk===_foc?2.4:1.6):1.8,_ls='';
+    segs.forEach(function(sp){if(sp.indexOf(' ')>0)_ls+='<polyline data-phs="'+_attr(s.tk)+'" points="'+sp+'" fill="none" stroke="'+s.col+'" stroke-width="'+_sw+'" stroke-linejoin="round" stroke-linecap="round" opacity="'+_op+'"/>';});
+    if(cmpMode&&s.tk===_foc)_lineSVG.top=_ls;else linesSVG+=_ls;
     /* Annual series: a dot per fiscal year, so ~16 yearly values read as
        points rather than a continuous line; a point past a trimmed axis is
        a triangle on the edge, pointing the way it went. */
@@ -9315,6 +9336,7 @@ function _phRenderSVG(allRaw,refs,ctx){
     }
     dotsSVG+='<circle id="ph-dc'+K+si+'" cx="0" cy="0" r="4" fill="white" stroke="'+s.col+'" stroke-width="2" opacity="0" pointer-events="none"/>';
   });
+  if(_lineSVG.top)linesSVG+=_lineSVG.top;
   /* The trimmed-axis note: which lines run past it, how far, and the
      switch between fitting most values and the full range. */
   var clipNote='';
@@ -9369,7 +9391,7 @@ function _phTipHtml(series,cmpMode,relX,def,annual,uDates){
     var reb=p.c0!=null;
     var val=reb?((p.c-100>=0?'+':'')+(p.c-100).toFixed(1)+'%'):_phFmtVal(p.c,def.fmt);
     var vc=reb?(p.c>=100?'#2e7d48':'#c0392b'):s.col;
-    tip+='<span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px;white-space:nowrap">'
+    tip+='<span'+(cmpMode?' data-phf="'+_attr(s.tk)+'" role="button" title="Highlight this line"':'')+' style="display:inline-flex;align-items:center;gap:4px;margin-right:10px;white-space:nowrap'+(cmpMode?';cursor:pointer':'')+'">'
       +'<span style="width:10px;height:3px;background:'+s.col+';border-radius:2px;display:inline-block;flex-shrink:0"></span>'
       +'<span style="font-weight:700;font-size:0.88em;color:#1a252f">'+s.tk+'</span>'
       +'<span style="font-weight:600;color:'+vc+'">'+val+'</span>'
@@ -9402,6 +9424,23 @@ function _phTipHtml(series,cmpMode,relX,def,annual,uDates){
   tip+='<span style="color:#aab;font-size:0.82em;margin-left:4px;white-space:nowrap">'+dateStr+'</span>';
   return tip;
 }
+/* Legend tap: highlight that line (again to clear). The tip bar is redrawn
+   on every hover, so the click is delegated and the chart found by its tip. */
+function phFocus(key,tk){
+  _phFocus[key]=_phFocus[key]===tk?null:tk;
+  var st=_phStates[key];if(!st)return;
+  var foc=_phFocus[key],svg=document.getElementById('ph-svg'+key);if(!svg)return;
+  svg.querySelectorAll('polyline[data-phs]').forEach(function(pl){
+    var on=pl.getAttribute('data-phs')===foc;
+    pl.setAttribute('opacity',!foc?0.9:(on?1:0.18));
+    pl.setAttribute('stroke-width',on?2.4:1.6);
+    if(on)pl.parentNode.insertBefore(pl,svg.querySelector('[id^="ph-dc"]'));
+  });
+}
+document.addEventListener('click',function(e){
+  var it=e.target.closest&&e.target.closest('[data-phf]');if(!it)return;
+  for(var k in _phStates){var st=_phStates[k];if(st&&st.ctx&&it.closest('#'+st.ctx.tipId)){phFocus(k,it.getAttribute('data-phf'));return;}}
+});
 function phMove(e,key){
   key=key||'';
   var s=_phStates[key];if(!s)return;
@@ -10474,7 +10513,8 @@ function _renderTrackRecord(d){
     html+='</tr>';
   });
   html+='</table></div>';
-  html+='<div style="font-size:0.68em;color:var(--text-muted);margin-top:6px">Annual figures from SEC EDGAR XBRL filings · Free Cash Flow = operating cash flow − capex · Net Debt = total debt − cash &amp; equivalents · Int Coverage = operating income ÷ interest expense · shares interpolated to fiscal year-end'+(_finSec?' · debt rows uncolored: borrowings are operating inputs for financials, not distress':'')+'</div>';
+  /* Methodology behind the card's ? (top right), not under the table. */
+  html+=_noteQ('Annual figures from SEC EDGAR XBRL filings. Free Cash Flow = operating cash flow − capex. Net Debt = total debt − cash &amp; equivalents. Int Coverage = operating income ÷ interest expense. Shares interpolated to fiscal year-end.'+(_finSec?' Debt rows uncolored: borrowings are operating inputs for financials, not distress.':''),'About these figures');
   if(!shown){sec.style.display='none';el.innerHTML='';return;}
   el.innerHTML=html;
   sec.style.display='';
@@ -11932,7 +11972,7 @@ function _renderDetDataTab(key){
       and spelled out in the footnote. Filed lines are never mixed with
       arithmetic, and nothing is back-solved out of model outputs — an
       "assets" figure inferred from ROA is not a balance sheet. */
-function _stmtShell(meta,inner,withPdf,co){
+function _stmtShell(meta,inner,withPdf,co,note){
   /* The export button rides the title band (right-justified via the band's
      flex), only when the tab actually rendered a statement — an empty or
      still-loading pane offers nothing to export. */
@@ -11953,6 +11993,8 @@ function _stmtShell(meta,inner,withPdf,co){
       +'<button type="button" class="stmt-pdf-btn stmt-fs-x" onclick="stmtFsToggle(false)" aria-label="Close full screen" title="Close full screen">'
       +'<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg>'
       +'</button>':'')
+    /* The statement's presentation note, behind a ? at the band's right end. */
+    +(note?_qHelp('<span class="note-q-t">'+esc(note)+'</span>','About this statement'):'')
     +'</div>'
     +'<div class="stmt-body">'+inner+'</div></div>';
 }
@@ -12348,11 +12390,7 @@ function _renderDetStmtTab(key){
   var t=_stmtBuildTable(key,h,d);
   if(!t){el.innerHTML='';return;}
   if(t.empty){el.innerHTML=empty(t.empty);return;}
-  /* The footnote sits INSIDE the wrap (pinned left by .stmt-note) so on
-     phones it is the end of the scrolling pane, not page content below it —
-     scrolling the page to reach it would carry the frozen header away. */
-  var note='<div class="stmt-note">'+esc(t.note)+'</div>';
-  el.innerHTML=_stmtShell(meta,'<div class="dtr-wrap"><table class="dtr-tbl stmt-tbl">'+t.headRow+t.body+'</table>'+note+'</div>',true,d.company_name||d.ticker);
+  el.innerHTML=_stmtShell(meta,'<div class="dtr-wrap"><table class="dtr-tbl stmt-tbl">'+t.headRow+t.body+'</table></div>',true,d.company_name||d.ticker,t.note);
   _stmtFitWrap();
 }
 /* Phones: cap the statement wrap to the popup body's height less the title
@@ -14429,6 +14467,11 @@ function _qHelp(content,label,align){
 function _noteQ(html,label){
   return '<div class="note-q">'+_qHelp('<span class="note-q-t">'+html+'</span>',label||'How this is built')+'</div>';
 }
+/* A portfolio panel's methodology, behind a ? (corner: pinned to a
+   .qh-card panel; otherwise inline, at the end of a header row). */
+function _pfNoteQ(html,corner){
+  return _qHelp('<span class="note-q-t">'+html+'</span>','About these figures',corner?'corner':'');
+}
 function _qHelpToggle(btn,e){
   if(e)e.stopPropagation();
   var w=btn.parentNode,open=!w.classList.contains('open');
@@ -14620,7 +14663,7 @@ function _macSectionHTML(k){
   var lbl=k;MACRO_TABS.forEach(function(t){if(t.k===k)lbl=t.l;});
   /* The title and intro sit in a card padded like the regime card above,
      so both titles start at the same x. */
-  var h='<div class="mac-regime mac-sec-head"><div class="sec-label">'+lbl+'</div>'+_macIntroHTML(k)+'<div class="mac-sec-note">FRED data as of '+(MACRO.as_of||'?')+' · shaded bands mark NBER recessions · hover a chart to read a date</div></div>';
+  var h='<div class="mac-regime mac-sec-head qh-card">'+_qHelp('<span class="note-q-t">FRED data as of '+(MACRO.as_of||'?')+'. Shaded bands mark NBER recessions. Hover a chart to read a date.</span>','About this data','corner')+'<div class="sec-label">'+lbl+'</div>'+_macIntroHTML(k)+'</div>';
   if(k==='rates'&&MACRO.curve)h+=_macCurveCard();
   h+='<div class="mac-cards"'+(k==='rates'&&MACRO.curve?' style="margin-top:14px"':'')+'>';
   sec.ids.forEach(function(id){
@@ -14890,7 +14933,7 @@ var _MAC_OAS_ORDER=['AAA','AA','A','BBB','BB','B','CCC'];
 function _macOASTable(){
   var ob=MACRO.oas_buckets;
   if(!ob||!ob.now)return '';
-  var h='<div class="mac-card" style="margin-top:14px"><div class="mac-card-head"><span class="mac-card-title">Credit Spreads by Rating (ICE BofA OAS)</span></div>';
+  var h='<div class="mac-card qh-card" style="margin-top:14px">'+_qHelp('<span class="note-q-t">FRED caps ICE BofA spread history at a rolling ~3-year window.</span>','About this data','corner')+'<div class="mac-card-head"><span class="mac-card-title">Credit Spreads by Rating (ICE BofA OAS)</span></div>';
   h+='<table class="mac-oas-tbl"><tr><th>Rating</th><th>OAS</th><th>1M ago</th><th>Δ</th></tr>';
   _MAC_OAS_ORDER.forEach(function(b){
     var now=ob.now[b],m1=(ob.m1||{})[b];
@@ -14900,7 +14943,7 @@ function _macOASTable(){
     h+='<tr><td>'+b+'</td><td>'+now.toFixed(2)+'%</td><td>'+(m1!=null?m1.toFixed(2)+'%':'N/A')+'</td>'
       +'<td'+cls+'>'+(chg!=null?((chg>0?'+':'')+chg.toFixed(2)+'pp'):'N/A')+'</td></tr>';
   });
-  h+='</table><div class="mac-sec-note">FRED caps ICE BofA spread history at a rolling ~3-year window.</div></div>';
+  h+='</table></div>';
   return h;
 }
 
@@ -15670,8 +15713,9 @@ function _bvLine(series,fmt){
   var key=series.length>1?'<div class="bv-key">'+series.map(function(s){return '<span><i style="background:var('+(_BV_SERIES[s.name]||'--bv-c1')+')"></i>'+_esc(s.name)+'</span>';}).join('')+'</div>':'';
   return key+h;
 }
-function _bvCard(title,tip,body){
-  return '<div class="bv-card"><h4'+(tip?' title="'+_attr(tip)+'"':'')+'>'+title+'</h4>'+body+'</div>';
+function _bvCard(title,tip,body,note){
+  return '<div class="bv-card'+(note?' qh-card':'')+'">'+(note?_qHelp('<span class="note-q-t">'+_esc(note)+'</span>','About this chart','corner'):'')
+    +'<h4'+(tip?' title="'+_attr(tip)+'"':'')+'>'+title+'</h4>'+body+'</div>';
 }
 function _bvHtml(D){
   var T=D.tips||{},N=D.notes||{},total=(D.total||0).toLocaleString();
@@ -15688,11 +15732,11 @@ function _bvHtml(D){
     +_bvCard('Rating distribution',T.ratings,_bvDist(D.ratings,{total:D.total,col:function(r){return RC[r]||'#888';}}))
     +_bvCard('Implied credit bucket',T.buckets,_bvDist(D.buckets,{tip:function(b){return bt[b];}}))
     +_bvCard('Why rows are capped',T.caps,_bvDist(D.cap_reasons,{col:function(){return 'var(--bv-warn)';},val:function(v){return v.toLocaleString();}}))
-    +_bvCard('Mean score by category',T.categories,_bvDist((D.categories||[]).map(function(c){return [c.label,c.mean];}),{top:100,val:function(v){return Math.round(v);}})+(N.categories?'<p class="bv-note">'+_esc(N.categories)+'</p>':''))
+    +_bvCard('Mean score by category',T.categories,_bvDist((D.categories||[]).map(function(c){return [c.label,c.mean];}),{top:100,val:function(v){return Math.round(v);}}),N.categories)
     +'</div></div>'
     +'<div data-pane="charts" class="xsect-dashboard"><div class="bv-grid">'
     +_bvCard('Treasury par curve',T.curve,_bvLine([{name:'Treasury par curve',points:D.curve||[]}],'pct'))
-    +_bvCard('Spread term structure, fitted vs FRED',T.term,_bvLine(D.term||[],'x')+(N.term?'<p class="bv-note">'+_esc(N.term)+'</p>':''))
+    +_bvCard('Spread term structure, fitted vs FRED',T.term,_bvLine(D.term||[],'x'),N.term)
     +'</div></div>'
     +'<div data-pane="notes" class="xsect-dashboard">';
   if(D.vintage)h+='<div class="bv-warn"><h4>Marks are '+D.vintage.age_days+' days old</h4><p>The newest fund mark in this dataset is dated '+_esc(D.vintage.date)+'. A newer quarterly N-PORT release is due or already published but not yet loaded; until it is, every price here leans harder on the curve overlay.</p></div>';
