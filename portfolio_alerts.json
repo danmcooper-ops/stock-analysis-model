@@ -1,15 +1,15 @@
 {
  "version": 1,
- "date": "2026-10-29",
- "prev_date": "2026-10-28",
+ "date": "2026-10-30",
+ "prev_date": "2026-10-29",
  "systemic": {
-  "n": 3838,
-  "prev_n": 3842,
+  "n": 3843,
+  "prev_n": 3838,
   "changed": 23,
   "changed_share": 0.006,
   "missing_data": 0,
   "missing_share": 0.0,
-  "shrink_share": 0.001,
+  "shrink_share": 0.0,
   "flood": false,
   "cause": null,
   "message": null
@@ -29,9 +29,9 @@
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": -0.6340313767849941,
-    "median_score": 49.25,
-    "median_spread": 0.2275672973760265,
+    "median_mos": -0.5688001053541833,
+    "median_score": 49.3,
+    "median_spread": 0.22753485054067396,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -62,13 +62,13 @@
     "n": 53,
     "ratings": {
      "BUY": 10,
-     "LEAN BUY": 32,
-     "HOLD": 6,
+     "LEAN BUY": 31,
+     "HOLD": 7,
      "PASS": 5
     },
-    "median_mos": -0.2349629275385252,
-    "median_score": 48.6,
-    "median_spread": 0.2571527105425483,
+    "median_mos": -0.21367251218438174,
+    "median_score": 48.7,
+    "median_spread": 0.2570938864490053,
     "sector_weights": {
      "Technology": 0.2641509433962264,
      "Financial Services": 0.11320754716981131,
@@ -84,7 +84,7 @@
     "concentrated": false,
     "no_sector": 0,
     "upgrades": 0,
-    "downgrades": 0
+    "downgrades": 1
    },
    "alerts": [
     {
@@ -101,16 +101,10 @@
     },
     {
      "ticker": "AMZN",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "AMZN reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "AMZN",
      "kind": "fv_jump",
      "level": "watch",
-     "move": -0.517,
-     "message": "AMZN fair value moved -52% ($150.78 → $72.83)"
+     "move": 1.0755,
+     "message": "AMZN fair value moved +108% ($72.83 → $151.17)"
     },
     {
      "ticker": "AXON",
@@ -125,34 +119,16 @@
      "message": "BKNG reports earnings on 2026-11-03"
     },
     {
-     "ticker": "BUD",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "BUD reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "COKE",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "COKE reports earnings on 2026-11-04"
     },
     {
-     "ticker": "MA",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "MA reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "MCD",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "MCD reports earnings on 2026-11-04"
-    },
-    {
-     "ticker": "MPWR",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "MPWR reports earnings on 2026-10-29"
     },
     {
      "ticker": "NVMI",
@@ -179,10 +155,16 @@
      "message": "TPL reports earnings on 2026-11-04"
     },
     {
-     "ticker": "XPO",
-     "kind": "earnings_soon",
+     "ticker": "UL",
+     "from": "LEAN BUY",
+     "to": "HOLD",
+     "kind": "reversal",
      "level": "watch",
-     "message": "XPO reports earnings on 2026-10-29"
+     "reversal_of": "2026-10-28",
+     "message": "UL fell out of the buy zone: LEAN BUY → HOLD (reverses the 2026-10-28 move)",
+     "why": [
+      "Composite score moved 39.0 → 38.7, crossing below the LEAN BUY (39) threshold."
+     ]
     }
    ]
   },
@@ -193,66 +175,49 @@
    "mode": "buy_line",
    "missing": [],
    "stats": {
-    "n": 951,
+    "n": 946,
     "ratings": {
-     "BUY": 126,
-     "LEAN BUY": 825,
+     "BUY": 131,
+     "LEAN BUY": 815,
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": 0.20041703101261035,
-    "median_score": 47.1,
-    "median_spread": 0.09060194875194634,
+    "median_mos": 0.20621103671362528,
+    "median_score": 47.3,
+    "median_spread": 0.09061591476581418,
     "sector_weights": {
-     "Healthcare": 0.11263157894736844,
-     "Basic Materials": 0.06842105263157912,
-     "Industrials": 0.20947368421052603,
-     "Technology": 0.19368421052631557,
-     "Real Estate": 0.03684210526315801,
-     "Consumer Defensive": 0.09052631578947379,
-     "Consumer Cyclical": 0.1894736842105261,
-     "Utilities": 0.015789473684210575,
-     "Communication Services": 0.05052631578947384,
-     "Energy": 0.03263157894736852
+     "Healthcare": 0.11428571428571396,
+     "Basic Materials": 0.06772486772486756,
+     "Industrials": 0.2084656084656089,
+     "Technology": 0.19470899470899503,
+     "Real Estate": 0.03597883597883593,
+     "Consumer Defensive": 0.0899470899470897,
+     "Consumer Cyclical": 0.18941798941798968,
+     "Utilities": 0.015873015873015844,
+     "Communication Services": 0.05079365079365069,
+     "Energy": 0.032804232804232766
     },
     "top_sector": "Industrials",
-    "top_sector_weight": 0.20947368421052603,
-    "hhi": 0.1480797783933516,
+    "top_sector_weight": 0.2084656084656089,
+    "hhi": 0.1481895803588928,
     "concentrated": false,
     "no_sector": 1,
-    "upgrades": 6,
-    "downgrades": 3
+    "upgrades": 7,
+    "downgrades": 0
    },
    "alerts": [
     {
-     "ticker": "EPAC",
+     "ticker": "HROW",
      "from": "HOLD",
      "to": "LEAN BUY",
      "kind": "entered_buy",
      "level": "action",
-     "message": "EPAC moved into the buy zone: HOLD → LEAN BUY",
+     "message": "HROW moved into the buy zone: HOLD → LEAN BUY",
      "why": [
-      "Composite score moved 36 → 44, crossing above the LEAN BUY (39) threshold.",
-      "Biggest category moves: Growth 16 → 46 (+30), Quality 40 → 45 (+6), Valuation 38 → 43 (+5).",
-      "Largest metric swings: 5Y FCF CAGR N/A → 23.2% (score 0 → 100); MoS 6.9% → 15.5% (score 34 → 51); Accruals -2.2% → -4.7% (score 31 → 59)."
+      "Composite score moved 36 → 39, crossing above the LEAN BUY (39) threshold.",
+      "Biggest category moves: Valuation 19 → 36 (+17).",
+      "Largest metric swings: MoS -38.2% → 18.6% (score 0 → 57)."
      ]
-    },
-    {
-     "ticker": "UGP",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "kind": "entered_buy",
-     "level": "action",
-     "message": "UGP moved into the buy zone: HOLD → LEAN BUY",
-     "why": [
-      "Composite score moved 38.8 → 39.3, crossing above the LEAN BUY (39) threshold."
-     ]
-    },
-    {
-     "ticker": "AAON",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "AAON reports earnings on 2026-11-05"
     },
     {
      "ticker": "AAPL",
@@ -262,22 +227,19 @@
     },
     {
      "ticker": "AAT",
-     "kind": "fv_jump",
+     "kind": "buy_below",
+     "mos0": 0.473,
+     "mos1": 0.4907,
      "level": "watch",
-     "move": 0.9851,
-     "message": "AAT fair value moved +99% ($21.33 → $42.35)"
+     "into": true,
+     "confirmed": true,
+     "message": "AAT has held below its buy-below price $36.48 for two runs (MoS 49% at $21.86)"
     },
     {
      "ticker": "ABBV",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "ABBV reports earnings on 2026-10-30"
-    },
-    {
-     "ticker": "ABEV",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "ABEV reports earnings on 2026-10-29"
     },
     {
      "ticker": "ABNB",
@@ -287,9 +249,10 @@
     },
     {
      "ticker": "ABR",
-     "kind": "earnings_soon",
+     "portfolio": "paper",
+     "kind": "left",
      "level": "watch",
-     "message": "ABR reports earnings on 2026-10-30"
+     "message": "ABR left Paper book (rating LEAN BUY → HOLD)"
     },
     {
      "ticker": "ACEL",
@@ -328,16 +291,6 @@
      "message": "ADMA reports earnings on 2026-11-04"
     },
     {
-     "ticker": "ADP",
-     "kind": "buy_below",
-     "mos0": 0.1634,
-     "mos1": 0.1947,
-     "level": "watch",
-     "into": true,
-     "confirmed": true,
-     "message": "ADP has held below its buy-below price $301.97 for two runs (MoS 19% at $286.08)"
-    },
-    {
      "ticker": "ADT",
      "kind": "earnings_soon",
      "level": "watch",
@@ -362,12 +315,6 @@
      "message": "AG reports earnings on 2026-11-05"
     },
     {
-     "ticker": "AGCO",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "AGCO reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "AKAM",
      "kind": "earnings_soon",
      "level": "watch",
@@ -380,16 +327,17 @@
      "message": "ALG reports earnings on 2026-11-02"
     },
     {
+     "ticker": "ALGN",
+     "kind": "fv_jump",
+     "level": "watch",
+     "move": 0.5692,
+     "message": "ALGN fair value moved +57% ($113.73 → $178.46)"
+    },
+    {
      "ticker": "ALKS",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "ALKS reports earnings on 2026-11-03"
-    },
-    {
-     "ticker": "ALMMF",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "ALMMF reports earnings on 2026-10-29"
     },
     {
      "ticker": "ALRM",
@@ -428,17 +376,17 @@
      "message": "AMPH reports earnings on 2026-11-05"
     },
     {
-     "ticker": "AMZN",
+     "ticker": "AMR",
      "kind": "earnings_soon",
      "level": "watch",
-     "message": "AMZN reports earnings on 2026-10-29"
+     "message": "AMR reports earnings on 2026-11-06"
     },
     {
      "ticker": "AMZN",
      "kind": "fv_jump",
      "level": "watch",
-     "move": -0.517,
-     "message": "AMZN fair value moved -52% ($150.78 → $72.83)"
+     "move": 1.0755,
+     "message": "AMZN fair value moved +108% ($72.83 → $151.17)"
     },
     {
      "ticker": "AN",
@@ -457,12 +405,6 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "ANIP reports earnings on 2026-11-05"
-    },
-    {
-     "ticker": "AOS",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "AOS reports earnings on 2026-10-29"
     },
     {
      "ticker": "APTV",
@@ -513,16 +455,16 @@
      "message": "ATHM reports earnings on 2026-11-04"
     },
     {
+     "ticker": "ATMU",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ATMU reports earnings on 2026-11-06"
+    },
+    {
      "ticker": "ATNI",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "ATNI reports earnings on 2026-11-04"
-    },
-    {
-     "ticker": "ATR",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "ATR reports earnings on 2026-10-29"
     },
     {
      "ticker": "AU",
@@ -537,22 +479,10 @@
      "message": "AVA reports earnings on 2026-11-04"
     },
     {
-     "ticker": "AVY",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "AVY reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "AWR",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "AWR reports earnings on 2026-11-04"
-    },
-    {
-     "ticker": "AXTA",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "AXTA reports earnings on 2026-10-29"
     },
     {
      "ticker": "AZN",
@@ -574,9 +504,10 @@
     },
     {
      "ticker": "BCC",
-     "kind": "earnings_soon",
+     "portfolio": "paper",
+     "kind": "left",
      "level": "watch",
-     "message": "BCC reports earnings on 2026-11-02"
+     "message": "BCC left Paper book (rating LEAN BUY → HOLD)"
     },
     {
      "ticker": "BCE",
@@ -589,18 +520,6 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "BCO reports earnings on 2026-11-04"
-    },
-    {
-     "ticker": "BDC",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "BDC reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "BFAM",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "BFAM reports earnings on 2026-10-29"
     },
     {
      "ticker": "BFS",
@@ -616,15 +535,16 @@
     },
     {
      "ticker": "BLDR",
-     "kind": "earnings_soon",
+     "kind": "fv_jump",
      "level": "watch",
-     "message": "BLDR reports earnings on 2026-10-29"
+     "move": -0.6897,
+     "message": "BLDR fair value moved -69% ($151.50 → $47.01)"
     },
     {
-     "ticker": "BMY",
+     "ticker": "BLMN",
      "kind": "earnings_soon",
      "level": "watch",
-     "message": "BMY reports earnings on 2026-10-29"
+     "message": "BLMN reports earnings on 2026-11-06"
     },
     {
      "ticker": "BR",
@@ -637,18 +557,6 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "BSY reports earnings on 2026-11-05"
-    },
-    {
-     "ticker": "BUD",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "BUD reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "BWA",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "BWA reports earnings on 2026-10-29"
     },
     {
      "ticker": "BXC",
@@ -664,31 +572,13 @@
     },
     {
      "ticker": "CAJPY",
-     "kind": "fv_jump",
+     "kind": "buy_below",
+     "mos0": 0.2463,
+     "mos1": 0.231,
      "level": "watch",
-     "move": 0.5857,
-     "message": "CAJPY fair value moved +59% ($24.80 → $39.32)"
-    },
-    {
-     "ticker": "CAJPY",
-     "portfolio": "paper",
-     "kind": "joined",
-     "level": "watch",
-     "message": "CAJPY joined Paper book (rating HOLD → LEAN BUY)"
-    },
-    {
-     "ticker": "CAJPY",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "kind": "reversal",
-     "level": "watch",
-     "reversal_of": "2026-10-28",
-     "message": "CAJPY moved into the buy zone: HOLD → LEAN BUY (reverses the 2026-10-28 move)",
-     "why": [
-      "Composite score moved 38 → 42, crossing above the LEAN BUY (39) threshold.",
-      "Biggest category moves: Valuation 33 → 53 (+20).",
-      "Largest metric swings: MoS -18.1% → 24.6% (score 0 → 69)."
-     ]
+     "into": true,
+     "confirmed": true,
+     "message": "CAJPY has held below its buy-below price $32.97 for two runs (MoS 23% at $29.83)"
     },
     {
      "ticker": "CALX",
@@ -715,16 +605,17 @@
      "message": "CARG reports earnings on 2026-11-05"
     },
     {
-     "ticker": "CAT",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "CAT reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "CBT",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "CBT reports earnings on 2026-11-02"
+    },
+    {
+     "ticker": "CCS",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "watch",
+     "message": "CCS left Paper book (rating LEAN BUY → HOLD)"
     },
     {
      "ticker": "CCSI",
@@ -743,12 +634,6 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "CDE reports earnings on 2026-11-04"
-    },
-    {
-     "ticker": "CDP",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "CDP reports earnings on 2026-10-29"
     },
     {
      "ticker": "CDW",
@@ -787,10 +672,26 @@
      "message": "CHKP reports earnings on 2026-11-02"
     },
     {
+     "ticker": "CHRW",
+     "kind": "buy_below",
+     "mos0": 0.1529,
+     "mos1": 0.1739,
+     "level": "watch",
+     "into": true,
+     "confirmed": true,
+     "message": "CHRW has held below its buy-below price $128.21 for two runs (MoS 17% at $124.61)"
+    },
+    {
      "ticker": "CHT",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "CHT reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "CHTR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CHTR reports earnings on 2026-11-06"
     },
     {
      "ticker": "CIGI",
@@ -823,6 +724,13 @@
      "message": "CMI reports earnings on 2026-11-05"
     },
     {
+     "ticker": "CNMD",
+     "kind": "fv_jump",
+     "level": "watch",
+     "move": 0.787,
+     "message": "CNMD fair value moved +79% ($64.04 → $114.44)"
+    },
+    {
      "ticker": "COKE",
      "kind": "earnings_soon",
      "level": "watch",
@@ -833,12 +741,6 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "COLL reports earnings on 2026-11-05"
-    },
-    {
-     "ticker": "COLM",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "COLM reports earnings on 2026-10-29"
     },
     {
      "ticker": "COP",
@@ -883,12 +785,6 @@
      "message": "CRI reports earnings on 2026-10-30"
     },
     {
-     "ticker": "CROX",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "CROX reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "CRTO",
      "kind": "earnings_soon",
      "level": "watch",
@@ -907,12 +803,6 @@
      "message": "CSV reports earnings on 2026-11-04"
     },
     {
-     "ticker": "CSW",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "CSW reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "CTRE",
      "kind": "earnings_soon",
      "level": "watch",
@@ -920,27 +810,10 @@
     },
     {
      "ticker": "CTSH",
-     "kind": "earnings_soon",
+     "kind": "fv_jump",
      "level": "watch",
-     "message": "CTSH reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "CUZ",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "CUZ reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "CVCO",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "CVCO reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "CVSA",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "CVSA reports earnings on 2026-10-29"
+     "move": 0.7126,
+     "message": "CTSH fair value moved +71% ($134.92 → $231.07)"
     },
     {
      "ticker": "CW",
@@ -961,45 +834,10 @@
      "message": "DAVE reports earnings on 2026-11-04"
     },
     {
-     "ticker": "DBD",
-     "kind": "fv_jump",
-     "level": "watch",
-     "move": -0.64,
-     "message": "DBD fair value moved -64% ($296.53 → $106.75)"
-    },
-    {
      "ticker": "DBX",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "DBX reports earnings on 2026-11-05"
-    },
-    {
-     "ticker": "DFH",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "DFH reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "DFIN",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "DFIN reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "DHI",
-     "kind": "buy_below",
-     "mos0": 0.1582,
-     "mos1": 0.2594,
-     "level": "watch",
-     "into": true,
-     "confirmed": true,
-     "message": "DHI has held below its buy-below price $168.18 for two runs (MoS 26% at $146.53)"
-    },
-    {
-     "ticker": "DHI",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "DHI reports earnings on 2026-10-29"
     },
     {
      "ticker": "DIN",
@@ -1032,12 +870,6 @@
      "message": "DOX reports earnings on 2026-11-03"
     },
     {
-     "ticker": "DRS",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "DRS reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "DT",
      "kind": "earnings_soon",
      "level": "watch",
@@ -1056,28 +888,11 @@
      "message": "DV reports earnings on 2026-11-05"
     },
     {
-     "ticker": "DVA",
-     "kind": "earnings_soon",
+     "ticker": "EBAY",
+     "kind": "fv_jump",
      "level": "watch",
-     "message": "DVA reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "DXC",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "DXC reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "DXCM",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "DXCM reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "EIX",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "EIX reports earnings on 2026-10-29"
+     "move": -0.5204,
+     "message": "EBAY fair value moved -52% ($68.84 → $33.01)"
     },
     {
      "ticker": "ELA",
@@ -1092,23 +907,10 @@
      "message": "ELF reports earnings on 2026-11-04"
     },
     {
-     "ticker": "EME",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "EME reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "ENLT",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "ENLT reports earnings on 2026-11-03"
-    },
-    {
-     "ticker": "ENPH",
-     "kind": "fv_jump",
-     "level": "watch",
-     "move": -0.553,
-     "message": "ENPH fair value moved -55% ($13.29 → $5.94)"
     },
     {
      "ticker": "EOG",
@@ -1117,24 +919,17 @@
      "message": "EOG reports earnings on 2026-11-05"
     },
     {
-     "ticker": "EPAC",
-     "portfolio": "paper",
-     "kind": "joined",
-     "level": "watch",
-     "message": "EPAC joined Paper book (rating HOLD → LEAN BUY)"
-    },
-    {
      "ticker": "EPAM",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "EPAM reports earnings on 2026-11-05"
     },
     {
-     "ticker": "EQT",
+     "ticker": "EPR",
      "kind": "fv_jump",
      "level": "watch",
-     "move": 2.7835,
-     "message": "EQT fair value moved +278% ($5.53 → $20.92)"
+     "move": 0.5225,
+     "message": "EPR fair value moved +52% ($65.79 → $100.16)"
     },
     {
      "ticker": "ERII",
@@ -1167,12 +962,6 @@
      "message": "EW reports earnings on 2026-11-04"
     },
     {
-     "ticker": "EXEL",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "EXEL reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "EXP",
      "kind": "earnings_soon",
      "level": "watch",
@@ -1185,22 +974,20 @@
      "message": "EXPD reports earnings on 2026-11-03"
     },
     {
-     "ticker": "EXPO",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "EXPO reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "FBIN",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "FBIN reports earnings on 2026-11-03"
     },
     {
-     "ticker": "FCN",
-     "kind": "earnings_soon",
+     "ticker": "FELE",
+     "kind": "buy_below",
+     "mos0": 0.2022,
+     "mos1": 0.2126,
      "level": "watch",
-     "message": "FCN reports earnings on 2026-10-29"
+     "into": true,
+     "confirmed": true,
+     "message": "FELE has held below its buy-below price $102.96 for two runs (MoS 21% at $95.38)"
     },
     {
      "ticker": "FICO",
@@ -1233,46 +1020,16 @@
      "message": "FN reports earnings on 2026-11-02"
     },
     {
-     "ticker": "FND",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "FND reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "FOR",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "FOR reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "FSLR",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "FSLR reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "FSM",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "FSM reports earnings on 2026-11-04"
     },
     {
-     "ticker": "FSS",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "FSS reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "FTDR",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "FTDR reports earnings on 2026-11-05"
-    },
-    {
-     "ticker": "FVRR",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "FVRR reports earnings on 2026-10-29"
     },
     {
      "ticker": "G",
@@ -1293,34 +1050,17 @@
      "message": "GD reports earnings on 2026-10-30"
     },
     {
-     "ticker": "GDDY",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "GDDY reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "GHC",
-     "kind": "earnings_soon",
+     "portfolio": "paper",
+     "kind": "left",
      "level": "watch",
-     "message": "GHC reports earnings on 2026-10-29"
+     "message": "GHC left Paper book (rating LEAN BUY → HOLD)"
     },
     {
      "ticker": "GIC",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "GIC reports earnings on 2026-11-03"
-    },
-    {
-     "ticker": "GILD",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "GILD reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "GLPI",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "GLPI reports earnings on 2026-10-29"
     },
     {
      "ticker": "GMED",
@@ -1341,6 +1081,12 @@
      "message": "GNL reports earnings on 2026-11-04"
     },
     {
+     "ticker": "GOGO",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GOGO reports earnings on 2026-11-06"
+    },
+    {
      "ticker": "GOLF",
      "kind": "earnings_soon",
      "level": "watch",
@@ -1351,13 +1097,6 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "GOOS reports earnings on 2026-11-05"
-    },
-    {
-     "ticker": "GPI",
-     "kind": "fv_jump",
-     "level": "watch",
-     "move": 1.7431,
-     "message": "GPI fair value moved +174% ($542.45 → $1,488.01)"
     },
     {
      "ticker": "GPK",
@@ -1378,6 +1117,16 @@
      "message": "GPOR reports earnings on 2026-11-04"
     },
     {
+     "ticker": "GRC",
+     "kind": "buy_below",
+     "mos0": 0.1538,
+     "mos1": 0.1824,
+     "level": "watch",
+     "into": true,
+     "confirmed": true,
+     "message": "GRC has held below its buy-below price $74.78 for two runs (MoS 18% at $71.93)"
+    },
+    {
      "ticker": "GRND",
      "kind": "earnings_soon",
      "level": "watch",
@@ -1385,10 +1134,13 @@
     },
     {
      "ticker": "GSK",
-     "kind": "fv_jump",
+     "kind": "buy_below",
+     "mos0": 0.3699,
+     "mos1": 0.3531,
      "level": "watch",
-     "move": 0.6626,
-     "message": "GSK fair value moved +66% ($46.46 → $77.25)"
+     "into": true,
+     "confirmed": true,
+     "message": "GSK has held below its buy-below price $65.06 for two runs (MoS 35% at $49.51)"
     },
     {
      "ticker": "GTBIF",
@@ -1409,16 +1161,11 @@
      "message": "GTM reports earnings on 2026-11-04"
     },
     {
-     "ticker": "GTX",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "GTX reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "GVA",
-     "kind": "earnings_soon",
+     "kind": "fv_jump",
      "level": "watch",
-     "message": "GVA reports earnings on 2026-10-29"
+     "move": -0.6914,
+     "message": "GVA fair value moved -69% ($171.06 → $52.79)"
     },
     {
      "ticker": "GWW",
@@ -1451,10 +1198,14 @@
      "message": "HCKT reports earnings on 2026-11-03"
     },
     {
-     "ticker": "HII",
-     "kind": "earnings_soon",
+     "ticker": "HL",
+     "kind": "buy_below",
+     "mos0": 0.1543,
+     "mos1": 0.195,
      "level": "watch",
-     "message": "HII reports earnings on 2026-10-29"
+     "into": true,
+     "confirmed": true,
+     "message": "HL has held below its buy-below price $14.29 for two runs (MoS 20% at $13.53)"
     },
     {
      "ticker": "HL",
@@ -1469,16 +1220,20 @@
      "message": "HLF reports earnings on 2026-11-02"
     },
     {
+     "ticker": "HMY",
+     "kind": "buy_below",
+     "mos0": 0.1619,
+     "mos1": 0.2189,
+     "level": "watch",
+     "into": true,
+     "confirmed": true,
+     "message": "HMY has held below its buy-below price $15.72 for two runs (MoS 22% at $14.45)"
+    },
+    {
      "ticker": "HNI",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "HNI reports earnings on 2026-11-03"
-    },
-    {
-     "ticker": "HOG",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "HOG reports earnings on 2026-10-29"
     },
     {
      "ticker": "HOS",
@@ -1493,6 +1248,20 @@
      "message": "HRMY reports earnings on 2026-11-04"
     },
     {
+     "ticker": "HROW",
+     "kind": "fv_jump",
+     "level": "watch",
+     "move": 0.6002,
+     "message": "HROW fair value moved +60% ($21.69 → $34.71)"
+    },
+    {
+     "ticker": "HROW",
+     "portfolio": "paper",
+     "kind": "joined",
+     "level": "watch",
+     "message": "HROW joined Paper book (rating HOLD → LEAN BUY)"
+    },
+    {
      "ticker": "HSIC",
      "kind": "earnings_soon",
      "level": "watch",
@@ -1505,10 +1274,10 @@
      "message": "HSTM reports earnings on 2026-11-02"
     },
     {
-     "ticker": "HSY",
+     "ticker": "HUM",
      "kind": "earnings_soon",
      "level": "watch",
-     "message": "HSY reports earnings on 2026-10-29"
+     "message": "HUM reports earnings on 2026-11-06"
     },
     {
      "ticker": "HVT",
@@ -1542,9 +1311,10 @@
     },
     {
      "ticker": "IDCC",
-     "kind": "earnings_soon",
+     "kind": "fv_jump",
      "level": "watch",
-     "message": "IDCC reports earnings on 2026-10-29"
+     "move": 0.652,
+     "message": "IDCC fair value moved +65% ($243.04 → $401.50)"
     },
     {
      "ticker": "IDXX",
@@ -1553,10 +1323,11 @@
      "message": "IDXX reports earnings on 2026-11-02"
     },
     {
-     "ticker": "INCY",
-     "kind": "earnings_soon",
+     "ticker": "IIIN",
+     "portfolio": "paper",
+     "kind": "left",
      "level": "watch",
-     "message": "INCY reports earnings on 2026-10-29"
+     "message": "IIIN left Paper book (rating LEAN BUY → HOLD)"
     },
     {
      "ticker": "INGR",
@@ -1625,12 +1396,6 @@
      "message": "KAI reports earnings on 2026-11-03"
     },
     {
-     "ticker": "KBR",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "KBR reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "KE",
      "kind": "earnings_soon",
      "level": "watch",
@@ -1641,6 +1406,12 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "KMT reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "KOP",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "KOP reports earnings on 2026-11-06"
     },
     {
      "ticker": "KRT",
@@ -1656,16 +1427,28 @@
     },
     {
      "ticker": "LAMR",
-     "portfolio": "paper",
-     "kind": "left",
-     "level": "watch",
-     "message": "LAMR left Paper book (rating LEAN BUY → HOLD)"
-    },
-    {
-     "ticker": "LAUR",
      "kind": "earnings_soon",
      "level": "watch",
-     "message": "LAUR reports earnings on 2026-10-29"
+     "message": "LAMR reports earnings on 2026-11-05"
+    },
+    {
+     "ticker": "LAMR",
+     "portfolio": "paper",
+     "kind": "joined",
+     "level": "watch",
+     "message": "LAMR joined Paper book (rating HOLD → LEAN BUY)"
+    },
+    {
+     "ticker": "LAMR",
+     "from": "HOLD",
+     "to": "LEAN BUY",
+     "kind": "reversal",
+     "level": "watch",
+     "reversal_of": "2026-10-29",
+     "message": "LAMR moved into the buy zone: HOLD → LEAN BUY (reverses the 2026-10-29 move)",
+     "why": [
+      "Composite score moved 38.9 → 39.1, crossing above the LEAN BUY (39) threshold."
+     ]
     },
     {
      "ticker": "LCII",
@@ -1686,22 +1469,16 @@
      "message": "LEA reports earnings on 2026-10-30"
     },
     {
+     "ticker": "LEGH",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "LEGH reports earnings on 2026-11-04"
+    },
+    {
      "ticker": "LKNCY",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "LKNCY reports earnings on 2026-11-03"
-    },
-    {
-     "ticker": "LKQ",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "LKQ reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "LLY",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "LLY reports earnings on 2026-10-29"
     },
     {
      "ticker": "LMAT",
@@ -1746,13 +1523,6 @@
      "message": "LTC reports earnings on 2026-11-03"
     },
     {
-     "ticker": "LVS",
-     "portfolio": "paper",
-     "kind": "left",
-     "level": "watch",
-     "message": "LVS left Paper book (rating LEAN BUY → HOLD)"
-    },
-    {
      "ticker": "LYTS",
      "kind": "earnings_soon",
      "level": "watch",
@@ -1783,12 +1553,6 @@
      "message": "MCD reports earnings on 2026-11-04"
     },
     {
-     "ticker": "MD",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "MD reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "MELI",
      "kind": "earnings_soon",
      "level": "watch",
@@ -1807,36 +1571,16 @@
      "message": "MGA reports earnings on 2026-10-30"
     },
     {
-     "ticker": "MGPI",
-     "portfolio": "paper",
-     "kind": "left",
-     "level": "watch",
-     "message": "MGPI left Paper book (rating LEAN BUY → HOLD)"
-    },
-    {
      "ticker": "MGY",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "MGY reports earnings on 2026-11-04"
     },
     {
-     "ticker": "MHK",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "MHK reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "MIDD",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "MIDD reports earnings on 2026-11-05"
-    },
-    {
-     "ticker": "MLKN",
-     "portfolio": "paper",
-     "kind": "left",
-     "level": "watch",
-     "message": "MLKN left Paper book (rating LEAN BUY → HOLD)"
     },
     {
      "ticker": "MLM",
@@ -1851,22 +1595,10 @@
      "message": "MLR reports earnings on 2026-11-04"
     },
     {
-     "ticker": "MMSI",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "MMSI reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "MNST",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "MNST reports earnings on 2026-11-05"
-    },
-    {
-     "ticker": "MO",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "MO reports earnings on 2026-10-29"
     },
     {
      "ticker": "MOD",
@@ -1875,32 +1607,10 @@
      "message": "MOD reports earnings on 2026-11-03"
     },
     {
-     "ticker": "MONRF",
-     "kind": "buy_below",
-     "mos0": 0.1583,
-     "mos1": 0.1789,
-     "level": "watch",
-     "into": true,
-     "confirmed": true,
-     "message": "MONRF has held below its buy-below price $48.53 for two runs (MoS 18% at $46.88)"
-    },
-    {
      "ticker": "MOS",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "MOS reports earnings on 2026-11-03"
-    },
-    {
-     "ticker": "MPWR",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "MPWR reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "MRK",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "MRK reports earnings on 2026-10-29"
     },
     {
      "ticker": "MSA",
@@ -1945,16 +1655,16 @@
      "message": "MWA reports earnings on 2026-11-04"
     },
     {
-     "ticker": "MYE",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "MYE reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "MZTI",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "MZTI reports earnings on 2026-11-03"
+    },
+    {
+     "ticker": "NATH",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NATH reports earnings on 2026-11-06"
     },
     {
      "ticker": "NATR",
@@ -1979,6 +1689,12 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "NGVT reports earnings on 2026-11-04"
+    },
+    {
+     "ticker": "NHC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NHC reports earnings on 2026-11-06"
     },
     {
      "ticker": "NICE",
@@ -2101,24 +1817,6 @@
      "message": "OPCH reports earnings on 2026-11-04"
     },
     {
-     "ticker": "OSIS",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "OSIS reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "OSK",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "OSK reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "OSPN",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "OSPN reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "OTEX",
      "kind": "earnings_soon",
      "level": "watch",
@@ -2155,12 +1853,6 @@
      "message": "PARR reports earnings on 2026-11-03"
     },
     {
-     "ticker": "PATK",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "PATK reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "PAY",
      "kind": "earnings_soon",
      "level": "watch",
@@ -2189,16 +1881,6 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "PBYI reports earnings on 2026-11-05"
-    },
-    {
-     "ticker": "PCAR",
-     "kind": "buy_below",
-     "mos0": 0.216,
-     "mos1": 0.2253,
-     "level": "watch",
-     "into": true,
-     "confirmed": true,
-     "message": "PCAR has held below its buy-below price $112.23 for two runs (MoS 23% at $102.29)"
     },
     {
      "ticker": "PCRX",
@@ -2261,17 +1943,14 @@
      "message": "PODD reports earnings on 2026-11-04"
     },
     {
-     "ticker": "POR",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "POR reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "PPC",
-     "kind": "fv_jump",
+     "kind": "buy_below",
+     "mos0": 0.2324,
+     "mos1": 0.3965,
      "level": "watch",
-     "move": 0.5631,
-     "message": "PPC fair value moved +56% ($23.01 → $35.97)"
+     "into": true,
+     "confirmed": true,
+     "message": "PPC has held below its buy-below price $40.45 for two runs (MoS 40% at $28.72)"
     },
     {
      "ticker": "PRDO",
@@ -2322,19 +2001,6 @@
      "message": "QGEN reports earnings on 2026-11-04"
     },
     {
-     "ticker": "QNST",
-     "portfolio": "paper",
-     "kind": "left",
-     "level": "watch",
-     "message": "QNST left Paper book (rating LEAN BUY → HOLD)"
-    },
-    {
-     "ticker": "QSR",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "QSR reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "RACE",
      "kind": "earnings_soon",
      "level": "watch",
@@ -2348,10 +2014,13 @@
     },
     {
      "ticker": "RCI",
-     "kind": "fv_jump",
+     "kind": "buy_below",
+     "mos0": 0.8008,
+     "mos1": 0.7938,
      "level": "watch",
-     "move": 4283.3315,
-     "message": "RCI fair value moved +428333% ($0.04 → $157.97)"
+     "into": true,
+     "confirmed": true,
+     "message": "RCI has held below its buy-below price $134.43 for two runs (MoS 79% at $32.61)"
     },
     {
      "ticker": "REG",
@@ -2390,18 +2059,6 @@
      "message": "RL reports earnings on 2026-11-05"
     },
     {
-     "ticker": "RMD",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "RMD reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "RMNI",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "RMNI reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "ROCK",
      "kind": "earnings_soon",
      "level": "watch",
@@ -2426,53 +2083,16 @@
      "message": "RRX reports earnings on 2026-11-03"
     },
     {
-     "ticker": "RSG",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "RSG reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "RVLV",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "RVLV reports earnings on 2026-11-03"
     },
     {
-     "ticker": "SAH",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "SAH reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "SAIA",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "SAIA reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "SATLF",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "SATLF reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "SBAC",
-     "portfolio": "paper",
-     "kind": "left",
-     "level": "watch",
-     "message": "SBAC left Paper book (rating LEAN BUY → HOLD)"
-    },
-    {
      "ticker": "SBS",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "SBS reports earnings on 2026-11-05"
-    },
-    {
-     "ticker": "SBUX",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "SBUX reports earnings on 2026-10-29"
     },
     {
      "ticker": "SCSC",
@@ -2499,28 +2119,16 @@
      "message": "SHOP reports earnings on 2026-11-03"
     },
     {
-     "ticker": "SIRI",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "SIRI reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "SKY",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "SKY reports earnings on 2026-11-03"
     },
     {
-     "ticker": "SKYW",
+     "ticker": "SLVM",
      "kind": "earnings_soon",
      "level": "watch",
-     "message": "SKYW reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "SLGN",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "SLGN reports earnings on 2026-10-29"
+     "message": "SLVM reports earnings on 2026-11-06"
     },
     {
      "ticker": "SM",
@@ -2536,52 +2144,16 @@
     },
     {
      "ticker": "SMP",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "SMP reports earnings on 2026-10-30"
-    },
-    {
-     "ticker": "SNDK",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "SNDK reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "SNROY",
      "portfolio": "paper",
-     "kind": "joined",
+     "kind": "left",
      "level": "watch",
-     "message": "SNROY joined Paper book (rating HOLD → LEAN BUY)"
-    },
-    {
-     "ticker": "SNROY",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "kind": "reversal",
-     "level": "watch",
-     "reversal_of": "2026-10-28",
-     "message": "SNROY moved into the buy zone: HOLD → LEAN BUY (reverses the 2026-10-28 move)",
-     "why": [
-      "Composite score moved 38.9 → 39.0, crossing above the LEAN BUY (39) threshold."
-     ]
+     "message": "SMP left Paper book (rating LEAN BUY → HOLD)"
     },
     {
      "ticker": "SONY",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "SONY reports earnings on 2026-11-05"
-    },
-    {
-     "ticker": "SPSC",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "SPSC reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "SPXC",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "SPXC reports earnings on 2026-10-29"
     },
     {
      "ticker": "SRAD",
@@ -2608,34 +2180,22 @@
      "message": "STRA reports earnings on 2026-11-05"
     },
     {
+     "ticker": "STWD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "STWD reports earnings on 2026-11-06"
+    },
+    {
      "ticker": "SVM",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "SVM reports earnings on 2026-11-05"
     },
     {
-     "ticker": "SXI",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "SXI reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "SYK",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "SYK reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "SYY",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "SYY reports earnings on 2026-11-03"
-    },
-    {
-     "ticker": "TAL",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "TAL reports earnings on 2026-10-29"
     },
     {
      "ticker": "TASK",
@@ -2668,16 +2228,20 @@
      "message": "TDG reports earnings on 2026-11-05"
     },
     {
+     "ticker": "TEL",
+     "kind": "buy_below",
+     "mos0": 0.2195,
+     "mos1": 0.2551,
+     "level": "watch",
+     "into": true,
+     "confirmed": true,
+     "message": "TEL has held below its buy-below price $243.09 for two runs (MoS 26% at $213.03)"
+    },
+    {
      "ticker": "TGLS",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "TGLS reports earnings on 2026-11-05"
-    },
-    {
-     "ticker": "THC",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "THC reports earnings on 2026-10-29"
     },
     {
      "ticker": "TIGO",
@@ -2686,16 +2250,16 @@
      "message": "TIGO reports earnings on 2026-11-05"
     },
     {
+     "ticker": "TILE",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TILE reports earnings on 2026-11-06"
+    },
+    {
      "ticker": "TM",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "TM reports earnings on 2026-11-05"
-    },
-    {
-     "ticker": "TNET",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "TNET reports earnings on 2026-10-29"
     },
     {
      "ticker": "TPC",
@@ -2728,22 +2292,16 @@
      "message": "TRMD reports earnings on 2026-11-04"
     },
     {
-     "ticker": "TRN",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "TRN reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "TS",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "TS reports earnings on 2026-11-04"
     },
     {
-     "ticker": "TT",
+     "ticker": "TSSI",
      "kind": "earnings_soon",
      "level": "watch",
-     "message": "TT reports earnings on 2026-10-29"
+     "message": "TSSI reports earnings on 2026-11-05"
     },
     {
      "ticker": "TTAM",
@@ -2758,12 +2316,6 @@
      "message": "TXRH reports earnings on 2026-11-05"
     },
     {
-     "ticker": "TXT",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "TXT reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "UFPT",
      "kind": "earnings_soon",
      "level": "watch",
@@ -2771,26 +2323,26 @@
     },
     {
      "ticker": "UGP",
-     "portfolio": "paper",
-     "kind": "joined",
-     "level": "watch",
-     "message": "UGP joined Paper book (rating HOLD → LEAN BUY)"
-    },
-    {
-     "ticker": "UPBD",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "UPBD reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "UPS",
      "kind": "buy_below",
-     "mos0": 0.3137,
-     "mos1": 0.3039,
+     "mos0": 0.1611,
+     "mos1": 0.181,
      "level": "watch",
      "into": true,
      "confirmed": true,
-     "message": "UPS has held below its buy-below price $131.05 for two runs (MoS 30% at $107.33)"
+     "message": "UGP has held below its buy-below price $6.03 for two runs (MoS 18% at $5.81)"
+    },
+    {
+     "ticker": "UI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "UI reports earnings on 2026-11-06"
+    },
+    {
+     "ticker": "UL",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "watch",
+     "message": "UL left Paper book (rating LEAN BUY → HOLD)"
     },
     {
      "ticker": "UPWK",
@@ -2802,7 +2354,7 @@
      "ticker": "USLM",
      "kind": "earnings_soon",
      "level": "watch",
-     "message": "USLM reports earnings on 2026-11-02"
+     "message": "USLM reports earnings on 2026-10-30"
     },
     {
      "ticker": "USNA",
@@ -2839,18 +2391,6 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "VITL reports earnings on 2026-11-03"
-    },
-    {
-     "ticker": "VLTO",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "VLTO reports earnings on 2026-10-29"
-    },
-    {
-     "ticker": "VMC",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "VMC reports earnings on 2026-10-29"
     },
     {
      "ticker": "VNO",
@@ -2931,12 +2471,6 @@
      "message": "WPM reports earnings on 2026-11-05"
     },
     {
-     "ticker": "WST",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "WST reports earnings on 2026-10-29"
-    },
-    {
      "ticker": "WTS",
      "kind": "earnings_soon",
      "level": "watch",
@@ -2979,290 +2513,273 @@
      "message": "ZTS reports earnings on 2026-11-05"
     },
     {
-     "ticker": "AAT",
+     "ticker": "ALGN",
      "kind": "buy_below",
-     "mos0": -0.0139,
-     "mos1": 0.473,
+     "mos0": -0.3516,
+     "mos1": 0.1601,
      "level": "fyi",
      "into": true,
-     "message": "AAT crossed below its buy-below price $36.00 (MoS 47% at $22.32); a Watch follows if it holds"
+     "message": "ALGN crossed below its buy-below price $151.69 (MoS 16% at $149.89); a Watch follows if it holds"
     },
     {
-     "ticker": "BOOT",
-     "from": "BUY",
-     "to": "LEAN BUY",
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "BOOT BUY → LEAN BUY",
-     "why": [
-      "Composite score moved 58 → 57, crossing below the BUY (57) threshold.",
-      "Biggest category moves: Valuation 44 → 35 (-9).",
-      "Largest metric swings: MoS 1.5% → -12.8% (score 23 → 0)."
-     ]
-    },
-    {
-     "ticker": "BSX",
+     "ticker": "APEI",
      "kind": "buy_below",
-     "mos0": 0.174,
-     "mos1": -0.3313,
+     "mos0": 0.0928,
+     "mos1": 0.1606,
+     "level": "fyi",
+     "into": true,
+     "message": "APEI crossed below its buy-below price $41.08 (MoS 16% at $40.57); a Watch follows if it holds"
+    },
+    {
+     "ticker": "AU",
+     "kind": "buy_below",
+     "mos0": 0.124,
+     "mos1": 0.1725,
+     "level": "fyi",
+     "into": true,
+     "message": "AU crossed below its buy-below price $81.96 (MoS 17% at $79.79); a Watch follows if it holds"
+    },
+    {
+     "ticker": "BLDR",
+     "kind": "buy_below",
+     "mos0": 0.5838,
+     "mos1": -0.3808,
      "level": "fyi",
      "into": false,
-     "message": "BSX rose back above its buy-below price $27.26 (MoS -33% at $42.69)"
+     "message": "BLDR rose back above its buy-below price $39.96 (MoS -38% at $64.91)"
     },
     {
-     "ticker": "CAJPY",
+     "ticker": "DKS",
      "kind": "buy_below",
-     "mos0": -0.1811,
-     "mos1": 0.2463,
+     "mos0": 0.1537,
+     "mos1": 0.1428,
      "level": "fyi",
-     "into": true,
-     "message": "CAJPY crossed below its buy-below price $33.42 (MoS 25% at $29.64); a Watch follows if it holds"
-    },
-    {
-     "ticker": "CHRW",
-     "kind": "buy_below",
-     "mos0": 0.1054,
-     "mos1": 0.1529,
-     "level": "fyi",
-     "into": true,
-     "message": "CHRW crossed below its buy-below price $127.87 (MoS 15% at $127.43); a Watch follows if it holds"
-    },
-    {
-     "ticker": "DAKT",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "DAKT LEAN BUY → BUY",
-     "why": [
-      "Composite score moved 56.8 → 57.0, crossing above the BUY (57) threshold."
-     ]
-    },
-    {
-     "ticker": "EACO",
-     "from": "BUY",
-     "to": "LEAN BUY",
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "EACO BUY → LEAN BUY",
-     "why": [
-      "Composite score moved 58 → 56, crossing below the BUY (57) threshold.",
-      "Biggest category moves: Valuation 55 → 45 (-10).",
-      "Largest metric swings: MoS 40.9% → 29.4% (score 100 → 79); P/TBV 3.90× → 4.68× (score 28 → 8)."
-     ]
+     "into": false,
+     "message": "DKS rose back above its buy-below price $142.64 (MoS 14% at $143.84)"
     },
     {
      "ticker": "EHC",
      "kind": "buy_below",
-     "mos0": 0.2009,
-     "mos1": 0.1277,
+     "mos0": 0.1277,
+     "mos1": 0.1798,
      "level": "fyi",
-     "into": false,
-     "message": "EHC rose back above its buy-below price $128.12 (MoS 13% at $131.49)"
+     "into": true,
+     "message": "EHC crossed below its buy-below price $140.83 (MoS 18% at $135.90); a Watch follows if it holds"
     },
     {
      "ticker": "EPAC",
      "kind": "buy_below",
-     "mos0": 0.0688,
-     "mos1": 0.155,
+     "mos0": 0.155,
+     "mos1": -0.2254,
      "level": "fyi",
-     "into": true,
-     "message": "EPAC crossed below its buy-below price $39.65 (MoS 16% at $39.42); a Watch follows if it holds"
+     "into": false,
+     "message": "EPAC rose back above its buy-below price $28.13 (MoS -23% at $40.56)"
     },
     {
      "ticker": "EPR",
      "kind": "buy_below",
-     "mos0": 0.155,
-     "mos1": 0.1132,
+     "mos0": 0.1132,
+     "mos1": 0.4238,
      "level": "fyi",
-     "into": false,
-     "message": "EPR rose back above its buy-below price $55.92 (MoS 11% at $58.34)"
+     "into": true,
+     "message": "EPR crossed below its buy-below price $85.14 (MoS 42% at $57.71); a Watch follows if it holds"
     },
     {
      "ticker": "EXLS",
      "kind": "buy_below",
-     "mos0": 0.0037,
-     "mos1": 0.1601,
-     "level": "fyi",
-     "into": true,
-     "message": "EXLS crossed below its buy-below price $41.61 (MoS 16% at $41.12); a Watch follows if it holds"
-    },
-    {
-     "ticker": "FELE",
-     "kind": "buy_below",
-     "mos0": 0.0648,
-     "mos1": 0.2022,
-     "level": "fyi",
-     "into": true,
-     "message": "FELE crossed below its buy-below price $103.07 (MoS 20% at $96.74); a Watch follows if it holds"
-    },
-    {
-     "ticker": "FTDR",
-     "kind": "buy_below",
-     "mos0": 0.1682,
-     "mos1": 0.1372,
+     "mos0": 0.1601,
+     "mos1": 0.1461,
      "level": "fyi",
      "into": false,
-     "message": "FTDR rose back above its buy-below price $86.05 (MoS 14% at $87.35)"
+     "message": "EXLS rose back above its buy-below price $41.24 (MoS 15% at $41.43)"
     },
     {
-     "ticker": "GRC",
+     "ticker": "FDX",
      "kind": "buy_below",
-     "mos0": 0.1376,
-     "mos1": 0.1538,
-     "level": "fyi",
-     "into": true,
-     "message": "GRC crossed below its buy-below price $74.72 (MoS 15% at $74.39); a Watch follows if it holds"
-    },
-    {
-     "ticker": "GSK",
-     "kind": "buy_below",
-     "mos0": -0.049,
-     "mos1": 0.3699,
-     "level": "fyi",
-     "into": true,
-     "message": "GSK crossed below its buy-below price $65.66 (MoS 37% at $48.68); a Watch follows if it holds"
-    },
-    {
-     "ticker": "HL",
-     "kind": "buy_below",
-     "mos0": 0.1182,
-     "mos1": 0.1543,
-     "level": "fyi",
-     "into": true,
-     "message": "HL crossed below its buy-below price $14.52 (MoS 15% at $14.45); a Watch follows if it holds"
-    },
-    {
-     "ticker": "HMY",
-     "kind": "buy_below",
-     "mos0": 0.1327,
-     "mos1": 0.1619,
-     "level": "fyi",
-     "into": true,
-     "message": "HMY crossed below its buy-below price $15.95 (MoS 16% at $15.73); a Watch follows if it holds"
-    },
-    {
-     "ticker": "JOE",
-     "kind": "buy_below",
-     "mos0": 0.1591,
-     "mos1": 0.1274,
+     "mos0": 0.5236,
+     "mos1": 0.143,
      "level": "fyi",
      "into": false,
-     "message": "JOE rose back above its buy-below price $69.94 (MoS 13% at $71.80)"
+     "message": "FDX rose back above its buy-below price $310.72 (MoS 14% at $313.28)"
     },
     {
-     "ticker": "OFLX",
-     "from": "BUY",
-     "to": "LEAN BUY",
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "OFLX BUY → LEAN BUY",
-     "why": [
-      "Composite score moved 57.2 → 56.9, crossing below the BUY (57) threshold."
-     ]
-    },
-    {
-     "ticker": "OSIS",
+     "ticker": "GVA",
      "kind": "buy_below",
-     "mos0": 0.1569,
-     "mos1": 0.1314,
+     "mos0": 0.2886,
+     "mos1": -1.3416,
      "level": "fyi",
      "into": false,
-     "message": "OSIS rose back above its buy-below price $203.71 (MoS 13% at $208.17)"
+     "message": "GVA rose back above its buy-below price $44.87 (MoS -134% at $123.62)"
     },
     {
-     "ticker": "PODD",
+     "ticker": "HROW",
      "kind": "buy_below",
-     "mos0": 0.1508,
-     "mos1": 0.1322,
-     "level": "fyi",
-     "into": false,
-     "message": "PODD rose back above its buy-below price $149.36 (MoS 13% at $152.50)"
-    },
-    {
-     "ticker": "PPC",
-     "kind": "buy_below",
-     "mos0": -0.1464,
-     "mos1": 0.2324,
+     "mos0": -0.3825,
+     "mos1": 0.1865,
      "level": "fyi",
      "into": true,
-     "message": "PPC crossed below its buy-below price $30.57 (MoS 23% at $27.61); a Watch follows if it holds"
+     "message": "HROW crossed below its buy-below price $29.51 (MoS 19% at $28.24); a Watch follows if it holds"
     },
     {
-     "ticker": "PPC",
+     "ticker": "IDCC",
+     "kind": "buy_below",
+     "mos0": -0.3754,
+     "mos1": 0.224,
+     "level": "fyi",
+     "into": true,
+     "message": "IDCC crossed below its buy-below price $341.27 (MoS 22% at $311.57); a Watch follows if it holds"
+    },
+    {
+     "ticker": "IDCC",
      "from": "LEAN BUY",
      "to": "BUY",
      "kind": "same_side",
      "level": "fyi",
-     "message": "PPC LEAN BUY → BUY",
+     "message": "IDCC LEAN BUY → BUY",
      "why": [
-      "Composite score moved 57 → 61, crossing above the BUY (57) threshold.",
-      "Biggest category moves: Valuation 43 → 66 (+22).",
-      "Largest metric swings: MoS -14.6% → 23.2% (score 0 → 66); FV Dispersion 59.4% → 36.2% (score 15 → 48)."
+      "Composite score moved 55 → 59, crossing above the BUY (57) threshold.",
+      "Biggest category moves: Valuation 28 → 48 (+20).",
+      "Largest metric swings: MoS -37.5% → 22.4% (score 0 → 65)."
      ]
     },
     {
-     "ticker": "RCI",
+     "ticker": "IESC",
      "kind": "buy_below",
-     "mos0": -847.8998,
-     "mos1": 0.8008,
+     "mos0": 0.0812,
+     "mos1": 0.1515,
      "level": "fyi",
      "into": true,
-     "message": "RCI crossed below its buy-below price $134.27 (MoS 80% at $31.47); a Watch follows if it holds"
+     "message": "IESC crossed below its buy-below price $206.33 (MoS 15% at $205.96); a Watch follows if it holds"
     },
     {
-     "ticker": "RRR",
-     "kind": "buy_below",
-     "mos0": 0.1553,
-     "mos1": 0.1392,
+     "ticker": "JBSS",
+     "from": "LEAN BUY",
+     "to": "BUY",
+     "kind": "same_side",
      "level": "fyi",
-     "into": false,
-     "message": "RRR rose back above its buy-below price $48.58 (MoS 14% at $49.20)"
+     "message": "JBSS LEAN BUY → BUY",
+     "why": [
+      "Composite score moved 56 → 58, crossing above the BUY (57) threshold.",
+      "Biggest category moves: Valuation 47 → 52 (+5)."
+     ]
     },
     {
-     "ticker": "TEL",
+     "ticker": "NTAP",
      "kind": "buy_below",
-     "mos0": 0.1152,
-     "mos1": 0.2195,
-     "level": "fyi",
-     "into": true,
-     "message": "TEL crossed below its buy-below price $242.60 (MoS 22% at $222.76); a Watch follows if it holds"
-    },
-    {
-     "ticker": "TPR",
-     "kind": "buy_below",
-     "mos0": 0.162,
-     "mos1": 0.1163,
-     "level": "fyi",
-     "into": false,
-     "message": "TPR rose back above its buy-below price $113.34 (MoS 12% at $117.84)"
-    },
-    {
-     "ticker": "UGP",
-     "kind": "buy_below",
-     "mos0": 0.1333,
-     "mos1": 0.1611,
+     "mos0": 0.1348,
+     "mos1": 0.2085,
      "level": "fyi",
      "into": true,
-     "message": "UGP crossed below its buy-below price $6.05 (MoS 16% at $5.97); a Watch follows if it holds"
+     "message": "NTAP crossed below its buy-below price $213.90 (MoS 21% at $199.18); a Watch follows if it holds"
     },
     {
-     "ticker": "WEN",
+     "ticker": "OLED",
      "kind": "buy_below",
-     "mos0": 0.1961,
-     "mos1": 0.1489,
+     "mos0": 0.0216,
+     "mos1": 0.3372,
      "level": "fyi",
-     "into": false,
-     "message": "WEN rose back above its buy-below price $7.16 (MoS 15% at $7.17)"
+     "into": true,
+     "message": "OLED crossed below its buy-below price $107.62 (MoS 34% at $83.92); a Watch follows if it holds"
     },
     {
-     "ticker": "WMS",
+     "ticker": "OLED",
+     "from": "LEAN BUY",
+     "to": "BUY",
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "OLED LEAN BUY → BUY",
+     "why": [
+      "Composite score moved 57 → 60, crossing above the BUY (57) threshold.",
+      "Biggest category moves: Valuation 48 → 65 (+17).",
+      "Largest metric swings: MoS 2.2% → 33.7% (score 24 → 87)."
+     ]
+    },
+    {
+     "ticker": "OMAB",
      "kind": "buy_below",
-     "mos0": 0.1747,
-     "mos1": 0.1376,
+     "mos0": 0.3894,
+     "mos1": -0.1891,
      "level": "fyi",
      "into": false,
-     "message": "WMS rose back above its buy-below price $134.56 (MoS 14% at $136.52)"
+     "message": "OMAB rose back above its buy-below price $73.57 (MoS -19% at $102.92)"
+    },
+    {
+     "ticker": "OSIS",
+     "kind": "buy_below",
+     "mos0": 0.1314,
+     "mos1": 0.1679,
+     "level": "fyi",
+     "into": true,
+     "message": "OSIS crossed below its buy-below price $203.73 (MoS 17% at $199.44); a Watch follows if it holds"
+    },
+    {
+     "ticker": "PFGC",
+     "kind": "buy_below",
+     "mos0": 0.171,
+     "mos1": 0.144,
+     "level": "fyi",
+     "into": false,
+     "message": "PFGC rose back above its buy-below price $98.36 (MoS 14% at $99.05)"
+    },
+    {
+     "ticker": "REGN",
+     "kind": "buy_below",
+     "mos0": 0.1845,
+     "mos1": 0.076,
+     "level": "fyi",
+     "into": false,
+     "message": "REGN rose back above its buy-below price $853.54 (MoS 8% at $927.89)"
+    },
+    {
+     "ticker": "SANM",
+     "kind": "buy_below",
+     "mos0": 0.1383,
+     "mos1": 0.1696,
+     "level": "fyi",
+     "into": true,
+     "message": "SANM crossed below its buy-below price $169.47 (MoS 17% at $165.57); a Watch follows if it holds"
+    },
+    {
+     "ticker": "SCI",
+     "kind": "buy_below",
+     "mos0": 0.0883,
+     "mos1": 0.2309,
+     "level": "fyi",
+     "into": true,
+     "message": "SCI crossed below its buy-below price $84.40 (MoS 23% at $76.37); a Watch follows if it holds"
+    },
+    {
+     "ticker": "STRL",
+     "kind": "buy_below",
+     "mos0": 0.1258,
+     "mos1": 0.3162,
+     "level": "fyi",
+     "into": true,
+     "message": "STRL crossed below its buy-below price $430.00 (MoS 32% at $345.91); a Watch follows if it holds"
+    },
+    {
+     "ticker": "STRL",
+     "from": "LEAN BUY",
+     "to": "BUY",
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "STRL LEAN BUY → BUY",
+     "why": [
+      "Composite score moved 55 → 57, crossing above the BUY (57) threshold.",
+      "Biggest category moves: Valuation 24 → 36 (+12).",
+      "Largest metric swings: MoS 12.6% → 31.6% (score 45 → 83)."
+     ]
+    },
+    {
+     "ticker": "VFF",
+     "from": "LEAN BUY",
+     "to": "BUY",
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "VFF LEAN BUY → BUY",
+     "why": [
+      "Composite score moved 56.6 → 57.0, crossing above the BUY (57) threshold."
+     ]
     }
    ]
   }
