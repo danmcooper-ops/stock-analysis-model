@@ -127,7 +127,7 @@ def _render(report, after=''):
     start = src.index('var _BV=null,')
     block = src[start:src.index('function renderBondView(){', start)]
     fns = [_fn_src(n, src) for n in ('_esc', '_bvCls', '_bvFmt', '_bvDist', '_bvLine',
-                                     '_bvCard', '_bvHtml', '_bvIdx', '_bvRows', '_fmBar')]
+                                     '_bvCard', '_bvHtml', '_bvIdx', '_bvRows', '_fmBar', '_qHelp')]
     fm = src[src.index('var _FM_SUB='):src.index('function _fmBar(')]
     js = '\n'.join([
         # The table's search is the header's #f-search; Q stands in for it.

@@ -162,7 +162,8 @@ def test_render_in_node():
     rc = re.search(r"^var RC=\{.*?\};$", src, re.M).group(0)
     start = src.index('var _PPA=null,')
     block = src[start:src.index('/* The chosen section carries across portfolios', start)]
-    fns = [_fn_src(n, src) for n in ('_pfEsc', '_pfJsArg', '_pfTkLink', '_pfMoney')]
+    fns = [_fn_src(n, src) for n in ('_pfEsc', '_pfJsArg', '_pfTkLink', '_pfMoney',
+                                     '_attr', '_qHelp', '_pfNoteQ')]
     fmt = re.search(r'^function _pfFmtRet\(v\)\{.*?\}$', src, re.M).group(0)
     js = '\n'.join([
         'function isCapped(){return false;}', rb, rc, fmt, *fns, block,
