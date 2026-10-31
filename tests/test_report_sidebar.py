@@ -465,7 +465,7 @@ def test_charts_is_its_own_entry_and_stocks_holds_the_data_tables():
     assert groups.index("v:'matrix',l:'Investing'") < groups.index("v:'charts',l:'Charts'") \
         < groups.index("v:'pf',l:'Portfolios'")
     assert "function _navView(){if(curView==='table')return curTSub==='prices'?'charts':'matrix';" in src
-    assert "return [{k:'matrix',l:'Gate Matrix'}].concat(Object.keys(TL).filter(function(k){return k!=='prices';})" in src
+    assert "return [{k:'matrix',l:'Model'}].concat(Object.keys(TL).filter(function(k){return k!=='prices';})" in src
     assert 'id="sn-sub2"' in src
     # Hidden by style: .d-stmt-tabs' display:flex outranks the hidden
     # attribute, which drew an empty underline under every view's tabs.
