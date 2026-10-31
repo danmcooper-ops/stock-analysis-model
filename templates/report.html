@@ -14091,6 +14091,24 @@ function _hkDetDispatch(e){
 function _hkOverlayOpen(){var o=document.getElementById('hk-overlay');return!!(o&&o.classList.contains('open'));}
 /* Opened from the ticker popup, the overlay closes back onto it, so the body
    lock the popup took has to survive. */
+/* The cheat sheet's touch twin: what a finger does, for a phone or tablet
+   (_isTouchDevice), where HOTKEYS has nothing to offer. Each row describes a
+   handler that already exists: _swipeTab, the ticker page's navDet swipe,
+   the capture-phase header-tip click, the det-modal tap-to-pin tips, the
+   chart touch readouts and drillBack. */
+var TOUCH_GESTURES=[
+  {g:'Moving around',k:'\u2630',l:'Open the menu of views'},
+  {g:'Moving around',k:'Swipe \u2190 / \u2192',l:'Next / previous tab in this view'},
+  {g:'Moving around',k:'\u2039 Back',l:'Return to the chart or card a drill-down started from'},
+  {g:'Moving around',k:'Search',l:'Filter this view\u2019s table, or pick a stock, fund, currency or bond from the list'},
+  {g:'Tables',k:'Tap a ticker',l:'Open its page'},
+  {g:'Tables',k:'Tap a header',l:'Sort by that column and explain it; tap anywhere else to close'},
+  {g:'Charts',k:'Touch and drag',l:'Read the values under your finger'},
+  {g:'Ticker page',k:'Swipe \u2190 / \u2192',l:'Next / previous ticker'},
+  {g:'Ticker page',k:'Tap a label',l:'Explain a metric, score or gate; tap it again to close'},
+  {g:'Ticker page',k:'Summary',l:'Print the one-page company summary'},
+  {g:'Ticker page',k:'\u00d7',l:'Close the page, in the top bar'}
+];
 function hkOverlayClose(){var o=document.getElementById('hk-overlay');if(o){o.classList.remove('open');if(!document.getElementById('det-modal').classList.contains('open'))_unlockBody();}}
 function hkOverlayOpen(){
   var o=document.getElementById('hk-overlay'),body=document.getElementById('hk-body');
@@ -14105,9 +14123,17 @@ function hkOverlayOpen(){
   if(ai){ai.classList.remove('open');ai.classList.remove('settings');}
   /* Rebuilt on every open: the view list is data-driven, so the digit row has
      to be re-read rather than cached. */
+  /* A phone or tablet has no keys to press, so it gets the gestures
+     instead (TOUCH_GESTURES); the title and footnote follow. */
+  var touch=_isTouchDevice;
+  var hd=o.querySelector('.hk-head h3'),ft=o.querySelector('.hk-foot');
+  if(hd)hd.textContent=touch?'Touch gestures':'Keyboard shortcuts';
+  o.setAttribute('aria-label',touch?'Touch gestures':'Keyboard shortcuts');
+  if(ft)ft.textContent=touch?'A swipe is a quick horizontal flick. It is ignored on charts, near the screen edges and with two fingers, and a wide table pans to its edge before the next swipe turns the page.'
+    :'Views are numbered in the order the Views menu lists them, and a ticker popup\u2019s sections in the order of its tabs. Keys are ignored while you are typing in a search or filter box.';
   if(body){
     var order=[],byG={};
-    HOTKEYS.forEach(function(h){
+    (touch?TOUCH_GESTURES:HOTKEYS).forEach(function(h){
       if(!byG[h.g]){byG[h.g]=[];order.push(h.g);}
       byG[h.g].push(h);
     });
@@ -14115,9 +14141,9 @@ function hkOverlayOpen(){
     order.forEach(function(g){
       html+='<div class="hk-group"><div class="hk-group-t">'+esc(g)+'</div>';
       byG[g].forEach(function(h){
-        var keys=(typeof h.k==='function')?h.k():h.k;
-        html+='<div class="hk-row"><span class="hk-keys">'
-          +keys.map(function(x){return'<kbd>'+esc(x)+'</kbd>';}).join('<span class="hk-sep">/</span>')
+        var keys=touch?'<span class="hk-gest">'+esc(h.k)+'</span>'
+          :((typeof h.k==='function')?h.k():h.k).map(function(x){return'<kbd>'+esc(x)+'</kbd>';}).join('<span class="hk-sep">/</span>');
+        html+='<div class="hk-row"><span class="hk-keys">'+keys
           +'</span><span class="hk-desc">'+esc(h.l)+'</span></div>';
       });
       html+='</div>';
@@ -18326,6 +18352,7 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .hk-row{display:flex;align-items:baseline;gap:12px;padding:4px 0;font-size:13px;}
 .hk-keys{flex:0 0 132px;display:flex;align-items:baseline;flex-wrap:wrap;gap:4px;}
 .hk-sep{color:var(--text-muted);font-size:11px;}
+.hk-gest{font-weight:600;color:var(--text);}
 .hk-desc{color:var(--text-muted);}
 #hk-overlay kbd,.navmenu-hkhint kbd{display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;line-height:1.4;min-width:20px;text-align:center;padding:2px 6px;border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;background:var(--bg);color:var(--text);}
 .hk-foot{padding:0 18px 16px;font-size:11.5px;color:var(--text-muted);}
