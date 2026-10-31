@@ -13411,7 +13411,7 @@ function _navSectors(){
    entry the page is on. */
 function _navView(){if(curView==='table')return curTSub==='prices'?'charts':'matrix';return curView;}
 var _stkLast='matrix';
-function _stkTabs(){return [{k:'matrix',l:'Gate Matrix'}].concat(Object.keys(TL).filter(function(k){return k!=='prices';}).map(function(k){return{k:k,l:TL[k]};}));}
+function _stkTabs(){return [{k:'matrix',l:'Model'}].concat(Object.keys(TL).filter(function(k){return k!=='prices';}).map(function(k){return{k:k,l:TL[k]};}));}
 function _stkCur(){return curView==='table'&&curTSub!=='prices'?curTSub:'matrix';}
 /* Investing › Stocks' second row: the Gate Matrix or one data table. */
 function stkGo(k){
