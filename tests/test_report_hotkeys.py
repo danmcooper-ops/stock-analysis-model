@@ -23,8 +23,10 @@ def test_hotkeys_table_is_the_only_source_of_bindings():
     in one place and dispatched from another."""
     src = _tpl()
     assert re.search(r'^var HOTKEYS=\[', src, re.M)
-    # The overlay builder walks HOTKEYS; nothing else may hand-roll the sheet.
-    assert src.count('HOTKEYS.forEach(') == 1
+    # The overlay builder walks HOTKEYS (TOUCH_GESTURES on touch); nothing
+    # else may hand-roll the sheet.
+    assert src.count('(touch?TOUCH_GESTURES:HOTKEYS).forEach(') == 1
+    assert src.count('HOTKEYS.forEach(') == 0
     assert '<div id="hk-body"></div>' in src
 
 
@@ -190,3 +192,17 @@ def test_popup_close_keys():
     assert "k==='q'" in line and 'closeDetail()' in line
     hotkeys = _tpl().split('var HOTKEYS=[')[1].split('\n];')[0]
     assert "k:['q','Backspace']" in hotkeys
+
+
+def test_touch_devices_get_gestures_not_keys():
+    """On a phone the ? sheet listed keys nobody can press (2026-10-31). The
+    opener swaps in TOUCH_GESTURES, its title and its footnote on touch."""
+    src = _tpl()
+    opener = src.split('function hkOverlayOpen(){')[1].split('\n}\n')[0]
+    assert '(touch?TOUCH_GESTURES:HOTKEYS).forEach(' in opener
+    assert "touch?'Touch gestures':'Keyboard shortcuts'" in opener
+    table = src.split('var TOUCH_GESTURES=[')[1].split('\n];')[0]
+    for gesture in ('Swipe', 'Tap a ticker', 'Tap a header', 'Touch and drag', 'Tap a label'):
+        assert gesture in table
+    # Every swipe the sheet promises has its handler.
+    assert 'function _swipeTab(dir)' in src and 'navDet(dx<0?1:-1);' in src
