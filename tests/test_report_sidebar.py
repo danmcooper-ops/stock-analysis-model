@@ -538,7 +538,7 @@ def test_full_screen_statement_is_titled_with_the_company():
     already names the statement); the normal view keeps the statement name."""
     src = (Path(__file__).resolve().parent.parent / 'templates' / 'report.html').read_text(encoding='utf-8')
     assert "+(withPdf&&co?'<span class=\"sec-label stmt-lbl-co\">'+esc(co)+'</span>':'')" in src
-    assert "note+'</div>',true,d.company_name||d.ticker);" in src
+    assert "true,d.company_name||d.ticker,t.note);" in src
     assert '#det-modal .stmt-lbl-co{display:none;}' in src
     assert '#d-pane-stmt.stmt-fs .dg-icon+.sec-label:has(+.stmt-lbl-co){display:none;}' in src
 

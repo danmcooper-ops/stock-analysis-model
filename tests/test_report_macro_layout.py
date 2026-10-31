@@ -314,9 +314,9 @@ def test_every_macro_subtab_opens_with_an_explainer():
     assert ov and '_macIntroHTML' not in ov.group(0)
     sec = re.search(r'function _macSectionHTML\(k\).*?\n\}\n', css, re.S)
     assert sec and '_macIntroHTML(k)' in sec.group(0)
-    # the explainer precedes the data note, so it is the first thing read
+    # the data note sits behind the card's ?, not in the reading flow
     body = sec.group(0)
-    assert body.find('_macIntroHTML(k)') < body.find('mac-sec-note')
+    assert 'mac-sec-note' not in body and "'corner')" in body
 
 
 def test_regime_note_matches_the_model_weights_and_cutoffs():
