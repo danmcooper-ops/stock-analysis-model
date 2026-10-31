@@ -242,8 +242,7 @@ def test_filters_live_in_the_filters_panel_not_a_chip():
     css = _tpl()
     fn = re.search(r'^function _updateCountLabel\(\)\{.*?^\}', css, re.S | re.M).group(0)
     assert 'chipHtml' not in fn and 'dd-chip' not in fn
-    assert "el.innerHTML=h;" in fn
-    assert "sn.textContent='('+FD.length+' of '+DATA.length+')';" in fn
+    assert '_filtCountSync();' in fn
     assert "getElementById('dash-filt-row')" in fn and 'clearDashFilter()' in fn
     assert '<div id="dash-filt-row"' in css
     assert 'Filtering: ' not in css and 'dashRatingClear' not in css
@@ -351,3 +350,18 @@ def test_trading_tab_draws_figures_and_judges_by_ratio():
     assert "if(r>=0.8&&r<=1.25)v5='it trades about in line" in liq
     assert "roughly tracks the cap-count distribution" not in liq
     assert 'partial alignment between business size' not in liq
+
+
+def test_the_count_lives_only_in_the_filters_panel():
+    """The top bar and the view title carry no count; the Filters panel's
+    title does, for whichever rows the tab holds (stocks, ETFs, bonds,
+    currencies)."""
+    css = _tpl()
+    for gone in ('id="f-count"', 'id="sn-count"', 'id="bv-n"', 'id="cx-n"', 'id="etf-n"'):
+        assert gone not in css, gone
+    assert 'id="filt-count"' in css
+    fn = re.search(r'^function _filtCountSync\(\)\{.*?^\}', css, re.S | re.M).group(0)
+    for word in ("' stock'", "'bonds'", "'currencies'", "'ETFs'"):
+        assert word in fn, word
+    for k in ('_altN.bond=', '_altN.ccy=', '_altN.etf='):
+        assert k in css, k

@@ -164,7 +164,7 @@ var box={hidden:true,innerHTML:''},el={};
 document.getElementById=function(id){if(id==='alt-filt')return box;if(id==='f-search')return {value:''};return el[id]||(el[id]={style:{},classList:{toggle:function(){}}});};
 document.querySelector=function(){return {textContent:''};};
 var curView='matrix',curMSub='bond',_cxF={r:''},_CX_RATINGS=[];
-function _cxOn(){return false;} function _cxDraw(){}
+function _cxOn(){return false;} function _cxDraw(){} function _filtCountSync(){}
 ''' + '\n'.join(_fn_src(n, _tpl()) for n in ('_bvOn', '_bvActive', '_altFiltKind', '_altFiltActive', '_altFiltSync', '_altFiltBadge')) + '''
 _bvF.c='CORP_IG';_altFiltSync();
 process.stdout.write(JSON.stringify({h:box.innerHTML,hidden:box.hidden,stock:el['filt-stock'].style.display}));''')

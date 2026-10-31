@@ -150,12 +150,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .header .fpop-btn.active .navmenu-crumb{color:#0d1f42;}
 .header .fpop-btn.active .navmenu-crumb-sub{color:#5b7089;}
 .header .filter-count{color:#cfe0f0;}
-/* Centred count. #f-count used to sit inside .filter-bar and was hidden on
-   the no-table views by `.filter-bar.nav-only > *`; now that it lives outside
-   that bar, moveFilterBar() mirrors .nav-only onto .header so the count still
-   disappears on Sector Analysis. */
-.hdr-center{display:flex;align-items:center;flex-shrink:0;white-space:nowrap;}
-.header.nav-only #f-count{display:none!important;}
 /* Panels hang from the right edge. Anchored left:0 they would run off the
    viewport now that their buttons sit at the far right of the header.
    width:max-content is required with right-anchoring: shrink-to-fit measures
@@ -189,9 +183,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   /* The run date replaces the dropped .last-updated on this line — same
      size as the view name it sits beside. */
   .hdr-date{display:inline;font-size:0.62em;}
-  /* The count went with the meta on phones — the row only has space for the
-     title and the two dropdown icons. */
-  .hdr-center{display:none;}
   .header .filter-bar{gap:5px;}
   .container{padding:3px 6px;}
   .dt th{padding:5px 5px;}
@@ -280,7 +271,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .filter-bar{padding:2px 0;gap:5px;}
   .filter-bar input[type="text"]{padding:3px 8px;font-size:0.8em;}
   .navmenu-btn{padding:3px 7px;}
-  .filter-bar .filter-count{display:none;}
 }
 .stats{display:flex;gap:20px;justify-content:center;margin-top:14px;flex-wrap:wrap;}
 .stat{background:rgba(255,255,255,0.15);padding:8px 18px;border-radius:8px;}
@@ -2774,8 +2764,6 @@ html.mz-open,html.mz-open body{overflow:hidden;}
   --tab-line:#30363d;--tab-hover-line:#484f58;
 }
 html body .sa-chrome,html body .sa-chrome *{color:var(--sac) !important;}
-/* The drill-down chip is white on blue wherever it sits, including inside
-   the chrome (#sn-count beside the view title on phones). */
 .sa-chrome svg{flex-shrink:0;}
 
 /* ---- page offset ---- */
@@ -2884,8 +2872,13 @@ html.sb-rail .sb-chev-l,html:not(.sb-rail) .sb-chev-r{display:none;}
 .hdr-qr .qr-tk{--sac:var(--link);font-weight:700;min-width:56px;flex:0 0 auto;white-space:nowrap;}
 .hdr-qr .qr-nm{--sac:var(--chrome-muted);flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .hdr-qr .qr-empty{--sac:var(--chrome-muted);padding:8px 10px;font-size:13px;}
-.header .hdr-center{order:0;}
 .header .filter-count{color:var(--topbar-muted) !important;font-size:12.5px;}
+/* The Filters panel's count is the view's only one: the panel's own colour,
+   not the top bar's, and shown on every width. */
+.header #filt-panel #filt-count{--sac:var(--accent);color:var(--accent) !important;display:block;font-size:12.5px;white-space:normal;}
+/* Count on its own line under the title, so neither wraps on a phone. */
+.header #filt-panel .fpop-title-wrap{flex-direction:column;align-items:flex-start;gap:1px;}
+.header #filt-panel .fpop-title{white-space:nowrap;}
 .header #filter-bar .fpop-btn{background:var(--topbtn-bg);border:1.5px solid var(--topbtn-border);color:var(--topbar-fg);height:32px;padding:0 11px;border-radius:6px;font-size:12px;letter-spacing:.4px;text-transform:uppercase;display:flex;align-items:center;gap:6px;border-width:1px;}
 .header #filter-bar .fpop-btn:hover{background:var(--menu-hover);border-color:var(--topbtn-border);}
 .header #filter-bar .fpop-btn.active,.header #filter-bar .fpop-btn.active:hover{background:var(--chip-on-bg);border-color:var(--chip-on-bg);color:var(--chip-on-fg);}
@@ -2916,11 +2909,6 @@ body.wide-table #subnav{padding-left:var(--pg-inset,20px);padding-right:var(--pg
 .sn-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}
 .sn-title{font-size:20px;font-weight:800;letter-spacing:-.5px;text-transform:uppercase;line-height:1.05;margin:0;}
 .sn-crumb{--sac:var(--chrome-muted);font-size:12.5px;}
-/* Phones only (see the both-orientations block below): the top bar has no
-   room for the centred #f-count there, so the count rides beside the view
-   title instead, small and in parentheses. Hidden on the no-table views,
-   as #f-count is (moveFilterBar mirrors .nav-only onto #subnav). */
-.sn-count{display:none;}
 .sn-date{--sac:var(--chrome-muted);font-size:12px;margin-left:auto;white-space:nowrap;}
 .sn-chips{display:flex;gap:22px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;border-bottom:1px solid var(--tab-line);}
 .sn-chips::-webkit-scrollbar{display:none;}
@@ -2936,7 +2924,7 @@ body.wide-table #subnav{padding-left:var(--pg-inset,20px);padding-right:var(--pg
   html.sb-over #sidebar{width:240px;box-shadow:8px 0 24px rgba(0,0,0,.35);}
   html.sb-over .sb-scrim{display:block;position:fixed;inset:0;z-index:945;background:rgba(0,0,0,.45);}
   .header{padding:7px 16px;}
-  .header .filt-btn-label,.header .hdr-center{display:none;}
+  .header .filt-btn-label{display:none;}
   /* Icon-only, but it grows to fit the count badge rather than letting it
      spill past the button's edge. */
   .header #filter-bar .fpop-btn{width:auto;min-width:32px;padding:0 8px;justify-content:center;}
@@ -2963,12 +2951,8 @@ body.wide-table #subnav{padding-left:var(--pg-inset,20px);padding-right:var(--pg
   .hdr-search{flex:1 1 auto;height:34px;background:#2a2a2a;border-color:#2a2a2a;--sac:#b8b7b4;}
   .header .hdr-search #f-search{--sac:#fff;font-size:16px;height:30px;}
   .header .hdr-search #f-search::placeholder{color:#b8b7b4 !important;}
-  .hdr-kbd,.header .hdr-center,.header .filt-btn-label{display:none !important;}
-  .sn-count{--sac:var(--chrome-muted);display:inline;font-size:12.5px;font-weight:500;white-space:nowrap;font-variant-numeric:tabular-nums;}
-  /* Title, count and date fill a phone's row to within a pixel at a 10px
-     gap, which wrapped the date; 8px keeps them on one line. */
+  .hdr-kbd,.header .filt-btn-label{display:none !important;}
   .sn-head{column-gap:8px;}
-  #subnav.nav-only .sn-count{display:none;}
   /* At least a 36px target; with filters on, the count badge sits inside
      the button with room on both sides instead of against its edge. */
   .header #filter-bar .fpop-btn,[data-theme="dark"] .header #filter-bar .fpop-btn{width:auto;min-width:36px;height:36px;padding:0 10px;gap:7px;justify-content:center;background:transparent;border:0;border-radius:8px;}
@@ -3621,12 +3605,6 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
     <div class="hdr-view-row"><span class="hdr-view" id="hdr-view"></span><span class="hdr-date">{{ generated_at }}</span></div>
   </div>
   <span class="hdr-spacer"></span>
-  <!-- Centred result count ("N of M"). Two flex spacers (one either side)
-       centre it against the header as a whole rather than against the gap
-       between the title and the controls. The universe size used to repeat
-       here as "n = M"; the count's own "of M" already carries it. -->
-  <div class="hdr-center"><span class="filter-count" id="f-count"></span></div>
-  <span class="hdr-spacer"></span>
   <div class="filter-bar" id="filter-bar">
     <!-- Filters menu — same treatment as the nav tabs: the row of filter
          controls (Ratings / Sectors / Countries multi-selects, Quick
@@ -3645,11 +3623,9 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
       </button>
       <div class="fpop-panel filt-panel" id="filt-panel">
         <div class="fpop-header">
-          <!-- Count rides beside the title: phones hide the header's centred
-               #f-count (they show #sn-count beside the view title instead).
-               Fed by _updateCountLabel alongside #f-count (plain "N of M";
-               the drill-down chip rides #f-count and #sn-count, and Clear
-               below resets it). -->
+          <!-- The view's one count rides beside the title ("N of M stocks",
+               or the ETFs', bonds' or currencies' on those tabs); the top
+               bar and the view title carry none. Fed by _filtCountSync. -->
           <span class="fpop-title-wrap"><span class="fpop-title">Filters</span><span class="filter-count" id="filt-count"></span></span>
           <span class="filt-header-actions"><button class="filter-clear" onclick="_filtClear()" title="Clear every filter and close this panel">Clear</button><button class="fpop-close" onclick="toggleFiltMenu(event)">&#215;</button></span>
         </div>
@@ -3761,7 +3737,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
        the only route to a sub-tab now that the Views dropdown is gone. -->
   <div id="subnav" class="sa-chrome">
     <button type="button" class="d-back sa-chrome" id="sn-back" onclick="drillBack()"></button>
-    <div class="sn-head"><h2 class="sn-title" id="sn-title"></h2><span class="sn-count" id="sn-count"></span><span class="sn-crumb" id="sn-crumb"></span><span class="sn-date">{{ generated_at }}</span></div>
+    <div class="sn-head"><h2 class="sn-title" id="sn-title"></h2><span class="sn-crumb" id="sn-crumb"></span><span class="sn-date">{{ generated_at }}</span></div>
     <div class="sn-chips" id="sn-chips" role="tablist"></div>
     <div class="d-stmt-tabs sa-chrome pp-subtabs" id="sn-sub2" role="tablist" aria-label="Stocks" style="display:none"></div>
   </div>
@@ -7344,14 +7320,10 @@ function _relCmp(a,b){
    is currently in effect, so it must refresh on sort clicks too (mSort/
    tSort re-render without re-filtering). */
 function _updateCountLabel(){
-  var el=document.getElementById('f-count');
-  if(!el)return;
-  var h=esc(FD.length+' of '+DATA.length+(FD.length&&_relActive()?' · best match':''));
   /* Every filter is shown and cleared in the Filters panel (its badge
-     counts them); no chip beside the count. A dashboard drill-down the
-     column filters cannot express (a gate passing/failing, the folded
-     Other industries) gets its own removable row at the top of the panel. */
-  el.innerHTML=h;
+     counts them), and so is the count. A dashboard drill-down the column
+     filters cannot express (a gate passing/failing, the folded Other
+     industries) gets its own removable row at the top of the panel. */
   var dr=document.getElementById('dash-filt-row');
   if(dr){
     if(_dashFilter){
@@ -7360,14 +7332,21 @@ function _updateCountLabel(){
       dr.style.display='';
     }else{dr.innerHTML='';dr.style.display='none';}
   }
-  /* Twin count beside the Filters panel's title. Plain text: no chip, no
-     "best match" (that suffix describes ordering, not the count). */
-  var fc=document.getElementById('filt-count');
-  if(fc)fc.textContent=FD.length+' of '+DATA.length;
-  /* And beside the view title on phones, where #f-count is hidden — chip
-     included, or a drill-down could be set there but never cleared. */
-  var sn=document.getElementById('sn-count');
-  if(sn)sn.textContent='('+FD.length+' of '+DATA.length+')';
+  _filtCountSync();
+}
+/* The count beside the Filters panel's title, for whichever rows the view
+   holds: stocks, or on Investing's ETFs, Bonds and Currencies that tab's own
+   (each draw records its numbers in _altN). Chart options take none. */
+var _altN={};
+function _filtCountSync(){
+  var fc=document.getElementById('filt-count');if(!fc)return;
+  var k=_altFiltKind(),f=function(n){return (+n||0).toLocaleString();};
+  var w={bond:['bond','bonds'],ccy:['currency','currencies'],etf:['ETF','ETFs']}[k];
+  if(k==='chart'){fc.textContent='';return;}
+  if(!k){fc.textContent=f(FD.length)+' of '+f(DATA.length)+' stock'+(DATA.length===1?'':'s');return;}
+  var a=_altN[k];
+  if(!a){fc.textContent='';return;}
+  fc.textContent=f(a[0])+' of '+f(a[1])+' '+(a[1]===1?w[0]:w[1])+(a[2]?' \u00b7 '+f(a[2])+' shown':'');
 }
 /* Is relevance ordering in effect for the CURRENT view? Active query +
    the user hasn't clicked a column header on that view this session. */
@@ -7527,8 +7506,7 @@ function _altFiltSync(){
   var tl=document.querySelector('#filt-panel .fpop-title');
   if(tl)tl.textContent=k==='bond'?'Bond filters':k==='ccy'?'Currency filters':k==='etf'?'ETF filters':k==='chart'?'Chart options':'Filters';
   var fb=document.getElementById('filt-show');if(fb&&k)fb.textContent='Done';
-  var fc=document.getElementById('filt-count');
-  if(fc&&k){var n=document.getElementById(k==='bond'?'bv-n':k==='ccy'?'cx-n':k==='etf'?'etf-n':'');fc.textContent=n?n.textContent:'';}
+  _filtCountSync();
   var cl=document.querySelector('#filt-panel .filter-clear');
   if(cl){cl.textContent=k==='chart'?'Reset':'Clear';cl.title=k==='chart'?'Back to Price, Max and the top five':'Clear every filter and close this panel';}
   var opt=function(v,l,cur){return '<option value="'+_attr(v)+'"'+(v===cur?' selected':'')+'>'+_esc(l)+'</option>';};
@@ -13256,13 +13234,9 @@ function moveFilterBar(v){
   /* Sector Analysis is the only nav-only view left. Charts used to be one
      too, back when its five lines were seeded from the whole universe; now
      that they seed from FD, the filters drive it and have to be reachable
-     from it. The count comes back with them — on Charts it reads as "the
-     pool the five were picked from". */
+     from it. */
   var navOnly=(v==='pool'||v==='macro'||v==='pf');
   fb.classList.toggle('nav-only',navOnly);
-  /* The centred #f-count now sits outside .filter-bar, so it is out of reach
-     of the bar's `.nav-only > *` rule. Mirror the flag onto .header to keep
-     hiding it on the views that have no table to count. */
   var hd=document.querySelector('.header');
   if(hd)hd.classList.toggle('nav-only',navOnly);
   var sn=document.getElementById('subnav');
@@ -15494,9 +15468,11 @@ function renderEtfLookthrough(){
     var hay=(t+' '+(F[t].fund_name||'')+' '+(F[t].sector||'')+' '+_ETF_CATS[_etfCat(F[t])]).toUpperCase();
     return toks.every(function(q){return hay.indexOf(q)>=0;});
   });
+  _altN.etf=[shown.length,ids.length];
+  _filtCountSync();
   var h='<div id="etf-lt">'+_fmBar('etf',[['table','Table'],['detail','Detail · '+_etfSel],['notes','Notes']],'ETF sections')
     +'<div class="fm-tabbed">'
-    +'<div data-pane="table"><div class="bv-ctl"><span class="bv-n" id="etf-n">'+shown.length+' of '+ids.length+' shown</span></div>'
+    +'<div data-pane="table">'
     +'<div class="ppi-wrap fm-tbl"><table class="ppi-tbl"><thead><tr><th>Fund</th><th class="etf-sm-hide">Category</th><th>Value vs '+ETF_LT.base+'</th><th>Model MoS</th><th>Has fair value</th></tr></thead><tbody>';
   if(!shown.length)h+='<tr><td colspan="5">No fund matches '+(_etfQ().trim()?'“'+_esc(_etfQ().trim())+'”':'this category')+'.</td></tr>';
   shown.forEach(function(t){
@@ -15644,8 +15620,6 @@ function _bvHtml(D){
   var h='<div id="bv">'+_fmBar('bond',[['table','Table'],['summary','Summary'],['charts','Charts'],['notes','Notes'+(D.vintage?' ⚠':'')]],'Bond sections')
     +'<div class="fm-tabbed">'
     +'<div data-pane="table">'
-    +'<div class="bv-ctl">'
-    +'<span class="bv-n" id="bv-n"></span></div>'
     +'<div class="ppi-wrap bv-wrap fm-tbl"><table class="ppi-tbl bv-tbl"><thead><tr id="bv-head"></tr></thead><tbody id="bv-body"></tbody></table></div>'
     +'</div>'
     +'<div data-pane="summary" class="xsect-dashboard"><div class="sec-label">Bonds</div>'
@@ -15710,9 +15684,8 @@ function _bvDraw(){
       return '<td'+(_BV_LEFT[c.f]?' class="bv-l"':'')+(long?' title="'+_attr(v)+'"':'')+'>'+_bvFmt(v,c.f)+'</td>';
     }).join('')+'</tr>';
   }).join('');
-  var n=document.getElementById('bv-n');
-  if(n)n.textContent=rows.length.toLocaleString()+' match'+(rows.length===1?'':'es')+(rows.length>_BV_LIMIT?' (showing '+_BV_LIMIT.toLocaleString()+')':'')
-    +(_BV.vintage?' · marks '+_BV.vintage.age_days+' days old (Notes)':'');
+  _altN.bond=[rows.length,(_BV.rows||[]).length,rows.length>_BV_LIMIT?_BV_LIMIT:0];
+  _filtCountSync();
 }
 /* === BOND DETAIL === A row opens one bond on a sheet over the table: its
    24 fields grouped as the bond model reasons about them, each label
@@ -15905,8 +15878,6 @@ function _cxHtml(D){
   var h='<div id="cx">'+_fmBar('ccy',_CX_VIEWS,'Currency sections')
     +'<div class="fm-tabbed">'
     +'<div data-pane="table matrix map">'
-    +'<div class="bv-ctl">'
-    +'<span class="bv-n" id="cx-n"></span></div>'
     +'<div id="cx-body"></div></div>'
     +'<div data-pane="detail" id="cx-det"></div>'
     +'<div data-pane="summary" class="xsect-dashboard">'
@@ -15953,8 +15924,8 @@ function _cxDraw(){
   if(_cxView==='matrix')host.innerHTML=_cxMatrix(rows);
   else if(_cxView==='map'){host.innerHTML=_cxMapHtml();_cxMapPaint(rows);}
   else host.innerHTML=_cxTable(rows);
-  var n=document.getElementById('cx-n');
-  if(n)n.textContent=rows.length+' of '+_CX.rows.length+' shown';
+  _altN.ccy=[rows.length,_CX.rows.length];
+  _filtCountSync();
   _cxDetail();
 }
 function _cxTable(rows){
@@ -18173,9 +18144,7 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   optHtml+='<optgroup label="Text">'+txtHtml+'</optgroup>';
   _cfOptHtml=optHtml;
   addColFilter(); // seed one empty row
-  document.getElementById('f-count').textContent=DATA.length+' of '+DATA.length;
-  var _fc0=document.getElementById('filt-count');
-  if(_fc0)_fc0.textContent=DATA.length+' of '+DATA.length;
+  _filtCountSync();
   /* IME (CJK) input: don't filter on half-composed text; one debounced
      pass fires when the composition commits. */
   var _fs=document.getElementById('f-search');
