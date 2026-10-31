@@ -1451,14 +1451,15 @@ ruff check .
   both themes; dark mode swaps in each hue's dark step).
 - **Paper trading (`scripts/paper_trade.py`, `models/paper_trade.py`,
   `data/alpaca_client.py`, 2026-10-29):** holds the `paper` portfolio (rule
-  BUY + LEAN BUY, equal-weighted: ~950 names at ~0.1%) in an Alpaca **paper**
+  BUY only since 2026-10-31, equal-weighted: ~130 names at ~0.8%; it was
+  BUY + LEAN BUY, ~950 names, for its first two days) in an Alpaca **paper**
   account. The client refuses every endpoint but `paper-api.alpaca.markets`,
   and no flag relaxes that. Targets come from `resolve_members` and
   `portfolio_nav.entry_weights`, the arithmetic the NAV ledger uses, so the
   realized paper return and the ledger's hypothetical one measure the same
   book, and the gap between them is the cost of trading. Equal weight
   because `position_weight` is empty on every row: `position_sizes` drops
-  weights under its 1% floor, and ~950 candidates each come to ~0.1%.
+  weights under its 1% floor, and ~130 candidates each come to ~0.8%.
   `plan_orders` rules (`PAPER_*` in `scripts/config.py`):
   - a member trades only past a band relative to its target (25%) and $1;
     an exit sells whatever its size;

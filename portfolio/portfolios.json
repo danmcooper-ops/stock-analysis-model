@@ -87,14 +87,13 @@
       "id": "paper",
       "name": "Paper book",
       "color": "#2a78d6",
-      "description": "Every BUY and LEAN BUY, equal-weighted; traded in the Alpaca paper account (scripts/paper_trade.py)",
+      "description": "Every BUY, equal-weighted; traded in the Alpaca paper account (scripts/paper_trade.py)",
       "created": "2026-10-29",
       "tickers": [],
       "exclude": [],
       "rule": {
         "ratings": [
-          "BUY",
-          "LEAN BUY"
+          "BUY"
         ],
         "sectors": null,
         "countries": null,
