@@ -52,7 +52,7 @@ def test_sector_etf_section_charts_the_fund_against_spy():
     # Redrawn with the pool charts: on render, sub-tab switch and resize.
     assert src.split('function _pphDrawAll(root){', 1)[1].lstrip().startswith('_etfcDrawAll(root);')
     py = (Path(__file__).resolve().parents[1] / 'scripts' / 'report_html.py').read_text(encoding='utf-8')
-    assert 'for _ftk, _fsec in etf_holdings.SPDR_FUNDS.items():' in py
+    assert 'for _ftk in etf_holdings.fund_tickers():' in py
 
 
 def test_etf_views_carry_no_rating_mix():

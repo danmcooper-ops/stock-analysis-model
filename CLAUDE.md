@@ -982,8 +982,8 @@ ruff check .
 - **SPDR look-through (`data/etf_holdings.py`, `models/etf_lookthrough.py`,
   2026-10-21):** ETFs never enter the company pipeline (no statements, and
   Yahoo gives them no `marketCap`, so the Phase-1 mcap bail drops them).
-  Instead SPY, DIA, MDY and the 11 Select Sector SPDRs are read through the
-  rows the model already scores, at render time
+  Instead the SPDR US equity funds are read through the rows the model
+  already scores, at render time
   (`report_html._build_etf_payload`, after `_drop_stopped_rows`, so it
   follows the re-score). Holdings come from SSGA's daily files
   (`scripts/fetch_etf_holdings.py`, `run_daily.sh` step `etf_holdings`, soft)
@@ -999,7 +999,8 @@ ruff check .
   onto the kept row (`listing_aliases`), cash counts at 1, a holding with no
   row is left out. Under 80% of weight with a fair value reads
   INSUFFICIENT; a coverage-degraded run shows nothing. Shown on Financial
-  Model › ETFs (all 14; the sub-tab beside Dashboard and Stocks, the gate matrix's tab label) and each sector's Overview
+  Model › ETFs (every fund, with a Category column and a Category filter
+  in the top bar's Filters panel, `_etfF`; the sub-tab beside Dashboard and Stocks, the gate matrix's tab label) and each sector's Overview
   tab (its own SPDR; a price chart against SPY, rebased to 0% at the
   range start, from the SPDRs' `px/` shards, which `build_html` ships beside
   the stocks' though they are never rows; then lifts and drags,
@@ -1007,6 +1008,24 @@ ruff check .
   rated, and an ETF must never reach `profile_verdict` (its −20% MoS AVOID
   flag would fire on nearly every fund). `ETF_HOLDINGS_DIR` overrides the
   archive path. Tests: `tests/test_etf_lookthrough.py`.
+  **The fund list (`data/etf_funds.json`, 2026-10-31):** 71 funds, up from
+  v1's 14. `scripts/update_etf_list.py` (by hand or monthly, never nightly)
+  reads SSGA's fund finder JSON (no auth), takes its equity and
+  alternative-sector funds (116 of 187), fetches each one's holdings and
+  keeps a fund when at least 80% of its weight is cash or a holding with a
+  row in the newest snapshot, and at most 50% is cash (CERY, a
+  commodity-futures fund, matched 80% on T-bills). International funds
+  match 4-37% and are dropped; so are the Select Sector Premium Income
+  funds (their files list 3-8 lines, mostly options). Each fund gets a
+  `category` (broad / size / style / dividend / factor / sector / industry /
+  thematic) from the finder's tags and its name. `load_registry` always
+  adds the 14 of `SPDR_FUNDS`, and only those carry a `sector`, so
+  `sector_fund` and the sector pages are unchanged; a missing file leaves
+  just the 14. `fund_tickers()` feeds the nightly holdings fetch, the
+  `prices` step's ticker list and the `px/` shards. Matching on rows is not
+  matching on fair values: on 10-30, 58 of 71 read and 13 were
+  INSUFFICIENT (XBI 34% valued: loss-making biotechs have no fair value;
+  the digital-asset and grid funds 60-74%).
 - **Subprojects `bonds/` and `currencies/` (2026-10-28):** the bond model and
   the currency screener came in by `git subtree add` with their full history
   (the two "Add '<dir>/'" commits; their old commits are that merge's second
@@ -1143,7 +1162,7 @@ ruff check .
   - **Search:** the search (`#f-search`) lives in the top bar and filters
     the view's own table (Stocks, ETFs, Bonds by CUSIP/issuer/maturity,
     Currencies). Its quick results (`#hdr-qr`, `qrRender`) cover every kind:
-    stocks, the 14 SPDRs, the currencies (from `CCY_META.index`, inlined so
+    stocks, the SPDR funds, the currencies (from `CCY_META.index`, inlined so
     nothing loads first) and the bonds (`bonds.json`, fetched once a query
     reaches 3 characters), grouped with the best match's group first. A pick
     goes where it lives (`_qrGo`): a stock's page; an ETF's or currency's

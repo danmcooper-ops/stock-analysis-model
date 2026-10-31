@@ -1,8 +1,11 @@
 """Daily ETF holdings for the look-through read (``models/etf_lookthrough.py``).
 
-v1 covers the SSGA funds whose daily holdings files are public and complete:
+The funds are SSGA's (SPDR) US equity ETFs, listed in ``data/etf_funds.json``
+(``scripts/update_etf_list.py`` writes it from SSGA's fund finder, keeping a
+fund only when most of its weight is in rows the model scores). v1's 14 —
 SPY, DIA and MDY (unit investment trusts, so absent from SEC's mutual-fund
-ticker file) and the 11 Select Sector SPDRs. Rule 6c-11 makes every ETF
+ticker file) and the 11 Select Sector SPDRs — are always included, whatever
+the file says (``SPDR_FUNDS``). Rule 6c-11 makes every ETF
 publish its full holdings daily; SSGA's are one xlsx per fund with the as-of
 date in the header, then Name / Ticker / Identifier (CUSIP) / SEDOL /
 Weight (%) / Sector / Shares Held / Local Currency.
@@ -36,6 +39,38 @@ SPDR_FUNDS = {
     'XLV': 'Healthcare', 'XLY': 'Consumer Cyclical',
 }
 
+REGISTRY_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'etf_funds.json')
+CATEGORIES = ('broad', 'size', 'style', 'dividend', 'factor', 'sector', 'industry', 'thematic')
+
+
+def load_registry(path=REGISTRY_PATH):
+    """Ticker -> ``{ticker, name, category, sector}`` from the registry file,
+    with SPDR_FUNDS always present (their ``sector`` from SPDR_FUNDS, so only
+    the Select Sectors carry one). A missing or unreadable file leaves just
+    the 14, never an empty list."""
+    out = {}
+    try:
+        with open(path, encoding='utf-8') as f:
+            for e in json.load(f).get('funds') or []:
+                t = normalize_ticker(e.get('ticker'))
+                if t:
+                    out[t] = {'ticker': t, 'name': e.get('name') or '',
+                              'category': e.get('category') or 'broad', 'sector': None}
+    except (OSError, ValueError) as e:
+        logger.warning('ETF registry %s unreadable (%s): the 14 SPDRs only', path, e)
+    for t, sec in SPDR_FUNDS.items():
+        e = out.setdefault(t, {'ticker': t, 'name': '', 'category': 'broad'})
+        e['sector'] = sec
+        if sec:
+            e['category'] = 'sector'
+    return dict(sorted(out.items()))
+
+
+def fund_tickers(registry=None):
+    """Every fund the nightly fetch and the render read."""
+    return list(registry if registry is not None else ETF_FUNDS)
+
+
 SSGA_URL = ('https://www.ssga.com/us/en/intermediary/library-content/products/'
             'fund-data/etfs/us/holdings-daily-us-en-{t}.xlsx')
 DEFAULT_ROOT = os.path.join('output', 'etf_holdings')
@@ -57,6 +92,9 @@ def normalize_ticker(t):
     """SSGA writes class shares with a dot (BRK.B); the pipeline uses BRK-B."""
     t = (str(t).strip().upper() if t is not None else '')
     return t.replace('.', '-').replace('/', '-') if t not in ('', '-', 'NAN') else ''
+
+
+ETF_FUNDS = load_registry()
 
 
 def _kind(name, ticker):

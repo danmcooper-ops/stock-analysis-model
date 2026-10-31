@@ -1649,11 +1649,12 @@ def _load_price_payloads(rows, prices_dir):
                         _indices_found.append({'ticker': _itk, 'label': _ilabel})
                 except Exception:
                     pass
-            # The sector SPDRs ship as ordinary px/ shards (not as indices):
-            # each sector page charts its own fund against SPY. They are
-            # never rows, so nothing else picks them up.
-            for _ftk, _fsec in etf_holdings.SPDR_FUNDS.items():
-                if not _fsec or _ftk in _series:
+            # The look-through's funds ship as ordinary px/ shards (not as
+            # indices): each sector page charts its own SPDR against SPY, and
+            # the ETFs tab's Detail any fund. They are never rows, so nothing
+            # else picks them up.
+            for _ftk in etf_holdings.fund_tickers():
+                if _ftk in _series:
                     continue
                 _fpf = os.path.join(prices_dir, f"{_ftk}.parquet")
                 if not os.path.exists(_fpf):
@@ -2045,7 +2046,7 @@ def _build_etf_payload(rows, out_dir, run_date, prices_dir=None, run_provenance=
         return None
     root = holdings_root or os.environ.get('ETF_HOLDINGS_DIR') or os.path.join(out_dir, 'etf_holdings')
     held = {}
-    for fund in etf_holdings.SPDR_FUNDS:
+    for fund in etf_holdings.fund_tickers():
         h = etf_holdings.load_holdings(root, fund, run_date)
         if h:
             held[fund] = h
@@ -2066,7 +2067,9 @@ def _build_etf_payload(rows, out_dir, run_date, prices_dir=None, run_provenance=
                       if x['ticker'] in by_tk or x['ticker'] in aliases})
         funds[fund] = etf_lookthrough(h, by_tk, aliases, prev_fv,
                                       _holding_drift(prices_dir, h['as_of'], run_date, tks))
-        funds[fund]['sector'] = etf_holdings.SPDR_FUNDS[fund]
+        reg = etf_holdings.ETF_FUNDS.get(fund) or {}
+        funds[fund]['sector'] = reg.get('sector')
+        funds[fund]['category'] = reg.get('category') or 'broad'
     relative_to(funds, base='SPY')
     stale = sorted(f for f, h in held.items()
                    if run_date is not None and h['as_of'] < run_date.isoformat())

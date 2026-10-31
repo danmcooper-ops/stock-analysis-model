@@ -1,0 +1,435 @@
+{
+ "source": "ssga fund finder",
+ "updated": "2026-10-31",
+ "matched_against": "results_2026-10-30.json",
+ "min_matched": 0.8,
+ "max_cash": 0.5,
+ "funds": [
+  {
+   "ticker": "CNRG",
+   "name": "State Street SPDR S&P Kensho Grid Innovation ETF",
+   "category": "thematic",
+   "sector": null
+  },
+  {
+   "ticker": "DECO",
+   "name": "State Street Galaxy Digital Asset Ecosystem ETF",
+   "category": "thematic",
+   "sector": null
+  },
+  {
+   "ticker": "DIA",
+   "name": "State Street SPDR Dow Jones Industrial Average ETF Trust",
+   "category": "broad",
+   "sector": null
+  },
+  {
+   "ticker": "EFIV",
+   "name": "State Street SPDR S&P 500 Scored and Screened ETF",
+   "category": "thematic",
+   "sector": null
+  },
+  {
+   "ticker": "FITE",
+   "name": "State Street SPDR S&P Kensho Future Security ETF",
+   "category": "thematic",
+   "sector": null
+  },
+  {
+   "ticker": "HAIL",
+   "name": "State Street SPDR S&P Kensho Smart Mobility ETF",
+   "category": "thematic",
+   "sector": null
+  },
+  {
+   "ticker": "HECO",
+   "name": "State Street Galaxy Hedged Digital Asset Ecosystem ETF",
+   "category": "thematic",
+   "sector": null
+  },
+  {
+   "ticker": "KBE",
+   "name": "State Street SPDR S&P Bank ETF",
+   "category": "industry",
+   "sector": null
+  },
+  {
+   "ticker": "KCE",
+   "name": "State Street SPDR S&P Capital Markets ETF",
+   "category": "industry",
+   "sector": null
+  },
+  {
+   "ticker": "KIE",
+   "name": "State Street SPDR S&P Insurance ETF",
+   "category": "industry",
+   "sector": null
+  },
+  {
+   "ticker": "KOMP",
+   "name": "State Street SPDR S&P Kensho New Economies Composite ETF",
+   "category": "thematic",
+   "sector": null
+  },
+  {
+   "ticker": "KRE",
+   "name": "State Street SPDR S&P Regional Banking ETF",
+   "category": "industry",
+   "sector": null
+  },
+  {
+   "ticker": "LGLV",
+   "name": "State Street SPDR US Large Cap Low Volatility Index ETF",
+   "category": "factor",
+   "sector": null
+  },
+  {
+   "ticker": "MDY",
+   "name": "State Street SPDR S&P MIDCAP 400 ETF Trust",
+   "category": "size",
+   "sector": null
+  },
+  {
+   "ticker": "MDYG",
+   "name": "State Street SPDR S&P 400™ Mid Cap Growth ETF",
+   "category": "style",
+   "sector": null
+  },
+  {
+   "ticker": "MDYV",
+   "name": "State Street SPDR S&P 400™ Mid Cap Value ETF",
+   "category": "style",
+   "sector": null
+  },
+  {
+   "ticker": "MMTM",
+   "name": "State Street SPDR S&P 1500 Momentum Tilt ETF",
+   "category": "factor",
+   "sector": null
+  },
+  {
+   "ticker": "NANR",
+   "name": "State Street SPDR S&P North American Natural Resources ETF",
+   "category": "industry",
+   "sector": null
+  },
+  {
+   "ticker": "ONEO",
+   "name": "State Street SPDR Russell 1000 Momentum Focus ETF",
+   "category": "factor",
+   "sector": null
+  },
+  {
+   "ticker": "ONEV",
+   "name": "State Street SPDR Russell 1000 Low Volatility Focus ETF",
+   "category": "factor",
+   "sector": null
+  },
+  {
+   "ticker": "ONEY",
+   "name": "State Street SPDR Russell 1000 Yield Focus ETF",
+   "category": "dividend",
+   "sector": null
+  },
+  {
+   "ticker": "QNDX",
+   "name": "State Street SPDR Portfolio Nasdaq 100 ETF",
+   "category": "broad",
+   "sector": null
+  },
+  {
+   "ticker": "QUS",
+   "name": "State Street SPDR MSCI USA StrategicFactors ETF",
+   "category": "factor",
+   "sector": null
+  },
+  {
+   "ticker": "ROKT",
+   "name": "State Street SPDR S&P Kensho Final Frontiers ETF",
+   "category": "thematic",
+   "sector": null
+  },
+  {
+   "ticker": "RWR",
+   "name": "State Street SPDR Dow Jones REIT ETF",
+   "category": "industry",
+   "sector": null
+  },
+  {
+   "ticker": "SDY",
+   "name": "State Street SPDR S&P Dividend ETF",
+   "category": "dividend",
+   "sector": null
+  },
+  {
+   "ticker": "SHE",
+   "name": "State Street SPDR MSCI USA Gender Diversity ETF",
+   "category": "thematic",
+   "sector": null
+  },
+  {
+   "ticker": "SIMS",
+   "name": "State Street SPDR S&P Kensho Intelligent Structures ETF",
+   "category": "thematic",
+   "sector": null
+  },
+  {
+   "ticker": "SLYG",
+   "name": "State Street SPDR S&P 600™ Small Cap Growth ETF",
+   "category": "style",
+   "sector": null
+  },
+  {
+   "ticker": "SLYV",
+   "name": "State Street SPDR S&P 600™ Small Cap Value ETF",
+   "category": "style",
+   "sector": null
+  },
+  {
+   "ticker": "SMLV",
+   "name": "State Street SPDR US Small Cap Low Volatility Index ETF",
+   "category": "factor",
+   "sector": null
+  },
+  {
+   "ticker": "SPDG",
+   "name": "State Street SPDR Portfolio S&P Sector Neutral Dividend ETF",
+   "category": "dividend",
+   "sector": null
+  },
+  {
+   "ticker": "SPIN",
+   "name": "State Street US Equity Premium Income ETF",
+   "category": "broad",
+   "sector": null
+  },
+  {
+   "ticker": "SPMD",
+   "name": "State Street SPDR Portfolio S&P 400™ Mid Cap ETF",
+   "category": "size",
+   "sector": null
+  },
+  {
+   "ticker": "SPSM",
+   "name": "State Street SPDR Portfolio S&P 600™ Small Cap ETF",
+   "category": "size",
+   "sector": null
+  },
+  {
+   "ticker": "SPTM",
+   "name": "State Street SPDR Portfolio S&P 1500 Composite Stock Market ETF",
+   "category": "broad",
+   "sector": null
+  },
+  {
+   "ticker": "SPY",
+   "name": "State Street SPDR S&P 500 ETF Trust",
+   "category": "broad",
+   "sector": null
+  },
+  {
+   "ticker": "SPYD",
+   "name": "State Street SPDR Portfolio S&P 500 High Dividend ETF",
+   "category": "dividend",
+   "sector": null
+  },
+  {
+   "ticker": "SPYG",
+   "name": "State Street SPDR Portfolio S&P 500 Growth ETF",
+   "category": "style",
+   "sector": null
+  },
+  {
+   "ticker": "SPYM",
+   "name": "State Street SPDR Portfolio S&P 500 ETF",
+   "category": "broad",
+   "sector": null
+  },
+  {
+   "ticker": "SPYV",
+   "name": "State Street SPDR Portfolio S&P 500 Value ETF",
+   "category": "style",
+   "sector": null
+  },
+  {
+   "ticker": "SPYX",
+   "name": "State Street SPDR S&P 500 Fossil Fuel Reserves Free ETF",
+   "category": "thematic",
+   "sector": null
+  },
+  {
+   "ticker": "TEKX",
+   "name": "State Street Galaxy Transformative Tech Accelerators ETF",
+   "category": "thematic",
+   "sector": null
+  },
+  {
+   "ticker": "VLU",
+   "name": "State Street SPDR S&P 1500 Value Tilt ETF",
+   "category": "factor",
+   "sector": null
+  },
+  {
+   "ticker": "XAR",
+   "name": "State Street SPDR S&P Aerospace & Defense ETF",
+   "category": "industry",
+   "sector": null
+  },
+  {
+   "ticker": "XBI",
+   "name": "State Street SPDR S&P Biotech ETF",
+   "category": "industry",
+   "sector": null
+  },
+  {
+   "ticker": "XES",
+   "name": "State Street SPDR S&P Oil & Gas Equipment & Services ETF",
+   "category": "industry",
+   "sector": null
+  },
+  {
+   "ticker": "XHB",
+   "name": "State Street SPDR S&P Homebuilders ETF",
+   "category": "industry",
+   "sector": null
+  },
+  {
+   "ticker": "XHE",
+   "name": "State Street SPDR S&P Health Care Equipment ETF",
+   "category": "industry",
+   "sector": null
+  },
+  {
+   "ticker": "XHS",
+   "name": "State Street SPDR S&P Health Care Services ETF",
+   "category": "industry",
+   "sector": null
+  },
+  {
+   "ticker": "XITK",
+   "name": "State Street SPDR FactSet Innovative Technology ETF",
+   "category": "industry",
+   "sector": null
+  },
+  {
+   "ticker": "XLB",
+   "name": "State Street Materials Select Sector SPDR ETF",
+   "category": "sector",
+   "sector": "Basic Materials"
+  },
+  {
+   "ticker": "XLC",
+   "name": "State Street Communication Services Select Sector SPDR ETF",
+   "category": "sector",
+   "sector": "Communication Services"
+  },
+  {
+   "ticker": "XLE",
+   "name": "State Street Energy Select Sector SPDR ETF",
+   "category": "sector",
+   "sector": "Energy"
+  },
+  {
+   "ticker": "XLF",
+   "name": "State Street Financial Select Sector SPDR ETF",
+   "category": "sector",
+   "sector": "Financial Services"
+  },
+  {
+   "ticker": "XLI",
+   "name": "State Street Industrial Select Sector SPDR ETF",
+   "category": "sector",
+   "sector": "Industrials"
+  },
+  {
+   "ticker": "XLK",
+   "name": "State Street Technology Select Sector SPDR ETF",
+   "category": "sector",
+   "sector": "Technology"
+  },
+  {
+   "ticker": "XLP",
+   "name": "State Street Consumer Staples Select Sector SPDR ETF",
+   "category": "sector",
+   "sector": "Consumer Defensive"
+  },
+  {
+   "ticker": "XLRE",
+   "name": "State Street Real Estate Select Sector SPDR ETF",
+   "category": "sector",
+   "sector": "Real Estate"
+  },
+  {
+   "ticker": "XLU",
+   "name": "State Street Utilities Select Sector SPDR ETF",
+   "category": "sector",
+   "sector": "Utilities"
+  },
+  {
+   "ticker": "XLV",
+   "name": "State Street Health Care Select Sector SPDR ETF",
+   "category": "sector",
+   "sector": "Healthcare"
+  },
+  {
+   "ticker": "XLY",
+   "name": "State Street Consumer Discretionary Select Sector SPDR ETF",
+   "category": "sector",
+   "sector": "Consumer Cyclical"
+  },
+  {
+   "ticker": "XME",
+   "name": "State Street SPDR S&P Metals & Mining ETF",
+   "category": "industry",
+   "sector": null
+  },
+  {
+   "ticker": "XNTK",
+   "name": "State Street SPDR NYSE Technology ETF",
+   "category": "industry",
+   "sector": null
+  },
+  {
+   "ticker": "XOP",
+   "name": "State Street SPDR S&P Oil & Gas Exploration & Production ETF",
+   "category": "industry",
+   "sector": null
+  },
+  {
+   "ticker": "XPH",
+   "name": "State Street SPDR S&P Pharmaceuticals ETF",
+   "category": "industry",
+   "sector": null
+  },
+  {
+   "ticker": "XRT",
+   "name": "State Street SPDR S&P Retail ETF",
+   "category": "industry",
+   "sector": null
+  },
+  {
+   "ticker": "XSD",
+   "name": "State Street SPDR S&P Semiconductor ETF",
+   "category": "industry",
+   "sector": null
+  },
+  {
+   "ticker": "XSW",
+   "name": "State Street SPDR S&P Software & Services ETF",
+   "category": "industry",
+   "sector": null
+  },
+  {
+   "ticker": "XTL",
+   "name": "State Street SPDR S&P Telecom ETF",
+   "category": "industry",
+   "sector": null
+  },
+  {
+   "ticker": "XTN",
+   "name": "State Street SPDR S&P Transportation ETF",
+   "category": "industry",
+   "sector": null
+  }
+ ]
+}

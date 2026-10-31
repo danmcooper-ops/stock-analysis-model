@@ -7514,8 +7514,8 @@ function _positionFpop(panel,btn){
    (which have no rows there to filter), titled for the tab, and the funnel's
    badge counts them. */
 function _phOn(){return curView==='table'&&curTSub==='prices'&&!document.documentElement.classList.contains('det-open');}
-function _altFiltKind(){return _bvOn()?'bond':_cxOn()?'ccy':_phOn()?'chart':'';}
-function _altFiltActive(k){return k==='bond'?_bvActive():k==='ccy'?(_cxF.r?1:0):0;}
+function _altFiltKind(){return _bvOn()?'bond':_cxOn()?'ccy':_etfOn()?'etf':_phOn()?'chart':'';}
+function _altFiltActive(k){return k==='bond'?_bvActive():k==='ccy'?(_cxF.r?1:0):k==='etf'?(_etfF.c?1:0):0;}
 function _altFiltSync(){
   var k=_altFiltKind(),box=document.getElementById('alt-filt');if(!box)return;
   var s1=document.getElementById('filt-stock'),s2=document.getElementById('filt-stock-cols'),pc=document.getElementById('pf-filt-col');
@@ -7525,10 +7525,10 @@ function _altFiltSync(){
   if(s1)s1.style.display=k?'none':'';
   if(s2)s2.style.display=k?'none':'';
   var tl=document.querySelector('#filt-panel .fpop-title');
-  if(tl)tl.textContent=k==='bond'?'Bond filters':k==='ccy'?'Currency filters':k==='chart'?'Chart options':'Filters';
+  if(tl)tl.textContent=k==='bond'?'Bond filters':k==='ccy'?'Currency filters':k==='etf'?'ETF filters':k==='chart'?'Chart options':'Filters';
   var fb=document.getElementById('filt-show');if(fb&&k)fb.textContent='Done';
   var fc=document.getElementById('filt-count');
-  if(fc&&k){var n=document.getElementById(k==='bond'?'bv-n':k==='ccy'?'cx-n':'');fc.textContent=n?n.textContent:'';}
+  if(fc&&k){var n=document.getElementById(k==='bond'?'bv-n':k==='ccy'?'cx-n':k==='etf'?'etf-n':'');fc.textContent=n?n.textContent:'';}
   var cl=document.querySelector('#filt-panel .filter-clear');
   if(cl){cl.textContent=k==='chart'?'Reset':'Clear';cl.title=k==='chart'?'Back to Price, Max and the top five':'Clear every filter and close this panel';}
   var opt=function(v,l,cur){return '<option value="'+_attr(v)+'"'+(v===cur?' selected':'')+'>'+_esc(l)+'</option>';};
@@ -7542,6 +7542,10 @@ function _altFiltSync(){
       +'<label class="alt-chk"><input type="checkbox"'+(_bvF.u?' checked':'')+' onchange="_bvSet(\'u\',this.checked)"> Uncapped only</label>';
   }else if(k==='ccy'){
     box.innerHTML=lab('Rating')+'<select onchange="_cxSet(\'r\',this.value)" aria-label="Rating">'+opt('','All ratings',_cxF.r)+_CX_RATINGS.map(function(r){return opt(r,r,_cxF.r);}).join('')+'</select>';
+  }else if(k==='etf'){
+    var ec={};
+    Object.keys((ETF_LT&&ETF_LT.funds)||{}).forEach(function(t){ec[_etfCat(ETF_LT.funds[t])]=1;});
+    box.innerHTML=lab('Category')+'<select onchange="_etfSet(\'c\',this.value)" aria-label="Category">'+opt('','All categories',_etfF.c)+Object.keys(_ETF_CATS).filter(function(c){return ec[c];}).map(function(c){return opt(c,_ETF_CATS[c],_etfF.c);}).join('')+'</select>';
   }else box.innerHTML='';
   _altFiltBadge();
 }
@@ -7614,6 +7618,7 @@ function _filtClear(){
   var k=_altFiltKind();
   if(k==='bond')_bvReset();
   else if(k==='ccy')_cxSet('r','');
+  else if(k==='etf')_etfSet('c','');
   else if(k==='chart'){phReset();return;}
   else clearFilters();
   closeFiltMenu();
@@ -13795,7 +13800,7 @@ function qrRender(){
   if(own!=='etf'&&ETF_LT&&ETF_LT.funds){
     l=[];
     Object.keys(ETF_LT.funds).forEach(function(t){
-      var r=ETF_LT.funds[t],sc=_qrScore(t.toUpperCase(),(String(r.fund_name||'')+' '+(r.sector||'')).toUpperCase(),toks);
+      var r=ETF_LT.funds[t],sc=_qrScore(t.toUpperCase(),(String(r.fund_name||'')+' '+(r.sector||'')+' '+_ETF_CATS[_etfCat(r)]).toUpperCase(),toks);
       if(sc)l.push([sc,t,r.fund_name||r.sector||'',t]);
     });
     if(l.length)G.push({h:'ETFs',k:'etf',it:_qrTop(l,_QR_N.etf)});
@@ -15400,7 +15405,13 @@ function _fmSubTab(view,k){
    Each SPDR read through the model: V = sum of weight x FV/P over its
    holdings (clipped to [1/3, 3]), shown relative to SPY because the model's
    absolute read is mostly its market-wide bias. Display only — no rating. */
-var _etfSel=null;
+var _etfSel=null,_etfF={c:''};
+/* Registry categories (data/etf_funds.json), in the order the Filters
+   panel lists them. A payload from before the registry has no category:
+   a fund with a sector is a Select Sector, the rest broad. */
+var _ETF_CATS={broad:'Broad market',size:'Size',style:'Growth & value',dividend:'Dividend',factor:'Factor',sector:'Select Sector',industry:'Industry',thematic:'Thematic'};
+function _etfCat(r){return _ETF_CATS[r.category]?r.category:(r.sector?'sector':'broad');}
+function _etfSet(k,v){_etfF[k]=v;renderEtfView();_altFiltSync();}
 /* A sector SPDR's name only repeats its Sector column; the broad funds
    keep their index (S&P 500, Dow Jones Industrial Average, S&P MidCap 400). */
 function _etfShort(r){
@@ -15461,8 +15472,9 @@ function _etfDetail(r,corner){
   h+=corner?_noteQ(note,'About this read'):'<div class="etf-note">'+note+'</div>';
   return h+'</div>';
 }
-/* The top-bar search (#f-search) filters the fund table by ticker, name or
-   sector, as it does Bonds and Currencies. */
+/* The top-bar search (#f-search) filters the fund table by ticker, name,
+   sector or category, as it does Bonds and Currencies; the Filters panel
+   narrows it to one category (_etfF). */
 function _etfOn(){return curView==='matrix'&&curMSub==='etf'&&!document.documentElement.classList.contains('det-open');}
 function _etfQ(){var i=document.getElementById('f-search');return _etfOn()&&i?i.value:'';}
 /* A row opens that fund's Detail tab. */
@@ -15478,18 +15490,20 @@ function renderEtfLookthrough(){
   if(!_etfSel||!F[_etfSel])_etfSel=ETF_LT.base in F?ETF_LT.base:ids[0];
   var toks=_etfQ().toUpperCase().split(/\s+/).filter(function(t){return t;});
   var shown=ids.filter(function(t){
-    var hay=(t+' '+(F[t].fund_name||'')+' '+(F[t].sector||'')).toUpperCase();
+    if(_etfF.c&&_etfCat(F[t])!==_etfF.c)return false;
+    var hay=(t+' '+(F[t].fund_name||'')+' '+(F[t].sector||'')+' '+_ETF_CATS[_etfCat(F[t])]).toUpperCase();
     return toks.every(function(q){return hay.indexOf(q)>=0;});
   });
   var h='<div id="etf-lt">'+_fmBar('etf',[['table','Table'],['detail','Detail · '+_etfSel],['notes','Notes']],'ETF sections')
     +'<div class="fm-tabbed">'
-    +'<div data-pane="table"><div class="ppi-wrap fm-tbl"><table class="ppi-tbl"><thead><tr><th>Fund</th><th class="etf-sm-hide">Sector</th><th>Value vs '+ETF_LT.base+'</th><th>Model MoS</th><th>Has fair value</th></tr></thead><tbody>';
-  if(!shown.length)h+='<tr><td colspan="5">No fund matches “'+_esc(_etfQ().trim())+'”.</td></tr>';
+    +'<div data-pane="table"><div class="bv-ctl"><span class="bv-n" id="etf-n">'+shown.length+' of '+ids.length+' shown</span></div>'
+    +'<div class="ppi-wrap fm-tbl"><table class="ppi-tbl"><thead><tr><th>Fund</th><th class="etf-sm-hide">Category</th><th>Value vs '+ETF_LT.base+'</th><th>Model MoS</th><th>Has fair value</th></tr></thead><tbody>';
+  if(!shown.length)h+='<tr><td colspan="5">No fund matches '+(_etfQ().trim()?'“'+_esc(_etfQ().trim())+'”':'this category')+'.</td></tr>';
   shown.forEach(function(t){
     var r=F[t];
     h+='<tr class="ppi-co'+(t===_etfSel?' etf-sel':'')+'" data-tk="'+_attr(t)+'" onclick="_etfPick(this.dataset.tk)" title="'+_attr(r.fund_name||t)+'">'
       +'<td><b>'+_esc(t)+'</b><span class="etf-name">'+_esc(_etfShort(r))+'</span></td>'
-      +'<td class="etf-sm-hide">'+_esc(r.sector||'Broad')+'</td><td>'+_etfRelBar(r)+'</td>'
+      +'<td class="etf-sm-hide">'+_esc(r.sector||_ETF_CATS[_etfCat(r)])+'</td><td>'+_etfRelBar(r)+'</td>'
       +'<td>'+(r.status==='ok'?_etfPct(r.mos):'—')+'</td>'
       +'<td>'+(r.valued_w!=null?(r.valued_w*100).toFixed(0)+'%':'—')+'</td></tr>';
   });
@@ -15497,10 +15511,11 @@ function renderEtfLookthrough(){
     +'<div data-pane="detail" class="xsect-dashboard"><div class="sec-label">'+_esc(_etfSel)+'</div>'
     +'<div class="xsect-sub">'+_esc((F[_etfSel]&&F[_etfSel].fund_name)||'')+' · pick another fund in the Table</div>'
     +_etfcBox(_etfSel)+_etfDetail(F[_etfSel])+'</div>'
-    +'<div data-pane="notes" class="xsect-dashboard"><div class="sec-label">Sector ETFs Through the Model</div>'
-    +'<div class="xsect-sub">The SPDRs valued from the companies they hold. '+(base&&base.status==='ok'?ETF_LT.base+' itself reads '+_etfPct(base.mos)+' on the model.':'')+'</div>'
+    +'<div data-pane="notes" class="xsect-dashboard"><div class="sec-label">SPDR ETFs Through the Model</div>'
+    +'<div class="xsect-sub">The SPDR US equity funds whose holdings the model covers, valued from the companies they hold. '+(base&&base.status==='ok'?ETF_LT.base+' itself reads '+_etfPct(base.mos)+' on the model.':'')+'</div>'
     +'<div class="etf-detail fm-notes"><p>Each fund is valued as the sum of its holdings’ fair values per dollar of price (FV/P, each held to between ⅓ and 3). Because the model values the market as a whole below its price, the fund is compared with '+ETF_LT.base+' rather than read on its own.</p>'
     +'<p>In the Table, the bar is the fund’s value against '+ETF_LT.base+'; the outlined box is the range between counting holdings with no fair value at FV/P 1 and at ⅓. A holding that lost its fair value today keeps its last one from the previous week. Tap a fund for what moves its read.</p>'
+    +'<p>The list is every SPDR US equity fund with at least 80% of its weight in companies the model scores (data/etf_funds.json, refreshed by hand); international, bond and commodity funds are left out. A fund still reads only when 80% of its weight has a fair value that day.</p>'
     +'<p>Display only: no fund is rated.</p></div></div>'
     +'</div></div>';
   return h;
