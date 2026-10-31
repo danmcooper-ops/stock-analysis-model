@@ -273,7 +273,7 @@ if wants prices; then
   # shellcheck disable=SC2046
   run prices soft "$VPY" scripts/download_prices.py --output-dir output/prices --max-age-days 2 \
       --tickers $(ls output/prices/ | sed -n 's/\.parquet$//p') SPY QQQ IWM DIA \
-      MDY XLB XLC XLE XLF XLI XLK XLP XLRE XLU XLV XLY
+      $("$VPY" -c 'from data.etf_holdings import fund_tickers; print(*fund_tickers())')
   # Daily FX history per currency (data/fx_store.py): the majors plus every
   # currency the last snapshot reports in. The analysis converts foreign
   # filers with it; soft, because a currency the store lacks or holds only

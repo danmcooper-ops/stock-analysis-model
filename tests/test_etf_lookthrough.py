@@ -180,3 +180,80 @@ def test_payload_and_degraded_suppression(tmp_path, monkeypatch):
     assert report_html._build_etf_payload(rows, str(tmp_path), date(2026, 10, 20),
                                           run_provenance={'coverage': {'degraded': True}}) is None
     assert report_html._build_etf_payload(rows, str(tmp_path / 'none'), date(2026, 10, 20)) is None
+
+
+def test_registry_is_well_formed():
+    reg = etf_holdings.load_registry()
+    assert set(etf_holdings.SPDR_FUNDS) <= set(reg)
+    assert len(reg) > len(etf_holdings.SPDR_FUNDS)
+    assert etf_holdings.fund_tickers() == list(etf_holdings.ETF_FUNDS)
+    sectors = {s for s in etf_holdings.SPDR_FUNDS.values() if s}
+    for t, e in reg.items():
+        assert e['ticker'] == t and e['category'] in etf_holdings.CATEGORIES
+        # Only the Select Sectors carry a sector: sector pages key on it.
+        assert e['sector'] == etf_holdings.SPDR_FUNDS.get(t)
+        assert e['sector'] is None or e['sector'] in sectors
+
+
+def test_registry_keeps_the_14_whatever_the_file(tmp_path):
+    assert set(etf_holdings.load_registry(str(tmp_path / 'missing.json'))) == set(etf_holdings.SPDR_FUNDS)
+    p = tmp_path / 'r.json'
+    p.write_text(json.dumps({'funds': [
+        {'ticker': 'KRE', 'name': 'Regional Banking', 'category': 'industry', 'sector': None},
+        {'ticker': 'XLK', 'name': 'Technology', 'category': 'broad', 'sector': 'Energy'}]}), encoding='utf-8')
+    reg = etf_holdings.load_registry(str(p))
+    assert reg['KRE']['category'] == 'industry' and reg['KRE']['sector'] is None
+    assert reg['XLK']['sector'] == 'Technology' and reg['XLK']['category'] == 'sector'
+    assert set(etf_holdings.SPDR_FUNDS) < set(reg)
+
+
+def test_fetch_defaults_to_the_registry(monkeypatch, tmp_path):
+    from scripts import fetch_etf_holdings
+    seen = []
+    monkeypatch.setattr(etf_holdings, 'fetch_ssga', lambda t: seen.append(t) or (_ for _ in ()).throw(OSError('x')))
+    assert fetch_etf_holdings.main(['--out', str(tmp_path), '--delay', '0']) == 1
+    assert seen == etf_holdings.fund_tickers()
+
+
+def test_update_list_matching_and_categories():
+    from scripts import update_etf_list as u
+    h = {'holdings': [{'ticker': 'A', 'weight': 0.5, 'kind': 'security'},
+                      {'ticker': 'A2', 'weight': 0.2, 'kind': 'security'},
+                      {'ticker': 'ZZ', 'weight': 0.2, 'kind': 'security'},
+                      {'ticker': '', 'weight': 0.1, 'kind': 'cash'}]}
+    m, cash = u.matched_weight(h, {'A': {}}, {'A2': 'A'})
+    assert math.isclose(m, 0.8) and math.isclose(cash, 0.1)
+    assert u.categorize('XLK', 'Technology Select Sector', set()) == 'sector'
+    assert u.categorize('SDY', 'SPDR S&P Dividend ETF', {'equity'}) == 'dividend'
+    assert u.categorize('KRE', 'SPDR S&P Regional Banking', {'Sectors---Industries'}) == 'industry'
+    assert u.categorize('SPYG', 'Portfolio S&P 500 Growth', {'equity-style', 'Growth'}) == 'style'
+    assert u.categorize('DECO', 'Galaxy Digital Asset Ecosystem', {'equity-style', 'Growth'}) == 'thematic'
+    assert u.categorize('SPSM', 'Portfolio S&P 600 Small Cap', {'Small-Cap'}) == 'size'
+    assert u.categorize('SPTM', 'Portfolio S&P 1500 Composite', {'Core'}) == 'broad'
+    finder = {'data': {'funds': {'etfs': {
+        'datas': [{'fundTicker': 'KRE®', 'fundName': 'SPDR® S&P® Regional Banking ETF'}],
+        'categories': [{'key': 'assetclass', 'funds': 'KRE', 'subCategories': [
+            {'key': 'equity', 'funds': 'KRE', 'subCategories': [
+                {'key': 'Sectors---Industries', 'funds': 'KRE'}]}]}]}}}}
+    names, tags = u.parse_finder(finder)
+    assert names == {'KRE': 'SPDR S&P Regional Banking ETF'}
+    assert tags['KRE'] == {'assetclass', 'equity', 'Sectors---Industries'}
+
+
+def test_payload_carries_category_and_keeps_sector_fund(tmp_path, monkeypatch):
+    from scripts import report_html
+    monkeypatch.delenv('ETF_HOLDINGS_DIR', raising=False)
+    monkeypatch.setattr(etf_holdings, 'ETF_FUNDS', dict(
+        etf_holdings.load_registry(str(tmp_path / 'none.json')),
+        KRE={'ticker': 'KRE', 'name': 'Regional Banking', 'category': 'industry', 'sector': None}))
+    root = tmp_path / 'etf_holdings'
+    for fund in ('SPY', 'XLF', 'KRE'):
+        etf_holdings.save_holdings(str(root), {
+            'fund': fund, 'fund_name': fund, 'as_of': '2026-10-20', 'source': 'ssga',
+            'holdings': [{'ticker': 'A', 'name': 'A', 'weight': 1.0, 'kind': 'security'}]})
+    rows = [{'ticker': 'A', 'price': 10, '_fv_effective': 10, 'rating': 'BUY', 'sector': 'Financial Services'}]
+    p = report_html._build_etf_payload(rows, str(tmp_path), date(2026, 10, 20))
+    assert set(p['funds']) == {'SPY', 'XLF', 'KRE'}
+    assert p['funds']['KRE']['category'] == 'industry' and p['funds']['KRE']['sector'] is None
+    assert p['funds']['XLF']['category'] == 'sector'
+    assert p['sector_fund'] == {'Financial Services': 'XLF'}

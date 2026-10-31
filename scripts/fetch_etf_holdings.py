@@ -1,8 +1,11 @@
 # scripts/fetch_etf_holdings.py
 """Fetch and archive the SPDR funds' daily holdings (data/etf_holdings.py).
 
-    python scripts/fetch_etf_holdings.py                 # all 14 funds
+    python scripts/fetch_etf_holdings.py                 # every registry fund
     python scripts/fetch_etf_holdings.py --funds SPY XLK
+
+The funds are data/etf_funds.json's (scripts/update_etf_list.py refreshes it)
+plus the 14 SPDR_FUNDS, about 70 at 1 s apart.
 
 Each file lands as output/etf_holdings/<FUND>/<as_of>.json.gz, so the render's
 look-through (report_html._build_etf_payload) reads the newest file dated on
@@ -25,7 +28,7 @@ logger = logging.getLogger('fetch_etf_holdings')
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[1])
-    ap.add_argument('--funds', nargs='+', default=list(etf_holdings.SPDR_FUNDS))
+    ap.add_argument('--funds', nargs='+', default=etf_holdings.fund_tickers())
     ap.add_argument('--out', default=etf_holdings.DEFAULT_ROOT)
     ap.add_argument('--delay', type=float, default=1.0,
                     help='seconds between requests (default 1.0)')

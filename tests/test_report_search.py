@@ -44,7 +44,7 @@ def _run(tmp_path, view, msub, queries):
     src = _src()
     lifted = '\n'.join(_fn(n, src) for n in (
         '_buildSearchMemo', '_relScore', '_qrActive', '_qrOwn', '_qrScore', '_qrTop',
-        'qrRender', '_bvIdx', '_bvHay', '_attr'))
+        'qrRender', '_bvIdx', '_bvHay', '_attr', '_etfCat'))
     body = f"""
 var box={{innerHTML:'',cls:{{}},classList:{{add:function(c){{box.cls[c]=1;}},remove:function(c){{delete box.cls[c];}},contains:function(c){{return !!box.cls[c];}}}}}};
 var inp={{value:''}};
@@ -55,6 +55,7 @@ var DATA={json.dumps(STOCKS)},ETF_LT={json.dumps(ETFS)},CCY_META={json.dumps(CCY
 var _BV={json.dumps(BONDS)},_BV_FAILED=false,_CX=null,_bvIdxMap=null;
 var curView={json.dumps(view)},curMSub={json.dumps(msub)};
 {_var('_QR_N', src)}
+{_var('_ETF_CATS', src)}
 {lifted}
 var out={{}};
 {json.dumps(queries)}.forEach(function(q){{
