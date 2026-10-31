@@ -1272,7 +1272,7 @@ _GATE_DISPLAY = {
     'fv_dispersion': {'label': 'FV Dispersion', 'threshold': 'Model MAD <= 15%', 'fmt': 'pct1'},
     'ebit_ev': {'label': 'EBIT/EV', 'threshold': 'EBIT/EV > 8%', 'fmt': 'pct1'},
     'int_coverage': {'label': 'Int Cov', 'threshold': 'IC > 3x', 'fmt': 'ratio'},
-    'accruals': {'label': 'Accruals', 'threshold': '|Acr| < 8%', 'fmt': 'pct1'},
+    'accruals': {'label': 'Accruals', 'threshold': 'Accruals < 8%', 'fmt': 'pct1'},
     'shrhldr_yield': {'label': 'Shrhldr Yld', 'threshold': 'Yield > 2%', 'fmt': 'pct1'},
     'insider_own': {'label': 'Insider %', 'threshold': 'Insider >= 5%', 'fmt': 'pct1'},
     'insider_buying': {'label': 'Insider Buys', 'threshold': 'Buy ratio >= 50%', 'fmt': 'pct1'},
