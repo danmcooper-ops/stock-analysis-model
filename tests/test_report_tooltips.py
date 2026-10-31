@@ -85,7 +85,7 @@ def test_every_tip_closes_on_scroll_and_on_view_or_ticker_change():
         body = _fn_src(fn, src)
         assert '_hideFloatTips();' in body.split('\n')[0] + body.split('\n')[1], fn
     close = re.search(r'^function closeDetail\(\)\{.*\}$', src, re.M).group(0)
-    assert close.endswith('_hideFloatTips();}')
+    assert '_hideFloatTips();' in close
 
 
 def _col_tip(key, label='L', body=None):

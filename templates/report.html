@@ -12986,7 +12986,7 @@ function openDet(tk){
   _dm.scrollTop=0;
   _lockBody();
 }
-function closeDetail(){closeDetMenus();var _dm=document.getElementById('det-modal');_dm.classList.remove('open');_detHdrReset();if(_stmtFs)stmtFsToggle(false);_unlockBody();_detOpenState(false);_lqDet(null);_hideFloatTips();}
+function closeDetail(){closeDetMenus();var _dm=document.getElementById('det-modal');_dm.classList.remove('open');_detHdrReset();if(_stmtFs)stmtFsToggle(false);_hideFloatTips();_unlockBody();_detOpenState(false);_lqDet(null);}
 /* Pin the page while the popup is open. body{overflow:hidden} — the old
    lock — is ignored by iOS Safari: the table kept scrolling under the
    popup, and that scroll collapsed/expanded the browser toolbars, thrashing
