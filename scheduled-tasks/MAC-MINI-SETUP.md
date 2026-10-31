@@ -410,7 +410,7 @@ Things to know:
 
 ## 9. Paper trading (optional)
 
-`scripts/paper_trade.py` holds the `paper` portfolio (every BUY and LEAN BUY,
+`scripts/paper_trade.py` holds the `paper` portfolio (every BUY,
 equal-weighted) in an **Alpaca paper account** and rebalances it each trading
 morning from the newest finished snapshot. It is paper only: the client
 refuses any endpoint but `paper-api.alpaca.markets`.
