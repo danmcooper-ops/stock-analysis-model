@@ -4491,7 +4491,7 @@ var COUNTRY_ISO3 = {
 var ISO_TO_COUNTRY = {};
 Object.keys(COUNTRY_ISO3).forEach(function(k){ISO_TO_COUNTRY[COUNTRY_ISO3[k]]=k;});
 var _poolTab='__performance__';
-function showPoolTab(sec){_poolTab=sec||'__performance__';renderPool();window.scrollTo({top:0,behavior:'auto'});}
+function showPoolTab(sec){_hideFloatTips();_poolTab=sec||'__performance__';renderPool();window.scrollTo({top:0,behavior:'auto'});}
 function xsToggle(hdr){var c=hdr&&hdr.parentElement;if(c)c.classList.toggle('open');}
 /* Landing view: the Macro Overview when this snapshot carries macro data —
    top-down context first — otherwise Sector Analysis. The hash omits v only
@@ -6877,7 +6877,7 @@ rev_volatility:'Rev Volatility = σ of year-over-year revenue growth — how ste
 fcf_yield:'FCF Yield = Free Cash Flow / Market Cap, judged against the risk-free rate. An absolute, model-independent floor on value — does the cash the business throws off beat a Treasury? — that holds whether or not the fair-value models agree.',
 dcf_fv:'FV = Σ FCFₜ/(1+WACC)ᵗ + terminal value — every future free cash flow, discounted back to today. Treat the figure as a range; the assumptions, not the arithmetic, drive it.',
 price:'The market’s offer for today — one you are never obliged to accept. Price is what you pay; value is what you get.',
-mos:'MoS = (Fair Value − Price) / Fair Value — the discount the market hands you, and the room your analysis has to be wrong. Demand 20–30% at minimum; 40%+ is compelling.',
+mos:'MoS = (Fair Value − Price) / Fair Value — the discount the market hands you, and the room your analysis has to be wrong. The gate passes above 10% and scores in full at 40%; the Summary PDF\u2019s INVEST verdict asks for 15%.',
 pe:'P/E = Price / Earnings per Share — a first-pass screen. A low P/E means little by itself; a low P/E with high ROIC and cash-backed earnings is one of the most reliable combinations in fundamental analysis.',
 ev_ebitda:'EV/EBITDA = (Market Cap + Net Debt) / EBITDA — a multiple the capital structure cannot flatter, since it prices the whole enterprise. But it flatters capex-heavy businesses, where EBITDA ignores the reinvestment needed just to stand still.',
 pfcf:'P/FCF = Price / Free Cash Flow — the multiple paid on owner earnings, the cash left after the business has paid its way. Below 20× is reasonable; below 15×, attractive.',
@@ -6907,7 +6907,7 @@ roe:'ROE = Net Income / Equity. Look for 15%+ earned without leverage; the DuPon
 roa:'ROA = Net Income / Assets — profitability with the leverage stripped out. A high ROA is structural efficiency, the kind that compounds.',
 cash_conv:'Cash Conversion = Operating Cash Flow / Net Income. Earnings are opinions; cash is fact. Persistently below 0.8 points to accounting or working-capital trouble.',
 gross_margin:'Gross Margin = (Revenue − COGS) / Revenue — the first test of a moat. Pricing power is the single most important trait in evaluating a business; above 40% is a premium competitors cannot replicate.',
-accruals:'Accruals = (Net Income − Operating Cash Flow) / Average Assets — the slice of profit not backed by cash. Sloan (1996) showed high-accrual firms systematically underperform; above 5%, scrutinise revenue recognition.',
+accruals:'Accruals = (Net Income − Operating Cash Flow) / Average Assets — the slice of profit not backed by cash. Sloan (1996) showed high-accrual firms systematically underperform. The gate passes below 8% (negative accruals, cash ahead of profit, always pass) and scores by sector percentile, lower is better.',
 rev_cagr:'CAGR = (Revₙ/Rev₀)^(1/3) − 1 over the past three years. Growth with stable margins signals pricing power and durable demand; growth without them is bought, not earned.',
 dupont_margin:'Net Margin = Net Income / Revenue — the first DuPont pillar. The best businesses pair pricing power with cost discipline and keep more of every revenue dollar.',
 dupont_turnover:'Asset Turnover = Revenue / Assets — the second DuPont pillar. Asset-light businesses, software and brands above all, generate more revenue per dollar deployed: the preferred structure.',
@@ -8288,7 +8288,7 @@ function ftc(v,f){
 /* The Financial Data sub-tab buttons moved into the nav dropdown (TL still
    drives their labels there, and the column-filter optgroups below). */
 function renderTSubs(){renderNavMenu();}
-function swTSub(s){curTSub=s;tSC='rating';tSA=true;_tUserSorted=false;_syncWideTable();renderTSubs();moveFilterBar('table');var tw=document.querySelector('#view-table .table-wrap'),phv=document.getElementById('ph-view');if(s==='prices'){if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else if(_phSeedStale){_phResync();}else{_buildPHSearch();_buildPHIndexBtns();renderPHChart();}}else{if(tw)tw.style.display='';if(phv)phv.style.display='none';renderTable();setTimeout(_setTableH,0);}_syncHash();}
+function swTSub(s){_hideFloatTips();curTSub=s;tSC='rating';tSA=true;_tUserSorted=false;_syncWideTable();renderTSubs();moveFilterBar('table');var tw=document.querySelector('#view-table .table-wrap'),phv=document.getElementById('ph-view');if(s==='prices'){if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else if(_phSeedStale){_phResync();}else{_buildPHSearch();_buildPHIndexBtns();renderPHChart();}}else{if(tw)tw.style.display='';if(phv)phv.style.display='none';renderTable();setTimeout(_setTableH,0);}_syncHash();}
 function renderTable(){
   /* Copy the tab's column list (never mutate the shared TC array), relabel
      Rating as "Today's Rating", and inject a "Yesterday's Rating" column right
@@ -10101,6 +10101,10 @@ var _TIP_AUTO_MS=4000;
    the tooltip MUST NOT cover. That side is skipped in the cascade AND in the
    final clamp (so e.g. a column-header tip never falls onto the column). */
 function _placeTip(rect,tipEl,opts){
+  /* Measure at the origin: a fixed box shrink-wraps to the room left of
+     wherever it last sat, so measured in place it reads narrower than it
+     will be, and the clamp lets it run past the right gutter. */
+  tipEl.style.left='0px';tipEl.style.top='0px';
   var tw=tipEl.offsetWidth,th=tipEl.offsetHeight;
   var vw=window.innerWidth,vh=window.innerHeight;
   var M=8,P=8;
@@ -10114,12 +10118,16 @@ function _placeTip(rect,tipEl,opts){
   placed=tryAbove()||tryBelow()||tryRight()||tryLeft();
   if(!placed){
     /* No side fully fits. Clamp to whichever vertical side is roomier, but
-       never to the avoided side. */
+       never to the avoided side. When even that side is too short (a
+       column header near the top of a phone, with below ruled out), the
+       clamp would land the tip on the source itself, so pin it to the
+       viewport edge farther from the source instead. */
     var canAbove=(av!=='above'),canBelow=(av!=='below');
     var goAbove=canAbove&&(!canBelow||sA>=sB);
-    if(goAbove){top=Math.max(P,rect.top-th-M);}
-    else if(canBelow){top=Math.min(vh-th-P,rect.bottom+M);}
-    else {top=Math.max(P,rect.top-th-M);}
+    var fits=goAbove?sA>=th+M:(canBelow&&sB>=th+M);
+    if(!fits){top=(rect.top+rect.bottom)/2<vh/2?vh-th-P:P;}
+    else if(goAbove){top=rect.top-th-M;}
+    else {top=rect.bottom+M;}
     left=rect.left;
   }
   left=Math.max(P,Math.min(left,vw-tw-P));
@@ -10221,6 +10229,20 @@ function _showColTip(label,body,threshold,rectOrX,y){
   clearTimeout(_ctAutoTimer);
 }
 function _hideColTip(){clearTimeout(_ctTimer);clearTimeout(_ctAutoTimer);_ctEl.style.display='none';}
+/* Every floating tip is position:fixed and placed once, from its source's
+   rect at show time, so anything that moves the source strands the tip
+   over unrelated content (a header tip left on its own column's rows after
+   a scroll). Close them all on any scroll — window or inner scroller, hence
+   capture — and on every view, sub-tab or ticker change, which a swipe or
+   hotkey reaches without the click that otherwise closes them. */
+function _hideFloatTips(){
+  _hideColTip();
+  clearTimeout(_tipTimer);clearTimeout(_tipHideTimer);_hideTip();
+  if(window._hidePopupTip)window._hidePopupTip();
+  ['chart-tip','pool-tt','pp-quad-tip'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
+}
+document.addEventListener('scroll',_hideFloatTips,{capture:true,passive:true});
+window.addEventListener('orientationchange',_hideFloatTips);
 
 /* === DETAIL POPUP TOOLTIPS (hover + tap) === */
 (function(){
@@ -10253,6 +10275,7 @@ function _hideColTip(){clearTimeout(_ctTimer);clearTimeout(_ctAutoTimer);_ctEl.s
     return true;
   }
   function _hideTipP(){clearTimeout(_ptAutoTimer);_pt.style.display='none';_pinEl=null;}
+  window._hidePopupTip=_hideTipP;
   /* Hover — desktop only (skipped while a tip is pinned): moving onto a
      label shows its tip, and moving off leaves it up; only a click
      elsewhere closes it. On touch devices, mouseover fires from synthetic
@@ -10292,7 +10315,11 @@ function _colTipContent(th){
   var threshold=th.getAttribute('data-col-threshold')||'';
   var body=TT[key]||'';
   /* generic fallback for score columns */
-  if(!body&&key.indexOf('_score_')===0){var gname=key.replace('_score_','').replace(/_/g,' ');body='Continuous score 0\u2013100 for the '+gname+' gate. Averaged within its category to produce the category total.';}
+  /* A category's Total column shares the _score_ prefix with the gates'
+     score columns, so match it first or it reads as a "moat gate". */
+  var cat=!body&&GM.categories.filter(function(c){return c.scoreKey===key;})[0];
+  if(cat)body=cat.name+' category score, 0\u2013100: the weighted average of its gates\u2019 scores, each counting its full weight. A gate that cannot apply (N/A) scores 0, so the category is scored out of every gate in it. Weighted '+Math.round(cat.weight*100)+'% of the composite score.';
+  if(!body&&key.indexOf('_score_')===0){var gname=key.replace('_score_','').replace(/_/g,' ');body='Continuous score 0\u2013100 for the '+gname+' gate. Weighted into its category\u2019s total; N/A when the gate cannot apply, which the total counts as 0.';}
   if(!body&&key.indexOf('_gate_')===0){var gname2=key.replace('_gate_','').replace(/_/g,' ');body='Raw metric value for the '+gname2+' gate.';}
   /* Inline body fallback \u2014 used by Sector Heatmap headers whose descriptions
      aren't in TT and are emitted via data-col-tip-body. */
@@ -12549,6 +12576,7 @@ function exportStmtPdf(){
   setTimeout(function(){try{fr.contentWindow.focus();fr.contentWindow.print();}catch(e){}},250);
 }
 function openDet(tk){
+  _hideFloatTips();
   var d=DATA.find(function(x){return x.ticker===tk;});
   if(!d)return;
   /* Kill the row-hover ticker tooltip. The cell that spawned it is (or is
@@ -12958,7 +12986,7 @@ function openDet(tk){
   _dm.scrollTop=0;
   _lockBody();
 }
-function closeDetail(){closeDetMenus();var _dm=document.getElementById('det-modal');_dm.classList.remove('open');_detHdrReset();if(_stmtFs)stmtFsToggle(false);_unlockBody();_detOpenState(false);_lqDet(null);}
+function closeDetail(){closeDetMenus();var _dm=document.getElementById('det-modal');_dm.classList.remove('open');_detHdrReset();if(_stmtFs)stmtFsToggle(false);_unlockBody();_detOpenState(false);_lqDet(null);_hideFloatTips();}
 /* Pin the page while the popup is open. body{overflow:hidden} — the old
    lock — is ignored by iOS Safari: the table kept scrolling under the
    popup, and that scroll collapsed/expanded the browser toolbars, thrashing
@@ -13073,6 +13101,7 @@ function _innerSubTabs(){
   return null;
 }
 function _swipeTab(dir){
+  _hideFloatTips();
   var bar=_innerSubTabs();
   if(bar){
     var bs=[].slice.call(bar.querySelectorAll('.d-stmt-tab')),ci=-1;
@@ -13381,6 +13410,7 @@ function _resetTableScroll(wrap){
   }
 }
 function showView(v){
+  _hideFloatTips();
   curView=v;
   document.querySelectorAll('.view').forEach(function(el){el.classList.remove('active')});
   document.getElementById('view-'+v).classList.add('active');
@@ -13415,6 +13445,7 @@ function _stkTabs(){return [{k:'matrix',l:'Model'}].concat(Object.keys(TL).filte
 function _stkCur(){return curView==='table'&&curTSub!=='prices'?curTSub:'matrix';}
 /* Investing › Stocks' second row: the Gate Matrix or one data table. */
 function stkGo(k){
+  _hideFloatTips();
   _drillLeave();
   _stkLast=k;
   if(k==='matrix'){curMSub='matrix';if(curView!=='matrix')showView('matrix');else swMSub('matrix');}
@@ -13577,6 +13608,7 @@ function _syncNavCrumb(){
 /* k omitted (the group header was clicked) = go to the view, keeping
    whichever sub-tab it was last on. */
 function navGo(v,k){
+  _hideFloatTips();
   closeNavMenu();
   _drillLeave();
   /* A top-level entry (a sidebar row, or its number hotkey) carries no
@@ -15367,6 +15399,7 @@ function _fmKeep(view,k){
   try{localStorage.setItem('stock_fm_subtab_v1',JSON.stringify(_FM_SUB));}catch(e){}
 }
 function _fmSubTab(view,k){
+  _hideFloatTips();
   _fmKeep(view,k);
   var root=document.getElementById('m-'+view+'-view');
   if(view==='ccy'){_cxView=k;if(k==='table'||k==='matrix'||k==='map')_cxDraw();}
@@ -17395,8 +17428,14 @@ function renderCrossSectorDashboard(){
       }
       return sy;
     }).filter(function(v){return v!=null&&!isNaN(v);});
-    var fcfMVals=cos.map(function(d){return d.fcf_margin;}).filter(function(v){return v!=null&&!isNaN(v);});
-    var altZVals=cos.map(function(d){return d.altman_z;}).filter(function(v){return v!=null&&!isNaN(v);});
+    /* A lender's free cash flow is deposit and loan flow, and Altman Z was
+       built for industrial balance sheets, so neither says anything about a
+       bank: left out (the industry rule _phIsLender uses), as scoring masks
+       a lender's FCF gates. Otherwise banks put Financial Services at the
+       top of the FCF column. */
+    var nonLend=cos.filter(function(d){return !(d.sector==='Financial Services'&&/Bank|Mortgage|Credit Services|Capital Markets/.test(d.industry||''));});
+    var fcfMVals=nonLend.map(function(d){return d.fcf_margin;}).filter(function(v){return v!=null&&!isNaN(v);});
+    var altZVals=nonLend.map(function(d){return d.altman_z;}).filter(function(v){return v!=null&&!isNaN(v);});
     _sumStats.push({
       sector:sec,n:sorted.length,wtdM:wtdM,hhi:hhi,cr4:cr4,
       medMos:_sumMed(mosVals),medPTBV:_sumMed(ptbvVals),medEV:_sumMed(evVals),
@@ -17522,27 +17561,27 @@ function renderCrossSectorDashboard(){
     return'<th data-sort="'+key+'" onclick="_heatSort(\''+key+'\')" style="width:'+width+'px'+(leftAlign?';text-align:left':'')+'" data-col-tip="heat_'+key+'" data-col-label="'+_attr(label)+'" data-col-tip-body="'+_attr(title)+'"><span class="th-inner"><span>'+label+'<span class="heat-arrow"></span></span></span></th>';
   }
   var _heatTableHtml=_sumStats.length
-    ?_qHelp('<span class="note-q-t">Values are sector medians; green is best and red worst within each column. Tap a header to sort, a sector to open its page.</span>','How to read the heatmap','corner')
+    ?_qHelp('<span class="note-q-t">Most values are sector medians; Op Margin is revenue-weighted, and Cos, HHI, CR4 and BUY % describe the whole sector. Green is best and red worst within each column. Tap a header to sort, a sector to open its page.</span>','How to read the heatmap','corner')
       +'<div class="sec-label" style="margin-bottom:14px">Sector Heatmap</div>'
       /* Compact column widths so the full 16-column heatmap fits within a
          standard laptop viewport without horizontal scrolling. Sector column
          is wide enough for "Communication Services"; all metric columns
          share one width so the eye scans across a uniform grid. */
       +'<div class="table-wrap"><table class="dt heatmap-table"><thead><tr>'
-        +_th('sector','Sector',130,'GICS sector. Only compare businesses against genuinely similar economics.',true)
+        +_th('sector','Sector',130,'Sector as Yahoo Finance classifies it (close to GICS, not the same). Only compare businesses against genuinely similar economics.',true)
         +_th('n','Cos',60,'Sector pool size. Structure matters more than effort: crowded sectors compete margins to zero; lean ones favor incumbents.')
         +_th('hhi','HHI',60,'HHI = Σ(market share)². > 0.25 = oligopoly with pricing power; < 0.15 = fragmented. In a commodity business, pricing is set by the least disciplined competitor.')
         +_th('cr4','CR4',60,'CR4 = Top-4 Revenue / Total Sector Revenue. > 80% = true oligopoly; < 50% = fragmented. Industry structure is a bigger predictor of high returns than management.')
-        +_th('medMos','MoS',56,'Median (FV − Price) / FV vs. DCF. 20%+ across a sector — verify the discount is real, not deserved.')
+        +_th('medMos','MoS',56,'Median (FV − Price) / FV, on each company’s effective fair value (its models blended, not the DCF alone). 20%+ across a sector — verify the discount is real, not deserved.')
         +_th('medPTBV','P/TBV',60,'Median Price / Tangible Book Value. The strictest asset floor — strips goodwill/intangibles to what the business could actually liquidate. Cheap P/TBV only attractive when ROIC justifies it; otherwise a value trap.')
         +_th('medEV','EV/EBITDA',64,'Median (Mkt Cap + Net Debt) / EBITDA. Capital-structure-neutral; misleading at cyclical troughs. Owner earnings are more trustworthy than EBITDA.')
         +_th('wtdM','Op Margin',64,'Op Margin = Σ(Op Margin × Revenue Share). Pricing power is the single most important trait. Sustained 20%+ = where moats live.')
         +_th('medGrowth','Rev CAGR',64,'Median 5Y Revenue CAGR. Growth + stable margins = pricing power. Avoid growth for growth’s sake — growth without margins is destruction at scale.')
-        +_th('medFCFM','FCF Margin',64,'Median FCF / Revenue. Earnings are opinions; cash is a fact. High FCF margin → genuine owner earnings.')
+        +_th('medFCFM','FCF Margin',64,'Median FCF / Revenue, lenders left out (a bank’s cash flow is deposit and loan flow). Earnings are opinions; cash is a fact. High FCF margin → genuine owner earnings.')
         +_th('medROIC','ROIC',60,'Median NOPAT / Invested Capital. The single most important quality metric. > 15% across a sector = compounder territory.')
         +_th('medSpread','ROIC–WACC',68,'Median (ROIC − WACC) — the sector’s economic profit. > 5% = capital genuinely productive. The best investments sit where the gap is wide and durable.')
         +_th('medNDEB','ND/EBITDA',68,'Median (Debt − Cash) / EBITDA. < 2× = strength; > 4× = rolling-credit dependence when markets sour.')
-        +_th('medAltZ','Altman Z',60,'Median Altman Z. > 3.0 = sector-wide health; < 1.8 = distress across the cohort. Avoid permanent capital loss — Z flags the line before the market does.')
+        +_th('medAltZ','Altman Z',60,'Median Altman Z, lenders left out (Z was built for industrial balance sheets). > 3.0 = sector-wide health; < 1.8 = distress across the cohort. Avoid permanent capital loss — Z flags the line before the market does.')
         +_th('medShrYld','Shr Yld',60,'Median (Dividends + Net Buybacks) / Mkt Cap. The best use of cash when the stock is cheap is to buy it back. 4%+ cohort-wide = disciplined capital allocation.')
         +_th('pctBuy','BUY %',60,'Share of sector rated BUY or LEAN BUY. High concentration = clusters of margin of safety. A focus signal, not a substitute for analysis.')
       +'</tr></thead><tbody id="heat-tbody"></tbody></table></div>'
@@ -17795,6 +17834,7 @@ function _ppSubTabs(body,has){
   return {bar:bar,body:'<div class="pp-tabbed" data-tab="'+cur+'">'+body+'</div>'};
 }
 function _ppSubTab(btn){
+  _hideFloatTips();
   var k=btn.getAttribute('data-k'),area=document.getElementById('pool-chart-area');
   if(!area)return;
   var wrap=area.querySelector('.pp-tabbed');
