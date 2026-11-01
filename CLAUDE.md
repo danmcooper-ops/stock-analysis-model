@@ -1170,6 +1170,12 @@ ruff check .
     table. The non-stock jumps are drills, so ‹ Back returns. On a table view
     the list leaves out the table's own kind and preselects nothing, so Enter
     still only filters. Tests: `tests/test_report_search.py`.
+  - **Page help (`#hdr-help`):** a ? at the top bar's right end, on every
+    page, opens what the page is for: a blurb per page (`_HELP_TXT`, keyed
+    by `_helpKey`) plus any element the view rendered with class `pg-help`,
+    which is hidden in place (a portfolio's description and counts line).
+    Explanatory text goes there, not on the page. Tests:
+    `tests/test_report_help.py`.
   - **Ticker page:** the `#det-modal` popup is now a page beside the sidebar,
     with section tabs (`#d-tabs`). It shows a one-day change taken from the
     `px/` shard. The three filed statements share one Finances tab, right
