@@ -5475,18 +5475,15 @@ function _pfOverviewHtml(){
   var defs=_pfDefs();
   var h='<div class="pfv"><div class="pfv-head"><h2>Portfolios</h2>'
     +(PF_PUB.prev_date?'<span class="pfv-sub">changes vs '+_pfEsc(PF_PUB.prev_date)+'</span>':'')
-    +'<span class="pf-spacer"></span><button class="pf-btn" onclick="pfManageOpen()">Manage…</button></div>'+_pfSystemicHtml()+_pfSyncNote();
+    /* Manage, the layout and the sort sit behind the top bar's funnel
+       (_altFiltSync kind 'pf'). */
+    +'</div>'+_pfSystemicHtml()+_pfSyncNote();
   if(!defs.length){
     return h+'<div class="pfv-empty"><p><b>No portfolios yet.</b> A portfolio is a named group of stocks — picked by hand, defined by a rule, or both — and a stock can be in as many as you like.</p>'
       +'<p>Filter the Investing › Stocks table and choose <b>Save filter as portfolio</b> in the Filters panel, add a stock from its popup (the folder button), or start one here.</p>'
       +'<button class="pf-btn pf-primary" onclick="pfNewEmpty()">+ New portfolio</button></div></div>';
   }
   var sums=_pfOvSorted(defs.map(_pfSummary));
-  h+='<div class="pfv-ov-bar"><div class="pfm-seg" role="group" aria-label="Layout">'
-    +[['cards','Cards'],['table','Table']].map(function(m){var on=_pfOv.mode===m[0];return'<button type="button" class="pfm-seg-b'+(on?' on':'')+'" aria-pressed="'+on+'" onclick="pfOvMode(\''+m[0]+'\')">'+m[1]+'</button>';}).join('')+'</div>'
-    +(_pfOv.mode==='cards'?'<label class="pfv-ov-sort">Sort <select class="pf-btn" onchange="pfOvSort(this.value)">'
-      +_PF_OV_COLS.filter(function(c){return c.card;}).map(function(c){return'<option value="'+c.k+'"'+(c.k===_pfOv.k?' selected':'')+'>'+c.card+'</option>';}).join('')+'</select></label>':'')
-    +'</div>';
   h+='<h3 class="pfv-h3"><span class="sec-label">Your Portfolios</span></h3>';
   if(_pfOv.mode==='table')h+=_pfOvTable(sums);
   else h+='<div class="pfv-grid">';
@@ -5711,6 +5708,7 @@ function _pfSubTab(btn){
   /* Charts measure their container, which is 0 wide while its pane is hidden. */
   if(k==='perf'){_pfDrawChart();_pfContribDraw();}
   if(k==='paper')_ppaDraw();
+  _altFiltSync();
   if(btn.parentNode.getBoundingClientRect().top<0)btn.parentNode.scrollIntoView({block:'start'});
 }
 /* A focusable ticker link (Enter opens the popup; see the keydown hook
@@ -5896,19 +5894,16 @@ function _pfmHtml(id){
     var out=hs.rows.filter(function(r){return !mem[r.row];}).map(function(r){return r.ticker;});
     if(out.length)away='<div class="pfc-notes">Held but not a member today (not in the universe, or excluded): '+_pfEsc(out.join(', '))+'. They still count in the holdings totals.</div>';
   }
-  return'<div class="pfm-top"><div class="pfm-seg pfm-cols" role="group" aria-label="Column set">'
-    +_pfmPresets(id).map(function(pr){var on=pr.id===_pfm.preset;return'<button type="button" class="pfm-seg-b'+(on?' on':'')+'" aria-pressed="'+on+'" onclick="pfmPreset(\''+pr.id+'\')">'+pr.l+'</button>';}).join('')
-    +'</div><input type="search" class="pfm-q" placeholder="Filter by ticker or name" aria-label="Filter members" value="'+_pfEsc(_pfm.q)+'" oninput="pfmQuery(this.value)">'
-    +'<span class="pf-muted pfm-n" id="pfm-n">'+(t.shown<t.total?t.shown+' of '+t.total:'')+'</span>'
-    +'<button type="button" class="pf-btn pfm-csv" onclick="pfmCsv()" title="Download the rows shown, with this column set, as CSV">CSV</button></div>'
-    +'<div class="pfv-tbl-wrap pfm-wrap"><table class="pfv-tbl pfm-tbl" id="pfm-tbl">'+t.html+'</table></div>'+away;
+  /* Column set, the name filter and CSV sit behind the top bar's funnel
+     (_altFiltSync kind 'pf', on this sub-tab); the count is the panel's. */
+  _altN.pf=[t.shown,t.total];
+  return'<div class="pfv-tbl-wrap pfm-wrap"><table class="pfv-tbl pfm-tbl" id="pfm-tbl">'+t.html+'</table></div>'+away;
 }
 function _pfmRedraw(){
   var tb=document.getElementById('pfm-tbl');if(!tb||!_pfm.id||!_pfById[_pfm.id])return;
   var t=_pfmTable(_pfm.id);tb.innerHTML=t.html;
-  var n=document.getElementById('pfm-n');if(n)n.textContent=t.shown<t.total?t.shown+' of '+t.total:'';
-  var bs=document.querySelectorAll('.pfm-cols .pfm-seg-b'),ps=_pfmPresets(_pfm.id);
-  for(var i=0;i<bs.length&&i<ps.length;i++){var on=ps[i].id===_pfm.preset;bs[i].classList.toggle('on',on);bs[i].setAttribute('aria-pressed',on);}
+  _altN.pf=[t.shown,t.total];
+  if(typeof _filtCountSync==='function'){_filtCountSync();_altFiltBadge();}
 }
 /* Momentum needs closes: fetch the members' px/ shards once, then redraw. */
 function _pfmNeedPx(){
@@ -5916,7 +5911,7 @@ function _pfmNeedPx(){
   var id=_pfm.id;
   _pfWithPx(_pfMembers(id),function(){if(_pfm.id!==id)return;_pfm.px=true;_pfmRedraw();});
 }
-function pfmPreset(pid){_pfm.preset=_pfmPreset(pid).id;_pfmSave();_pfmRedraw();_pfmNeedPx();}
+function pfmPreset(pid){_pfm.preset=_pfmPreset(pid).id;_pfmSave();_pfmRedraw();_pfmNeedPx();_altFiltSync();}
 function pfmSort(k){
   var pr=_pfmPreset(_pfm.preset),ss=_pfmSortState(pr);
   if(ss.k===k){_pfm.k=k;_pfm.asc=!ss.asc;}
@@ -7365,7 +7360,8 @@ function _filtCountSync(){
   var fc=document.getElementById('filt-count');if(!fc)return;
   var k=_altFiltKind(),f=function(n){return (+n||0).toLocaleString();};
   var w={bond:['bond','bonds'],ccy:['currency','currencies'],etf:['ETF','ETFs']}[k];
-  if(k==='chart'||k==='pf'){fc.textContent='';return;}
+  if(k==='chart'||(k==='pf'&&!_pfMembersOn())){fc.textContent='';return;}
+  if(k==='pf')w=['stock','stocks'];
   if(!k){fc.textContent=f(FD.length)+' of '+f(DATA.length)+' stock'+(DATA.length===1?'':'s');return;}
   var a=_altN[k];
   if(!a){fc.textContent='';return;}
@@ -7516,9 +7512,10 @@ function _positionFpop(panel,btn){
    (which have no rows there to filter), titled for the tab, and the funnel's
    badge counts them. */
 function _phOn(){return curView==='table'&&curTSub==='prices'&&!document.documentElement.classList.contains('det-open');}
-function _pfOn(){return curView==='pf'&&curPfSub!=='overview'&&!!_pfById[curPfSub]&&!document.documentElement.classList.contains('det-open');}
+function _pfOn(){return curView==='pf'&&(curPfSub==='overview'||!!_pfById[curPfSub])&&!document.documentElement.classList.contains('det-open');}
 function _altFiltKind(){return _bvOn()?'bond':_cxOn()?'ccy':_etfOn()?'etf':_phOn()?'chart':_pfOn()?'pf':'';}
-function _altFiltActive(k){return k==='bond'?_bvActive():k==='ccy'?(_cxF.r?1:0):k==='etf'?(_etfF.c?1:0):0;}
+function _pfMembersOn(){return curPfSub!=='overview'&&_pfSubTabCur()==='members';}
+function _altFiltActive(k){return k==='bond'?_bvActive():k==='ccy'?(_cxF.r?1:0):k==='etf'?(_etfF.c?1:0):k==='pf'?(_pfMembersOn()&&_pfm.q?1:0):0;}
 function _altFiltSync(){
   var k=_altFiltKind(),box=document.getElementById('alt-filt');if(!box)return;
   var s1=document.getElementById('filt-stock'),s2=document.getElementById('filt-stock-cols'),pc=document.getElementById('pf-filt-col');
@@ -7532,7 +7529,7 @@ function _altFiltSync(){
   var fb=document.getElementById('filt-show');if(fb&&k)fb.textContent='Done';
   _filtCountSync();
   var cl=document.querySelector('#filt-panel .filter-clear');
-  if(cl){cl.style.display=k==='pf'?'none':'';cl.textContent=k==='chart'?'Reset':'Clear';cl.title=k==='chart'?'Back to Price, Max and the top five':'Clear every filter and close this panel';}
+  if(cl){cl.style.display=k==='pf'&&!_pfMembersOn()?'none':'';cl.textContent=k==='chart'?'Reset':'Clear';cl.title=k==='chart'?'Back to Price, Max and the top five':'Clear every filter and close this panel';}
   var opt=function(v,l,cur){return '<option value="'+_attr(v)+'"'+(v===cur?' selected':'')+'>'+_esc(l)+'</option>';};
   var lab=function(t){return '<div class="fpop-section-label">'+t+'</div>';};
   if(k==='bond'){
@@ -7548,6 +7545,15 @@ function _altFiltSync(){
     var ec={};
     Object.keys((ETF_LT&&ETF_LT.funds)||{}).forEach(function(t){ec[_etfCat(ETF_LT.funds[t])]=1;});
     box.innerHTML=lab('Category')+'<select onchange="_etfSet(\'c\',this.value)" aria-label="Category">'+opt('','All categories',_etfF.c)+Object.keys(_ETF_CATS).filter(function(c){return ec[c];}).map(function(c){return opt(c,_ETF_CATS[c],_etfF.c);}).join('')+'</select>';
+  }else if(k==='pf'&&curPfSub==='overview'){
+    /* Overview: Manage, the layout (Quick filters' checked-chip look) and,
+       for cards, the sort (the other tabs' select). */
+    var chip=function(fn,l,on){return '<button type="button" class="fpop-toggle-btn" onclick="'+_attr(fn)+'"><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true"'+(on?' checked':'')+'>'+_esc(l)+'</button>';};
+    var sec=function(k2,t,b){return '<div class="fsec open" data-fsec="'+k2+'"><button type="button" class="fsec-h" onclick="_fsecToggle(\''+k2+'\')" aria-expanded="true"><span class="fsec-t">'+t+'</span><span class="fsec-c" aria-hidden="true"></span></button>'+b+'</div>';};
+    box.innerHTML=sec('pfact','Actions','<div class="qf-menu fsec-b"><button type="button" class="fpop-toggle-btn" onclick="closeFiltMenu();pfManageOpen()">Manage\u2026</button></div>')
+      +(_pfDefs().length?sec('pflay','Layout','<div class="qf-menu fsec-b">'+chip("pfOvMode('cards')",'Cards',_pfOv.mode!=='table')+chip("pfOvMode('table')",'Table',_pfOv.mode==='table')+'</div>')
+        +(_pfOv.mode!=='table'?sec('pfsort','Sort','<div class="fsec-b"><select onchange="pfOvSort(this.value)" aria-label="Sort portfolios">'
+          +_PF_OV_COLS.filter(function(c){return c.card;}).map(function(c){return opt(c.k,c.card,_pfOv.k);}).join('')+'</select></div>'):''):'');
   }else if(k==='pf'){
     /* The portfolio page's actions, as the Quick filters' rows (qf-menu +
        fpop-toggle-btn) so they wear exactly that CSS. Each closes the panel
@@ -7560,7 +7566,19 @@ function _altFiltSync(){
       +act("pfAddDialog('"+jid+"')",'Add stocks\u2026')
       +(p&&p.rule?act("pfEditRule('"+jid+"')",'Edit rule'):'')
       +act("pfShare('"+jid+"')",'Share link')
-      +act('pfManageOpen()','Manage\u2026')+'</div></div>';
+      +act('pfManageOpen()','Manage\u2026')
+      +(_pfMembersOn()?act('pfmCsv()','CSV'):'')+'</div></div>';
+    /* Members sub-tab: its column set (Quick filters' checked-chip look),
+       then the name filter (the Countries find box). Typing redraws the
+       table only, so the box keeps focus. */
+    if(_pfMembersOn()){
+      box.innerHTML+='<div class="fsec open" data-fsec="pfcols"><button type="button" class="fsec-h" onclick="_fsecToggle(\'pfcols\')" aria-expanded="true"><span class="fsec-t">Columns</span><span class="fsec-c" aria-hidden="true"></span></button>'
+        +'<div class="qf-menu fsec-b">'+_pfmPresets(curPfSub).map(function(pr){
+          return '<button type="button" class="fpop-toggle-btn" onclick="pfmPreset(\''+pr.id+'\')"><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true"'+(pr.id===_pfm.preset?' checked':'')+'>'+_esc(pr.l)+'</button>';
+        }).join('')+'</div></div>'
+        +'<div class="fsec open" data-fsec="pfq"><button type="button" class="fsec-h" onclick="_fsecToggle(\'pfq\')" aria-expanded="true"><span class="fsec-t">Members</span><span class="fsec-c" aria-hidden="true"></span></button>'
+        +'<div class="fsec-b"><input type="search" class="fsec-q" placeholder="Filter by ticker or name" aria-label="Filter members" value="'+_attr(_pfm.q)+'" oninput="pfmQuery(this.value)"></div></div>';
+    }
   }else box.innerHTML='';
   _altFiltBadge();
 }
@@ -7599,7 +7617,7 @@ function _fsecSync(opening){
     var k=sec.getAttribute('data-fsec'),v=sums[k]||'';
     var el=document.getElementById('fsum-'+k);
     if(el){el.textContent=v||(k==='quick'||k==='cols'?'None':k==='pf'?'Any':'All');el.classList.toggle('on',!!v);}
-    var open=(k in _fsecUser)?_fsecUser[k]:(k==='rating'||k==='quick'||k==='pfact'||!!v);
+    var open=(k in _fsecUser)?_fsecUser[k]:(k==='rating'||k==='quick'||k.slice(0,2)==='pf'&&k!=='pf'||!!v);
     if(opening||(k in _fsecUser))_fsecSet(sec,open);
   });
   var b=document.getElementById('filt-show');
@@ -7634,6 +7652,7 @@ function _filtClear(){
   if(k==='bond')_bvReset();
   else if(k==='ccy')_cxSet('r','');
   else if(k==='etf')_etfSet('c','');
+  else if(k==='pf'){_pfm.q='';_pfmRedraw();}
   else if(k==='chart'){phReset();return;}
   else clearFilters();
   closeFiltMenu();
@@ -13342,8 +13361,8 @@ function moveFilterBar(v){
      too, back when its five lines were seeded from the whole universe; now
      that they seed from FD, the filters drive it and have to be reachable
      from it. */
-  /* A portfolio's own page is not: its actions sit in the Filters panel. */
-  var navOnly=(v==='pool'||v==='macro'||(v==='pf'&&curPfSub==='overview'));
+  /* Portfolios is not: its page actions sit in the Filters panel. */
+  var navOnly=(v==='pool'||v==='macro');
   fb.classList.toggle('nav-only',navOnly);
   var hd=document.querySelector('.header');
   if(hd)hd.classList.toggle('nav-only',navOnly);
@@ -18616,7 +18635,6 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .pfv-brk-h{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
 .pfv-pulls{font-size:12.5px;}
 .pfv-ovl td,.pfv-ovl th{white-space:nowrap;}
-.pfm-csv{margin-left:auto;}
 @media (max-width:600px){
   .pf-row{flex-wrap:wrap;}
   .pf-row-btns{max-width:none;width:100%;justify-content:flex-start;padding-left:38px;}
@@ -18770,7 +18788,6 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .pf-tabbed[data-tab="perf"]>[data-pane="perf"],.pf-tabbed[data-tab="alerts"]>[data-pane="alerts"],
 .pf-tabbed[data-tab="recent"]>[data-pane="recent"],.pf-tabbed[data-tab="paper"]>[data-pane="paper"]{display:block;}
 /* Members table: presets, search, sticky header and stock column. */
-.pfm-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px;}
 .pfm-seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface);}
 .pfm-seg-b{font:inherit;font-size:12.5px;padding:5px 11px;border:none;border-left:1px solid var(--border);background:none;color:var(--text-muted);cursor:pointer;}
 .pfm-seg-b:first-child{border-left:none;}
@@ -18788,8 +18805,6 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 [data-theme="dark"] #pf-view :where(.pf-muted,.pfv-sub,.pfv-meta,.pfv-rule,.pfv-kpi-l,.pfv-kpi-u,.pfv-top,.pfv-foot,.pfv-date,.pfv-alert-msg,.pfv-why,.pfv-legend,.pfv-dist-l,.pfc-notes,.pfc-cl-h,.pfm-co,.pfv-tbl th:not(.on),.pfv-count,.pf-tag){color:var(--text-muted) !important;}
 [data-theme="dark"] #pf-view :is(.pfv-lv,.pfv-badge.hot,.pfm-seg-b.on,.pf-primary){color:var(--pf-on-chip) !important;}
 [data-theme="dark"] #pf-view :is(.pfv-new,.pfv-why-tog,.pf-link){color:var(--accent) !important;}
-.pfm-q{font:inherit;font-size:12.5px;padding:5px 9px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);min-width:0;flex:0 1 220px;}
-.pfm-n{margin-left:auto;}
 .pfm-wrap{max-height:min(70vh,760px);overflow:auto;}
 .pfm-tbl{border-collapse:separate;border-spacing:0;}
 .pfm-tbl thead th{position:-webkit-sticky;position:sticky;top:0;z-index:2;background:var(--surface);}
@@ -18810,9 +18825,6 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .pfm-bar i.pos{background:var(--pf-pos);}.pfm-bar i.neg{background:var(--pf-neg);}
 .pfm-more-row td{text-align:center;}
 /* Overview: layout toggle, sort, and the comparison table. */
-.pfv-ov-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;}
-.pfv-ov-sort{font-size:12.5px;color:var(--text-muted);display:inline-flex;align-items:center;gap:6px;}
-.pfv-ov-sort select{padding:4px 6px;}
 .pfo-row{cursor:pointer;}
 .pfo-row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
 .pfo-name{display:inline-flex;align-items:center;gap:8px;font-weight:600;}
@@ -18826,13 +18838,11 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 }
 @media (max-width:700px){
   .pfv-detail-grid{grid-template-columns:1fr;}
-  .pfm-q{flex:1 1 100%;}
   .pfc-cls{grid-template-columns:1fr;}
   .pfv-sec{grid-template-columns:minmax(0,110px) 1fr 36px 42px;}
   .pfm-stk{min-width:0;max-width:112px;}
   .pfm-co{max-width:96px;}
   .pfm-tbl td,.pfm-tbl th{padding:6px 8px;}
-  .pfm-n{margin-left:0;}
   .pfv-alert{flex-wrap:wrap;}
   .pfv-alert-msg{flex-basis:100%;}
 }
