@@ -1170,10 +1170,14 @@ ruff check .
     table. The non-stock jumps are drills, so ‹ Back returns. On a table view
     the list leaves out the table's own kind and preselects nothing, so Enter
     still only filters. Tests: `tests/test_report_search.py`.
-  - **Page help (`#page-help-btn`):** a ? in every page's upper-right
-    corner, styled and placed like each card's ?: the view title row's
-    right end, or on a ticker page the band's top row (`_helpPlace`); never
-    the top bar. It opens what the page is for: a blurb per page (`_HELP_TXT`, keyed
+  - **Page help (`#page-help-btn`):** a ? on every page, never in the top
+    bar: level with the page's first section title at its row's right end
+    (`_helpPlace`), else (that title has its own ?, or there is none) at the
+    view title row's right end, and on a ticker page in the band's top row.
+    `_qAlign` holds every other ? to the same rule: a card's corner ? is
+    centred on its title, and one whose title sits above its card moves into
+    that title's row. Both rerun on a timer after any render. It opens what
+    the page is for: a blurb per page (`_HELP_TXT`, keyed
     by `_helpKey`) plus any element the view rendered with class `pg-help`,
     which is hidden in place (a portfolio's description and counts line).
     Explanatory text goes there, not on the page. Tests:
