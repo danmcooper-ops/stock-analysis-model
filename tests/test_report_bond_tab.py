@@ -162,7 +162,7 @@ def test_filters_are_in_the_top_bar_panel():
     out = _render(REPORT, after='''
 var box={hidden:true,innerHTML:''},el={};
 document.getElementById=function(id){if(id==='alt-filt')return box;if(id==='f-search')return {value:''};return el[id]||(el[id]={style:{},classList:{toggle:function(){}}});};
-document.querySelector=function(){return {textContent:''};};
+document.querySelector=function(){return {textContent:'',style:{}};};
 var curView='matrix',curMSub='bond',_cxF={r:''},_CX_RATINGS=[];
 function _cxOn(){return false;} function _cxDraw(){} function _filtCountSync(){}
 ''' + '\n'.join(_fn_src(n, _tpl()) for n in ('_bvOn', '_bvActive', '_altFiltKind', '_altFiltActive', '_altFiltSync', '_altFiltBadge')) + '''
