@@ -5390,6 +5390,7 @@ function renderPfView(){
     if(PAPER_META&&curPfSub===PAPER_META.portfolio){_ppaEnsure();_ppaDraw();}
   }finally{_pfMemo=null;}
   _pfLastSub=curPfSub;
+  if(curView==='pf'){moveFilterBar('pf');_altFiltSync();}
   _pfMarkSeen();
 }
 /* Keyboard: Enter/Space on a ticker link or a sortable header acts as a click. */
@@ -5534,12 +5535,9 @@ function _pfDetailHtml(id){
      tab already leads there. */
   var h='<div class="pfv pfv-detail">'
     +'<div class="pfv-head pfv-detail-head" style="--pf:'+_pfEsc(_pfCol(p.color))+'"><span class="pfv-swatch"></span><h2>'+_pfEsc(p.name)+'</h2>'
-    +'<span class="pf-spacer"></span>'
-    +'<button class="pf-btn pf-primary" onclick="pfShowOnly(\''+jid+'\')">Open in table</button>'
-    +'<button class="pf-btn" onclick="pfAddDialog(\''+jid+'\')">Add stocks…</button>'
-    +(p.rule?'<button class="pf-btn" onclick="pfEditRule(\''+jid+'\')">Edit rule</button>':'')
-    +'<button class="pf-btn" onclick="pfShare(\''+jid+'\')">Share link</button>'
-    +'<button class="pf-btn" onclick="pfManageOpen()">Manage…</button></div>'+_pfSystemicHtml()+_pfSyncNote()
+    /* Open in table, Add stocks, Edit rule, Share link and Manage sit
+       behind the top bar's funnel (_altFiltSync kind 'pf'). */
+    +'</div>'+_pfSystemicHtml()+_pfSyncNote()
     /* Description and counts sit behind the top bar's ? (pg-help). */
     +(p.description?'<p class="pfv-desc pg-help">'+_pfEsc(p.description)+'</p>':'')
     +'<div class="pfv-meta pg-help">'+st.n+' stock'+(st.n===1?'':'s')
@@ -7374,7 +7372,7 @@ function _filtCountSync(){
   var fc=document.getElementById('filt-count');if(!fc)return;
   var k=_altFiltKind(),f=function(n){return (+n||0).toLocaleString();};
   var w={bond:['bond','bonds'],ccy:['currency','currencies'],etf:['ETF','ETFs']}[k];
-  if(k==='chart'){fc.textContent='';return;}
+  if(k==='chart'||k==='pf'){fc.textContent='';return;}
   if(!k){fc.textContent=f(FD.length)+' of '+f(DATA.length)+' stock'+(DATA.length===1?'':'s');return;}
   var a=_altN[k];
   if(!a){fc.textContent='';return;}
@@ -7525,7 +7523,8 @@ function _positionFpop(panel,btn){
    (which have no rows there to filter), titled for the tab, and the funnel's
    badge counts them. */
 function _phOn(){return curView==='table'&&curTSub==='prices'&&!document.documentElement.classList.contains('det-open');}
-function _altFiltKind(){return _bvOn()?'bond':_cxOn()?'ccy':_etfOn()?'etf':_phOn()?'chart':'';}
+function _pfOn(){return curView==='pf'&&curPfSub!=='overview'&&!!_pfById[curPfSub]&&!document.documentElement.classList.contains('det-open');}
+function _altFiltKind(){return _bvOn()?'bond':_cxOn()?'ccy':_etfOn()?'etf':_phOn()?'chart':_pfOn()?'pf':'';}
 function _altFiltActive(k){return k==='bond'?_bvActive():k==='ccy'?(_cxF.r?1:0):k==='etf'?(_etfF.c?1:0):0;}
 function _altFiltSync(){
   var k=_altFiltKind(),box=document.getElementById('alt-filt');if(!box)return;
@@ -7536,11 +7535,11 @@ function _altFiltSync(){
   if(s1)s1.style.display=k?'none':'';
   if(s2)s2.style.display=k?'none':'';
   var tl=document.querySelector('#filt-panel .fpop-title');
-  if(tl)tl.textContent=k==='bond'?'Bond filters':k==='ccy'?'Currency filters':k==='etf'?'ETF filters':k==='chart'?'Chart options':'Filters';
+  if(tl)tl.textContent=k==='bond'?'Bond filters':k==='ccy'?'Currency filters':k==='etf'?'ETF filters':k==='chart'?'Chart options':k==='pf'?'Portfolio':'Filters';
   var fb=document.getElementById('filt-show');if(fb&&k)fb.textContent='Done';
   _filtCountSync();
   var cl=document.querySelector('#filt-panel .filter-clear');
-  if(cl){cl.textContent=k==='chart'?'Reset':'Clear';cl.title=k==='chart'?'Back to Price, Max and the top five':'Clear every filter and close this panel';}
+  if(cl){cl.style.display=k==='pf'?'none':'';cl.textContent=k==='chart'?'Reset':'Clear';cl.title=k==='chart'?'Back to Price, Max and the top five':'Clear every filter and close this panel';}
   var opt=function(v,l,cur){return '<option value="'+_attr(v)+'"'+(v===cur?' selected':'')+'>'+_esc(l)+'</option>';};
   var lab=function(t){return '<div class="fpop-section-label">'+t+'</div>';};
   if(k==='bond'){
@@ -7556,6 +7555,19 @@ function _altFiltSync(){
     var ec={};
     Object.keys((ETF_LT&&ETF_LT.funds)||{}).forEach(function(t){ec[_etfCat(ETF_LT.funds[t])]=1;});
     box.innerHTML=lab('Category')+'<select onchange="_etfSet(\'c\',this.value)" aria-label="Category">'+opt('','All categories',_etfF.c)+Object.keys(_ETF_CATS).filter(function(c){return ec[c];}).map(function(c){return opt(c,_ETF_CATS[c],_etfF.c);}).join('')+'</select>';
+  }else if(k==='pf'){
+    /* The portfolio page's actions, as the Quick filters' rows (qf-menu +
+       fpop-toggle-btn) so they wear exactly that CSS. Each closes the panel
+       first: most open a dialog or leave the page. */
+    var p=_pfById[curPfSub],jid=_pfJsArg(curPfSub);
+    var act=function(fn,l){return '<button type="button" class="fpop-toggle-btn" onclick="closeFiltMenu();'+_attr(fn)+'">'+_esc(l)+'</button>';};
+    box.innerHTML='<div class="fsec open" data-fsec="pfact"><button type="button" class="fsec-h" onclick="_fsecToggle(\'pfact\')" aria-expanded="true"><span class="fsec-t">Actions</span><span class="fsec-c" aria-hidden="true"></span></button>'
+      +'<div class="qf-menu fsec-b">'
+      +act("pfShowOnly('"+jid+"')",'Open in table')
+      +act("pfAddDialog('"+jid+"')",'Add stocks\u2026')
+      +(p&&p.rule?act("pfEditRule('"+jid+"')",'Edit rule'):'')
+      +act("pfShare('"+jid+"')",'Share link')
+      +act('pfManageOpen()','Manage\u2026')+'</div></div>';
   }else box.innerHTML='';
   _altFiltBadge();
 }
@@ -7594,7 +7606,7 @@ function _fsecSync(opening){
     var k=sec.getAttribute('data-fsec'),v=sums[k]||'';
     var el=document.getElementById('fsum-'+k);
     if(el){el.textContent=v||(k==='quick'||k==='cols'?'None':k==='pf'?'Any':'All');el.classList.toggle('on',!!v);}
-    var open=(k in _fsecUser)?_fsecUser[k]:(k==='rating'||k==='quick'||!!v);
+    var open=(k in _fsecUser)?_fsecUser[k]:(k==='rating'||k==='quick'||k==='pfact'||!!v);
     if(opening||(k in _fsecUser))_fsecSet(sec,open);
   });
   var b=document.getElementById('filt-show');
@@ -13337,7 +13349,8 @@ function moveFilterBar(v){
      too, back when its five lines were seeded from the whole universe; now
      that they seed from FD, the filters drive it and have to be reachable
      from it. */
-  var navOnly=(v==='pool'||v==='macro'||v==='pf');
+  /* A portfolio's own page is not: its actions sit in the Filters panel. */
+  var navOnly=(v==='pool'||v==='macro'||(v==='pf'&&curPfSub==='overview'));
   fb.classList.toggle('nav-only',navOnly);
   var hd=document.querySelector('.header');
   if(hd)hd.classList.toggle('nav-only',navOnly);
