@@ -3431,6 +3431,31 @@ html body #ph-menu button:focus-visible{outline:2px solid var(--chrome-accent);o
 @media(orientation:landscape) and (max-height:500px){
   html.det-open .header{width:calc(var(--vvw,100vw) - var(--sb-cur));}
 }
+/* ---- the page's ? (help-wrap): explanatory text lives here, not on the page ---- */
+.pg-help{display:none !important;}
+.help-wrap{position:relative;flex:0 0 auto;}
+.hdr-help{--sac:var(--search-fg);width:30px;height:30px;border-radius:50%;border:1px solid var(--search-border);background:var(--search-bg);
+  font:inherit;font-size:15px;font-weight:700;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;}
+.hdr-help:hover,.hdr-help[aria-expanded="true"]{border-color:var(--chrome-accent);}
+.hdr-help:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:2px;}
+.help-pop{--sac:var(--chrome-heading);display:none;position:absolute;right:0;top:calc(100% + 10px);z-index:1400;width:min(380px,calc(100vw - 32px));
+  max-height:min(70vh,560px);overflow-y:auto;box-sizing:border-box;padding:14px 16px;background:var(--menu-bg);border:1px solid var(--menu-border);
+  border-radius:10px;box-shadow:var(--menu-shadow);font-size:13.5px;line-height:1.5;text-align:left;white-space:normal;}
+.help-pop.open{display:block;}
+.help-pop .hp-h{font-size:15px;font-weight:700;margin:0 0 8px;padding-right:24px;}
+.help-pop .hp-x{--sac:var(--chrome-muted);position:absolute;right:8px;top:8px;width:28px;height:28px;border:0;background:none;border-radius:6px;font-size:18px;cursor:pointer;}
+.help-pop .hp-x:hover{background:var(--menu-hover);}
+.help-pop p{margin:0 0 8px;opacity:1;font-size:inherit;}
+.help-pop .hp-page{margin-top:10px;padding-top:10px;border-top:1px solid var(--menu-border);}
+.help-pop .hp-page>*{display:block !important;margin:0 0 6px;}
+.help-pop .hp-page .pfv-meta{--sac:var(--chrome-muted);font-size:12.5px;}
+@media(max-width:768px),(orientation:landscape) and (max-height:500px){
+  /* Over a ticker page the bar's right end holds its × (#hdr-close, absolute):
+     the bar keeps room for it, so the ? stays in flow just left of it. */
+  html.det-open .header{padding-right:48px;}
+  html.det-open .help-wrap{margin-left:auto;}
+  .help-pop{position:fixed;right:16px;left:16px;width:auto;top:calc(var(--hdr-h,52px) + 6px);}
+}
 html.sb-over #sidebar,html.sb-drawer #sidebar{z-index:1310;}
 html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
 </style>
@@ -3702,6 +3727,13 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
         <div class="filt-foot"><button type="button" class="filt-show" id="filt-show" onclick="closeFiltMenu()">Done</button></div>
       </div>
     </div>
+  </div>
+  <!-- Every page's explanatory text sits behind this ?, in the top bar's
+       upper right: the page's own blurb (_HELP_TXT) plus any .pg-help
+       element the view rendered, which is hidden in place (helpRender). -->
+  <div class="help-wrap" id="help-wrap">
+    <button type="button" class="hdr-help sa-chrome" id="hdr-help" onclick="toggleHelp(event)" aria-label="About this page" aria-haspopup="dialog" aria-expanded="false" aria-controls="help-pop">?</button>
+    <div class="help-pop sa-chrome" id="help-pop" role="dialog" aria-label="About this page"></div>
   </div>
 </div>
 <!-- Seeking Alpha-style navigation (see SA CHROME in the stylesheet). The
@@ -5358,6 +5390,7 @@ function renderPfView(){
     if(PAPER_META&&curPfSub===PAPER_META.portfolio){_ppaEnsure();_ppaDraw();}
   }finally{_pfMemo=null;}
   _pfLastSub=curPfSub;
+  if(curView==='pf'){moveFilterBar('pf');_altFiltSync();}
   _pfMarkSeen();
 }
 /* Keyboard: Enter/Space on a ticker link or a sortable header acts as a click. */
@@ -5502,14 +5535,12 @@ function _pfDetailHtml(id){
      tab already leads there. */
   var h='<div class="pfv pfv-detail">'
     +'<div class="pfv-head pfv-detail-head" style="--pf:'+_pfEsc(_pfCol(p.color))+'"><span class="pfv-swatch"></span><h2>'+_pfEsc(p.name)+'</h2>'
-    +'<span class="pf-spacer"></span>'
-    +'<button class="pf-btn pf-primary" onclick="pfShowOnly(\''+jid+'\')">Open in table</button>'
-    +'<button class="pf-btn" onclick="pfAddDialog(\''+jid+'\')">Add stocks…</button>'
-    +(p.rule?'<button class="pf-btn" onclick="pfEditRule(\''+jid+'\')">Edit rule</button>':'')
-    +'<button class="pf-btn" onclick="pfShare(\''+jid+'\')">Share link</button>'
-    +'<button class="pf-btn" onclick="pfManageOpen()">Manage…</button></div>'+_pfSystemicHtml()+_pfSyncNote()
-    +(p.description?'<p class="pfv-desc">'+_pfEsc(p.description)+'</p>':'')
-    +'<div class="pfv-meta">'+st.n+' stock'+(st.n===1?'':'s')
+    /* Open in table, Add stocks, Edit rule, Share link and Manage sit
+       behind the top bar's funnel (_altFiltSync kind 'pf'). */
+    +'</div>'+_pfSystemicHtml()+_pfSyncNote()
+    /* Description and counts sit behind the top bar's ? (pg-help). */
+    +(p.description?'<p class="pfv-desc pg-help">'+_pfEsc(p.description)+'</p>':'')
+    +'<div class="pfv-meta pg-help">'+st.n+' stock'+(st.n===1?'':'s')
     +((p.tickers||[]).length?' · '+p.tickers.length+' picked':'')
     +(p.rule?' · rule: '+_pfEsc(_pfRuleSummary(p.rule)):'')
     +((p.exclude||[]).length?' · excludes '+_pfEsc(p.exclude.join(', ')):'')
@@ -7341,7 +7372,7 @@ function _filtCountSync(){
   var fc=document.getElementById('filt-count');if(!fc)return;
   var k=_altFiltKind(),f=function(n){return (+n||0).toLocaleString();};
   var w={bond:['bond','bonds'],ccy:['currency','currencies'],etf:['ETF','ETFs']}[k];
-  if(k==='chart'){fc.textContent='';return;}
+  if(k==='chart'||k==='pf'){fc.textContent='';return;}
   if(!k){fc.textContent=f(FD.length)+' of '+f(DATA.length)+' stock'+(DATA.length===1?'':'s');return;}
   var a=_altN[k];
   if(!a){fc.textContent='';return;}
@@ -7492,7 +7523,8 @@ function _positionFpop(panel,btn){
    (which have no rows there to filter), titled for the tab, and the funnel's
    badge counts them. */
 function _phOn(){return curView==='table'&&curTSub==='prices'&&!document.documentElement.classList.contains('det-open');}
-function _altFiltKind(){return _bvOn()?'bond':_cxOn()?'ccy':_etfOn()?'etf':_phOn()?'chart':'';}
+function _pfOn(){return curView==='pf'&&curPfSub!=='overview'&&!!_pfById[curPfSub]&&!document.documentElement.classList.contains('det-open');}
+function _altFiltKind(){return _bvOn()?'bond':_cxOn()?'ccy':_etfOn()?'etf':_phOn()?'chart':_pfOn()?'pf':'';}
 function _altFiltActive(k){return k==='bond'?_bvActive():k==='ccy'?(_cxF.r?1:0):k==='etf'?(_etfF.c?1:0):0;}
 function _altFiltSync(){
   var k=_altFiltKind(),box=document.getElementById('alt-filt');if(!box)return;
@@ -7503,11 +7535,11 @@ function _altFiltSync(){
   if(s1)s1.style.display=k?'none':'';
   if(s2)s2.style.display=k?'none':'';
   var tl=document.querySelector('#filt-panel .fpop-title');
-  if(tl)tl.textContent=k==='bond'?'Bond filters':k==='ccy'?'Currency filters':k==='etf'?'ETF filters':k==='chart'?'Chart options':'Filters';
+  if(tl)tl.textContent=k==='bond'?'Bond filters':k==='ccy'?'Currency filters':k==='etf'?'ETF filters':k==='chart'?'Chart options':k==='pf'?'Portfolio':'Filters';
   var fb=document.getElementById('filt-show');if(fb&&k)fb.textContent='Done';
   _filtCountSync();
   var cl=document.querySelector('#filt-panel .filter-clear');
-  if(cl){cl.textContent=k==='chart'?'Reset':'Clear';cl.title=k==='chart'?'Back to Price, Max and the top five':'Clear every filter and close this panel';}
+  if(cl){cl.style.display=k==='pf'?'none':'';cl.textContent=k==='chart'?'Reset':'Clear';cl.title=k==='chart'?'Back to Price, Max and the top five':'Clear every filter and close this panel';}
   var opt=function(v,l,cur){return '<option value="'+_attr(v)+'"'+(v===cur?' selected':'')+'>'+_esc(l)+'</option>';};
   var lab=function(t){return '<div class="fpop-section-label">'+t+'</div>';};
   if(k==='bond'){
@@ -7523,6 +7555,19 @@ function _altFiltSync(){
     var ec={};
     Object.keys((ETF_LT&&ETF_LT.funds)||{}).forEach(function(t){ec[_etfCat(ETF_LT.funds[t])]=1;});
     box.innerHTML=lab('Category')+'<select onchange="_etfSet(\'c\',this.value)" aria-label="Category">'+opt('','All categories',_etfF.c)+Object.keys(_ETF_CATS).filter(function(c){return ec[c];}).map(function(c){return opt(c,_ETF_CATS[c],_etfF.c);}).join('')+'</select>';
+  }else if(k==='pf'){
+    /* The portfolio page's actions, as the Quick filters' rows (qf-menu +
+       fpop-toggle-btn) so they wear exactly that CSS. Each closes the panel
+       first: most open a dialog or leave the page. */
+    var p=_pfById[curPfSub],jid=_pfJsArg(curPfSub);
+    var act=function(fn,l){return '<button type="button" class="fpop-toggle-btn" onclick="closeFiltMenu();'+_attr(fn)+'">'+_esc(l)+'</button>';};
+    box.innerHTML='<div class="fsec open" data-fsec="pfact"><button type="button" class="fsec-h" onclick="_fsecToggle(\'pfact\')" aria-expanded="true"><span class="fsec-t">Actions</span><span class="fsec-c" aria-hidden="true"></span></button>'
+      +'<div class="qf-menu fsec-b">'
+      +act("pfShowOnly('"+jid+"')",'Open in table')
+      +act("pfAddDialog('"+jid+"')",'Add stocks\u2026')
+      +(p&&p.rule?act("pfEditRule('"+jid+"')",'Edit rule'):'')
+      +act("pfShare('"+jid+"')",'Share link')
+      +act('pfManageOpen()','Manage\u2026')+'</div></div>';
   }else box.innerHTML='';
   _altFiltBadge();
 }
@@ -7561,7 +7606,7 @@ function _fsecSync(opening){
     var k=sec.getAttribute('data-fsec'),v=sums[k]||'';
     var el=document.getElementById('fsum-'+k);
     if(el){el.textContent=v||(k==='quick'||k==='cols'?'None':k==='pf'?'Any':'All');el.classList.toggle('on',!!v);}
-    var open=(k in _fsecUser)?_fsecUser[k]:(k==='rating'||k==='quick'||!!v);
+    var open=(k in _fsecUser)?_fsecUser[k]:(k==='rating'||k==='quick'||k==='pfact'||!!v);
     if(opening||(k in _fsecUser))_fsecSet(sec,open);
   });
   var b=document.getElementById('filt-show');
@@ -13251,6 +13296,8 @@ document.addEventListener('keydown',function(e){
   if(e.key==='Escape'){
     var pfp=document.getElementById('pf-pop');
     if(pfp&&pfp.classList.contains('open')){e.preventDefault();pfPopClose();return;}
+    var hp=document.getElementById('help-pop');
+    if(hp&&hp.classList.contains('open')){e.preventDefault();closeHelp();return;}
     var rc=document.documentElement.classList;
     if(rc.contains('sb-drawer')||rc.contains('sb-over')){e.preventDefault();sbClose();return;}
     var fp=document.getElementById('filt-panel');
@@ -13302,7 +13349,8 @@ function moveFilterBar(v){
      too, back when its five lines were seeded from the whole universe; now
      that they seed from FD, the filters drive it and have to be reachable
      from it. */
-  var navOnly=(v==='pool'||v==='macro'||v==='pf');
+  /* A portfolio's own page is not: its actions sit in the Filters panel. */
+  var navOnly=(v==='pool'||v==='macro'||(v==='pf'&&curPfSub==='overview'));
   fb.classList.toggle('nav-only',navOnly);
   var hd=document.querySelector('.header');
   if(hd)hd.classList.toggle('nav-only',navOnly);
@@ -13643,11 +13691,82 @@ function _syncNavCrumb(){
   if(hv)hv.textContent=g.l+(sub?' - '+sub:'');
   document.title=g.l+(sub?' › '+sub:'')+' — City2Summit';
 }
+/* The ? in the top bar: each page's explanatory text, keyed by what is
+   showing. A view can add its own text by rendering it with class pg-help
+   (hidden in place); helpRender copies whatever the visible page holds. */
+var _HELP_TXT={
+  macro:['The economic backdrop the stock ratings sit in. Overview gives the regime read and the narrative (US, international, conditions, what to watch); each section tab charts every indicator behind it.',
+    'A card marked “not updating” has a series that has fallen behind its usual release schedule.'],
+  pool:['Every sector side by side: prices against each other and the market, a heatmap, and the cross-sector profit pool.',
+    'Click a sector to open its page.'],
+  sector:['One sector’s economics. Overview: how it earns and how its SPDR trades against SPY. Drivers: the tailwinds and headwinds, each checked against data. Profit pool: who earns the operating income. History, Value creation and Trading follow.',
+    'Click an industry in the pool to open the Gate Matrix filtered to it; ‹ Back returns here.'],
+  dashboard:['The run at a glance: the rating mix, category scores, the score distribution and the map.',
+    'Click a card, a rating box, a bar or a country to filter Stocks to it; ‹ Back returns here.'],
+  stocks:['Every rated stock. The rating is the composite score’s bucket: BUY ≥ 57, LEAN BUY ≥ 39, HOLD ≥ 25, otherwise PASS. Gates that cannot apply show N/A and score 0.',
+    'Hover a column header for its definition, use Filters to narrow the table, and click a row for the ticker page.'],
+  etf:['SPDR US equity funds, read through the stocks the model rates: each fund’s value per $1 of price against SPY’s. Display only; no fund is rated.',
+    'Notes has the method; a row opens its Detail.'],
+  bond:['The bond model’s US corporates and Treasuries, in this report’s styling. Display only: no bond reaches a stock’s rating or filter.',
+    'Search takes a CUSIP or issuer; Filters holds the bond filters; a row opens its detail sheet. Notes has the method.'],
+  ccy:['The currency screener’s 30 currencies, rated LONG to AVOID on its own gates. Display only.',
+    'Screener, Gate Matrix and Map are three views of the same rows; a row opens its Detail.'],
+  charts:['Compare stocks’ prices, or a table metric rebuilt from filings, over time.',
+    'Pick the metric, stocks and range in the Filters menu.'],
+  pf:['Your portfolios: named sets of tickers, hand-picked, rule-driven or both. Edits stay in this browser until exported from Manage.',
+    'Alerts: Action is a rating crossing the buy line; Watch is a reversal, a large score or fair-value move, a join or leave, or earnings within 7 days.'],
+  pfdet:['One portfolio: its rating mix and stats, members, performance against SPY and the universe, and alerts.'],
+  ticker:['One stock in full. Each data row’s bar is its percentile across today’s stocks, with a tick at the sector median.',
+    'Summary prints a one-page PDF with the INVEST / WATCH / AVOID verdict. ‹ › step through the list you came from.']
+};
+function _helpKey(){
+  if(document.documentElement.classList.contains('det-open'))return 'ticker';
+  var v=_navView();
+  if(v==='pool')return _poolTab==='__performance__'?'pool':'sector';
+  if(v==='matrix'){if(curView==='table')return 'stocks';var m=curMSub||'matrix';return m==='matrix'?'stocks':m;}
+  if(v==='pf')return curPfSub==='overview'?'pf':'pfdet';
+  return v;
+}
+function _helpEsc(t){return String(t).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function helpRender(){
+  var pop=document.getElementById('help-pop');if(!pop)return;
+  var key=_helpKey(),title=key==='ticker'?((document.querySelector('#det-modal .dtk')||{}).textContent||'This stock'):document.title.split(' — ')[0];
+  var h='<button type="button" class="hp-x" onclick="closeHelp()" aria-label="Close">&times;</button><div class="hp-h">'+_helpEsc(title)+'</div>';
+  (_HELP_TXT[key]||[]).forEach(function(t){h+='<p>'+_helpEsc(t)+'</p>';});
+  /* The page's own text: .pg-help blocks whose container is on screen. */
+  var dm=document.getElementById('det-modal'),det=key==='ticker';
+  var own=[].slice.call(document.querySelectorAll('.pg-help')).filter(function(e){
+    var par=e.parentElement;
+    return par&&par.offsetParent!==null&&(det?dm&&dm.contains(e):!(dm&&dm.contains(e)));
+  });
+  if(own.length)h+='<div class="hp-page">'+own.map(function(e){return e.outerHTML.replace(/\bpg-help\b/,'');}).join('')+'</div>';
+  pop.innerHTML=h;
+}
+function toggleHelp(e){
+  if(e)e.stopPropagation();
+  var pop=document.getElementById('help-pop');
+  if(pop.classList.contains('open')){closeHelp();return;}
+  closeNavMenu();closeFiltMenu();
+  helpRender();
+  pop.classList.add('open');
+  document.getElementById('hdr-help').setAttribute('aria-expanded','true');
+}
+function closeHelp(){
+  var pop=document.getElementById('help-pop');
+  if(!pop||!pop.classList.contains('open'))return;
+  pop.classList.remove('open');
+  document.getElementById('hdr-help').setAttribute('aria-expanded','false');
+}
+document.addEventListener('click',function(e){
+  var w=document.getElementById('help-wrap');
+  if(w&&!w.contains(e.target))closeHelp();
+});
 /* k omitted (the group header was clicked) = go to the view, keeping
    whichever sub-tab it was last on. */
 function navGo(v,k){
   _hideFloatTips();
   closeNavMenu();
+  closeHelp();
   _drillLeave();
   /* A top-level entry (a sidebar row, or its number hotkey) carries no
      sub-tab: it opens the section on its FIRST sub-tab — Macro Overview,
