@@ -572,7 +572,7 @@ def test_filters_panel_is_one_column_of_summarised_sections():
     assert '<button type="button" class="filt-show" id="filt-show" onclick="closeFiltMenu()">' in src
     sync = _fn(src, '_fsecSync')
     # Short chip rows start open; a list opens itself only when it filters.
-    assert "(k==='rating'||k==='quick'||k==='pfact'||!!v)" in sync
+    assert "(k==='rating'||k==='quick'||k.slice(0,2)==='pf'&&k!=='pf'||!!v)" in sync
     assert "'Show '+FD.length.toLocaleString()+' stock'" in sync
     # Collapsed means hidden, over the older id-level display rules.
     assert '#filt-panel .fsec:not(.open) .fsec-b{display:none !important;}' in src

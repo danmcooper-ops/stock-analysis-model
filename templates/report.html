@@ -3434,11 +3434,14 @@ html body #ph-menu button:focus-visible{outline:2px solid var(--chrome-accent);o
 /* ---- the page's ? (help-wrap): explanatory text lives here, not on the page ---- */
 .pg-help{display:none !important;}
 .help-wrap{position:relative;flex:0 0 auto;}
-.hdr-help{--sac:var(--search-fg);width:30px;height:30px;border-radius:50%;border:1px solid var(--search-border);background:var(--search-bg);
-  font:inherit;font-size:15px;font-weight:700;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;}
-.hdr-help:hover,.hdr-help[aria-expanded="true"]{border-color:var(--chrome-accent);}
-.hdr-help:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:2px;}
-.help-pop{--sac:var(--chrome-heading);display:none;position:absolute;right:0;top:calc(100% + 10px);z-index:1400;width:min(380px,calc(100vw - 32px));
+.page-help-btn{width:26px;height:26px;padding:0;border-radius:50%;border:1px solid var(--ppf-line);background:transparent;
+  color:var(--ppf-sub);font-family:inherit;font-size:13px;font-weight:600;line-height:24px;text-align:center;cursor:pointer;}
+.page-help-btn:hover,.page-help-btn[aria-expanded="true"]{color:var(--accent,#2563eb);border-color:var(--accent,#2563eb);}
+.page-help-btn:focus-visible{outline:2px solid var(--accent,#2563eb);outline-offset:2px;}
+.sn-head .help-wrap{align-self:center;margin-right:8px;}
+.d-mini-nav .help-wrap{display:flex;align-items:center;margin-right:4px;}
+/* Placed by _helpPlace under its button, kept on screen. */
+.help-pop{--sac:var(--chrome-heading);display:none;position:fixed;z-index:1500;width:min(380px,calc(100vw - 32px));
   max-height:min(70vh,560px);overflow-y:auto;box-sizing:border-box;padding:14px 16px;background:var(--menu-bg);border:1px solid var(--menu-border);
   border-radius:10px;box-shadow:var(--menu-shadow);font-size:13.5px;line-height:1.5;text-align:left;white-space:normal;}
 .help-pop.open{display:block;}
@@ -3449,13 +3452,6 @@ html body #ph-menu button:focus-visible{outline:2px solid var(--chrome-accent);o
 .help-pop .hp-page{margin-top:10px;padding-top:10px;border-top:1px solid var(--menu-border);}
 .help-pop .hp-page>*{display:block !important;margin:0 0 6px;}
 .help-pop .hp-page .pfv-meta{--sac:var(--chrome-muted);font-size:12.5px;}
-@media(max-width:768px),(orientation:landscape) and (max-height:500px){
-  /* Over a ticker page the bar's right end holds its × (#hdr-close, absolute):
-     the bar keeps room for it, so the ? stays in flow just left of it. */
-  html.det-open .header{padding-right:48px;}
-  html.det-open .help-wrap{margin-left:auto;}
-  .help-pop{position:fixed;right:16px;left:16px;width:auto;top:calc(var(--hdr-h,52px) + 6px);}
-}
 html.sb-over #sidebar,html.sb-drawer #sidebar{z-index:1310;}
 html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
 </style>
@@ -3728,13 +3724,6 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
       </div>
     </div>
   </div>
-  <!-- Every page's explanatory text sits behind this ?, in the top bar's
-       upper right: the page's own blurb (_HELP_TXT) plus any .pg-help
-       element the view rendered, which is hidden in place (helpRender). -->
-  <div class="help-wrap" id="help-wrap">
-    <button type="button" class="hdr-help sa-chrome" id="hdr-help" onclick="toggleHelp(event)" aria-label="About this page" aria-haspopup="dialog" aria-expanded="false" aria-controls="help-pop">?</button>
-    <div class="help-pop sa-chrome" id="help-pop" role="dialog" aria-label="About this page"></div>
-  </div>
 </div>
 <!-- Seeking Alpha-style navigation (see SA CHROME in the stylesheet). The
      views and portfolio rows are rendered by renderNavMenu() from
@@ -3768,7 +3757,11 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
        the only route to a sub-tab now that the Views dropdown is gone. -->
   <div id="subnav" class="sa-chrome">
     <button type="button" class="d-back sa-chrome" id="sn-back" onclick="drillBack()"></button>
-    <div class="sn-head"><h2 class="sn-title" id="sn-title"></h2><span class="sn-crumb" id="sn-crumb"></span><span class="sn-date">{{ generated_at }}</span></div>
+    <div class="sn-head"><h2 class="sn-title" id="sn-title"></h2><span class="sn-crumb" id="sn-crumb"></span><span class="sn-date">{{ generated_at }}</span><span class="help-wrap" id="help-wrap"><button type="button" class="page-help-btn" id="page-help-btn" onclick="toggleHelp(event)" aria-label="About this page" aria-haspopup="dialog" aria-expanded="false" aria-controls="help-pop">?</button></span></div>
+    <!-- The page's ? sits at the title row's right end, the page's upper
+         right corner, as each card's ? sits in its card's (_qHelp corner).
+         On a ticker page _helpPlace moves it into the band's top row. Its
+         panel is #help-pop, at the end of <body>. -->
     <div class="sn-chips" id="sn-chips" role="tablist"></div>
     <div class="d-stmt-tabs sa-chrome pp-subtabs" id="sn-sub2" role="tablist" aria-label="Stocks" style="display:none"></div>
   </div>
@@ -5482,18 +5475,15 @@ function _pfOverviewHtml(){
   var defs=_pfDefs();
   var h='<div class="pfv"><div class="pfv-head"><h2>Portfolios</h2>'
     +(PF_PUB.prev_date?'<span class="pfv-sub">changes vs '+_pfEsc(PF_PUB.prev_date)+'</span>':'')
-    +'<span class="pf-spacer"></span><button class="pf-btn" onclick="pfManageOpen()">Manage…</button></div>'+_pfSystemicHtml()+_pfSyncNote();
+    /* Manage, the layout and the sort sit behind the top bar's funnel
+       (_altFiltSync kind 'pf'). */
+    +'</div>'+_pfSystemicHtml()+_pfSyncNote();
   if(!defs.length){
     return h+'<div class="pfv-empty"><p><b>No portfolios yet.</b> A portfolio is a named group of stocks — picked by hand, defined by a rule, or both — and a stock can be in as many as you like.</p>'
       +'<p>Filter the Investing › Stocks table and choose <b>Save filter as portfolio</b> in the Filters panel, add a stock from its popup (the folder button), or start one here.</p>'
       +'<button class="pf-btn pf-primary" onclick="pfNewEmpty()">+ New portfolio</button></div></div>';
   }
   var sums=_pfOvSorted(defs.map(_pfSummary));
-  h+='<div class="pfv-ov-bar"><div class="pfm-seg" role="group" aria-label="Layout">'
-    +[['cards','Cards'],['table','Table']].map(function(m){var on=_pfOv.mode===m[0];return'<button type="button" class="pfm-seg-b'+(on?' on':'')+'" aria-pressed="'+on+'" onclick="pfOvMode(\''+m[0]+'\')">'+m[1]+'</button>';}).join('')+'</div>'
-    +(_pfOv.mode==='cards'?'<label class="pfv-ov-sort">Sort <select class="pf-btn" onchange="pfOvSort(this.value)">'
-      +_PF_OV_COLS.filter(function(c){return c.card;}).map(function(c){return'<option value="'+c.k+'"'+(c.k===_pfOv.k?' selected':'')+'>'+c.card+'</option>';}).join('')+'</select></label>':'')
-    +'</div>';
   h+='<h3 class="pfv-h3"><span class="sec-label">Your Portfolios</span></h3>';
   if(_pfOv.mode==='table')h+=_pfOvTable(sums);
   else h+='<div class="pfv-grid">';
@@ -5718,6 +5708,7 @@ function _pfSubTab(btn){
   /* Charts measure their container, which is 0 wide while its pane is hidden. */
   if(k==='perf'){_pfDrawChart();_pfContribDraw();}
   if(k==='paper')_ppaDraw();
+  _altFiltSync();
   if(btn.parentNode.getBoundingClientRect().top<0)btn.parentNode.scrollIntoView({block:'start'});
 }
 /* A focusable ticker link (Enter opens the popup; see the keydown hook
@@ -5903,19 +5894,16 @@ function _pfmHtml(id){
     var out=hs.rows.filter(function(r){return !mem[r.row];}).map(function(r){return r.ticker;});
     if(out.length)away='<div class="pfc-notes">Held but not a member today (not in the universe, or excluded): '+_pfEsc(out.join(', '))+'. They still count in the holdings totals.</div>';
   }
-  return'<div class="pfm-top"><div class="pfm-seg pfm-cols" role="group" aria-label="Column set">'
-    +_pfmPresets(id).map(function(pr){var on=pr.id===_pfm.preset;return'<button type="button" class="pfm-seg-b'+(on?' on':'')+'" aria-pressed="'+on+'" onclick="pfmPreset(\''+pr.id+'\')">'+pr.l+'</button>';}).join('')
-    +'</div><input type="search" class="pfm-q" placeholder="Filter by ticker or name" aria-label="Filter members" value="'+_pfEsc(_pfm.q)+'" oninput="pfmQuery(this.value)">'
-    +'<span class="pf-muted pfm-n" id="pfm-n">'+(t.shown<t.total?t.shown+' of '+t.total:'')+'</span>'
-    +'<button type="button" class="pf-btn pfm-csv" onclick="pfmCsv()" title="Download the rows shown, with this column set, as CSV">CSV</button></div>'
-    +'<div class="pfv-tbl-wrap pfm-wrap"><table class="pfv-tbl pfm-tbl" id="pfm-tbl">'+t.html+'</table></div>'+away;
+  /* Column set, the name filter and CSV sit behind the top bar's funnel
+     (_altFiltSync kind 'pf', on this sub-tab); the count is the panel's. */
+  _altN.pf=[t.shown,t.total];
+  return'<div class="pfv-tbl-wrap pfm-wrap"><table class="pfv-tbl pfm-tbl" id="pfm-tbl">'+t.html+'</table></div>'+away;
 }
 function _pfmRedraw(){
   var tb=document.getElementById('pfm-tbl');if(!tb||!_pfm.id||!_pfById[_pfm.id])return;
   var t=_pfmTable(_pfm.id);tb.innerHTML=t.html;
-  var n=document.getElementById('pfm-n');if(n)n.textContent=t.shown<t.total?t.shown+' of '+t.total:'';
-  var bs=document.querySelectorAll('.pfm-cols .pfm-seg-b'),ps=_pfmPresets(_pfm.id);
-  for(var i=0;i<bs.length&&i<ps.length;i++){var on=ps[i].id===_pfm.preset;bs[i].classList.toggle('on',on);bs[i].setAttribute('aria-pressed',on);}
+  _altN.pf=[t.shown,t.total];
+  if(typeof _filtCountSync==='function'){_filtCountSync();_altFiltBadge();}
 }
 /* Momentum needs closes: fetch the members' px/ shards once, then redraw. */
 function _pfmNeedPx(){
@@ -5923,7 +5911,7 @@ function _pfmNeedPx(){
   var id=_pfm.id;
   _pfWithPx(_pfMembers(id),function(){if(_pfm.id!==id)return;_pfm.px=true;_pfmRedraw();});
 }
-function pfmPreset(pid){_pfm.preset=_pfmPreset(pid).id;_pfmSave();_pfmRedraw();_pfmNeedPx();}
+function pfmPreset(pid){_pfm.preset=_pfmPreset(pid).id;_pfmSave();_pfmRedraw();_pfmNeedPx();_altFiltSync();}
 function pfmSort(k){
   var pr=_pfmPreset(_pfm.preset),ss=_pfmSortState(pr);
   if(ss.k===k){_pfm.k=k;_pfm.asc=!ss.asc;}
@@ -7372,7 +7360,8 @@ function _filtCountSync(){
   var fc=document.getElementById('filt-count');if(!fc)return;
   var k=_altFiltKind(),f=function(n){return (+n||0).toLocaleString();};
   var w={bond:['bond','bonds'],ccy:['currency','currencies'],etf:['ETF','ETFs']}[k];
-  if(k==='chart'||k==='pf'){fc.textContent='';return;}
+  if(k==='chart'||(k==='pf'&&!_pfMembersOn())){fc.textContent='';return;}
+  if(k==='pf')w=['stock','stocks'];
   if(!k){fc.textContent=f(FD.length)+' of '+f(DATA.length)+' stock'+(DATA.length===1?'':'s');return;}
   var a=_altN[k];
   if(!a){fc.textContent='';return;}
@@ -7523,9 +7512,10 @@ function _positionFpop(panel,btn){
    (which have no rows there to filter), titled for the tab, and the funnel's
    badge counts them. */
 function _phOn(){return curView==='table'&&curTSub==='prices'&&!document.documentElement.classList.contains('det-open');}
-function _pfOn(){return curView==='pf'&&curPfSub!=='overview'&&!!_pfById[curPfSub]&&!document.documentElement.classList.contains('det-open');}
+function _pfOn(){return curView==='pf'&&(curPfSub==='overview'||!!_pfById[curPfSub])&&!document.documentElement.classList.contains('det-open');}
 function _altFiltKind(){return _bvOn()?'bond':_cxOn()?'ccy':_etfOn()?'etf':_phOn()?'chart':_pfOn()?'pf':'';}
-function _altFiltActive(k){return k==='bond'?_bvActive():k==='ccy'?(_cxF.r?1:0):k==='etf'?(_etfF.c?1:0):0;}
+function _pfMembersOn(){return curPfSub!=='overview'&&_pfSubTabCur()==='members';}
+function _altFiltActive(k){return k==='bond'?_bvActive():k==='ccy'?(_cxF.r?1:0):k==='etf'?(_etfF.c?1:0):k==='pf'?(_pfMembersOn()&&_pfm.q?1:0):0;}
 function _altFiltSync(){
   var k=_altFiltKind(),box=document.getElementById('alt-filt');if(!box)return;
   var s1=document.getElementById('filt-stock'),s2=document.getElementById('filt-stock-cols'),pc=document.getElementById('pf-filt-col');
@@ -7539,7 +7529,7 @@ function _altFiltSync(){
   var fb=document.getElementById('filt-show');if(fb&&k)fb.textContent='Done';
   _filtCountSync();
   var cl=document.querySelector('#filt-panel .filter-clear');
-  if(cl){cl.style.display=k==='pf'?'none':'';cl.textContent=k==='chart'?'Reset':'Clear';cl.title=k==='chart'?'Back to Price, Max and the top five':'Clear every filter and close this panel';}
+  if(cl){cl.style.display=k==='pf'&&!_pfMembersOn()?'none':'';cl.textContent=k==='chart'?'Reset':'Clear';cl.title=k==='chart'?'Back to Price, Max and the top five':'Clear every filter and close this panel';}
   var opt=function(v,l,cur){return '<option value="'+_attr(v)+'"'+(v===cur?' selected':'')+'>'+_esc(l)+'</option>';};
   var lab=function(t){return '<div class="fpop-section-label">'+t+'</div>';};
   if(k==='bond'){
@@ -7555,6 +7545,15 @@ function _altFiltSync(){
     var ec={};
     Object.keys((ETF_LT&&ETF_LT.funds)||{}).forEach(function(t){ec[_etfCat(ETF_LT.funds[t])]=1;});
     box.innerHTML=lab('Category')+'<select onchange="_etfSet(\'c\',this.value)" aria-label="Category">'+opt('','All categories',_etfF.c)+Object.keys(_ETF_CATS).filter(function(c){return ec[c];}).map(function(c){return opt(c,_ETF_CATS[c],_etfF.c);}).join('')+'</select>';
+  }else if(k==='pf'&&curPfSub==='overview'){
+    /* Overview: Manage, the layout (Quick filters' checked-chip look) and,
+       for cards, the sort (the other tabs' select). */
+    var chip=function(fn,l,on){return '<button type="button" class="fpop-toggle-btn" onclick="'+_attr(fn)+'"><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true"'+(on?' checked':'')+'>'+_esc(l)+'</button>';};
+    var sec=function(k2,t,b){return '<div class="fsec open" data-fsec="'+k2+'"><button type="button" class="fsec-h" onclick="_fsecToggle(\''+k2+'\')" aria-expanded="true"><span class="fsec-t">'+t+'</span><span class="fsec-c" aria-hidden="true"></span></button>'+b+'</div>';};
+    box.innerHTML=sec('pfact','Actions','<div class="qf-menu fsec-b"><button type="button" class="fpop-toggle-btn" onclick="closeFiltMenu();pfManageOpen()">Manage\u2026</button></div>')
+      +(_pfDefs().length?sec('pflay','Layout','<div class="qf-menu fsec-b">'+chip("pfOvMode('cards')",'Cards',_pfOv.mode!=='table')+chip("pfOvMode('table')",'Table',_pfOv.mode==='table')+'</div>')
+        +(_pfOv.mode!=='table'?sec('pfsort','Sort','<div class="fsec-b"><select onchange="pfOvSort(this.value)" aria-label="Sort portfolios">'
+          +_PF_OV_COLS.filter(function(c){return c.card;}).map(function(c){return opt(c.k,c.card,_pfOv.k);}).join('')+'</select></div>'):''):'');
   }else if(k==='pf'){
     /* The portfolio page's actions, as the Quick filters' rows (qf-menu +
        fpop-toggle-btn) so they wear exactly that CSS. Each closes the panel
@@ -7567,7 +7566,19 @@ function _altFiltSync(){
       +act("pfAddDialog('"+jid+"')",'Add stocks\u2026')
       +(p&&p.rule?act("pfEditRule('"+jid+"')",'Edit rule'):'')
       +act("pfShare('"+jid+"')",'Share link')
-      +act('pfManageOpen()','Manage\u2026')+'</div></div>';
+      +act('pfManageOpen()','Manage\u2026')
+      +(_pfMembersOn()?act('pfmCsv()','CSV'):'')+'</div></div>';
+    /* Members sub-tab: its column set (Quick filters' checked-chip look),
+       then the name filter (the Countries find box). Typing redraws the
+       table only, so the box keeps focus. */
+    if(_pfMembersOn()){
+      box.innerHTML+='<div class="fsec open" data-fsec="pfcols"><button type="button" class="fsec-h" onclick="_fsecToggle(\'pfcols\')" aria-expanded="true"><span class="fsec-t">Columns</span><span class="fsec-c" aria-hidden="true"></span></button>'
+        +'<div class="qf-menu fsec-b">'+_pfmPresets(curPfSub).map(function(pr){
+          return '<button type="button" class="fpop-toggle-btn" onclick="pfmPreset(\''+pr.id+'\')"><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true"'+(pr.id===_pfm.preset?' checked':'')+'>'+_esc(pr.l)+'</button>';
+        }).join('')+'</div></div>'
+        +'<div class="fsec open" data-fsec="pfq"><button type="button" class="fsec-h" onclick="_fsecToggle(\'pfq\')" aria-expanded="true"><span class="fsec-t">Members</span><span class="fsec-c" aria-hidden="true"></span></button>'
+        +'<div class="fsec-b"><input type="search" class="fsec-q" placeholder="Filter by ticker or name" aria-label="Filter members" value="'+_attr(_pfm.q)+'" oninput="pfmQuery(this.value)"></div></div>';
+    }
   }else box.innerHTML='';
   _altFiltBadge();
 }
@@ -7606,7 +7617,7 @@ function _fsecSync(opening){
     var k=sec.getAttribute('data-fsec'),v=sums[k]||'';
     var el=document.getElementById('fsum-'+k);
     if(el){el.textContent=v||(k==='quick'||k==='cols'?'None':k==='pf'?'Any':'All');el.classList.toggle('on',!!v);}
-    var open=(k in _fsecUser)?_fsecUser[k]:(k==='rating'||k==='quick'||k==='pfact'||!!v);
+    var open=(k in _fsecUser)?_fsecUser[k]:(k==='rating'||k==='quick'||k.slice(0,2)==='pf'&&k!=='pf'||!!v);
     if(opening||(k in _fsecUser))_fsecSet(sec,open);
   });
   var b=document.getElementById('filt-show');
@@ -7641,6 +7652,7 @@ function _filtClear(){
   if(k==='bond')_bvReset();
   else if(k==='ccy')_cxSet('r','');
   else if(k==='etf')_etfSet('c','');
+  else if(k==='pf'){_pfm.q='';_pfmRedraw();}
   else if(k==='chart'){phReset();return;}
   else clearFilters();
   closeFiltMenu();
@@ -13349,8 +13361,8 @@ function moveFilterBar(v){
      too, back when its five lines were seeded from the whole universe; now
      that they seed from FD, the filters drive it and have to be reachable
      from it. */
-  /* A portfolio's own page is not: its actions sit in the Filters panel. */
-  var navOnly=(v==='pool'||v==='macro'||(v==='pf'&&curPfSub==='overview'));
+  /* Portfolios is not: its page actions sit in the Filters panel. */
+  var navOnly=(v==='pool'||v==='macro');
   fb.classList.toggle('nav-only',navOnly);
   var hd=document.querySelector('.header');
   if(hd)hd.classList.toggle('nav-only',navOnly);
@@ -13742,25 +13754,39 @@ function helpRender(){
   if(own.length)h+='<div class="hp-page">'+own.map(function(e){return e.outerHTML.replace(/\bpg-help\b/,'');}).join('')+'</div>';
   pop.innerHTML=h;
 }
+/* The ? lives in the view title row, or on a ticker page in the band's
+   top row beside ‹ n / N ›, so it is always the page's upper right. */
+function _helpPlace(det){
+  var w=document.getElementById('help-wrap');if(!w)return;
+  var to=det?document.querySelector('#det-modal .d-mini-nav'):document.querySelector('#subnav .sn-head');
+  if(!to||w.parentNode===to)return;
+  if(det)to.insertBefore(w,to.firstChild);else to.appendChild(w);
+}
 function toggleHelp(e){
   if(e)e.stopPropagation();
-  var pop=document.getElementById('help-pop');
+  var pop=document.getElementById('help-pop'),btn=document.getElementById('page-help-btn');
   if(pop.classList.contains('open')){closeHelp();return;}
   closeNavMenu();closeFiltMenu();
   helpRender();
   pop.classList.add('open');
-  document.getElementById('hdr-help').setAttribute('aria-expanded','true');
+  btn.setAttribute('aria-expanded','true');
+  var r=btn.getBoundingClientRect(),vw=document.documentElement.clientWidth;
+  pop.style.top=Math.round(r.bottom+8)+'px';
+  pop.style.right=Math.round(Math.max(16,Math.min(vw-r.right,vw-16-pop.offsetWidth)))+'px';
 }
 function closeHelp(){
   var pop=document.getElementById('help-pop');
   if(!pop||!pop.classList.contains('open'))return;
   pop.classList.remove('open');
-  document.getElementById('hdr-help').setAttribute('aria-expanded','false');
+  document.getElementById('page-help-btn').setAttribute('aria-expanded','false');
 }
 document.addEventListener('click',function(e){
-  var w=document.getElementById('help-wrap');
-  if(w&&!w.contains(e.target))closeHelp();
+  var w=document.getElementById('help-wrap'),pop=document.getElementById('help-pop');
+  if(w&&!w.contains(e.target)&&!(pop&&pop.contains(e.target)))closeHelp();
 });
+/* A fixed panel would drift from its ? as the page scrolls. */
+window.addEventListener('scroll',closeHelp,{passive:true});
+document.addEventListener('scroll',function(e){if(e.target&&e.target.id==='det-modal')closeHelp();},true);
 /* k omitted (the group header was clicked) = go to the view, keeping
    whichever sub-tab it was last on. */
 function navGo(v,k){
@@ -13909,6 +13935,7 @@ function hdrMenuTap(){
 function _detOpenState(on){
   var r=document.documentElement;
   r.classList.toggle('det-open',!!on);
+  closeHelp();_helpPlace(!!on);
   var hd=document.querySelector('.header');
   if(hd)r.style.setProperty('--hdr-h',hd.offsetHeight+'px');
   var b=document.getElementById('hdr-menu');
@@ -18608,7 +18635,6 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .pfv-brk-h{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
 .pfv-pulls{font-size:12.5px;}
 .pfv-ovl td,.pfv-ovl th{white-space:nowrap;}
-.pfm-csv{margin-left:auto;}
 @media (max-width:600px){
   .pf-row{flex-wrap:wrap;}
   .pf-row-btns{max-width:none;width:100%;justify-content:flex-start;padding-left:38px;}
@@ -18762,7 +18788,6 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .pf-tabbed[data-tab="perf"]>[data-pane="perf"],.pf-tabbed[data-tab="alerts"]>[data-pane="alerts"],
 .pf-tabbed[data-tab="recent"]>[data-pane="recent"],.pf-tabbed[data-tab="paper"]>[data-pane="paper"]{display:block;}
 /* Members table: presets, search, sticky header and stock column. */
-.pfm-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px;}
 .pfm-seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface);}
 .pfm-seg-b{font:inherit;font-size:12.5px;padding:5px 11px;border:none;border-left:1px solid var(--border);background:none;color:var(--text-muted);cursor:pointer;}
 .pfm-seg-b:first-child{border-left:none;}
@@ -18780,8 +18805,6 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 [data-theme="dark"] #pf-view :where(.pf-muted,.pfv-sub,.pfv-meta,.pfv-rule,.pfv-kpi-l,.pfv-kpi-u,.pfv-top,.pfv-foot,.pfv-date,.pfv-alert-msg,.pfv-why,.pfv-legend,.pfv-dist-l,.pfc-notes,.pfc-cl-h,.pfm-co,.pfv-tbl th:not(.on),.pfv-count,.pf-tag){color:var(--text-muted) !important;}
 [data-theme="dark"] #pf-view :is(.pfv-lv,.pfv-badge.hot,.pfm-seg-b.on,.pf-primary){color:var(--pf-on-chip) !important;}
 [data-theme="dark"] #pf-view :is(.pfv-new,.pfv-why-tog,.pf-link){color:var(--accent) !important;}
-.pfm-q{font:inherit;font-size:12.5px;padding:5px 9px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);min-width:0;flex:0 1 220px;}
-.pfm-n{margin-left:auto;}
 .pfm-wrap{max-height:min(70vh,760px);overflow:auto;}
 .pfm-tbl{border-collapse:separate;border-spacing:0;}
 .pfm-tbl thead th{position:-webkit-sticky;position:sticky;top:0;z-index:2;background:var(--surface);}
@@ -18802,9 +18825,6 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .pfm-bar i.pos{background:var(--pf-pos);}.pfm-bar i.neg{background:var(--pf-neg);}
 .pfm-more-row td{text-align:center;}
 /* Overview: layout toggle, sort, and the comparison table. */
-.pfv-ov-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;}
-.pfv-ov-sort{font-size:12.5px;color:var(--text-muted);display:inline-flex;align-items:center;gap:6px;}
-.pfv-ov-sort select{padding:4px 6px;}
 .pfo-row{cursor:pointer;}
 .pfo-row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
 .pfo-name{display:inline-flex;align-items:center;gap:8px;font-weight:600;}
@@ -18818,13 +18838,11 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 }
 @media (max-width:700px){
   .pfv-detail-grid{grid-template-columns:1fr;}
-  .pfm-q{flex:1 1 100%;}
   .pfc-cls{grid-template-columns:1fr;}
   .pfv-sec{grid-template-columns:minmax(0,110px) 1fr 36px 42px;}
   .pfm-stk{min-width:0;max-width:112px;}
   .pfm-co{max-width:96px;}
   .pfm-tbl td,.pfm-tbl th{padding:6px 8px;}
-  .pfm-n{margin-left:0;}
   .pfv-alert{flex-wrap:wrap;}
   .pfv-alert-msg{flex-basis:100%;}
 }
@@ -19350,5 +19368,6 @@ function aiTurn(depth){
 }
 })();
 </script>
+<div class="help-pop sa-chrome" id="help-pop" role="dialog" aria-label="About this page"></div>
 </body>
 </html>
