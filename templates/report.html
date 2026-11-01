@@ -3434,11 +3434,14 @@ html body #ph-menu button:focus-visible{outline:2px solid var(--chrome-accent);o
 /* ---- the page's ? (help-wrap): explanatory text lives here, not on the page ---- */
 .pg-help{display:none !important;}
 .help-wrap{position:relative;flex:0 0 auto;}
-.hdr-help{--sac:var(--search-fg);width:30px;height:30px;border-radius:50%;border:1px solid var(--search-border);background:var(--search-bg);
-  font:inherit;font-size:15px;font-weight:700;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;}
-.hdr-help:hover,.hdr-help[aria-expanded="true"]{border-color:var(--chrome-accent);}
-.hdr-help:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:2px;}
-.help-pop{--sac:var(--chrome-heading);display:none;position:absolute;right:0;top:calc(100% + 10px);z-index:1400;width:min(380px,calc(100vw - 32px));
+.page-help-btn{width:26px;height:26px;padding:0;border-radius:50%;border:1px solid var(--ppf-line);background:transparent;
+  color:var(--ppf-sub);font-family:inherit;font-size:13px;font-weight:600;line-height:24px;text-align:center;cursor:pointer;}
+.page-help-btn:hover,.page-help-btn[aria-expanded="true"]{color:var(--accent,#2563eb);border-color:var(--accent,#2563eb);}
+.page-help-btn:focus-visible{outline:2px solid var(--accent,#2563eb);outline-offset:2px;}
+.sn-head .help-wrap{align-self:center;margin-right:8px;}
+.d-mini-nav .help-wrap{display:flex;align-items:center;margin-right:4px;}
+/* Placed by _helpPlace under its button, kept on screen. */
+.help-pop{--sac:var(--chrome-heading);display:none;position:fixed;z-index:1500;width:min(380px,calc(100vw - 32px));
   max-height:min(70vh,560px);overflow-y:auto;box-sizing:border-box;padding:14px 16px;background:var(--menu-bg);border:1px solid var(--menu-border);
   border-radius:10px;box-shadow:var(--menu-shadow);font-size:13.5px;line-height:1.5;text-align:left;white-space:normal;}
 .help-pop.open{display:block;}
@@ -3449,13 +3452,6 @@ html body #ph-menu button:focus-visible{outline:2px solid var(--chrome-accent);o
 .help-pop .hp-page{margin-top:10px;padding-top:10px;border-top:1px solid var(--menu-border);}
 .help-pop .hp-page>*{display:block !important;margin:0 0 6px;}
 .help-pop .hp-page .pfv-meta{--sac:var(--chrome-muted);font-size:12.5px;}
-@media(max-width:768px),(orientation:landscape) and (max-height:500px){
-  /* Over a ticker page the bar's right end holds its × (#hdr-close, absolute):
-     the bar keeps room for it, so the ? stays in flow just left of it. */
-  html.det-open .header{padding-right:48px;}
-  html.det-open .help-wrap{margin-left:auto;}
-  .help-pop{position:fixed;right:16px;left:16px;width:auto;top:calc(var(--hdr-h,52px) + 6px);}
-}
 html.sb-over #sidebar,html.sb-drawer #sidebar{z-index:1310;}
 html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
 </style>
@@ -3728,13 +3724,6 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
       </div>
     </div>
   </div>
-  <!-- Every page's explanatory text sits behind this ?, in the top bar's
-       upper right: the page's own blurb (_HELP_TXT) plus any .pg-help
-       element the view rendered, which is hidden in place (helpRender). -->
-  <div class="help-wrap" id="help-wrap">
-    <button type="button" class="hdr-help sa-chrome" id="hdr-help" onclick="toggleHelp(event)" aria-label="About this page" aria-haspopup="dialog" aria-expanded="false" aria-controls="help-pop">?</button>
-    <div class="help-pop sa-chrome" id="help-pop" role="dialog" aria-label="About this page"></div>
-  </div>
 </div>
 <!-- Seeking Alpha-style navigation (see SA CHROME in the stylesheet). The
      views and portfolio rows are rendered by renderNavMenu() from
@@ -3768,7 +3757,11 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
        the only route to a sub-tab now that the Views dropdown is gone. -->
   <div id="subnav" class="sa-chrome">
     <button type="button" class="d-back sa-chrome" id="sn-back" onclick="drillBack()"></button>
-    <div class="sn-head"><h2 class="sn-title" id="sn-title"></h2><span class="sn-crumb" id="sn-crumb"></span><span class="sn-date">{{ generated_at }}</span></div>
+    <div class="sn-head"><h2 class="sn-title" id="sn-title"></h2><span class="sn-crumb" id="sn-crumb"></span><span class="sn-date">{{ generated_at }}</span><span class="help-wrap" id="help-wrap"><button type="button" class="page-help-btn" id="page-help-btn" onclick="toggleHelp(event)" aria-label="About this page" aria-haspopup="dialog" aria-expanded="false" aria-controls="help-pop">?</button></span></div>
+    <!-- The page's ? sits at the title row's right end, the page's upper
+         right corner, as each card's ? sits in its card's (_qHelp corner).
+         On a ticker page _helpPlace moves it into the band's top row. Its
+         panel is #help-pop, at the end of <body>. -->
     <div class="sn-chips" id="sn-chips" role="tablist"></div>
     <div class="d-stmt-tabs sa-chrome pp-subtabs" id="sn-sub2" role="tablist" aria-label="Stocks" style="display:none"></div>
   </div>
@@ -13742,25 +13735,39 @@ function helpRender(){
   if(own.length)h+='<div class="hp-page">'+own.map(function(e){return e.outerHTML.replace(/\bpg-help\b/,'');}).join('')+'</div>';
   pop.innerHTML=h;
 }
+/* The ? lives in the view title row, or on a ticker page in the band's
+   top row beside ‹ n / N ›, so it is always the page's upper right. */
+function _helpPlace(det){
+  var w=document.getElementById('help-wrap');if(!w)return;
+  var to=det?document.querySelector('#det-modal .d-mini-nav'):document.querySelector('#subnav .sn-head');
+  if(!to||w.parentNode===to)return;
+  if(det)to.insertBefore(w,to.firstChild);else to.appendChild(w);
+}
 function toggleHelp(e){
   if(e)e.stopPropagation();
-  var pop=document.getElementById('help-pop');
+  var pop=document.getElementById('help-pop'),btn=document.getElementById('page-help-btn');
   if(pop.classList.contains('open')){closeHelp();return;}
   closeNavMenu();closeFiltMenu();
   helpRender();
   pop.classList.add('open');
-  document.getElementById('hdr-help').setAttribute('aria-expanded','true');
+  btn.setAttribute('aria-expanded','true');
+  var r=btn.getBoundingClientRect(),vw=document.documentElement.clientWidth;
+  pop.style.top=Math.round(r.bottom+8)+'px';
+  pop.style.right=Math.round(Math.max(16,Math.min(vw-r.right,vw-16-pop.offsetWidth)))+'px';
 }
 function closeHelp(){
   var pop=document.getElementById('help-pop');
   if(!pop||!pop.classList.contains('open'))return;
   pop.classList.remove('open');
-  document.getElementById('hdr-help').setAttribute('aria-expanded','false');
+  document.getElementById('page-help-btn').setAttribute('aria-expanded','false');
 }
 document.addEventListener('click',function(e){
-  var w=document.getElementById('help-wrap');
-  if(w&&!w.contains(e.target))closeHelp();
+  var w=document.getElementById('help-wrap'),pop=document.getElementById('help-pop');
+  if(w&&!w.contains(e.target)&&!(pop&&pop.contains(e.target)))closeHelp();
 });
+/* A fixed panel would drift from its ? as the page scrolls. */
+window.addEventListener('scroll',closeHelp,{passive:true});
+document.addEventListener('scroll',function(e){if(e.target&&e.target.id==='det-modal')closeHelp();},true);
 /* k omitted (the group header was clicked) = go to the view, keeping
    whichever sub-tab it was last on. */
 function navGo(v,k){
@@ -13909,6 +13916,7 @@ function hdrMenuTap(){
 function _detOpenState(on){
   var r=document.documentElement;
   r.classList.toggle('det-open',!!on);
+  closeHelp();_helpPlace(!!on);
   var hd=document.querySelector('.header');
   if(hd)r.style.setProperty('--hdr-h',hd.offsetHeight+'px');
   var b=document.getElementById('hdr-menu');
@@ -19350,5 +19358,6 @@ function aiTurn(depth){
 }
 })();
 </script>
+<div class="help-pop sa-chrome" id="help-pop" role="dialog" aria-label="About this page"></div>
 </body>
 </html>

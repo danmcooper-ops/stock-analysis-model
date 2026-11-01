@@ -1170,8 +1170,10 @@ ruff check .
     table. The non-stock jumps are drills, so ‹ Back returns. On a table view
     the list leaves out the table's own kind and preselects nothing, so Enter
     still only filters. Tests: `tests/test_report_search.py`.
-  - **Page help (`#hdr-help`):** a ? at the top bar's right end, on every
-    page, opens what the page is for: a blurb per page (`_HELP_TXT`, keyed
+  - **Page help (`#page-help-btn`):** a ? in every page's upper-right
+    corner, styled and placed like each card's ?: the view title row's
+    right end, or on a ticker page the band's top row (`_helpPlace`); never
+    the top bar. It opens what the page is for: a blurb per page (`_HELP_TXT`, keyed
     by `_helpKey`) plus any element the view rendered with class `pg-help`,
     which is hidden in place (a portfolio's description and counts line).
     Explanatory text goes there, not on the page. Tests:

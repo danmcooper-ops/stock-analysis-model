@@ -9,10 +9,16 @@ def _tpl():
     return TPL.read_text(encoding='utf-8')
 
 
-def test_help_button_sits_in_the_top_bar():
+def test_help_button_sits_in_the_page_corner_not_the_top_bar():
+    """The ? is the page's upper-right corner (the view title row, or the
+    ticker band's top row), as each card's ? is its card's; not the top bar."""
     src = _tpl()
     header = src.split('<div class="header">', 1)[1].split('<!-- Seeking Alpha-style navigation', 1)[0]
-    assert 'id="hdr-help"' in header and 'id="help-pop"' in header
+    assert 'page-help-btn' not in header
+    sn_head = src.split('<div class="sn-head">', 1)[1].split('</div>', 1)[0]
+    assert 'id="page-help-btn"' in sn_head
+    place = src.split('function _helpPlace(det){', 1)[1].split('\n}', 1)[0]
+    assert "'#det-modal .d-mini-nav'" in place and "'#subnav .sn-head'" in place
 
 
 def test_every_page_key_has_text():
