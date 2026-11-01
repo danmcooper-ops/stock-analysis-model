@@ -1135,6 +1135,24 @@ ruff check .
   `cloudflare/README.md`. Cache headers stay at Pages' default
   revalidation, because a `px/` shard is an offset into `prices_meta.json`'s
   dates axis and must never be mixed across deploys.
+- **App feed (`report_html._write_app_feed`, `APP_FEED_VERSION`, 2026-11-01):**
+  the iPhone/iPad app (`ios/`, design/ios-app-plan.md) views the nightly
+  output and never re-runs a model. `build_html` writes `app/` beside the
+  report, right after `_extract_details_payload`:
+  - `rows.json`: the inline `DATA` records, `pack_rows`-packed;
+  - `portfolios.json`: `PF_PUB`'s payload, which never holds positions;
+  - `gates.json`: `gate_metadata()`;
+  - `manifest.json`, last: version, `run_date`, `generated_at`, `build`
+    (`rows.json`'s SHA-256 prefix) and each file's SHA-256.
+
+  The old manifest is removed before anything is written, so a write that
+  dies halfway leaves no feed rather than yesterday's manifest over a mix of
+  files. A failure is logged and never fails the render. Values are sanitized
+  because Swift's decoder rejects NaN. `APP_EXCLUDE_KEYS` (empty while the
+  app is the owner's alone) is the one switch for fields a data licence does
+  not cover once others are invited. `run_daily.sh` publish copies `app/` only
+  with its manifest and otherwise removes it. The app keys every cached file
+  by `build`, the same never-mix rule as `px/`. Tests: `tests/test_app_feed.py`.
 - **Report navigation and appearance (`templates/report.html`, "SA CHROME"):**
   Seeking Alpha-style chrome replaced the header's Views dropdown. There is a
   fixed black `#sidebar` (desktop, or a 72px rail via `html.sb-rail`, stored in

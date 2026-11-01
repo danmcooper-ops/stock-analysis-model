@@ -592,6 +592,13 @@ publish() {
   # this machine has the paper bot's records; public by choice.
   if [ -f output/paper.json ]; then cp output/paper.json "$docs/paper.json" || return 1
   else rm -f "$docs/paper.json"; fi
+  # app/ (the iPhone/iPad app's feed, design/ios-app-plan.md): only a
+  # complete feed (manifest written last) ships; never yesterday's.
+  rm -rf "$docs/app"
+  if [ -f output/app/manifest.json ]; then
+    mkdir -p "$docs/app" && cp output/app/manifest.json output/app/rows.json \
+      output/app/portfolios.json output/app/gates.json "$docs/app/" || return 1
+  fi
   rm -f "$docs/prices.json"   # retired 2026-08-11
   rm -f "$docs/hist.json" "$docs/details.json"   # split into hist/ and details/ (P4c)
   "$VPY" scripts/publish_vol_shards.py || { echo "publish: shard sync failed"; return 1; }

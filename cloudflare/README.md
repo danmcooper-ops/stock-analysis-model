@@ -130,6 +130,28 @@ this time are left out of the answer, and the page keeps what it shows.
 Check: on a market day, sign in, open a ticker, and look for the dotted
 underline and the "Live · 10:42 ET" stamp beside the price.
 
+## The iPhone/iPad app
+
+The app (`ios/`, design/ios-app-plan.md) reads `app/manifest.json` and the
+files it names (`rows.json`, `portfolios.json`, `gates.json`), plus the
+report's existing shards, from this site and behind this login. Its sign-in
+is the same one-time code: it opens the site in a web view and keeps the
+`CF_Authorization` cookie, sent back as the `cf-access-token` header. So:
+
+* The Worker needs no change. Access adds `Cf-Access-Jwt-Assertion` to every
+  signed-in request, however it was signed in.
+* The **session duration** (step 3) is how often the app asks for a new code.
+  Leave it at 30 days.
+* Inviting someone to the app is adding their email to Policy 1. Removing it
+  locks them out at their next sign-in. Do not invite anyone until the data
+  licence in design/ios-app-plan.md (Part C) covers it.
+
+Check it by hand: the first line must be a 302 to Access, never data.
+
+```bash
+curl -sI ${URL}app/manifest.json | head -1
+```
+
 ## Retiring GitHub Pages, then making the repo private
 
 GitHub Pages (`pages-live`) is still the public primary site until it is

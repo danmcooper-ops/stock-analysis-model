@@ -2089,6 +2089,71 @@ def _build_etf_payload(rows, out_dir, run_date, prices_dir=None, run_provenance=
     return payload
 
 
+# --- App feed (design/ios-app-plan.md) --------------------------------------
+# The iPhone/iPad app reads the same rows the page inlines as DATA, plus the
+# portfolio definitions (PF_PUB) and gate metadata, from app/ beside the
+# report. manifest.json is written last and names every file by SHA-256, so a
+# reader that sees a manifest sees a complete, consistent build.
+APP_FEED_VERSION = 1
+# Row keys withheld from the app feed. Empty while the app is for the owner
+# alone; once others are invited, list every field the data licence does not
+# cover (e.g. Finnhub peers/supply chain, news). The one switch for what
+# reaches other people.
+APP_EXCLUDE_KEYS = frozenset()
+APP_FEED_DIR = 'app'
+
+
+def _write_json_atomic(path, obj):
+    """Compact JSON via a temp file + os.replace; returns the bytes' SHA-256."""
+    import hashlib
+    data = json.dumps(obj, default=_json_default, separators=(',', ':'),
+                      allow_nan=False).encode('utf-8')
+    tmp = path + '.tmp'
+    with open(tmp, 'wb') as f:
+        f.write(data)
+    os.replace(tmp, path)
+    return hashlib.sha256(data).hexdigest()
+
+
+def _write_app_feed(out_dir, chart_records, portfolios_payload, gate_meta_obj,
+                    run_date=None, exclude_keys=None):
+    """Write app/{rows,portfolios,gates,manifest}.json beside the report.
+
+    ``chart_records`` are the inline DATA records (heavy text already moved
+    to details/). Values are sanitized (NaN/inf -> null) because the app's
+    JSON decoder, unlike the page's, rejects non-finite numbers. Returns the
+    manifest dict.
+    """
+    from datetime import datetime, timezone
+    excl = APP_EXCLUDE_KEYS if exclude_keys is None else frozenset(exclude_keys)
+    app_dir = os.path.join(out_dir, APP_FEED_DIR)
+    os.makedirs(app_dir, exist_ok=True)
+    # Drop the old manifest first: if this write dies halfway, there is no
+    # feed (the publish step skips app/) rather than yesterday's manifest
+    # vouching for a mix of old and new files.
+    _manifest_path = os.path.join(app_dir, 'manifest.json')
+    if os.path.exists(_manifest_path):
+        os.remove(_manifest_path)
+    records =[{k: v for k, v in r.items() if k not in excl} for r in chart_records]
+    files = {
+        'rows.json': _sanitize(pack_rows(records)),
+        'portfolios.json': _sanitize(portfolios_payload or {}),
+        'gates.json': _sanitize(gate_meta_obj or {}),
+    }
+    hashes = {name: _write_json_atomic(os.path.join(app_dir, name), obj)
+              for name, obj in files.items()}
+    manifest = {
+        'version': APP_FEED_VERSION,
+        'run_date': run_date.isoformat() if hasattr(run_date, 'isoformat') else run_date,
+        'generated_at': datetime.now(timezone.utc).isoformat(timespec='seconds'),
+        'build': hashes['rows.json'][:12],
+        'rows': len(records),
+        'files': hashes,
+    }
+    _write_json_atomic(_manifest_path, manifest)
+    return manifest
+
+
 BOND_REPORT_VERSION = 1      # bonds/: REPORT_DATA_VERSION we draw
 CURRENCY_REPORT_VERSION = 1  # currencies/: REPORT_DATA_VERSION we draw
 
@@ -2247,6 +2312,12 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     _attach_profiles(chart_records)
 
     details_payload = _extract_details_payload(chart_records)
+
+    try:
+        _write_app_feed(_out_dir_early, chart_records, portfolios_payload,
+                        gate_meta_obj, run_date)
+    except Exception as e:  # the app feed is a by-product: never fail a render over it
+        logger.warning("App feed write failed: %s", e, exc_info=True)
 
     chart_data = dumps_for_script(pack_rows(chart_records), default=_json_default,
                                   separators=(',', ':'))
