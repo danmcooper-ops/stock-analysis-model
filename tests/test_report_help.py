@@ -18,7 +18,7 @@ def test_help_button_sits_in_the_page_corner_not_the_top_bar():
     sn_head = src.split('<div class="sn-head">', 1)[1].split('</div>', 1)[0]
     assert 'id="page-help-btn"' in sn_head
     place = src.split('function _helpPlace(det){', 1)[1].split('\n}', 1)[0]
-    assert "'#det-modal .d-mini-nav'" in place and "'#subnav .sn-head'" in place
+    assert "'#det-modal .d-mini-nav'" in place and "querySelector('.sn-head')" in place
 
 
 def test_every_page_key_has_text():
@@ -35,3 +35,27 @@ def test_page_text_moves_behind_the_icon():
     src = _tpl()
     assert '.pg-help{display:none !important;}' in src
     assert 'class="pfv-desc pg-help"' in src and 'class="pfv-meta pg-help"' in src
+
+
+def test_every_question_mark_is_level_with_its_title():
+    """_qAlign centres a card's corner ? on its title, or moves it into the
+    title's row when the title sits above the card; the page's ? joins the
+    page's first section title unless that title has its own ?."""
+    src = _tpl()
+    align = src.split('function _qAlign(){', 1)[1].split('\n}\n', 1)[0]
+    assert "'.qhelp-corner,.note-q'" in align
+    assert '_qIntoRow(q,lab,' in align
+    place = src.split('function _helpPlace(det){', 1)[1].split('\n}\n', 1)[0]
+    assert '!_qHasOwn(first)' in place and "_qIntoRow(w,first,'hw')" in place
+    assert "querySelector('.sn-head')" in place  # fallback: the view title row
+
+
+def test_alignment_reruns_after_renders_on_a_timer():
+    """Views render by innerHTML and swap sub-tabs by data-tab; a timer, not
+    requestAnimationFrame, so an unpainted tab still gets the pass."""
+    src = _tpl()
+    sched = src.split('function _qSchedule(){', 1)[1].split('\n}\n', 1)[0]
+    assert 'setTimeout(' in sched and 'requestAnimationFrame' not in sched
+    assert "attributeFilter:['data-tab','class','hidden']" in src
+    # Held by reference, so a re-render that drops it cannot lose it.
+    assert "_helpW=document.getElementById('help-wrap')" in src

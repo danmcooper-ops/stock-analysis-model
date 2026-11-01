@@ -3439,6 +3439,10 @@ html body #ph-menu button:focus-visible{outline:2px solid var(--chrome-accent);o
 .page-help-btn:hover,.page-help-btn[aria-expanded="true"]{color:var(--accent,#2563eb);border-color:var(--accent,#2563eb);}
 .page-help-btn:focus-visible{outline:2px solid var(--accent,#2563eb);outline-offset:2px;}
 .sn-head .help-wrap{align-self:center;margin-right:8px;}
+/* Beside a section title (_helpPlace / _qAlign): last in a flex row, else floated right. */
+.help-wrap.hw-row,.qhelp.q-row-row{margin-left:auto;align-self:center;flex-shrink:0;}
+.help-wrap.hw-float,.qhelp.q-row-float{float:right;margin-left:8px;}
+.qhelp.q-row-row,.qhelp.q-row-float{position:relative;top:auto;right:auto;}
 .d-mini-nav .help-wrap{display:flex;align-items:center;margin-right:4px;}
 /* Placed by _helpPlace under its button, kept on screen. */
 .help-pop{--sac:var(--chrome-heading);display:none;position:fixed;z-index:1500;width:min(380px,calc(100vw - 32px));
@@ -13754,17 +13758,112 @@ function helpRender(){
   if(own.length)h+='<div class="hp-page">'+own.map(function(e){return e.outerHTML.replace(/\bpg-help\b/,'');}).join('')+'</div>';
   pop.innerHTML=h;
 }
-/* The ? lives in the view title row, or on a ticker page in the band's
-   top row beside ‹ n / N ›, so it is always the page's upper right. */
-function _helpPlace(det){
-  var w=document.getElementById('help-wrap');if(!w)return;
-  var to=det?document.querySelector('#det-modal .d-mini-nav'):document.querySelector('#subnav .sn-head');
-  if(!to||w.parentNode===to)return;
-  if(det)to.insertBefore(w,to.firstChild);else to.appendChild(w);
+/* Every ? sits level with its title, at the right end of the title's row.
+   _qAlign centres a card's corner ? (_qHelp 'corner', _noteQ) on its title
+   when the title is in the same card, and moves it into the title's row when
+   the title sits above the card (a portfolio pane's h3, a ticker group's
+   heading). The page's own ? (_helpPlace) joins the page's first section
+   title the same way, unless that title already has a ?; then, and on a page
+   with no section title, it stays at the end of the view title row. On a
+   ticker page it sits in the band's top row beside ‹ n / N ›. */
+var _Q_LABELS='.sec-label,.pp-section-label,.mac-card-title';
+function _qVis(e){return e&&e.offsetParent!==null&&e.getClientRects().length>0;}
+function _qMid(e){var r=e.getBoundingClientRect();return r.top+r.height/2;}
+/* The title a ? belongs to: the nearest one up its ancestors, closest in height. */
+function _qLabelFor(q){
+  var bt=q.getBoundingClientRect().top;
+  for(var n=q.parentElement,d=0;n&&n!==document.body&&d<6;n=n.parentElement,d++){
+    var ls=[].slice.call(n.querySelectorAll(_Q_LABELS)).filter(_qVis);
+    if(!ls.length)continue;
+    ls.sort(function(a,b){return Math.abs(a.getBoundingClientRect().top-bt)-Math.abs(b.getBoundingClientRect().top-bt);});
+    return ls[0];
+  }
+  return null;
 }
+/* Join a title's row at its right end: a flex row takes the ? last
+   (margin-left:auto); any other row floats it right, centred on the title. */
+function _qIntoRow(el,lab,cls){
+  var par=lab.parentElement,cs=getComputedStyle(par);
+  el.classList.remove(cls+'-row',cls+'-float');el.style.marginTop='';el.style.top='';
+  if(cs.display.indexOf('flex')>=0&&cs.flexDirection.indexOf('row')===0){
+    if(el.parentNode!==par||par.lastElementChild!==el)par.appendChild(el);
+    el.classList.add(cls+'-row');
+  }else{
+    if(el.nextElementSibling!==lab)par.insertBefore(el,lab);
+    el.classList.add(cls+'-float');
+    el.style.marginTop=Math.max(0,Math.round((lab.offsetHeight-el.offsetHeight)/2))+'px';
+  }
+}
+function _qAlign(){
+  [].forEach.call(document.querySelectorAll('.qhelp-corner,.note-q'),function(q){
+    if(!_qVis(q)||q.classList.contains('q-row-row')||q.classList.contains('q-row-float'))return;
+    var lab=_qLabelFor(q),box=q.offsetParent;
+    if(!lab||!box)return;
+    if(box.contains(lab)&&box!==document.body){
+      var br=box.getBoundingClientRect();
+      var top=Math.round(_qMid(lab)-br.top-box.clientTop-q.offsetHeight/2);
+      if(q.style.top!==top+'px')q.style.top=top+'px';
+    }else{
+      /* The title is outside the card: the ? moves up into its row, replacing
+         any ? an earlier render of the same card left there. */
+      var old=lab.parentElement.querySelector(':scope > .q-row-row, :scope > .q-row-float');
+      if(old&&old!==q)old.remove();
+      q.classList.remove('qhelp-corner');
+      _qIntoRow(q,lab,'q-row');
+    }
+  });
+}
+/* Does this title already carry a ? of its own on its row? */
+function _qHasOwn(lab){
+  var lr=lab.getBoundingClientRect(),m=lr.top+lr.height/2;
+  return [].some.call(document.querySelectorAll('.qhelp,.note-q'),function(q){
+    if(!_qVis(q)||q.closest('.qhelp-pop'))return false;
+    var r=q.getBoundingClientRect();
+    return r.left>=lr.right-2&&Math.abs(r.top+r.height/2-m)<16&&r.left-lr.right<1200;
+  });
+}
+/* Held by reference: a view's re-render (innerHTML) can drop the ? from
+   its DOM along with the title it sat beside, and this puts it back. */
+var _helpW=null,_helpB=null;
+function _helpEls(){if(!_helpW){_helpW=document.getElementById('help-wrap');_helpB=document.getElementById('page-help-btn');}return _helpW;}
+_helpEls();
+function _helpPlace(det){
+  var w=_helpEls();if(!w)return;
+  if(det){
+    var to=document.querySelector('#det-modal .d-mini-nav');
+    if(to&&w.parentNode!==to){w.classList.remove('hw-row','hw-float');w.style.marginTop='';to.insertBefore(w,to.firstChild);}
+    return;
+  }
+  var dm=document.getElementById('det-modal'),sn=document.getElementById('subnav');
+  var first=null,ft=Infinity;
+  [].forEach.call(document.querySelectorAll(_Q_LABELS),function(l){
+    if(!_qVis(l)||(dm&&dm.contains(l))||(sn&&sn.contains(l))||l.closest('.qhelp-pop,.help-pop,#sidebar'))return;
+    var t=l.getBoundingClientRect().top;
+    if(t<ft){ft=t;first=l;}
+  });
+  if(first&&!_qHasOwn(first)){_qIntoRow(w,first,'hw');return;}
+  var head=sn&&sn.querySelector('.sn-head');
+  if(head&&w.parentNode!==head){w.classList.remove('hw-row','hw-float');w.style.marginTop='';head.appendChild(w);}
+}
+/* A short timer, not requestAnimationFrame: a page in a background or
+   unpainted tab gets no frames, and the ? would stay wherever it was. */
+var _qT=0;
+function _qSchedule(){
+  if(_qT)return;
+  _qT=setTimeout(function(){
+    _qT=0;
+    _qAlign();
+    _helpPlace(document.documentElement.classList.contains('det-open'));
+  },40);
+}
+/* Views render by innerHTML and switch sub-tabs by data-tab / class, so the
+   pass reruns after any of those (never on style, which it writes itself). */
+new MutationObserver(_qSchedule).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['data-tab','class','hidden']});
+window.addEventListener('resize',_qSchedule);
 function toggleHelp(e){
   if(e)e.stopPropagation();
-  var pop=document.getElementById('help-pop'),btn=document.getElementById('page-help-btn');
+  _helpEls();
+  var pop=document.getElementById('help-pop'),btn=_helpB;
   if(pop.classList.contains('open')){closeHelp();return;}
   closeNavMenu();closeFiltMenu();
   helpRender();
@@ -13778,10 +13877,10 @@ function closeHelp(){
   var pop=document.getElementById('help-pop');
   if(!pop||!pop.classList.contains('open'))return;
   pop.classList.remove('open');
-  document.getElementById('page-help-btn').setAttribute('aria-expanded','false');
+  if(_helpEls())_helpB.setAttribute('aria-expanded','false');
 }
 document.addEventListener('click',function(e){
-  var w=document.getElementById('help-wrap'),pop=document.getElementById('help-pop');
+  var w=_helpEls(),pop=document.getElementById('help-pop');
   if(w&&!w.contains(e.target)&&!(pop&&pop.contains(e.target)))closeHelp();
 });
 /* A fixed panel would drift from its ? as the page scrolls. */
