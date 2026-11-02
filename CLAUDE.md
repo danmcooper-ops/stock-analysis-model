@@ -1170,6 +1170,15 @@ ruff check .
     table. The non-stock jumps are drills, so ‹ Back returns. On a table view
     the list leaves out the table's own kind and preselects nothing, so Enter
     still only filters. Tests: `tests/test_report_search.py`.
+  - **Section template:** every titled section takes the sector page's
+    look, defined once in the SECTION TEMPLATE block: a light panel
+    (`--sx-bg`), a 5px navy stripe down its left edge, a hairline border and
+    shadow, and the navy title box (`.sec-label`) inside it. `.sx` is that
+    section for markup of its own (Dashboard, Charts, every Portfolios
+    section and sub-tab pane); the Sector Analysis overview / ETF / Bond /
+    Currency cards (`.xsect-dashboard`), Macro's narrative cards and the
+    ticker page's groups take the same rule. A new titled section goes in an
+    `.sx`, never an inline white card (`tests/test_report_section_template.py`).
   - **Page help (`#page-help-btn`):** a ? on every page, never in the top
     bar: level with the page's first section title at its row's right end
     (`_helpPlace`), and on a ticker page in the band's top row. When that

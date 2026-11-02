@@ -3457,6 +3457,28 @@ html body #ph-menu button:focus-visible{outline:2px solid var(--chrome-accent);o
 .help-pop .hp-page{margin-top:10px;padding-top:10px;border-top:1px solid var(--menu-border);}
 .help-pop .hp-page>*{display:block !important;margin:0 0 6px;}
 .help-pop .hp-page .pfv-meta{--sac:var(--chrome-muted);font-size:12.5px;}
+/* === SECTION TEMPLATE ==================================================
+   Every titled section takes the sector page's look (.pool-sector card with
+   a .pp-section inside): a light panel, a 5px navy stripe down its left
+   edge, a hairline border, a soft shadow, and the navy title box (.sec-label)
+   inside it. .sx is that section for markup of its own (Dashboard, Charts,
+   Portfolios); the other views' existing section containers take the same
+   rule here, so the look is defined once. Tests:
+   tests/test_report_section_template.py. */
+:root{--sx-bg:#f7f9fb;--sx-line:#e8ecef;}
+[data-theme="dark"]{--sx-bg:#161b22;--sx-line:#30363d;}
+.sx,.xsect-dashboard,.mac-regime,.mac-card.mac-narrative,#det-modal .dgroup{
+  background:var(--sx-bg) !important;border:1px solid var(--sx-line) !important;border-left:5px solid var(--hdr-bg) !important;
+  border-radius:10px !important;box-shadow:0 3px 12px rgba(0,0,0,0.08) !important;}
+.sx{position:relative;padding:16px 20px;margin:0 0 20px;box-sizing:border-box;}
+@media(max-width:768px){.sx{padding:14px 14px;}}
+/* The ticker page's groups: their bodies sit on the panel, as a sector
+   section's do, instead of a white block inside it. */
+#det-modal .dgroup>div[style*="background:var(--surface)"]{background:transparent !important;}
+/* A section's title row leads it; a later title inside the same section
+   (Paper account's Held vs target, Activity) starts a divided block. */
+.sx>.pfv-h3:first-child,.sx>.qh-card:first-child{margin-top:0;}
+.sx .pfv-h3:not(:first-child){margin-top:18px;padding-top:16px;border-top:1px solid var(--sx-line);}
 html.sb-over #sidebar,html.sb-drawer #sidebar{z-index:1310;}
 html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
 </style>
@@ -5489,7 +5511,7 @@ function _pfOverviewHtml(){
       +'<button class="pf-btn pf-primary" onclick="pfNewEmpty()">+ New portfolio</button></div></div>';
   }
   var sums=_pfOvSorted(defs.map(_pfSummary));
-  h+='<h3 class="pfv-h3"><span class="sec-label">Your Portfolios</span></h3>';
+  h+='<div class="sx"><h3 class="pfv-h3"><span class="sec-label">Your Portfolios</span></h3>';
   if(_pfOv.mode==='table')h+=_pfOvTable(sums);
   else h+='<div class="pfv-grid">';
   if(_pfOv.mode!=='table')sums.forEach(function(sm){
@@ -5509,7 +5531,9 @@ function _pfOverviewHtml(){
         +(joined?' · +'+joined+' joined':'')+(left?' · −'+left+' left':''):'No prior run to compare')+'</div></div>';
   });
   if(_pfOv.mode!=='table')h+='</div>';
-  h+=_pfOverlapHtml(defs);
+  h+='</div>';
+  var ovl=_pfOverlapHtml(defs);
+  if(ovl)h+='<div class="sx">'+ovl+'</div>';
   var all={},list=[];
   defs.forEach(function(p){_pfAlertsFor(p.id).forEach(function(a){
     var key=a.kind+'|'+a.ticker+'|'+(a.portfolio||'');
@@ -5519,9 +5543,9 @@ function _pfOverviewHtml(){
   });});
   _pfSortAlerts(list);
   var oc=_pfCount(list);
-  h+='<h3 class="pfv-h3"><span class="sec-label">Alerts</span>'+(oc.action+oc.watch?' <span class="pfv-count">'+(oc.action+oc.watch)+'</span>':'')+'</h3>';
+  h+='<div class="sx"><h3 class="pfv-h3"><span class="sec-label">Alerts</span>'+(oc.action+oc.watch?' <span class="pfv-count">'+(oc.action+oc.watch)+'</span>':'')+'</h3>';
   h+=_pfAlertsHtml(list,true,PF_PUB.prev_date?'Nothing crossed the buy line, reversed, or needs watching in your portfolios today.':'No prior run to compare against.',15);
-  return h+'</div>';
+  return h+'</div></div>';
 }
 function _pfDetailHtml(id){
   var p=_pfById[id],st=_pfStats(id),al=_pfAlertsFor(id),jid=_pfJsArg(id);
@@ -5570,7 +5594,7 @@ function _pfDetailHtml(id){
     var on=x[0]===cur;
     return'<button type="button" role="tab" class="d-stmt-tab'+(on?' cur':'')+'" aria-selected="'+on+'" data-k="'+x[0]+'" onclick="_pfSubTab(this)">'+_pfEsc(x[1])+'</button>';
   }).join('')+'</div>';
-  return bar+h+'<div class="pf-tabbed" data-tab="'+cur+'">'+panes.map(function(x){return'<div data-pane="'+x[0]+'">'+x[2]+'</div>';}).join('')+'</div></div>';
+  return bar+h+'<div class="pf-tabbed" data-tab="'+cur+'">'+panes.map(function(x){return'<div data-pane="'+x[0]+'"><div class="sx">'+x[2]+'</div></div>';}).join('')+'</div></div>';
 }
 /* Portfolios › the paper portfolio › Paper account: the Alpaca paper account
    against the model (models/paper_dashboard.py, staged beside this page as
@@ -8129,7 +8153,7 @@ function renderOverview(){
      universe frames the gate breakdown that follows. Aggregated from DATA, so
      it stays stable while the rest of this view follows FD. */
   var html=renderWorldMosMap();
-  html+='<div class="qh-card qh-flush" style="margin-bottom:14px;padding-bottom:12px;border-bottom:2px solid #e8edf2">'
+  html+='<div class="sx"><div class="qh-card qh-flush" style="margin-bottom:14px">'
     /* The run summary sits behind the ? with the how-to, so the cards lead. */
     +_qHelp('<span class="note-q-t">'+_subtitle+'.</span><span class="note-q-t" style="display:block;margin-top:6px">Tap a category card, rating box or map country to open those stocks in Stocks. Gate rows and histogram bars filter in place.</span>','About the Gates Summary','corner')
     +'<div class="sec-label" style="margin-bottom:0">Gates Summary</div>';
@@ -8175,7 +8199,8 @@ function renderOverview(){
   var buckets=Array.from({length:10},function(){return{BUY:0,'LEAN BUY':0,HOLD:0,PASS:0,total:0};});
   FD.forEach(function(d){var s=d._composite_score;if(s==null)return;var i=Math.min(9,Math.floor(s/10));buckets[i].total++;if(buckets[i][d.rating]!=null)buckets[i][d.rating]++;});
   var maxB=Math.max.apply(null,buckets.map(function(b){return b.total;}))||1;
-  html+='<div style="background:#fff;border-radius:10px;padding:16px 16px 10px;box-shadow:0 2px 8px rgba(0,0,0,0.07);margin-bottom:14px">';
+  /* Closes the Gates Summary section (its cards and rating boxes). */
+  html+='</div><div class="sx">';
   html+='<div class="sec-label">Composite Score Distribution</div>';
   html+='<div class="sec-sub">Stocks per 10-point bracket, colored by actual rating</div>';
   html+='<div style="display:flex;align-items:flex-end;gap:3px;height:68px">';
@@ -8228,7 +8253,7 @@ function renderOverview(){
   });
   gateRates.sort(function(a,b){return a.pct-b.pct;});
   var bottom3=new Set(gateRates.slice(0,3).map(function(x){return x.g.key;}));
-  html+='<div style="background:#fff;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.07)">';
+  html+='<div class="sx">';
   html+='<div class="sec-label">Gate Pass Rates</div><div class="sec-sub">&#9650; low \u2192 high</div>';
   GM.categories.forEach(function(cat,ci){
     var catRates=gateRates.filter(function(x){return x.g.category===cat.name;});
@@ -8620,9 +8645,9 @@ function initPriceChart(){
      indices as pills (Price only, the one metric they have), and the range
      as one segmented row (hidden for today-only metrics). The view itself is
      just the chart, under the title. */
-  phv.innerHTML='<div class="sec-label">Stock Comparison</div>'
+  phv.innerHTML='<div class="sx"><div class="sec-label">Stock Comparison</div>'
     +'<div id="ph-tip-bar" style="min-height:28px"></div>'
-    +'<div id="ph-chart"></div>';
+    +'<div id="ph-chart"></div></div>';
   var pm=document.getElementById('ph-menu');
   if(pm)pm.innerHTML='<div class="phm-sec"><div class="phm-h">Metric</div><div id="ph-metric"></div></div>'
     +'<div class="phm-sec"><div class="phm-h">Stocks<span id="ph-count"></span></div>'
@@ -17595,7 +17620,7 @@ function renderWorldMosMap(){
   var _sub=_restricted
     ? _shown+' of '+_universe+' countries · filtered — click a highlighted country to clear'
     : _shown+' of '+_universe+' countries in view · click a country to open it in Stocks';
-  var _mapHtml='<div style="background:#fff;border-radius:8px;padding:12px 16px;box-shadow:0 1px 4px rgba(0,0,0,0.06);margin-bottom:14px">'
+  var _mapHtml='<div class="sx">'
     +'<div class="sec-label">World MoS Map</div><div class="sec-sub">Median margin of safety · '+_sub+'</div>'
     +'<div class="xs-map-wrap" id="xs-map-wrap">'+WORLD_SVG+'</div>'
     +'<div class="xs-map-legend"><span>≤−80% MoS</span><span class="xs-map-legend-bar"></span><span>≥+80% MoS</span><span style="margin-left:18px">·</span><span><span style="display:inline-block;width:12px;height:10px;background:#e6eaf0;border-radius:2px;vertical-align:middle"></span> no stocks in view</span></div>'
@@ -18749,7 +18774,8 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   .pf-row{flex-wrap:wrap;}
   .pf-row-btns{max-width:none;width:100%;justify-content:flex-start;padding-left:38px;}
 }
-.pfv{max-width:1440px;margin:0 auto;padding:18px 16px 40px;color:var(--text);}
+/* No side padding: the sections run to the page inset, as the sector cards do. */
+.pfv{max-width:1440px;margin:0 auto;padding:18px 0 40px;color:var(--text);}
 .pfv-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
 .pfv-head h2{font-size:20px;font-weight:700;margin:0;}
 .pfv-sub{font-size:12.5px;color:var(--text-muted);}
