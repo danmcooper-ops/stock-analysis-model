@@ -2863,6 +2863,31 @@ html.sb-rail .sb-chev-l,html:not(.sb-rail) .sb-chev-r{display:none;}
 .header .hdr-search #f-search::placeholder{color:var(--search-muted) !important;opacity:1;}
 .hdr-kbd{--sac:var(--search-muted);font:inherit;font-size:10.5px;border:1px solid var(--search-border);border-radius:3px;padding:0 5px;flex-shrink:0;}
 .hdr-search:focus-within .hdr-kbd{display:none;}
+/* The AI Analyst lives in the search bar: this button opens the panel, and
+   the quick results end with "Ask AI Analyst" for whatever was typed. */
+.hdr-ai{--sac:#2ea043;flex:0 0 auto;width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:none;border:0;border-radius:6px;cursor:pointer;padding:0;-webkit-tap-highlight-color:transparent;}
+.hdr-ai svg{width:18px;height:18px;}
+.hdr-ai:hover,.hdr-ai[aria-expanded="true"]{background:color-mix(in srgb,#2ea043 18%,transparent);}
+.hdr-ai:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:-2px;}
+.hdr-qr .qr-ai .qr-tk{--sac:#2ea043;display:flex;align-items:center;gap:5px;}
+.hdr-qr .qr-ai .qr-tk svg{width:15px;height:15px;}
+.hdr-qr .qr-fq .qr-tk{--sac:var(--chrome-accent);min-width:0;}
+.hdr-qr .qr-fq .qr-nm{--sac:var(--chrome-heading);white-space:normal;}
+.hdr-qr .qr-x{display:flex;align-items:center;gap:6px;flex:0 0 auto;font-size:12.5px;}
+.hdr-qr .qr-x .rb{font-size:10px;padding:1px 6px;}
+.hdr-qr .qr-px{--sac:var(--chrome-heading);font-variant-numeric:tabular-nums;}
+.hdr-qr .qr-mos{font-variant-numeric:tabular-nums;min-width:38px;text-align:right;}
+.hdr-qr .qr-mos.pos{--sac:#1a9850;}
+.hdr-qr .qr-mos.neg{--sac:#d73027;}
+.hdr-qr .qr-term .qr-tk{min-width:0;max-width:45%;overflow:hidden;text-overflow:ellipsis;}
+.hdr-qr .qr-grp .qr-clr{--sac:var(--link);float:right;width:auto;display:inline;padding:0;font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;background:none;}
+.hdr-qr .qr-hint{--sac:var(--chrome-muted);font-size:12px;}
+.hdr-qr .qr-def{padding:8px 10px 10px;}
+.hdr-qr .qr-def-t{--sac:var(--chrome-heading);font-weight:700;font-size:15px;display:flex;align-items:baseline;gap:8px;}
+.hdr-qr .qr-def-t span{--sac:var(--chrome-muted);font-weight:400;font-size:12px;}
+.hdr-qr .qr-def-b{--sac:var(--chrome-heading);font-size:13px;line-height:1.5;margin-top:4px;white-space:normal;}
+@media(max-width:768px){.hdr-qr .qr-x .qr-px{display:none;}}
+.hdr-qr .qr-ai .qr-nm{--sac:var(--chrome-heading);}
 .hdr-search .f-suggest{position:absolute;left:0;top:calc(100% + 6px);z-index:30;background:var(--menu-bg);border:1px solid var(--menu-border);border-radius:8px;box-shadow:var(--menu-shadow);padding:8px 12px;white-space:nowrap;}
 /* Quick results: views with no table to filter (Sector Analysis, Macro,
    Portfolios) still search — the matches open the ticker page directly. */
@@ -3148,7 +3173,6 @@ html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
 #d-pane-stmt.stmt-fs .dtr-wrap{flex:1;min-height:0;overflow:auto;max-height:none !important;}
 #d-pane-stmt.stmt-fs .stmt-tbl th{position:-webkit-sticky;position:sticky;top:0;z-index:3;background:var(--surface);}
 #d-pane-stmt.stmt-fs .stmt-tbl th:first-child{z-index:4;}
-html.stmt-fs-open #ai-fab{display:none;}
 /* #det-modal is a stacking context below the fixed top bar (1020), so the
    pane's own z-index cannot clear it; lift the popup while full screen. */
 html.stmt-fs-open #det-modal{z-index:1550;}
@@ -3631,8 +3655,9 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
        lives. -->
   <div class="hdr-search sa-chrome" role="search">
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></g></svg>
-    <span class="search-wrap"><input type="text" id="f-search" placeholder="Search" aria-label="Search tickers or companies" autocomplete="off" oninput="onSearchInput()" onkeydown="qrKey(event)" onfocus="qrRender()"><button type="button" class="search-clear" id="f-search-clear" onclick="clearSearch()" aria-label="Clear search">&times;</button></span>
+    <span class="search-wrap"><input type="text" id="f-search" placeholder="Search or ask AI" aria-label="Search tickers or companies, or ask the AI Analyst" autocomplete="off" oninput="onSearchInput()" onkeydown="qrKey(event)" onfocus="qrRender()"><button type="button" class="search-clear" id="f-search-clear" onclick="clearSearch()" aria-label="Clear search">&times;</button></span>
     <kbd class="hdr-kbd">/</kbd>
+    <button type="button" class="hdr-ai sa-chrome" id="hdr-ai" onclick="aiToggle()" title="AI Analyst" aria-label="Open AI Analyst" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 14l.9 2.1 2.1.9-2.1.9L19 20l-.9-2.1-2.1-.9 2.1-.9z"/><path d="M5 15l.7 1.6 1.6.7-1.6.7L5 19.6l-.7-1.6-1.6-.7 1.6-.7z"/></svg></button>
     <span class="f-suggest" id="f-suggest"></span>
     <div class="hdr-qr" id="hdr-qr" role="listbox" aria-label="Search results"></div>
   </div>
@@ -7283,7 +7308,11 @@ function applyFilters(){
   /* Direct calls (clear button, presets, hash restore, toggles) preempt
      any pending debounced run so a stale filter pass can't fire later. */
   clearTimeout(_searchTimer);
-  var q=document.getElementById('f-search').value.toUpperCase();
+  var q=document.getElementById('f-search').value;
+  /* A field query (pe<15 sector:energy) is applied from the list, not
+     matched as text: only its leftover words search the table. */
+  var _fqq=_fqParse(q);if(_fqq.conds.length)q=_fqq.text;
+  q=q.toUpperCase();
   /* Tokenized search: every whitespace-separated token must match the
      haystack (in any field), so "software canada" finds Canadian software
      names. toks.length is the "search active" predicate — a whitespace-
@@ -14221,23 +14250,256 @@ function _qrScore(id,nm,toks){
   return s;
 }
 /* Per group: [score, shown id, name, key], best first, at most n. */
-var _QR_N={stock:6,etf:3,ccy:3,bond:3},_QR_BOND_MIN=3;
+var _QR_N={stock:6,etf:3,ccy:3,bond:3,page:3,term:3},_QR_BOND_MIN=3;
 function _qrTop(list,n){
   list.sort(function(a,b){return b[0]-a[0]||(a[1]<b[1]?-1:a[1]>b[1]?1:0);});
   return list.slice(0,n);
+}
+/* === SEARCH QUERIES === "pe<15 sector:energy rating:buy mcap>10b" in the
+   search box is a filter, not a search: each FIELD OP VALUE term becomes the
+   Filters panel's own state (a column filter, or the rating / sector /
+   country lists), so the result is an ordinary filter that "Save filter as
+   portfolio" turns into a rule. A field is a column's key or label
+   (spaces and punctuation ignored, "evebitda" = EV/EBITDA) or an alias
+   below; a prefix of three letters or more also resolves. Percent columns
+   take percents (roic>15 is 15%), dollar columns take k/m/b/t. Terms that
+   do not parse stay as search text. */
+var _FQ_ALIAS={pe:'pe',peratio:'pe',mcap:'mcap',marketcap:'mcap',cap:'mcap',score:'_composite_score',composite:'_composite_score',
+  yield:'div_yield',dy:'div_yield',divyield:'div_yield',dividend:'div_yield',ev:'ev_ebitda',evebitda:'ev_ebitda',
+  margin:'mos',marginofsafety:'mos',upside:'mos',price:'price',roic:'roic',roe:'roe',spread:'spread',wacc:'wacc',
+  pb:'pb',pfcf:'pfcf',beta:'beta_adjusted',debt:'nd_ebitda',leverage:'nd_ebitda'};
+var _FQ_MS={rating:'ms-rating',ratings:'ms-rating',sector:'ms-sector',sectors:'ms-sector',country:'ms-country',countries:'ms-country'};
+var _FQ_MS_FIELD={'ms-rating':'rating','ms-sector':'sector','ms-country':'country'};
+var _FQ_RATINGS=['BUY','LEAN BUY','HOLD','PASS'];
+function _fqNorm(s){return String(s||'').toLowerCase().replace(/\s*\([^)]*\)\s*$/,'').replace(/[^a-z0-9]/g,'');}
+function _fqField(term){
+  var n=_fqNorm(term),opts=typeof _CF_OPTS!=='undefined'?_CF_OPTS:[],fmt=typeof _CF_FMT!=='undefined'?_CF_FMT:{},i;
+  if(!n)return null;
+  if(_FQ_MS[n])return{ms:_FQ_MS[n],l:_FQ_MS_FIELD[_FQ_MS[n]].replace(/^./,function(c){return c.toUpperCase();})};
+  var lbl=function(k){for(var j=0;j<opts.length;j++)if(opts[j].k===k)return opts[j].l.replace(/\s*\([^)]*\)\s*$/,'');return k;};
+  if(_FQ_ALIAS[n]&&fmt[_FQ_ALIAS[n]])return{k:_FQ_ALIAS[n],l:lbl(_FQ_ALIAS[n])};
+  for(i=0;i<opts.length;i++)if(_fqNorm(opts[i].l)===n||_fqNorm(opts[i].k)===n)return{k:opts[i].k,l:lbl(opts[i].k)};
+  if(n.length>=3)for(i=0;i<opts.length;i++)if(_fqNorm(opts[i].l).indexOf(n)===0)return{k:opts[i].k,l:lbl(opts[i].k)};
+  return null;
+}
+function _fqNum(s,fmt){
+  var m=String(s).replace(/[$,%\s]/g,'').match(/^(-?\d*\.?\d+)([kmbt])?$/i);
+  if(!m)return null;
+  var v=parseFloat(m[1]);
+  if(m[2])v*={k:1e3,m:1e6,b:1e9,t:1e12}[m[2].toLowerCase()];
+  return isFinite(v)?v:null;
+}
+/* The distinct values a list filter can take, matched case- and
+   punctuation-blind: exact first, then a prefix, then a substring. */
+function _fqMsVals(id,raw){
+  var field=_FQ_MS_FIELD[id],all=[],seen={};
+  if(id==='ms-rating')all=_FQ_RATINGS.slice();
+  else DATA.forEach(function(d){var v=d[field];if(v&&!seen[v]){seen[v]=1;all.push(v);}});
+  var out=[];
+  String(raw).split(/[,|]/).forEach(function(part){
+    var p=part.trim(),plus=/\+$/.test(p),n=_fqNorm(p.replace(/\+$/,'')),hit=null;
+    if(!n)return;
+    /* rating:lean+ / rating:buy+ — that rating and every better one. */
+    if(id==='ms-rating'&&plus){
+      var ix=_FQ_RATINGS.map(_fqNorm).indexOf(n);
+      if(ix<0)ix=_FQ_RATINGS.map(_fqNorm).findIndex(function(r){return r.indexOf(n)===0;});
+      if(ix>=0)_FQ_RATINGS.slice(0,ix+1).forEach(function(r){if(out.indexOf(r)<0)out.push(r);});
+      return;
+    }
+    [function(v){return _fqNorm(v)===n;},function(v){return _fqNorm(v).indexOf(n)===0;},function(v){return _fqNorm(v).indexOf(n)>=0;}].some(function(t){
+      var m=all.filter(t);if(m.length){hit=m;return true;}return false;
+    });
+    (hit||[]).forEach(function(v){if(out.indexOf(v)<0)out.push(v);});
+  });
+  return out;
+}
+var _FQ_RE=/(^|\s)([A-Za-z_][\w\/.&-]*)\s*(<=|>=|≤|≥|<|>|=|:)\s*("[^"]*"|[^\s"]+)/g;
+function _fqParse(raw){
+  var conds=[],bad=[],byKey={},text=String(raw||''),fmt=typeof _CF_FMT!=='undefined'?_CF_FMT:{},m;
+  _FQ_RE.lastIndex=0;
+  var hits=[];
+  while((m=_FQ_RE.exec(raw))){hits.push(m);}
+  hits.forEach(function(m){
+    var f=_fqField(m[2]),op=m[3].replace('≤','<=').replace('≥','>='),val=m[4].replace(/^"|"$/g,'');
+    if(!f||val==='')return;
+    var c;
+    if(f.ms){
+      var vals=_fqMsVals(f.ms,val);
+      if(op!=='='&&op!==':')return;
+      /* A known field with a value that matches nothing is named, not
+         searched for as text. */
+      if(!vals.length){bad.push('no '+f.l.toLowerCase()+' matches “'+val+'”');text=text.replace(m[0],m[1]);return;}
+      c=byKey[f.ms]||(byKey[f.ms]=conds[conds.push({ms:f.ms,l:f.l,vals:[]})-1]);
+      vals.forEach(function(v){if(c.vals.indexOf(v)<0)c.vals.push(v);});
+    }else{
+      var ft=fmt[f.k]||'';
+      c=byKey[f.k]||(byKey[f.k]={k:f.k,l:f.l,fmt:ft,min:null,max:null,txt:null});
+      if(ft==='text'){
+        if(op!=='='&&op!==':')return;
+        c.txt=val;
+      }else{
+        var rg=(op==='='||op===':')&&val.match(/^(.+?)(?:\.\.|(?!^)-)(.+)$/),a,b;
+        if(rg){a=_fqNum(rg[1],ft);b=_fqNum(rg[2],ft);if(a==null||b==null)return;c.min=Math.min(a,b);c.max=Math.max(a,b);}
+        else{
+          a=_fqNum(val,ft);if(a==null)return;
+          if(op[0]==='>')c.min=c.min==null?a:Math.max(c.min,a);
+          else if(op[0]==='<')c.max=c.max==null?a:Math.min(c.max,a);
+          else{c.min=a;c.max=a;}
+        }
+      }
+      if(conds.indexOf(c)<0)conds.push(c);
+    }
+    text=text.replace(m[0],m[1]);
+  });
+  text=text.replace(/(^|\s)(and|with|where|&)(?=\s|$)/gi,' ').replace(/\s+/g,' ').trim();
+  return{conds:conds,text:text,bad:bad};
+}
+function _fqFmtVal(c,v){
+  if(c.fmt==='pct')return (+v.toFixed(4))+'%';
+  if(c.fmt==='ds'||c.fmt==='dollar')return typeof fds==='function'&&Math.abs(v)>=1e6?fds(v):'$'+v;
+  return String(+v.toFixed(4));
+}
+function _fqLabel(c){
+  if(c.ms)return c.l+': '+c.vals.join(', ');
+  if(c.txt!=null)return c.l+' contains “'+c.txt+'”';
+  if(c.min!=null&&c.max!=null)return c.min===c.max?c.l+' = '+_fqFmtVal(c,c.min):c.l+' '+_fqFmtVal(c,c.min)+'–'+_fqFmtVal(c,c.max);
+  return c.l+(c.min!=null?' ≥ '+_fqFmtVal(c,c.min):' ≤ '+_fqFmtVal(c,c.max));
+}
+/* The panel's own test (passOther's column clause), for the count shown
+   before the filter is applied. */
+function _fqMatch(fq,d){
+  for(var i=0;i<fq.conds.length;i++){
+    var c=fq.conds[i];
+    if(c.ms){if(c.vals.indexOf(d[_FQ_MS_FIELD[c.ms]])<0)return false;continue;}
+    if(c.txt!=null){if(String(d[c.k]==null?'':d[c.k]).toUpperCase().indexOf(c.txt.toUpperCase())<0)return false;continue;}
+    var v=_num(d[c.k]);if(v==null)return false;
+    if(('_gate_'+c.k) in d&&_num(d['_gate_'+c.k])==null)return false;
+    var cv=c.fmt==='pct'?v*100:v;
+    if(c.min!=null&&cv<c.min)return false;
+    if(c.max!=null&&cv>c.max)return false;
+  }
+  if(fq.text){
+    if(d._search==null)_buildSearchMemo(d);
+    var toks=fq.text.toUpperCase().split(/\s+/);
+    for(var j=0;j<toks.length;j++)if(toks[j]&&d._search.indexOf(toks[j])<0)return false;
+  }
+  return true;
+}
+function _fqCount(fq){var n=0;DATA.forEach(function(d){if(_fqMatch(fq,d))n++;});return n;}
+/* Make fq the whole filter (a query is the filter, not an addition to
+   whatever was set before) and show it in the Stocks table. Away from a
+   stock table it is a drill, so ‹ Back returns. */
+function _fqApply(fq){
+  var onTable=curView==='table'&&curTSub!=='prices'||curView==='matrix'&&curMSub==='matrix';
+  if(document.documentElement.classList.contains('det-open'))closeDetail();
+  if(!onTable)_drillPush(_qrHere());
+  var st={search:fq.text||'',colFilters:[]};
+  fq.conds.forEach(function(c){
+    if(c.ms)st[{'ms-rating':'ratings','ms-sector':'sectors','ms-country':'countries'}[c.ms]]=c.vals.slice();
+    else st.colFilters.push(c.txt!=null?{key:c.k,txt:c.txt}:{key:c.k,min:c.min,max:c.max});
+  });
+  _applyFilterState(st);
+  if(!onTable){
+    curMSub='matrix';
+    if(curView!=='matrix')showView('matrix');else swMSub('matrix');
+    _drillSeal();
+  }
+  window.scrollTo(0,0);
+  return FD.length;
+}
+/* === RECENT SEARCHES === the last picks and questions, per browser, shown
+   when the box is focused and empty. */
+var _QR_RECENT_KEY='stock_search_recent_v1',_QR_RECENT_N=8;
+function _qrRecent(){try{var a=JSON.parse(localStorage.getItem(_QR_RECENT_KEY)||'[]');return Array.isArray(a)?a:[];}catch(e){return [];}}
+function _qrRecentPush(e){
+  var a=_qrRecent().filter(function(x){return !(x.k===e.k&&x.key===e.key);});
+  a.unshift(e);
+  try{localStorage.setItem(_QR_RECENT_KEY,JSON.stringify(a.slice(0,_QR_RECENT_N)));}catch(err){}
+}
+function _qrRecentClear(){try{localStorage.removeItem(_QR_RECENT_KEY);}catch(e){}}
+/* === PAGES AND TERMS === every tab the sidebar lists, and every column the
+   Filters panel offers, with its header tooltip as the definition. */
+function _qrPages(toks){
+  var l=[];
+  if(typeof _navGroups!=='function')return l;
+  _navGroups().forEach(function(g){
+    g.items.forEach(function(it){
+      var nm=(g.l+' '+it.l).toUpperCase(),sc=_qrScore(String(it.l).toUpperCase(),nm,toks);
+      if(sc)l.push([sc,it.l,g.l,g.v+'|'+it.k]);
+    });
+  });
+  return l;
+}
+function _qrTerms(toks){
+  var l=[],opts=typeof _CF_OPTS!=='undefined'?_CF_OPTS:[],tt=typeof TT!=='undefined'?TT:{};
+  opts.forEach(function(o){
+    if(!tt[o.k])return;
+    /* Word starts only: two letters inside a word ("ad" in Spread) are
+       noise in a glossary. "pe" finds P/E through the punctuation-blind
+       label. */
+    var lb=o.l.replace(/\s*\([^)]*\)\s*$/,''),nl=_fqNorm(lb).toUpperCase(),
+        words=[nl].concat((lb+' '+o.k).toUpperCase().split(/[^A-Z0-9]+/)),sc=0;
+    for(var i=0;i<toks.length;i++){
+      var t=toks[i].replace(/[^A-Z0-9]/g,'');
+      if(t&&nl===t)sc+=1000;
+      else if(t&&words.some(function(w){return w&&w.indexOf(t)===0;}))sc+=100;
+      else{sc=0;break;}
+    }
+    if(sc)l.push([sc,lb,_qrFirstSentence(tt[o.k]),o.k]);
+  });
+  return l;
+}
+function _qrFirstSentence(t){var s=String(t||''),m=s.match(/^[\s\S]*?[.!?](?=\s|$)/);return m?m[0]:s;}
+/* A term's definition, drawn in the list in place of the results. */
+function _qrTermCard(k){
+  var box=document.getElementById('hdr-qr');if(!box)return;
+  var o=(_CF_OPTS||[]).filter(function(x){return x.k===k;})[0],lb=o?o.l.replace(/\s*\([^)]*\)\s*$/,''):k;
+  box.innerHTML='<div class="qr-def"><div class="qr-def-t">'+esc(lb)+'<span>'+esc(o?o.g:'')+'</span></div>'
+    +'<div class="qr-def-b">'+esc(String(TT[k]||''))+'</div></div>'
+    +'<button type="button" role="option" data-qk="tfil" data-qr="'+_attr(k)+'" class="hi" aria-selected="true"><span class="qr-nm">Filter by '+esc(lb)+'… <span class="qr-hint">type a condition, e.g. '+esc(k)+(_CF_FMT[k]==='text'?':value':'>10')+'</span></span></button>'
+    +'<button type="button" role="option" data-qk="task" data-qr="'+_attr(lb)+'" class="qr-ai" aria-selected="false"><span class="qr-tk">'+_QR_AI_ICON+'Ask</span><span class="qr-nm">How does the model use '+esc(lb)+'?</span></button>'
+    +'<button type="button" role="option" data-qk="tback" data-qr="" aria-selected="false"><span class="qr-nm">‹ Back to results</span></button>';
+  box.classList.add('open');
+}
+/* The extra cells on a stock result: price, rating and margin of safety. */
+function _qrStockX(d){
+  var p=_num(d.price),m=_num(d.mos),h='';
+  if(p!=null)h+='<span class="qr-px">$'+p.toFixed(2)+'</span>';
+  if(d.rating&&typeof rb==='function')h+=rb(d.rating);
+  if(m!=null)h+='<span class="qr-mos '+(m>=0?'pos':'neg')+'" title="Margin of safety">'+(m>=0?'+':'')+(m*100).toFixed(0)+'%</span>';
+  return h;
 }
 function qrRender(){
   var box=document.getElementById('hdr-qr'),inp=document.getElementById('f-search');
   if(!box||!inp)return;
   var raw=(inp.value||'').trim(),q=raw.toUpperCase(),own=_qrOwn(),lead=_qrActive();
-  if(!q){box.classList.remove('open');box.innerHTML='';return;}
+  if(!q){
+    /* Empty and focused: the recent picks and questions. */
+    var rec=document.activeElement===inp?_qrRecent():[];
+    if(!rec.length){box.classList.remove('open');box.innerHTML='';return;}
+    box.innerHTML='<div class="qr-grp" role="presentation">Recent<button type="button" class="qr-clr" data-qk="rclr" data-qr="">Clear</button></div>'
+      +rec.map(function(e,i){
+        var tk=e.k==='ai'?_QR_AI_ICON+'Ask':e.k==='fq'?'Filter':e.k==='page'?'Page':esc(e.t||e.key||'');
+        return '<button type="button" role="option" data-qk="rec" data-qr="'+i+'" class="'+(e.k==='ai'?'qr-ai':'')+'" aria-selected="false"><span class="qr-tk">'+tk+'</span><span class="qr-nm">'+esc(e.n||e.q||'')+'</span></button>';
+      }).join('');
+    box.classList.add('open');
+    return;
+  }
   var toks=q.split(/\s+/).filter(function(t){return t;}),G=[],l;
+  /* A field query is a filter: it leads, preselected, and the plain
+     results for its words are left out. */
+  var fq=_fqParse(raw);
+  if(fq.conds.length){
+    var nfq=_fqCount(fq),desc=fq.conds.map(_fqLabel).concat(fq.text?['“'+fq.text+'”']:[]).join(' · ')+(fq.bad.length?' ('+fq.bad.join('; ')+')':'');
+    G.push({h:'Filter',k:'fq',fq:1,it:[[1e9,'','','']],desc:desc,n:nfq});
+    lead=true;
+  }else{
   if(own!=='stock'){
     l=[];
     DATA.forEach(function(d){
       if(d._sTk==null)_buildSearchMemo(d);
       var sc=_relScore(d,toks);
-      if(sc>0)l.push([sc,d.ticker,d.company_name||'',d.ticker]);
+      if(sc>0)l.push([sc,d.ticker,d.company_name||'',d.ticker,d]);
     });
     if(l.length)G.push({h:'Stocks',k:'stock',it:_qrTop(l,_QR_N.stock)});
   }
@@ -14277,26 +14539,49 @@ function qrRender(){
       if(l.length)G.push({h:'Bonds',k:'bond',it:_qrTop(l,_QR_N.bond),more:l.length>_QR_N.bond?l.length:0});
     }
   }
+  }
   /* The group holding the best match leads (an exact SPY or EUR before
      names that merely contain it), so the preselected entry is the best. */
   G.forEach(function(g,i){g.i=i;g.top=g.it.length?g.it[0][0]:-1;});
   G.sort(function(a,b){return b.top-a.top||a.i-b.i;});
+  /* Pages and terms follow the securities whatever their score: the box
+     is a securities search first, so "energy" finds XLE, then the Energy
+     page, then the terms that mention it. */
+  if(!fq.conds.length){
+    l=_qrPages(toks);
+    if(l.length)G.push({h:'Pages',k:'page',it:_qrTop(l,_QR_N.page)});
+    l=_qrTerms(toks);
+    if(l.length)G.push({h:'Terms',k:'term',it:_qrTop(l,_QR_N.term)});
+  }
+  /* The same box asks the AI Analyst. A question (a "?", a question word,
+     or four words or more) leads and is preselected, so Enter asks it;
+     otherwise the ask closes the list. */
+  var ask=!fq.conds.length&&_qrIsQuestion(raw);
+  if(ask)lead=true;
+  var aiG={h:'AI Analyst',k:'ai',ai:1,it:[]};
+  if(ask)G.unshift(aiG);else G.push(aiG);
   var first=lead,opt=function(k,key,cls,inner){
     var on=first;first=false;
     return '<button type="button" role="option" data-qk="'+k+'" data-qr="'+_attr(String(key))+'" class="'+cls+(on?' hi':'')+'" aria-selected="'+on+'">'+inner+'</button>';
   };
   var h=G.map(function(g){
+    if(g.fq)return '<div class="qr-grp" role="presentation">'+g.h+'</div>'
+      +opt('fq','','qr-fq','<span class="qr-tk">'+g.n.toLocaleString()+' stock'+(g.n===1?'':'s')+'</span><span class="qr-nm">'+esc(g.desc)+'</span>')
+      +opt('fqsave','','qr-more','<span class="qr-nm">Save as portfolio…</span>');
+    if(g.ai)return '<div class="qr-grp" role="presentation">'+g.h+'</div>'
+      +opt('ai','','qr-ai','<span class="qr-tk">'+_QR_AI_ICON+'Ask</span><span class="qr-nm">“'+esc(raw)+'”</span>');
     return '<div class="qr-grp" role="presentation">'+g.h+'</div>'
-      +g.it.map(function(x){return opt(g.k,x[3],'','<span class="qr-tk">'+esc(x[1])+'</span><span class="qr-nm">'+esc(x[2])+'</span>');}).join('')
+      +g.it.map(function(x){return opt(g.k,x[3],g.k==='term'?'qr-term':'','<span class="qr-tk">'+esc(x[1])+'</span><span class="qr-nm">'+esc(x[2])+'</span>'+(g.k==='stock'&&x[4]?'<span class="qr-x">'+_qrStockX(x[4])+'</span>':''));}).join('')
       +(g.more?opt('bonds','','qr-more','<span class="qr-nm">All '+g.more.toLocaleString()+' bonds matching “'+esc(raw)+'” ›</span>'):'')
       +(g.note?'<div class="qr-empty">'+g.note+'</div>':'');
   }).join('');
-  if(!h){
-    if(!lead){box.classList.remove('open');box.innerHTML='';return;}
-    h='<div class="qr-empty">Nothing matches “'+esc(raw)+'”.</div>';
-  }
   box.innerHTML=h;
   box.classList.add('open');
+}
+var _QR_AI_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/></svg>';
+function _qrIsQuestion(raw){
+  return /\?\s*$/.test(raw)||/^(what|which|who|why|how|when|where|is|are|does|do|can|should|compare|show|list|find|rank|explain)\b/i.test(raw)
+    ||raw.split(/\s+/).length>=4;
 }
 /* Where the reader is, for the drill's ‹ Back label. */
 var _QR_VIEW={macro:'Macro Outlook',pool:'Sector Analysis',matrix:'Investing',table:'Financial Data',pf:'Portfolios'};
@@ -14310,7 +14595,37 @@ function _qrHere(){
 function _qrGo(k,key){
   var box=document.getElementById('hdr-qr');if(box)box.classList.remove('open');
   var inp=document.getElementById('f-search');if(inp)inp.blur();
-  if(k==='stock'){openDet(key);return;}
+  var qtext=inp?inp.value.trim():'';
+  if(k==='ai'||k==='task'){
+    if(k==='task')qtext='What does '+key+' measure, and how does this model use it in scoring?';
+    else _qrRecentPush({k:'ai',key:qtext,q:qtext});
+    /* The question leaves the search, so the table it filtered comes back. */
+    if(inp&&inp.value){inp.value='';applyFilters();}
+    if(window.aiAsk)window.aiAsk(qtext);
+    return;
+  }
+  if(k==='fq'||k==='fqsave'){
+    _qrRecentPush({k:'fq',key:qtext,q:qtext});
+    _fqApply(_fqParse(qtext));
+    if(k==='fqsave')pfSaveFilterOpen();
+    return;
+  }
+  if(k==='page'){
+    var pv=String(key).split('|'),pg=['',''];
+    _navGroups().forEach(function(g){g.items.forEach(function(it){if(g.v===pv[0]&&String(it.k)===pv[1])pg=[g.l,it.l];});});
+    _qrRecentPush({k:'page',key:key,n:pg[0]+' · '+pg[1]});
+    if(document.documentElement.classList.contains('det-open'))closeDetail();
+    navGo(pv[0],pv.slice(1).join('|'));
+    window.scrollTo(0,0);
+    return;
+  }
+  if(k==='stock'){
+    var sd=DATA.filter(function(d){return d.ticker===key;})[0];
+    _qrRecentPush({k:'stock',key:key,t:key,n:sd&&sd.company_name||''});
+    openDet(key);return;
+  }
+  if(k==='etf'&&ETF_LT&&ETF_LT.funds[key])_qrRecentPush({k:'etf',key:key,t:key,n:ETF_LT.funds[key].fund_name||''});
+  if(k==='ccy')_qrRecentPush({k:'ccy',key:key,t:key,n:((CCY_META&&CCY_META.index||[]).filter(function(c){return c[0]===key;})[0]||[])[1]||''});
   if(document.documentElement.classList.contains('det-open'))closeDetail();
   var sub=k==='bonds'?'bond':k;
   _drillPush(_qrHere());
@@ -14341,12 +14656,33 @@ function qrKey(e){
     if(i<0)return;
     /* stopPropagation: the popup's own Enter (mark reviewed, next ticker)
        must not see the keystroke that just opened it. */
-    e.preventDefault();e.stopPropagation();_qrGo(items[i].getAttribute('data-qk'),items[i].getAttribute('data-qr'));
+    e.preventDefault();e.stopPropagation();_qrPick(items[i].getAttribute('data-qk'),items[i].getAttribute('data-qr'));
   }
+}
+/* Picks that stay in the list: a recent entry, a term's definition card
+   and its buttons, clearing the recents. Everything else goes through
+   _qrGo. */
+function _qrPick(k,key){
+  var inp=document.getElementById('f-search');
+  if(k==='rclr'){_qrRecentClear();if(inp)inp.focus();qrRender();return;}
+  if(k==='term'){_qrTermCard(key);return;}
+  if(k==='tback'){qrRender();if(inp)inp.focus();return;}
+  if(k==='tfil'){
+    if(inp){inp.value=key+(_CF_FMT[key]==='text'?':':'>');inp.focus();onSearchInput();}
+    return;
+  }
+  if(k==='rec'){
+    var e=_qrRecent()[+key];if(!e)return;
+    if(e.k==='fq'){if(inp){inp.value=e.q;inp.focus();}onSearchInput();return;}
+    if(e.k==='ai'){if(inp)inp.value=e.q;_qrGo('ai');return;}
+    _qrGo(e.k,e.key);
+    return;
+  }
+  _qrGo(k,key);
 }
 document.addEventListener('click',function(e){
   var b=e.target.closest?e.target.closest('#hdr-qr [data-qk]'):null;
-  if(b)_qrGo(b.getAttribute('data-qk'),b.getAttribute('data-qr'));
+  if(b){e.preventDefault();_qrPick(b.getAttribute('data-qk'),b.getAttribute('data-qr'));}
 });
 /* === KEYBOARD SHORTCUTS ===
    One table drives both the dispatcher and the ? overlay, so a binding cannot
@@ -16053,7 +16389,7 @@ function renderBondView(){
    what it searches on this view. */
 function _syncSearchPh(){
   var i=document.getElementById('f-search');if(!i)return;
-  var t=_bvOn()?'Search bonds by CUSIP, issuer or maturity':_cxOn()?'Search currencies by code or name':_etfOn()?'Search ETFs by ticker, name or sector':'Search stocks, ETFs, currencies and bonds';
+  var t=_bvOn()?'Search bonds by CUSIP, issuer or maturity':_cxOn()?'Search currencies by code or name':_etfOn()?'Search ETFs by ticker, name or sector':'Search stocks, ETFs, currencies and bonds, or ask the AI Analyst';
   if(i.getAttribute('aria-label')!==t)i.setAttribute('aria-label',t);
 }
 function _bvCls(v){return _esc(String(v).replace('TREASURY_BILL','T-BILL').replace('TREASURY','TSY').replace('CORP_',''));}
@@ -18631,7 +18967,7 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
      the raw-debt block from the detail popup's Solvency & Leverage
      group. Dollar filters take raw dollars, same as the other ds
      columns (Shares Out, Avg $ Vol). */
-  var _CF_NUM=[['total_debt','Total Debt','ds'],['net_debt','Net Debt','ds'],['de','Debt/Equity','n2'],['debt_maturity_wall_yrs','Debt Wall (yrs)','n1']];
+  var _CF_NUM=[['mcap','Market Cap','ds'],['total_debt','Total Debt','ds'],['net_debt','Net Debt','ds'],['de','Debt/Equity','n2'],['debt_maturity_wall_yrs','Debt Wall (yrs)','n1']];
   var numHtml='';
   _CF_NUM.forEach(function(p){_CF_FMT[p[0]]=p[2];var unit=p[2]==='ds'?' ($)':'';numHtml+='<option value="'+p[0]+'">'+p[1]+unit+'</option>';
     if(!_cfSeen[p[0]]){_cfSeen[p[0]]=1;_CF_OPTS.push({g:'Debt',k:p[0],l:p[1]+unit});}});
@@ -18684,12 +19020,7 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
      array and the prices.json sidecar, so the model works from this report's
      actual numbers instead of its own priors. -->
 <style>
-#ai-fab{position:fixed;right:calc(30px + env(safe-area-inset-right));bottom:calc(18px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;border:none;background:#1a9850;color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.28);cursor:pointer;z-index:1500;display:flex;align-items:center;justify-content:center;transition:transform .15s ease,background .15s ease;-webkit-tap-highlight-color:transparent;}
-#ai-fab:hover{transform:scale(1.07);background:#157a40;}
-#ai-fab svg{width:26px;height:26px;}
-[data-theme="dark"] #ai-fab{background:#238636;}
-[data-theme="dark"] #ai-fab:hover{background:#2ea043;}
-#ai-panel{position:fixed;right:calc(30px + env(safe-area-inset-right));bottom:calc(86px + env(safe-area-inset-bottom));width:min(430px,calc(100vw - 36px));height:min(650px,calc(100vh - 130px));background:#fff;border:1px solid #e2e5e9;border-radius:14px;box-shadow:0 14px 44px rgba(0,0,0,.24);z-index:1501;display:none;flex-direction:column;overflow:hidden;font-size:13.5px;line-height:1.5;}
+#ai-panel{position:fixed;right:calc(30px + env(safe-area-inset-right));top:calc(var(--hdr-h,64px) + 8px);width:min(430px,calc(100vw - 36px));height:min(650px,calc(100vh - var(--hdr-h,64px) - 24px));background:#fff;border:1px solid #e2e5e9;border-radius:14px;box-shadow:0 14px 44px rgba(0,0,0,.24);z-index:1501;display:none;flex-direction:column;overflow:hidden;font-size:13.5px;line-height:1.5;}
 #ai-panel.open{display:flex;}
 [data-theme="dark"] #ai-panel{background:#161b22;border-color:#30363d;color:#e6edf3;}
 .ai-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #e9ecef;background:#f8f9fa;flex:0 0 auto;}
@@ -18737,6 +19068,10 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 [data-theme="dark"] #ai-sendbtn.stop{background:#da3633;}
 #ai-settings{padding:16px;display:none;flex-direction:column;gap:10px;overflow-y:auto;}
 #ai-panel.settings #ai-settings{display:flex;}
+#ai-msgs .ai-act{align-self:stretch;font-size:12.5px;padding:7px 10px;border-radius:8px;background:#eaf6ee;color:#14532d;line-height:1.5;}
+[data-theme="dark"] #ai-msgs .ai-act{background:#12261a;color:#9be3b0;}
+.ai-actbtn{border:0;border-radius:6px;padding:2px 9px;margin-left:4px;font:inherit;font-weight:600;cursor:pointer;background:#1a9850;color:#fff;}
+@media(min-width:769px){.ai-actbtn[onclick="aiToggle()"]{display:none;}}
 #ai-panel.settings #ai-msgs,#ai-panel.settings .ai-inrow{display:none;}
 #ai-settings label{font-weight:600;font-size:12.5px;}
 #ai-keyinput{border:1px solid #d5d9de;border-radius:8px;padding:8px 10px;font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#fff;color:inherit;}
@@ -18748,8 +19083,7 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .ai-setnote{font-size:11.5px;color:#6b7480;line-height:1.55;}
 [data-theme="dark"] .ai-setnote{color:#8b949e;}
 @media(max-width:768px){
-  #ai-panel{left:0;right:0;bottom:0;top:auto;width:100%;height:var(--vvh,100vh);max-height:100vh;border-radius:0;border:none;}
-  body:has(#ai-panel.open) #ai-fab{display:none;}
+  #ai-panel{left:0;right:0;bottom:0;top:auto;z-index:1700;width:100%;height:var(--vvh,100vh);max-height:100vh;border-radius:0;border:none;}
   .ai-bub{max-width:92%;}
 }
 </style>
@@ -19141,9 +19475,6 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
     <div id="pf-ov-body"></div>
   </div>
 </div>
-<button id="ai-fab" title="AI Analyst" aria-label="Open AI Analyst">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 14l.9 2.1 2.1.9-2.1.9L19 20l-.9-2.1-2.1-.9 2.1-.9z"/><path d="M5 15l.7 1.6 1.6.7-1.6.7L5 19.6l-.7-1.6-1.6-.7 1.6-.7z"/></svg>
-</button>
 <script>
 (function(){
 'use strict';
@@ -19325,16 +19656,64 @@ function aiRunTool(name,input){
       case 'screen_stocks':return aiScreen(input||{});
       case 'aggregate_stocks':return aiAggregate(input||{});
       case 'get_price_history':return aiPriceHistory(input||{});
+      case 'apply_filter':return aiApplyFilter(input||{});
+      case 'open_ticker':return aiOpenTicker(input||{});
       default:return {error:'unknown tool: '+name};
     }
   }).catch(function(e){return {error:String(e&&e.message||e)};});
 }
 window._aiRunTool=aiRunTool; /* debug/test hook */
+/* ---------- actions on the page ----------
+   The two tools that change what the reader sees. A filter is built as the
+   search box's field query (_fqApply), so it lands in the Filters panel as
+   an ordinary, editable filter; a note in the chat says what was done, with
+   buttons to look (the panel covers a phone's screen) or save it. */
+var AI_OPS={gt:'>',gte:'>=',lt:'<',lte:'<=',eq:'='};
+function aiActionNote(html){
+  aiAdd('ai-act',html+' <button type="button" class="ai-actbtn" onclick="aiToggle()">Show</button>');
+}
+function aiApplyFilter(inp){
+  var fq={conds:[],text:String(inp.search||'').trim()},skipped=[];
+  [['ratings','ms-rating','Rating'],['sectors','ms-sector','Sector'],['countries','ms-country','Country']].forEach(function(x){
+    var v=inp[x[0]];if(!v||!v.length)return;
+    var vals=_fqMsVals(x[1],[].concat(v).join(','));
+    if(vals.length)fq.conds.push({ms:x[1],l:x[2],vals:vals});else skipped.push(x[0]+'='+v);
+  });
+  (inp.filters||[]).forEach(function(f){
+    var fld=_fqField(f.field);
+    if(!fld||fld.ms){skipped.push(f.field+' (not a filter column; use ratings/sectors/countries for those)');return;}
+    var fmt=_CF_FMT[fld.k]||'',c={k:fld.k,l:fld.l,fmt:fmt,min:null,max:null,txt:null};
+    if(fmt==='text'){if(f.value==null){skipped.push(f.field);return;}c.txt=String(f.value);}
+    else{
+      var v=_num(f.value);if(v==null||!AI_OPS[f.op]){skipped.push(f.field+' '+f.op);return;}
+      /* Tools speak decimals (0.15); the panel's percent columns take 15. */
+      if(fmt==='pct')v=+(v*100).toFixed(6);
+      if(f.op[0]==='g'||f.op==='eq')c.min=v;
+      if(f.op[0]==='l'||f.op==='eq')c.max=v;
+    }
+    fq.conds.push(c);
+  });
+  if(!fq.conds.length&&!fq.text)return {error:'nothing to apply',skipped:skipped};
+  var n=_fqApply(fq),desc=fq.conds.map(_fqLabel).concat(fq.text?['“'+fq.text+'”']:[]).join(' · ');
+  aiActionNote('Filtered the Stocks table: <b>'+_esc(desc)+'</b> &mdash; '+n+' stock'+(n===1?'':'s')+'. <button type="button" class="ai-actbtn" onclick="aiToggle();pfSaveFilterOpen()">Save as portfolio&hellip;</button>');
+  return {applied:fq.conds.map(_fqLabel),search:fq.text||null,matches:n,skipped:skipped,
+    note:'Inclusive bounds (gt behaves as gte). The filter replaced any the reader had set.'};
+}
+function aiOpenTicker(inp){
+  var t=String(inp.ticker||'').toUpperCase().trim();
+  var d=DATA.filter(function(x){return x.ticker===t;})[0];
+  if(!d)return {error:'ticker not in this report: '+t};
+  openDet(t);
+  aiActionNote('Opened <b>'+_esc(t)+'</b>'+(d.company_name?' ('+_esc(d.company_name)+')':'')+'.');
+  return {opened:t};
+}
 var AI_TOOLS=[
   {name:'list_fields',description:'List every queryable field on the stock records with type, coverage percentage, and an example value. Call this first when unsure of exact field names before screening or aggregating.',input_schema:{type:'object',properties:{},required:[]}},
   {name:'get_stock',description:'Fetch the complete analysis record for one ticker: price, rating, composite score, DCF/EPV/RIM/NAV fair values, margin of safety, quality ratios, and all sector-specific enrichment fields.',input_schema:{type:'object',properties:{ticker:{type:'string',description:'Ticker symbol, e.g. AAPL'}},required:['ticker']}},
   {name:'screen_stocks',description:'Filter, sort, and rank the full stock universe in this report. Ratio fields are decimals (0.15 = 15%). Rating values: BUY, LEAN BUY, HOLD, PASS. Returns total match count plus the top rows. Call this whenever the user asks for lists, rankings, or "which stocks..." questions.',input_schema:{type:'object',properties:{filters:{type:'array',description:'ALL conditions must hold (AND)',items:{type:'object',properties:{field:{type:'string'},op:{type:'string',enum:['eq','ne','gt','gte','lt','lte','contains','in','notnull','isnull']},value:{description:'Comparison value; array for op=in; omit for notnull/isnull'}},required:['field','op']}},sort_by:{type:'string'},sort_dir:{type:'string',enum:['asc','desc'],description:'default desc'},limit:{type:'integer',description:'rows to return, default 25, max 200'},fields:{type:'array',items:{type:'string'},description:'fields to include per row (ticker always included)'}},required:[]}},
   {name:'aggregate_stocks',description:'Group stocks by a field (e.g. sector, industry, rating, country) and compute count plus mean/median/min/max of numeric metrics per group. Optional filters applied first. Call this for sector-level or distribution questions.',input_schema:{type:'object',properties:{group_by:{type:'string',description:'default sector'},metrics:{type:'array',items:{type:'string'},description:'numeric fields, max 6, default [_composite_score]'},filters:{type:'array',items:{type:'object',properties:{field:{type:'string'},op:{type:'string'},value:{}},required:['field','op']}}},required:[]}},
+  {name:'apply_filter',description:'Show a screen to the reader: replaces the report\'s filters and opens the Stocks table filtered to it, where the reader can refine it or save it as a portfolio. Use it when the reader asks to see, show, filter or list stocks on the page (after screen_stocks if you need to check the result first). Filters use the same field names and decimal convention as screen_stocks (0.15 = 15%); ops gt/gte/lt/lte/eq for numbers (bounds are inclusive), eq for text fields such as industry. Returns the match count.',input_schema:{type:'object',properties:{filters:{type:'array',items:{type:'object',properties:{field:{type:'string'},op:{type:'string',enum:['gt','gte','lt','lte','eq']},value:{}},required:['field','op','value']}},ratings:{type:'array',items:{type:'string',enum:['BUY','LEAN BUY','HOLD','PASS']}},sectors:{type:'array',items:{type:'string'}},countries:{type:'array',items:{type:'string'}},search:{type:'string',description:'free-text search over ticker, name, industry and description'}},required:[]}},
+  {name:'open_ticker',description:'Open one stock\'s page in the report for the reader. Use it when the reader asks to open, show or go to a stock.',input_schema:{type:'object',properties:{ticker:{type:'string'}},required:['ticker']}},
   {name:'get_price_history',description:'Daily-close derived stats for up to 8 tickers: trailing returns (1m to 5y), max drawdown, 2020 and 2022 drawdowns, and a ~72-point sampled price series. Index tickers SPY, QQQ, DIA are available for benchmarking. Call this for questions about past performance, volatility, or price trends.',input_schema:{type:'object',properties:{tickers:{type:'array',items:{type:'string'}}},required:['tickers']}}
 ];
 function aiSystemPrompt(){
@@ -19354,6 +19733,7 @@ function aiSystemPrompt(){
     +'- Always fetch data with tools before making claims about specific stocks in this report; never quote numbers from memory. Use list_fields when unsure of a field name.\n'
     +'- Ratio fields are decimals: 0.15 means 15%.\n'
     +'- Be concise and analytical. Use markdown tables for comparisons. Cite tickers.\n'
+    +'- When the reader wants to see stocks on the page, use apply_filter so the table shows them; when they want a stock\'s page, use open_ticker. Say what you applied.\n'
     +'- This is research assistance on model output, not individualized financial advice; flag material risks when a stock looks attractive.';
 }
 
@@ -19509,16 +19889,31 @@ function aiAdd(cls,html){
   return d;
 }
 function aiHasKey(){try{return !!localStorage.getItem(AI_KEY_LS);}catch(e){return false;}}
+function aiSyncBtn(){
+  var b=document.getElementById('hdr-ai');
+  if(b)b.setAttribute('aria-expanded',elPanel.classList.contains('open')?'true':'false');
+}
 function aiOpen(){
-  elPanel.classList.add('open');
+  var hd=document.querySelector('.header');
+  if(hd)document.documentElement.style.setProperty('--hdr-h',hd.offsetHeight+'px');
+  elPanel.classList.add('open');aiSyncBtn();
   if(!aiHasKey())elPanel.classList.add('settings');
   else if(window.innerWidth>768)setTimeout(function(){elInput.focus();},60);
   if(!elMsgs.childElementCount)aiAdd('ai-note','Ask anything about the '+DATA.length+' stocks in this report &mdash; screens, comparisons, sector stats, price history.');
 }
-function aiClose(){elPanel.classList.remove('open');elPanel.classList.remove('settings');}
-document.getElementById('ai-fab').addEventListener('click',function(){
-  if(elPanel.classList.contains('open'))aiClose();else aiOpen();
-});
+function aiClose(){elPanel.classList.remove('open');elPanel.classList.remove('settings');aiSyncBtn();}
+/* Entry points for the search bar: its sparkle button toggles the panel,
+   and its "Ask AI Analyst" row opens it and sends the typed question. */
+/* Other code closes the panel by dropping its class (the shortcuts sheet). */
+new MutationObserver(aiSyncBtn).observe(elPanel,{attributes:true,attributeFilter:['class']});
+window.aiToggle=function(){if(elPanel.classList.contains('open'))aiClose();else aiOpen();};
+window.aiAsk=function(text){
+  aiOpen();
+  if(!text)return;
+  elInput.value=text;
+  elInput.dispatchEvent(new Event('input'));
+  aiSubmit();
+};
 document.getElementById('ai-closebtn').addEventListener('click',aiClose);
 document.getElementById('ai-gearbtn').addEventListener('click',function(){
   var inp=document.getElementById('ai-keyinput');

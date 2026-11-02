@@ -1169,7 +1169,20 @@ ruff check .
     Detail tab; a bond's sheet over the Bonds table, or "All N bonds" to that
     table. The non-stock jumps are drills, so ‹ Back returns. On a table view
     the list leaves out the table's own kind and preselects nothing, so Enter
-    still only filters. Tests: `tests/test_report_search.py`.
+    still only filters. The same box is the AI Analyst's: a sparkle button
+    (`#hdr-ai`) opens the panel (the floating button is gone), every list
+    ends with an Ask row, and a question (a "?", a question word, four
+    words or more) leads it so Enter asks. A field query (`pe<15
+    sector:energy rating:buy+ mcap>10b`, `_fqParse`) leads instead: it is
+    applied as the Filters panel's own state (`_fqApply`, replacing what
+    was set; a drill off a stock table), with Save as portfolio beside it;
+    percent columns take percents, dollar columns k/m/b/t, and the table's
+    own search ignores those terms. The list also finds Pages (every
+    `_navGroups` tab) and Terms (Filters-panel columns with a `TT`
+    definition, opened as a card), shows a stock's rating and MoS, and,
+    focused and empty, the last 8 picks (`stock_search_recent_v1`). The
+    analyst's `apply_filter` and `open_ticker` tools act on the page
+    through the same path. Tests: `tests/test_report_search.py`.
   - **Section template:** every titled section takes the sector page's
     look, defined once in the SECTION TEMPLATE block: a light panel
     (`--sx-bg`), a 5px navy stripe down its left edge, a hairline border and
