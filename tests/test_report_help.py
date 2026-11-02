@@ -70,3 +70,13 @@ def test_no_page_question_mark_on_macro_sector_analysis_charts_or_portfolios():
     assert 'var _HELP_OFF={macro:1,pool:1,sector:1,charts:1,pf:1,pfdet:1};' in src
     place = src.split('function _helpPlace(det){', 1)[1].split('\n}\n', 1)[0]
     assert '!_HELP_OFF[_helpKey()]' in place
+
+
+def test_portfolio_page_does_not_repeat_its_name():
+    """The portfolio's tab names it; its page carries no heading, and the
+    Performance chart calls its own line "Portfolio"."""
+    src = _tpl()
+    det = src.split('function _pfDetailHtml(id){', 1)[1].split('\n}\n', 1)[0]
+    assert 'p.name' not in det and '<h2>' not in det
+    assert 'class="pfc-pf" style="stroke:\'+_pfEsc(_pfCol(p.color))+\'"/></svg>Portfolio</span>' in src
+    assert "row('Portfolio','pf')" in src

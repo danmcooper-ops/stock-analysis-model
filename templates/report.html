@@ -5552,11 +5552,10 @@ function _pfDetailHtml(id){
   var miss=(p.tickers||[]).filter(function(t){return !_pfTk[t];});
   /* No "All portfolios" link: the Overview tab beside the portfolio's own
      tab already leads there. */
-  var h='<div class="pfv pfv-detail">'
-    +'<div class="pfv-head pfv-detail-head" style="--pf:'+_pfEsc(_pfCol(p.color))+'"><span class="pfv-swatch"></span><h2>'+_pfEsc(p.name)+'</h2>'
-    /* Open in table, Add stocks, Edit rule, Share link and Manage sit
-       behind the top bar's funnel (_altFiltSync kind 'pf'). */
-    +'</div>'+_pfSystemicHtml()+_pfSyncNote()
+  /* No heading: the portfolio's tab already names it. Open in table, Add
+     stocks, Edit rule, Share link and Manage sit behind the top bar's
+     funnel (_altFiltSync kind 'pf'). */
+  var h='<div class="pfv pfv-detail">'+_pfSystemicHtml()+_pfSyncNote()
     /* Description and counts sit behind the top bar's ? (pg-help). */
     +(p.description?'<p class="pfv-desc pg-help">'+_pfEsc(p.description)+'</p>':'')
     +'<div class="pfv-meta pg-help">'+st.n+' stock'+(st.n===1?'':'s')
@@ -6077,7 +6076,7 @@ function _pfChartHtml(id){
   if(pf.lowcov)notes.push(pf.lowcov+' day'+(pf.lowcov===1?'':'s')+' priced under 80% of members.');
   if(!_pfPubUnchanged(id))notes.push('This history follows the published definition; your local edits apply from the next run after you publish them.');
   var legend='<div class="pfc-legend">'
-    +'<span><svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" class="pfc-pf" style="stroke:'+_pfEsc(_pfCol(p.color))+'"/></svg>'+_pfEsc(p.name)+'</span>'
+    +'<span><svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" class="pfc-pf" style="stroke:'+_pfEsc(_pfCol(p.color))+'"/></svg>Portfolio</span>'
     +'<span><svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" class="pfc-spy"/></svg>S&amp;P 500 (SPY)</span>'
     +'<span><svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" class="pfc-ew"/></svg>Equal-weight universe</span></div>';
   var W=[30,91,'ytd',null];
@@ -6092,7 +6091,7 @@ function _pfChartHtml(id){
     +'<div class="pfc-wrap" id="pfc-wrap" data-id="'+_pfEsc(id)+'" tabindex="0" aria-label="Performance chart; use the arrow keys to step through dates"></div>'
     +(notes.length?'<div class="pfc-notes">'+notes.map(_pfEsc).join('<br>')+'</div>':'')
     +'<div class="pfv-tbl-wrap pfc-tbl"><table class="pfv-tbl"><thead><tr><th></th><th class="r">1M</th><th class="r">3M</th><th class="r">YTD</th><th class="r">Since '+_pfEsc(pf.dates[0])+'</th><th class="r">Max drawdown</th><th class="r" title="Annualised standard deviation of the step returns">Volatility</th></tr></thead><tbody>'
-    +row(_pfEsc(p.name),'pf')+ex+row('S&amp;P 500 (SPY)','spy')+row('Equal-weight universe','ew')+'</tbody></table></div>'
+    +row('Portfolio','pf')+ex+row('S&amp;P 500 (SPY)','spy')+row('Equal-weight universe','ew')+'</tbody></table></div>'
     +contrib;
 }
 /* Contributors over the chart's range. For a published definition they are
@@ -6193,7 +6192,7 @@ function _pfDrawChart(){
     var dh='',th='<div class="pfc-tip-d">'+pf.dates[best]+(best<=pf.bfEnd?' <span class="pf-muted">(backfilled)</span>':'')+'</div>',yPf=null;
     _PF_SERIES.forEach(function(sr0){
       var v=pf[sr0.k][best];if(v==null)return;
-      var col=sr0.k==='pf'?_pfCol(p.color):null,nm=sr0.l||p.name;
+      var col=sr0.k==='pf'?_pfCol(p.color):null,nm=sr0.l||'Portfolio';
       if(sr0.k==='pf')yPf=Y(v);
       dh+='<circle cx="'+cx+'" cy="'+Y(v).toFixed(1)+'" r="4" class="pfc-dot '+sr0.cls+'"'+(col?' style="fill:'+_pfEsc(col)+'"':'')+'/>';
       th+='<div class="pfc-tip-r"><svg width="16" height="8"><line x1="1" y1="4" x2="15" y2="4" class="'+sr0.cls+'"'+(col?' style="stroke:'+_pfEsc(col)+'"':'')+'/></svg><span>'+_pfEsc(nm)+'</span><b>'+_pfFmtRet(v)+'</b></div>';
@@ -18882,7 +18881,6 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 /* A portfolio's page opens with its way back, hung as close under the
    sub-tabs as a sector page's sub-tab row, not the overview's 18px. */
 .pfv-detail{padding-top:0;}
-.pfv-detail-head .pfv-swatch{width:14px;height:14px;border-radius:4px;background:var(--pf);}
 .pfv-desc{font-size:13.5px;margin:0 0 6px;}
 .pfv-detail-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:12px;}
 .pfv-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;}
