@@ -19083,7 +19083,13 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .ai-setnote{font-size:11.5px;color:#6b7480;line-height:1.55;}
 [data-theme="dark"] .ai-setnote{color:#8b949e;}
 @media(max-width:768px){
-  #ai-panel{left:0;right:0;bottom:0;top:auto;z-index:1700;width:100%;height:var(--vvh,100vh);max-height:100vh;border-radius:0;border:none;}
+  /* Pinned to the top and sized to what is visible (--vvh), so the keyboard
+     shortens it from below and the box stays above it. The fields are 16px
+     because iOS Safari zooms in on a focused field under 16px, and a zoomed
+     page shows this panel cut off. */
+  #ai-panel{left:0;right:0;top:0;bottom:auto;z-index:1700;width:100%;height:var(--vvh,100vh);max-height:none;border-radius:0;border:none;}
+  #ai-input,#ai-keyinput{font-size:16px;}
+  #ai-msgs{overscroll-behavior:contain;}
   .ai-bub{max-width:92%;}
 }
 </style>
@@ -19954,6 +19960,21 @@ function aiFitInput(){
 }
 elInput.addEventListener('input',aiFitInput);
 new MutationObserver(aiFitInput).observe(elPanel,{attributes:true,attributeFilter:['class']});
+/* On phones the panel covers the page, so the page must not scroll under
+   it: the body is pinned at its scroll position while the panel is open and
+   put back where it was on close, however the panel was closed. */
+var _aiLockY=null;
+function aiScrollLock(){
+  var on=elPanel.classList.contains('open')&&window.innerWidth<=768,b=document.body;
+  if(on&&_aiLockY===null){
+    _aiLockY=window.scrollY;
+    b.style.position='fixed';b.style.top=(-_aiLockY)+'px';b.style.left='0';b.style.right='0';
+  }else if(!on&&_aiLockY!==null){
+    b.style.position='';b.style.top='';b.style.left='';b.style.right='';
+    window.scrollTo(0,_aiLockY);_aiLockY=null;
+  }
+}
+new MutationObserver(aiScrollLock).observe(elPanel,{attributes:true,attributeFilter:['class']});
 elInput.addEventListener('keydown',function(e){
   if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();aiSubmit();}
 });
