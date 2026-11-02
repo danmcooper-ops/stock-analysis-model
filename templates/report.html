@@ -647,6 +647,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 #filt-panel .fsec .ms-drop .ms-all{border-bottom:1px solid #edf0f3;margin-bottom:2px;}
 .fsec-q{width:100%;box-sizing:border-box;margin:0 0 4px;padding:4px 8px;border:1px solid #d5dbe1;border-radius:4px;font:inherit;font-size:0.85em;background:transparent;}
 .fsec .add-filter-btn{margin-top:6px;}
+.sf-list{display:flex;flex-direction:column;gap:2px;margin-bottom:6px;}
+.sf-list:empty{display:none;}
+.sf-item{display:flex;align-items:center;gap:4px;border-radius:4px;}
+.sf-item:hover{background:#f6f8fa;}
+.sf-apply{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;align-items:flex-start;padding:4px 6px;border:0;background:none;font:inherit;font-size:0.85em;color:var(--text);text-align:left;cursor:pointer;}
+.sf-apply b{font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sf-apply span{color:var(--text-muted);font-size:0.9em;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sf-item.on .sf-apply b{color:var(--accent);}
+.sf-item.on .sf-apply b::before{content:"\2713\00a0";}
+.sf-del{flex:0 0 auto;width:26px;height:26px;border:0;background:none;color:var(--text-muted);font-size:16px;line-height:1;border-radius:4px;cursor:pointer;}
+.sf-del:hover{color:#c0392b;background:rgba(192,57,43,0.08);}
+.sf-save{display:flex;gap:6px;align-items:stretch;}
+.sf-save .fsec-q{margin:0;flex:1 1 auto;min-width:0;}
+.sf-msg{font-size:0.78em;color:var(--text-muted);min-height:0;margin-top:4px;}
+.sf-msg:empty{display:none;}
+.sf-msg.err{color:#c0392b;}
+[data-theme="dark"] .sf-item:hover{background:#1c2128;}
 .filt-foot{flex-shrink:0;padding:8px 12px calc(8px + env(safe-area-inset-bottom));border-top:1px solid #edf0f3;}
 .filt-show{width:100%;padding:7px;border:0;border-radius:4px;background:var(--accent);color:#fff;font:inherit;font-size:0.85em;font-weight:600;cursor:pointer;}
 #filt-panel #alt-filt{padding:8px 12px;}
@@ -3715,6 +3732,16 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
                (metric, stocks, range), filled by initPriceChart. -->
           <div class="ph-menu" id="ph-menu" hidden></div>
           <div class="filt-cols" id="filt-stock">
+            <!-- Saved filters: named snapshots of every section below, kept
+                 in this browser (stock_saved_filters_v1), rendered by _sfRender. -->
+            <div class="filt-col fsec" data-fsec="saved">
+              <button type="button" class="fsec-h" onclick="_fsecToggle('saved')" aria-expanded="false"><span class="fsec-t">Saved filters</span><span class="fsec-s" id="fsum-saved"></span><span class="fsec-c" aria-hidden="true"></span></button>
+              <div class="fsec-b">
+                <div class="sf-list" id="sf-list"></div>
+                <form class="sf-save" onsubmit="sfSave();return false;"><input type="text" class="fsec-q" id="sf-name" maxlength="60" placeholder="Name the current filters" aria-label="Name for the current filters" autocomplete="off"><button type="submit" class="pf-btn pf-primary">Save</button></form>
+                <div class="sf-msg" id="sf-msg" role="status"></div>
+              </div>
+            </div>
             <div class="filt-col fsec" data-fsec="rating">
               <button type="button" class="fsec-h" onclick="_fsecToggle('rating')" aria-expanded="false"><span class="fsec-t">Rating</span><span class="fsec-s" id="fsum-rating"></span><span class="fsec-c" aria-hidden="true"></span></button>
               <div class="ms-wrap fsec-b" id="ms-rating">
@@ -6748,9 +6775,7 @@ document.addEventListener('click',function(e){
 /* === FILTER STATE SNAPSHOT / RESTORE ===
    _getCurrentFilterState captures everything applyFilters() reads;
    _applyFilterState restores it. Both serve the URL-shareable hash
-   state below. (The Preset Filters section that also used them — the
-   built-in sector presets dropdown and localStorage-saved filters —
-   was removed from the Filters menu.) */
+   state below and the Saved filters section (_sf*). */
 function _getCurrentFilterState(){
   var st={};
   st.search=document.getElementById('f-search').value||'';
@@ -6831,6 +6856,92 @@ function _applyFilterState(st){
   _pfSel=(st.portfolios||[]).filter(function(id){return _pfById[id];});
   _pfRenderFilter();
   applyFilters();
+}
+
+/* === SAVED FILTERS ===
+   Named snapshots of the Filters panel, kept in this browser only
+   (stock_saved_filters_v1: [{name, st}]). A snapshot is
+   _getCurrentFilterState without the search box (the top bar's, shared by
+   every tab) or a dashboard drill-down (a one-off jump), and without
+   empty or off fields, so two snapshots of the same filters compare
+   equal and the one in force is marked. Saving under an existing name
+   replaces it. Applying one replaces every filter, search included. */
+var _SF_KEY='stock_saved_filters_v1';
+function _sfList(){
+  try{var v=JSON.parse(localStorage.getItem(_SF_KEY)||'[]');return Array.isArray(v)?v.filter(function(x){return x&&x.name&&x.st;}):[];}catch(e){return [];}
+}
+function _sfStore(list){try{localStorage.setItem(_SF_KEY,JSON.stringify(list));return true;}catch(e){return false;}}
+function _sfSnap(){
+  var st=_getCurrentFilterState(),o={};
+  ['ratings','sectors','countries','portfolios'].forEach(function(k){if(st[k])o[k]=st[k].slice();});
+  if(st.colFilters&&st.colFilters.length)o.colFilters=st.colFilters;
+  ['flagOnly','founderOnly','blueChipOnly','r2000Only'].forEach(function(k){if(st[k])o[k]=true;});
+  if(st.revFilter)o.revFilter=st.revFilter;
+  if(st.rcFilter)o.rcFilter=st.rcFilter;
+  return o;
+}
+function _sfKey(o){
+  var k={};Object.keys(o).sort().forEach(function(x){k[x]=o[x];});
+  return JSON.stringify(k);
+}
+function _sfCurrent(){
+  var cur=_sfKey(_sfSnap());
+  return _sfList().filter(function(x){return _sfKey(x.st)===cur;})[0]||null;
+}
+function _sfDesc(o){
+  var p=[];
+  if(o.ratings)p.push(o.ratings.length?o.ratings.join(', '):'No ratings');
+  if(o.sectors)p.push(o.sectors.length===1?o.sectors[0]:o.sectors.length+' sectors');
+  if(o.countries)p.push(o.countries.length===1?o.countries[0]:o.countries.length+' countries');
+  var q=[];
+  if(o.revFilter)q.push(o.revFilter===2?'Reviewed':'Unreviewed');
+  if(o.flagOnly)q.push('Flagged');if(o.founderOnly)q.push('Founder-led');
+  if(o.blueChipOnly)q.push('Blue chip');if(o.r2000Only)q.push('Russell 2000');
+  if(o.rcFilter)q.push(o.rcFilter===1?'Upgrades':'Downgrades');
+  p=p.concat(q);
+  if(o.portfolios)p.push(o.portfolios.length===1&&_pfById[o.portfolios[0]]?_pfById[o.portfolios[0]].name:o.portfolios.length+' portfolios');
+  if(o.colFilters)p.push(o.colFilters.length+' column filter'+(o.colFilters.length===1?'':'s'));
+  return p.join(' · ')||'No filters';
+}
+function _sfRender(){
+  var el=document.getElementById('sf-list');if(!el)return;
+  var cur=_sfCurrent(),list=_sfList();
+  el.innerHTML=list.map(function(x,i){
+    var on=cur&&cur.name===x.name;
+    return '<div class="sf-item'+(on?' on':'')+'"><button type="button" class="sf-apply" onclick="sfApply('+i+')" title="Apply these filters"><b>'+esc(x.name)+'</b><span>'+esc(_sfDesc(x.st))+'</span></button>'
+      +'<button type="button" class="sf-del" onclick="sfDelete('+i+')" aria-label="Delete saved filter '+esc(x.name)+'" title="Delete">&times;</button></div>';
+  }).join('');
+  var n=document.getElementById('sf-name');
+  if(n&&cur&&document.activeElement!==n&&!n.value)n.placeholder='Saved as “'+cur.name+'”';
+  else if(n)n.placeholder='Name the current filters';
+}
+function _sfMsg(t,err){
+  var m=document.getElementById('sf-msg');if(!m)return;
+  m.textContent=t||'';m.classList.toggle('err',!!err);
+}
+function sfSave(){
+  var inp=document.getElementById('sf-name'),name=(inp.value||'').trim();
+  if(!name){_sfMsg('Give the filters a name.',true);inp.focus();return;}
+  var o=_sfSnap();
+  if(!Object.keys(o).length){_sfMsg('Nothing to save: no filter is set.',true);return;}
+  var list=_sfList(),i=-1;
+  list.forEach(function(x,j){if(x.name.toLowerCase()===name.toLowerCase())i=j;});
+  if(i>=0)list[i]={name:name,st:o};else list.push({name:name,st:o});
+  if(!_sfStore(list)){_sfMsg('This browser would not store it.',true);return;}
+  inp.value='';inp.blur();
+  _sfMsg(i>=0?'Replaced “'+name+'”.':'Saved “'+name+'”.');
+  _fsecSync(false);
+}
+function sfApply(i){
+  var x=_sfList()[i];if(!x)return;
+  _sfMsg('');
+  _applyFilterState(x.st);
+}
+function sfDelete(i){
+  var list=_sfList(),x=list[i];if(!x)return;
+  list.splice(i,1);_sfStore(list);
+  _sfMsg('Deleted “'+x.name+'”.');
+  _fsecSync(false);
 }
 
 /* === URL-SHAREABLE FILTER STATE ===
@@ -7766,17 +7877,18 @@ function _fsecSums(){
   return {rating:_fsecListSum('ms-rating'),sector:_fsecListSum('ms-sector'),country:_fsecListSum('ms-country'),
     quick:q.length?(q.length<=2?q.join(', '):q.length+' on'):'',
     pf:_pfSel.length?(_pfSel.length===1?(function(){var d=_pfDefs().filter(function(p){return p.id===_pfSel[0];})[0];return d?d.name:'1 portfolio';})():_pfSel.length+' portfolios'):'',
-    cols:cf?cf+' active':''};
+    cols:cf?cf+' active':'',saved:(_sfCurrent()||{}).name||''};
 }
 function _fsecSync(opening){
   var sums=_fsecSums();
   [].forEach.call(document.querySelectorAll('#filt-panel .fsec'),function(sec){
     var k=sec.getAttribute('data-fsec'),v=sums[k]||'';
     var el=document.getElementById('fsum-'+k);
-    if(el){el.textContent=v||(k==='quick'||k==='cols'?'None':k==='pf'?'Any':'All');el.classList.toggle('on',!!v);}
+    if(el){el.textContent=v||(k==='saved'?(_sfList().length?_sfList().length+' saved':'None'):k==='quick'||k==='cols'?'None':k==='pf'?'Any':'All');el.classList.toggle('on',!!v);}
     var open=(k in _fsecUser)?_fsecUser[k]:(k==='rating'||k==='quick'||k.slice(0,2)==='pf'&&k!=='pf'||!!v);
     if(opening||(k in _fsecUser))_fsecSet(sec,open);
   });
+  _sfRender();
   var b=document.getElementById('filt-show');
   if(b&&!_altFiltKind())b.textContent='Show '+FD.length.toLocaleString()+' stock'+(FD.length===1?'':'s');
 }
