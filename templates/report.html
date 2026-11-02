@@ -19485,6 +19485,7 @@ var AI_MSGS=[];
 var AI_BUSY=false;
 var AI_CTRL=null;
 var AI_FIELDS=null;
+var AI_WAITING=false;  /* a question bounced to the key screen */
 
 /* ---------- tool implementations (run in-page over DATA / PRICES) ---------- */
 function aiTrim(v){
@@ -19921,11 +19922,13 @@ document.getElementById('ai-gearbtn').addEventListener('click',function(){
   inp.placeholder=aiHasKey()?'(key saved — enter a new one to replace)':'sk-ant-...';
   elPanel.classList.add('settings');
 });
-document.getElementById('ai-backbtn').addEventListener('click',function(){elPanel.classList.remove('settings');});
+document.getElementById('ai-backbtn').addEventListener('click',function(){AI_WAITING=false;elPanel.classList.remove('settings');});
 document.getElementById('ai-savekey').addEventListener('click',function(){
   var v=document.getElementById('ai-keyinput').value.trim();
   if(v){try{localStorage.setItem(AI_KEY_LS,v);}catch(e){}}
   elPanel.classList.remove('settings');
+  /* A question that was sent before there was a key goes now. */
+  if(AI_WAITING&&aiHasKey()&&elInput.value.trim()){aiSubmit();return;}
   if(window.innerWidth>768)elInput.focus();
 });
 document.getElementById('ai-clearkey').addEventListener('click',function(){
@@ -19942,10 +19945,15 @@ document.getElementById('ai-clearbtn').addEventListener('click',function(){
 document.addEventListener('keydown',function(e){
   if(e.key==='Escape'&&elPanel.classList.contains('open'))aiClose();
 });
-elInput.addEventListener('input',function(){
+/* A hidden box (the key screen hides the composer) measures 0 and would be
+   pinned at its padding, so fit only when shown, and again on each change. */
+function aiFitInput(){
+  if(!elInput.offsetParent)return;
   elInput.style.height='auto';
   elInput.style.height=Math.min(elInput.scrollHeight,110)+'px';
-});
+}
+elInput.addEventListener('input',aiFitInput);
+new MutationObserver(aiFitInput).observe(elPanel,{attributes:true,attributeFilter:['class']});
 elInput.addEventListener('keydown',function(e){
   if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();aiSubmit();}
 });
@@ -19968,7 +19976,8 @@ function aiToolLabel(b){
 function aiSubmit(){
   var text=elInput.value.trim();
   if(!text||AI_BUSY)return;
-  if(!aiHasKey()){elPanel.classList.add('settings');return;}
+  if(!aiHasKey()){AI_WAITING=true;elPanel.classList.add('settings');return;}
+  AI_WAITING=false;
   elInput.value='';elInput.style.height='auto';
   aiAdd('ai-bub user',_esc(text));
   AI_MSGS.push({role:'user',content:text});
