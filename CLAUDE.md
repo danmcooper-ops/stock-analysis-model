@@ -1172,8 +1172,11 @@ ruff check .
     still only filters. Tests: `tests/test_report_search.py`.
   - **Page help (`#page-help-btn`):** a ? on every page, never in the top
     bar: level with the page's first section title at its row's right end
-    (`_helpPlace`), else (that title has its own ?, or there is none) at the
-    view title row's right end, and on a ticker page in the band's top row.
+    (`_helpPlace`), and on a ticker page in the band's top row. When that
+    title has its own ?, or the page has none, there is no page ? at all:
+    it never shows in the view title row (parked there hidden, `hw-off`).
+    Macro Outlook, Sector Analysis, Charts and Portfolios have no page ? at all
+    (`_HELP_OFF`); their cards keep their own.
     `_qAlign` holds every other ? to the same rule: a card's corner ? is
     centred on its title, and one whose title sits above its card moves into
     that title's row. Both rerun on a timer after any render. It opens what
