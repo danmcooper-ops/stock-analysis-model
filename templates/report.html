@@ -13490,6 +13490,26 @@ function _setIosZoomFloor(wide){
   if(!m._origContent)m._origContent=m.getAttribute('content');
   m.setAttribute('content',wide?m._origContent.replace(/minimum-scale=[\d.]+/,'minimum-scale=1.0'):m._origContent);
 }
+/* iOS Safari zooms in on a focused field whose text is under 16px and
+   leaves the page zoomed after the field loses focus (closing the Add
+   stocks dialog, tapping out of the search). Pinning the scale to 1 for a
+   moment makes Safari zoom back out; the viewport's own content is then
+   restored, so pinching in still works. Skipped while focus has moved to
+   another field, where the zoom is still wanted. */
+function _isField(el){
+  return !!el&&(el.tagName==='TEXTAREA'||el.tagName==='SELECT'||(el.tagName==='INPUT'&&!/^(button|submit|reset|checkbox|radio|range|color|file|image)$/i.test(el.type||'')));
+}
+document.addEventListener('focusout',function(e){
+  if(!_isIos()||!_isField(e.target))return;
+  setTimeout(function(){
+    if(_isField(document.activeElement))return;
+    var m=document.querySelector('meta[name="viewport"]');
+    if(!m)return;
+    var cur=m.getAttribute('content');
+    m.setAttribute('content',cur.replace(/,?\s*(minimum|maximum)-scale=[\d.]+/g,'')+', minimum-scale=1.0, maximum-scale=1.0');
+    setTimeout(function(){m.setAttribute('content',cur);},300);
+  },50);
+});
 function _syncWideTable(){
   var wide=(curView==='matrix'&&_mIsMatrix())||(curView==='table'&&curTSub!=='prices');
   if(wide!==_wasWide)_setIosZoomFloor(wide);
