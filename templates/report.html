@@ -3439,6 +3439,7 @@ html body #ph-menu button:focus-visible{outline:2px solid var(--chrome-accent);o
 .page-help-btn:hover,.page-help-btn[aria-expanded="true"]{color:var(--accent,#2563eb);border-color:var(--accent,#2563eb);}
 .page-help-btn:focus-visible{outline:2px solid var(--accent,#2563eb);outline-offset:2px;}
 .sn-head .help-wrap{align-self:center;margin-right:8px;}
+.help-wrap.hw-off{display:none;}
 /* Beside a section title (_helpPlace / _qAlign): last in a flex row, else floated right. */
 .help-wrap.hw-row,.qhelp.q-row-row{margin-left:auto;align-self:center;flex-shrink:0;}
 .help-wrap.hw-float,.qhelp.q-row-float{float:right;margin-left:8px;}
@@ -3761,7 +3762,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
        the only route to a sub-tab now that the Views dropdown is gone. -->
   <div id="subnav" class="sa-chrome">
     <button type="button" class="d-back sa-chrome" id="sn-back" onclick="drillBack()"></button>
-    <div class="sn-head"><h2 class="sn-title" id="sn-title"></h2><span class="sn-crumb" id="sn-crumb"></span><span class="sn-date">{{ generated_at }}</span><span class="help-wrap" id="help-wrap"><button type="button" class="page-help-btn" id="page-help-btn" onclick="toggleHelp(event)" aria-label="About this page" aria-haspopup="dialog" aria-expanded="false" aria-controls="help-pop">?</button></span></div>
+    <div class="sn-head"><h2 class="sn-title" id="sn-title"></h2><span class="sn-crumb" id="sn-crumb"></span><span class="sn-date">{{ generated_at }}</span><span class="help-wrap hw-off" id="help-wrap"><button type="button" class="page-help-btn" id="page-help-btn" onclick="toggleHelp(event)" aria-label="About this page" aria-haspopup="dialog" aria-expanded="false" aria-controls="help-pop">?</button></span></div>
     <!-- The page's ? sits at the title row's right end, the page's upper
          right corner, as each card's ? sits in its card's (_qHelp corner).
          On a ticker page _helpPlace moves it into the band's top row. Its
@@ -13735,6 +13736,9 @@ var _HELP_TXT={
   ticker:['One stock in full. Each data row’s bar is its percentile across today’s stocks, with a tick at the sector median.',
     'Summary prints a one-page PDF with the INVEST / WATCH / AVOID verdict. ‹ › step through the list you came from.']
 };
+/* Views that show no page ?: their cards carry their own, and the page
+   blurb only restated the view's name. */
+var _HELP_OFF={macro:1,pool:1,sector:1,charts:1,pf:1,pfdet:1};
 function _helpKey(){
   if(document.documentElement.classList.contains('det-open'))return 'ticker';
   var v=_navView();
@@ -13813,13 +13817,13 @@ function _qAlign(){
     }
   });
 }
-/* Does this title already carry a ? of its own on its row? */
+/* Does this title already carry a ? of its own? It does when any ? on the
+   page belongs to it (_qLabelFor: the same rule _qAlign aligns by), wherever
+   that ? currently sits. */
 function _qHasOwn(lab){
-  var lr=lab.getBoundingClientRect(),m=lr.top+lr.height/2;
   return [].some.call(document.querySelectorAll('.qhelp,.note-q'),function(q){
-    if(!_qVis(q)||q.closest('.qhelp-pop'))return false;
-    var r=q.getBoundingClientRect();
-    return r.left>=lr.right-2&&Math.abs(r.top+r.height/2-m)<16&&r.left-lr.right<1200;
+    if(!_qVis(q)||q.closest('.qhelp-pop,.note-q .qhelp'))return false;
+    return _qLabelFor(q)===lab;
   });
 }
 /* Held by reference: a view's re-render (innerHTML) can drop the ? from
@@ -13831,7 +13835,7 @@ function _helpPlace(det){
   var w=_helpEls();if(!w)return;
   if(det){
     var to=document.querySelector('#det-modal .d-mini-nav');
-    if(to&&w.parentNode!==to){w.classList.remove('hw-row','hw-float');w.style.marginTop='';to.insertBefore(w,to.firstChild);}
+    if(to&&w.parentNode!==to){w.classList.remove('hw-row','hw-float','hw-off');w.style.marginTop='';to.insertBefore(w,to.firstChild);}
     return;
   }
   var dm=document.getElementById('det-modal'),sn=document.getElementById('subnav');
@@ -13841,9 +13845,16 @@ function _helpPlace(det){
     var t=l.getBoundingClientRect().top;
     if(t<ft){ft=t;first=l;}
   });
-  if(first&&!_qHasOwn(first)){_qIntoRow(w,first,'hw');return;}
+  if(first&&!_qHasOwn(first)&&!_HELP_OFF[_helpKey()]){w.classList.remove('hw-off');_qIntoRow(w,first,'hw');return;}
+  /* No title of its own to sit beside: the ? is not shown at all. It never
+     goes in the view title row, so a main tab's heading carries none. It is
+     parked there, hidden, so a later render can find it a title. */
   var head=sn&&sn.querySelector('.sn-head');
-  if(head&&w.parentNode!==head){w.classList.remove('hw-row','hw-float');w.style.marginTop='';head.appendChild(w);}
+  if(w.parentNode!==head||!w.classList.contains('hw-off')){
+    closeHelp();
+    w.classList.remove('hw-row','hw-float');w.style.marginTop='';w.classList.add('hw-off');
+    if(head&&w.parentNode!==head)head.appendChild(w);
+  }
 }
 /* A short timer, not requestAnimationFrame: a page in a background or
    unpainted tab gets no frames, and the ? would stay wherever it was. */
