@@ -1469,7 +1469,12 @@ ruff check .
   only), Add stocks (paste tickers) and CSV of the members table; Manage
   edits description and weighting; the overview gains Upside and Beta
   columns and an Overlap table; contributors come from the ledger's
-  attribution when published. `prompt()`/`alert()` flows are overlay
+  attribution when published. A News sub-tab after Summary (`_pfNewsHtml`)
+  pools the members' company headlines (details/ parts), folds duplicates
+  and keeps one only when it names a member (ticker, full name, a one-word
+  name or a longer name's first two words), crediting every member it
+  names; the per-ticker feeds are mostly generic market copy (NVDA's nine
+  on 10-30). `prompt()`/`alert()` flows are overlay
   dialogs (`pfNewDialog`, `pfAddDialog`, `_pfMsg`).
   Portfolio colors use the dataviz reference categorical palette (validated
   both themes; dark mode swaps in each hue's dark step).

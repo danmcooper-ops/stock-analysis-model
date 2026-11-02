@@ -1193,6 +1193,11 @@ td.ct{font-weight:700;}
   padding:1px 8px;font-size:0.7em;font-weight:600;cursor:pointer;font-family:inherit;}
 .nws-f:hover{border-color:#b9c0cc;}
 .nws-f-on{background:#2980b9;border-color:#2980b9;color:#fff;}
+.pfn-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:4px;vertical-align:middle;}
+.pfn-tks{font-weight:700;margin-right:2px;}
+.pfn-tks .tk-link{margin-right:3px;}
+.pfn-grp .nws-item{padding:5px 0;font-size:0.88em;line-height:1.4;}
+.pfn-foot{font-size:0.75em;margin-top:6px;}
 /* News above Legal & Insider — stacked, matching the Peers tab; the old
    side-by-side halves squeezed both lists. */
 .nl-grid{display:grid;grid-template-columns:1fr;gap:12px;}
@@ -5547,6 +5552,100 @@ function _pfOverviewHtml(){
   h+=_pfAlertsHtml(list,true,PF_PUB.prev_date?'Nothing crossed the buy line, reversed, or needs watching in your portfolios today.':'No prior run to compare against.',15);
   return h+'</div></div>';
 }
+/* Portfolios › a portfolio › News: the members' own headlines, curated.
+   Each member's feed (news_headlines, from the details/ parts) mixes items
+   that name the company with a generic market feed: on 10-30 NVDA's nine
+   items were all generic (Merck, laptops, a bank's earnings call). So the
+   tab pools every member's company-scope items, drops duplicates, and keeps
+   only a headline that names a member: by ticker, by full name, by a
+   one-word name, or by a longer name's first two words. A
+   headline is credited to every member it names, wherever it was found
+   ("Nvidia vs. AMD" sat only in AMD's feed), and one naming several members
+   sorts first within its day. Newest first, at most _PFN_MAX. Display only. */
+var _PFN_MAX=60;
+var _PFN_LEGAL={inc:1,incorporated:1,corp:1,corporation:1,co:1,company:1,ltd:1,limited:1,plc:1,llc:1,lp:1,'l.p.':1,holdings:1,holding:1,group:1,sa:1,nv:1,ag:1,se:1,ab:1,'the':1,'class':1,'common':1,'stock':1,'adr':1,'ads':1,'s.a.':1,'n.v.':1,'n.v':1,'inc.':1,'corp.':1,'co.':1,'ltd.':1};
+var _PFN_GENERIC={american:1,general:1,united:1,first:1,national:1,international:1,global:1,advanced:1,taiwan:1,china:1,new:1,southern:1,northern:1,western:1,eastern:1,energy:1,capital:1,financial:1,bank:1,royal:1,the:1,applied:1,digital:1,us:1,u:1,s:1,east:1,west:1,north:1,south:1,pacific:1,atlantic:1,texas:1,canadian:1,japan:1,british:1,data:1,service:1,services:1,health:1,healthcare:1,real:1,public:1,home:1,power:1,world:1,best:1,city:1,century:1,great:1,old:1,standard:1,premier:1,universal:1,continental:1,federal:1,state:1,ally:1,target:1,block:1,match:1,visa:1,progressive:1,ford:1};
+var _PFN_STOPTK={A:1,AN:1,AI:1,ALL:1,ARE:1,BE:1,BIG:1,CAN:1,CEO:1,FOR:1,GO:1,HAS:1,IT:1,KEY:1,NOW:1,ON:1,ONE:1,OR:1,OUT:1,SO:1,TV:1,UP:1,US:1,USA:1,WELL:1,ET:1,EV:1,IPO:1,ETF:1,FAST:1,LOW:1,MAIN:1,RUN:1,SEE:1,TRUE:1,TWO:1,VS:1};
+function _pfnRe(w){return new RegExp('(^|[^A-Za-z0-9])'+w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?=$|[^A-Za-z0-9])','i');}
+function _pfnMatchers(t,row){
+  var m=[],nm=String((row&&row.company_name)||'').replace(/\(the\)/i,'').replace(/[,]/g,' ');
+  var words=nm.split(/\s+/).filter(function(w){return w&&!_PFN_LEGAL[w.toLowerCase()];});
+  while(words.length&&/^(and|&|of)$/i.test(words[words.length-1]))words.pop();
+  words=words.filter(function(w){return /[A-Za-z0-9]/.test(w);});
+  var base=t.replace(/-.*/,'');
+  if(base.length>=2&&!_PFN_STOPTK[base])m.push(new RegExp('(^|[^A-Za-z0-9$])\\$?'+base+'(?=$|[^A-Za-z0-9])'));
+  if(words.length>1)m.push(_pfnRe(words.join(' ')));
+  var w0=(words[0]||'').replace(/[^A-Za-z0-9&'-]/g,'');
+  /* A one-word name (Broadcom, NVIDIA, Netflix) matches alone; a longer
+     one by its first two words, since a lone first word is often an
+     ordinary one ("Trade" Desk, "Village" Super Market). */
+  if(words.length===1&&w0.length>=4&&!_PFN_GENERIC[w0.toLowerCase()])m.push(_pfnRe(w0));
+  else if(words.length>=3)m.push(_pfnRe(words.slice(0,2).join(' ')));
+  return m;
+}
+function _pfNewsItems(id){
+  var mem=_pfMembers(id),mt={},seen={},out=[];
+  mem.forEach(function(t){mt[t]=_pfnMatchers(t,_pfRow[t]);});
+  mem.forEach(function(t){
+    var d=_pfRow[t];
+    ((d&&d.news_headlines)||[]).forEach(function(n){
+      if(!n||!n.title||(n.scope?n.scope==='sector':n.origin==='google_news'))return;
+      var key=(n.link||'')||String(n.title).toLowerCase().replace(/\W+/g,' ').trim();
+      var tk=String(n.title).toLowerCase().replace(/\W+/g,' ').trim();
+      if(seen[key]!=null||seen['t:'+tk]!=null){
+        var it=out[seen[key]!=null?seen[key]:seen['t:'+tk]];
+        if((n.tier===0||n.tier===1)&&it.tks.indexOf(t)<0)it.tks.push(t);
+        return;
+      }
+      var tks=mem.filter(function(u){return mt[u].some(function(r){return r.test(n.title);});});
+      if((n.tier===0||n.tier===1)&&tks.indexOf(t)<0)tks.push(t);
+      if(!tks.length)return;
+      seen[key]=seen['t:'+tk]=out.length;
+      out.push({n:n,tks:tks});
+    });
+  });
+  out.sort(function(a,b){
+    var da=a.n.date||'',db=b.n.date||'';
+    if(da!==db)return da<db?1:-1;
+    if(a.tks.length!==b.tks.length)return b.tks.length-a.tks.length;
+    return (b.n.timestamp||0)-(a.n.timestamp||0);
+  });
+  return {items:out,members:mem.length};
+}
+function _pfNewsHtml(id){
+  if(!_DETAILS_LOADED){
+    _loadDetails(function(){var el=document.getElementById('pf-news');if(el&&el.getAttribute('data-pf')===id)el.innerHTML=_pfNewsHtml(id);});
+    return'<div class="nws-none">Loading headlines…</div>';
+  }
+  var r=_pfNewsItems(id),items=r.items,more=items.length>_PFN_MAX;
+  if(!items.length)return'<div class="nws-none">No headline in the members’ news feeds names a member in the last 30 days.</div>';
+  items=items.slice(0,_PFN_MAX);
+  var present=[];items.forEach(function(x){(x.n.tags||[]).slice(0,2).forEach(function(t){if(present.indexOf(t)<0)present.push(t);});});
+  var jid=_pfJsArg(id);
+  var f=present.length>1?'<div class="nws-filters">'+present.map(function(t){
+    return'<button type="button" class="nws-f" data-tag="'+_pfEsc(t)+'" onclick="_pfNewsFilt(this)">'+_pfEsc(NEWS_TAG_LABELS[t]||t)+'</button>';
+  }).join('')+'<button type="button" class="nws-f nws-f-all nws-f-on" data-tag="" onclick="_pfNewsFilt(this)">All</button></div>':'';
+  var rows=items.map(function(x){
+    var n=x.n,tags=(n.tags||[]).slice(0,2);
+    var sc=n.sentiment!=null?(n.sentiment>0.05?'#27ae60':(n.sentiment<-0.05?'#e74c3c':'#95a5a6')):'';
+    return'<div class="nws-item pfn-item" data-tags="'+_pfEsc(tags.join(' '))+'">'
+      +'<span class="nws-date">'+_pfEsc(n.date||'')+'</span> '
+      +(sc?'<span class="pfn-dot" title="Sentiment: '+_pfEsc(String(n.sentiment))+'" style="background:'+sc+'"></span>':'')
+      +'<span class="pfn-tks">'+x.tks.map(_pfTkLink).join(' ')+'</span> '
+      +'<a href="'+_pfEsc(n.link||'#')+'" target="_blank" rel="noopener" class="nws-link">'+_pfEsc(n.title)+'</a>'
+      +tags.map(function(t){return'<span class="nws-chip">'+_pfEsc(NEWS_TAG_LABELS[t]||t)+'</span>';}).join('')
+      +(n.source?' <span class="nws-src">— '+_pfEsc(n.source)+'</span>':'')+'</div>';
+  }).join('');
+  return f+'<div class="nws-grp pfn-grp">'+rows+'</div>'
+    +'<div class="pf-muted pfn-foot">Headlines from the '+r.members+' members’ news feeds that name a member'+(more?'; newest '+_PFN_MAX+' of '+r.items.length:'')+'.</div>';
+}
+function _pfNewsFilt(btn){
+  var tag=btn.getAttribute('data-tag'),box=btn.closest('#pf-news');if(!box)return;
+  [].forEach.call(box.querySelectorAll('.nws-f'),function(b){b.classList.toggle('nws-f-on',b===btn);});
+  [].forEach.call(box.querySelectorAll('.pfn-item'),function(r){
+    r.style.display=!tag||(' '+r.getAttribute('data-tags')+' ').indexOf(' '+tag+' ')>=0?'':'none';
+  });
+}
 function _pfDetailHtml(id){
   var p=_pfById[id],st=_pfStats(id),al=_pfAlertsFor(id),jid=_pfJsArg(id);
   var miss=(p.tickers||[]).filter(function(t){return !_pfTk[t];});
@@ -5576,6 +5675,7 @@ function _pfDetailHtml(id){
       +'<div class="pfv-detail-grid"><div class="pfv-panel">'+_pfMixBar(st)
       +'<div class="pfv-legend">'+Object.keys(st.mix).map(function(r){return'<span><i style="background:'+RC[r]+'"></i>'+r+' '+st.mix[r]+'</span>';}).join('')+'</div>'
       +_pfKpis(st,true)+_pfMosDist(st)+'</div>'+_pfBrkPanel(id,st)+'</div>'],
+    ['news','News','<h3 class="pfv-h3"><span class="sec-label">News</span></h3><div id="pf-news" data-pf="'+_pfEsc(id)+'">'+_pfNewsHtml(id)+'</div>'],
     PAPER_META&&PAPER_META.portfolio===id&&['paper','Paper account','<h3 class="pfv-h3"><span class="sec-label">Paper account</span> <span class="pf-muted pfv-h3-sub">Alpaca paper, as of '+_pfEsc(PAPER_META.as_of||'')+'</span></h3><div id="pfp-view">'+_ppaHtml()+'</div>'],
     hold&&['hold','Holdings','<h3 class="pfv-h3"><span class="sec-label">Holdings</span> <span class="pf-muted pfv-h3-sub">private to this browser</span></h3><div class="pfv-panel qh-card">'+_pfHoldHtml(id)+'</div>'],
     risk&&['risk','Value & risk','<h3 class="pfv-h3"><span class="sec-label">Value &amp; risk</span></h3>'+risk],
@@ -18937,7 +19037,7 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .pfv .tk-link:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px;}
 /* Detail page: one section at a time under the sub-tab row. */
 .pf-tabbed>[data-pane]{display:none;}
-.pf-tabbed[data-tab="summary"]>[data-pane="summary"],.pf-tabbed[data-tab="hold"]>[data-pane="hold"],
+.pf-tabbed[data-tab="summary"]>[data-pane="summary"],.pf-tabbed[data-tab="news"]>[data-pane="news"],.pf-tabbed[data-tab="hold"]>[data-pane="hold"],
 .pf-tabbed[data-tab="risk"]>[data-pane="risk"],.pf-tabbed[data-tab="members"]>[data-pane="members"],
 .pf-tabbed[data-tab="perf"]>[data-pane="perf"],.pf-tabbed[data-tab="alerts"]>[data-pane="alerts"],
 .pf-tabbed[data-tab="recent"]>[data-pane="recent"],.pf-tabbed[data-tab="paper"]>[data-pane="paper"]{display:block;}
