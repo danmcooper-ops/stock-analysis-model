@@ -555,15 +555,15 @@ def test_model_gate_categories_fold():
 
 
 def test_filters_panel_is_one_column_of_summarised_sections():
-    """The Filters panel reads top to bottom: Rating and Quick filters as
+    """The Filters panel reads top to bottom: Saved filters, Rating and Quick filters as
     chips, then Sectors, Countries (with a find box), Portfolios and Column
     filters, each a header line saying what it holds now that opens its
     controls, and a Show-N button pinned at the bottom."""
     src = _tpl()
     keys = re.findall(r'<div class="filt-col fsec"(?: id="pf-filt-col")? data-fsec="(\w+)">', src)
-    assert keys == ['rating', 'quick', 'sector', 'country', 'pf']
+    assert keys == ['saved', 'rating', 'quick', 'sector', 'country', 'pf']
     assert '<div id="filt-stock-cols" class="fsec" data-fsec="cols">' in src
-    for k in ('rating', 'quick', 'sector', 'country', 'pf', 'cols'):
+    for k in ('saved', 'rating', 'quick', 'sector', 'country', 'pf', 'cols'):
         assert f'<span class="fsec-s" id="fsum-{k}"></span>' in src, k
     # The checkbox lists stay the filter state (applyFilters / hash read them).
     for i in ('ms-rating', 'ms-sector', 'ms-country', 'pf-filt-opts'):
