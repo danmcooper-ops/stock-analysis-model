@@ -1192,21 +1192,11 @@ ruff check .
     Currency cards (`.xsect-dashboard`), Macro's narrative cards and the
     ticker page's groups take the same rule. A new titled section goes in an
     `.sx`, never an inline white card (`tests/test_report_section_template.py`).
-  - **Page help (`#page-help-btn`):** a ? on every page, never in the top
-    bar: level with the page's first section title at its row's right end
-    (`_helpPlace`), and on a ticker page in the band's top row. When that
-    title has its own ?, or the page has none, there is no page ? at all:
-    it never shows in the view title row (parked there hidden, `hw-off`).
-    Macro Outlook, Sector Analysis, Charts and Portfolios have no page ? at all
-    (`_HELP_OFF`); their cards keep their own.
-    `_qAlign` holds every other ? to the same rule: a card's corner ? is
-    centred on its title, and one whose title sits above its card moves into
-    that title's row. Both rerun on a timer after any render. It opens what
-    the page is for: a blurb per page (`_HELP_TXT`, keyed
-    by `_helpKey`) plus any element the view rendered with class `pg-help`,
-    which is hidden in place (a portfolio's description and counts line).
-    Explanatory text goes there, not on the page. Tests:
-    `tests/test_report_help.py`.
+  - **Question marks:** cards carry their own ? (`_qHelp`, `_noteQ`);
+    there is no page-level ? (the `#page-help-btn` blurbs were removed on
+    2026-11-02). `_qAlign` centres a card's corner ? on its title, and moves
+    one whose title sits above its card into that title's row; it reruns on
+    a timer after any render. Tests: `tests/test_report_help.py`.
   - **Ticker page:** the `#det-modal` popup is now a page beside the sidebar,
     with section tabs (`#d-tabs`). It shows a one-day change taken from the
     `px/` shard. The three filed statements share one Finances tab, right
