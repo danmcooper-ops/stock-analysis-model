@@ -49,6 +49,10 @@
 #   compact    gzip aged output/ artifacts, keeping the newest 5 snapshots plain
 #              (non-blocking; scripts/compact_output.py)
 #
+# Every run that reaches the end, a market-closed skip included, then emails
+# its summary (scripts/email_summary.py; needs SMTP_USER and
+# SMTP_APP_PASSWORD in .env, and is skipped without them).
+#
 # Kept in step with scheduled-tasks/cloud-daily-stock-analysis/run.sh, which
 # ran alone from 2026-09-10 until the Mac mini move (MAC-MINI-SETUP.md). The
 # Supabase and Cloudflare steps only run when their secrets are set (.env or
@@ -99,7 +103,7 @@ while [ $# -gt 0 ]; do
     --date)    RUNDATE="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     --force)   FORCE=1; shift ;;
-    -h|--help) sed -n '2,51p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,55p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -242,9 +246,21 @@ print(f'[run_daily] summary -> {out}')
 PYEOF
 }
 
+# Mail the run's outcome (scripts/email_summary.py) once the summary exists,
+# so a skip, a failure and a success all reach the inbox. Not a step: it runs
+# after the summary is written and never changes the status or exit code.
+# Without SMTP_USER / SMTP_APP_PASSWORD it prints why and sends nothing.
+email_summary() {
+  [ "$DRY_RUN" = 1 ] && { echo "=== dry run: no summary email ==="; return; }
+  "$VPY" scripts/email_summary.py --date "$RUNDATE" --summary "$SUMMARY" \
+      --log "$LOGDIR/daily_$RUNDATE.log" \
+    || echo "[run_daily] summary email not sent (rc=$?)"
+}
+
 finish() {
   local status="$1" code="$2"
   write_summary "$status"
+  email_summary
   echo "=== run_daily end $(date) status=$status rc=$code ==="
   exit "$code"
 }
