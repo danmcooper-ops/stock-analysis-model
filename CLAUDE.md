@@ -1753,4 +1753,18 @@ by analyze_stock and gitignored):
   Step 08b refuses to deploy without the first two, fails if an anonymous
   request gets a 200, and signs its live check in with the service token (the
   last two). Runbook: `cloudflare/README.md`.
+- `SMTP_USER`, `SMTP_APP_PASSWORD` — optional; `run_daily.sh`'s `finish()`
+  emails every run's outcome (ok, degraded, failed or a market-closed skip)
+  through `scripts/email_summary.py`, right after it writes
+  `run_summary_<date>.json`. The digest comes from that JSON and the daily
+  log's step sections, with the runbook's flags worked out: gate N/A jumps,
+  momentum, sector share over 35%, r > 0.85 pairs, BUYs with a 2020
+  drawdown worse than −50%, and the store check. The portfolio alerts come
+  verbatim, except that each portfolio's earnings WATCH lines fold into one.
+  The defaults fit iCloud Mail (`SMTP_HOST` smtp.mail.me.com, `SMTP_PORT`
+  587 with STARTTLS; 465 means implicit TLS), which takes an app-specific
+  password. `EMAIL_TO` defaults to `SMTP_USER`, and `EMAIL_SUMMARY=0` turns
+  the email off. Unset, nothing is sent. A failed send never changes the
+  run's status, and `--print` shows the email without sending it. A run that
+  dies before `finish()` sends nothing. Tests: `tests/test_email_summary.py`.
 - yfinance requires no authentication
