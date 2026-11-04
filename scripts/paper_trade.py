@@ -217,7 +217,8 @@ def cmd_rebalance(args, broker=None, now=None):
     print(f"  sells {len(sells)} (${sum(o['dollars'] for o in sells):,.2f}), "
           f"buys {len(buys)} (${sum(o['dollars'] for o in buys):,.2f})")
     for o in sorted(plan['orders'], key=lambda o: -o['dollars'])[:args.show]:
-        print(f"    {o['side']:4} {o['ticker']:7} {o['qty']:>12g} @ {o['limit_price']:<10g} "
+        lp = 'market' if o['limit_price'] is None else f"{o['limit_price']:g}"
+        print(f"    {o['side']:4} {o['ticker']:7} {o['qty']:>12g} @ {lp:<10} "
               f"${o['dollars']:>10,.2f}  {o['reason']}")
     skip_kinds = {}
     for s in plan['skipped']:

@@ -140,9 +140,12 @@ class AlpacaPaperClient:
         return self._api('DELETE', '/v2/orders')
 
     def submit_order(self, ticker, qty, side, limit_price, client_order_id=None):
+        """A day order: limit at *limit_price*, or market when it is None."""
         body = {'symbol': to_alpaca_symbol(ticker), 'qty': format_qty(qty), 'side': side,
-                'type': 'limit', 'time_in_force': 'day',
-                'limit_price': f'{limit_price:.4f}' if limit_price < 1 else f'{limit_price:.2f}'}
+                'type': 'market', 'time_in_force': 'day'}
+        if limit_price is not None:
+            body.update(type='limit', limit_price=f'{limit_price:.4f}' if limit_price < 1
+                        else f'{limit_price:.2f}')
         if client_order_id:
             body['client_order_id'] = client_order_id
         return self._api('POST', '/v2/orders', json=body)
