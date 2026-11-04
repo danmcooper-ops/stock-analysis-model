@@ -10449,12 +10449,17 @@ function _placeTip(rect,tipEl,opts){
     /* No side fully fits. Clamp to whichever vertical side is roomier, but
        never to the avoided side. When even that side is too short (a
        column header near the top of a phone, with below ruled out), the
-       clamp would land the tip on the source itself, so pin it to the
-       viewport edge farther from the source instead. */
+       clamp would land the tip on the source itself. Then the avoided side,
+       when it fits, still beats the far viewport edge: a header tip right
+       under its header covers a few rows, while one pinned to the bottom
+       of a phone reads as belonging to whatever row it lands on. Only when
+       neither side fits is it pinned to the edge farther from the source. */
     var canAbove=(av!=='above'),canBelow=(av!=='below');
     var goAbove=canAbove&&(!canBelow||sA>=sB);
     var fits=goAbove?sA>=th+M:(canBelow&&sB>=th+M);
-    if(!fits){top=(rect.top+rect.bottom)/2<vh/2?vh-th-P:P;}
+    if(!fits&&av==='below'&&sB>=th+M){top=rect.bottom+M;}
+    else if(!fits&&av==='above'&&sA>=th+M){top=rect.top-th-M;}
+    else if(!fits){top=(rect.top+rect.bottom)/2<vh/2?vh-th-P:P;}
     else if(goAbove){top=rect.top-th-M;}
     else {top=rect.bottom+M;}
     left=rect.left;
