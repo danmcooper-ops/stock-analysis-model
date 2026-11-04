@@ -781,6 +781,28 @@ ruff check .
   p 0.005, but only 3 periods, and the BUY+LEAN BUY − PASS spread
   (+1.17%) had a CI spanning zero (−0.09%..+2.46%). Tests:
   `tests/test_inference.py`.
+  **Within vs between sectors (`models/ic_decomposition.py`, 2026-11-04):**
+  the headline IC blends ordering names inside a sector with favouring one
+  sector over another, and the scoring tilts by sector by construction (fixed
+  gate scales, Financial Services' 11 zeroed gates). `sector_ic_breakdown`
+  (summary key `sector_ic`, as-recorded and in `rescored_current`) splits each
+  snapshot into `within_sector` / `within_industry` (pooled within-group rank
+  correlation; groups under `MIN_GROUP_ROWS` (15) left out, small industries
+  fall back to their sector), `between_sector` (sector mean score vs mean
+  return), and `sector_neutral` (score less its sector mean, against the RAW
+  return, so `neutral_minus_total` is the paired gain a neutralised composite
+  would have had; comparing within with total changes the target). Each
+  series is bootstrapped, averaged per independent period (`by_period`) and
+  per sector, with a same-sector ticker-permutation test of the within IC.
+  `compare` NOTICEs a verdict change in within, between or neutral-minus-total.
+  Over 07-10..10-02 (current model re-scored, 30d, 3 periods): total +0.066,
+  within sector +0.077 (CI +0.033..+0.125, permutation p 0.005, nearly all
+  from the third period), within industry +0.059, between −0.001 (periods
+  +0.09, −0.19, +0.07), neutral − total +0.003 (CI −0.028..+0.032). Sector
+  neutralisation was not adopted: no IC gain, and mean or median shifts
+  handed Healthcare 47-83 of ~90-127 BUYs (biotech drags its centre down) while
+  Energy, Real Estate and Utilities still had none; industry neutralisation
+  leaned worse (−0.019). Display only. Tests: `tests/test_ic_decomposition.py`.
 - **Sector page pool history (`models/sector_pool.py`):** the sector page's
   Pool History and Share Shifts sections (`renderPoolHistory`,
   `renderPoolShifts`) read `SECTOR_POOL[sec].history`, built at render time

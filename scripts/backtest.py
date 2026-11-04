@@ -44,6 +44,8 @@ from data.price_store import (last_valid_dates, parquet_paths, select_window,
                                valid_span, window_closes)
 from data.snapshot_store import (SnapshotStore, list_snapshot_files,
                                  parquet_export_is_stale, read_snapshot)
+from models.ic_decomposition import (MIN_GROUP_ROWS, decompose, snapshot_components,
+                                     within_permutation_test)
 from models.inference import (DEFAULT_N_PERM, MIN_BLOCKS, block_length, bootstrap_mean,
                               ic_permutation_test, permutation_p)
 from models.utils import rank
@@ -1150,6 +1152,91 @@ def composite_ic_permutation(all_metrics, n_perm=DEFAULT_N_PERM, seed=0):
     return out
 
 
+def sector_ic_breakdown(all_metrics, n_perm=0, seed=0):
+    """{horizon: where the composite IC comes from} (``models.ic_decomposition``).
+
+    Splits each snapshot's IC into ranking within sectors and industries,
+    the sector tilt on its own, and the IC a sector-neutralised score would
+    have earned on the same raw returns; then bootstraps each series, averages
+    it per independent period and per sector. ``n_perm`` > 0 adds a
+    same-sector ticker-permutation test of the within-sector IC. Rows need a
+    finite score and excess return, as in ``composite_ic_summary``.
+    """
+    by_h = defaultdict(list)
+    for m in sorted(all_metrics, key=lambda m: str(m['run_date'])):
+        tk, sec, ind, xs, ys = [], [], [], [], []
+        for d in m['details']:
+            s, ex = d.get('_composite_score'), d.get('excess_return')
+            if (isinstance(s, (int, float)) and not isinstance(s, bool)
+                    and isinstance(ex, (int, float)) and math.isfinite(s)
+                    and math.isfinite(ex)):
+                tk.append(d.get('ticker'))
+                sec.append(d.get('sector'))
+                ind.append(d.get('industry'))
+                xs.append(float(s))
+                ys.append(float(ex))
+        by_h[m['horizon']].append((m['run_date'], tk, sec, ind, xs, ys))
+    out = {}
+    for h, snaps in by_h.items():
+        res = decompose([(d, snapshot_components(sec, ind, xs, ys))
+                         for d, _, sec, ind, xs, ys in snaps], h)
+        if not res:
+            continue
+        if n_perm:
+            res['within_permutation'] = within_permutation_test(
+                [(tk, sec, xs, ys) for _, tk, sec, _, xs, ys in snaps if len(xs) >= 10],
+                n_perm=n_perm, seed=seed + h)
+        out[h] = res
+    return out
+
+
+_SECTOR_IC_LABELS = (
+    ('total', 'Total (headline)'),
+    ('within_sector', 'Within sector'),
+    ('within_industry', 'Within industry'),
+    ('between_sector', 'Between sectors'),
+    ('sector_neutral', 'Sector-neutral score'),
+    ('neutral_minus_total', 'Neutral - total'),
+)
+
+
+def print_sector_ic(sic):
+    """stdout: ``sector_ic_breakdown``'s components, periods and sectors."""
+    if not sic:
+        return
+    print("\n  Composite IC by source (within vs between sectors), "
+          "block-bootstrap 90% CI:")
+    for h in sorted(sic, key=int):
+        res = sic[h]
+        comps, periods = res['components'], res['by_period']
+        print(f"\n  {int(h)}d  {'Component':<22s} {'Mean':>8s} {'90% CI':>19s} "
+              f"{'p':>6s} " + ' '.join(f"{'P' + str(p['period']):>7s}" for p in periods))
+        for key, label in _SECTOR_IC_LABELS:
+            b = comps.get(key)
+            if not b:
+                continue
+            ok = b.get('ci_low') is not None
+            ci = f"[{b['ci_low']:+.3f}, {b['ci_high']:+.3f}]" if ok else f"{'n/a':>16s}"
+            p = f"{b['p_value']:.3f}" if ok else 'n/a'
+            per = ' '.join(f"{p_[key]:>+7.3f}" if p_.get(key) is not None else f"{'':>7s}"
+                           for p_ in periods)
+            print(f"       {label:<22s} {b['mean']:>+8.3f} {ci:>19s} {p:>6s} {per}")
+        perm = res.get('within_permutation')
+        if perm:
+            print(f"       within-sector permutation: p {perm['p_value']:.3f} "
+                  f"(null p95 {perm['null_p95']:+.3f}, {perm['n_perm']} runs)")
+        print("       periods: " + ', '.join(
+            f"P{p['period']} {p['first']}..{p['last']} ({p['n_snapshots']})" for p in periods))
+        if res['per_sector']:
+            print(f"       {'Sector (within IC)':<24s} {'IC':>7s} {'90% CI':>19s}")
+            for g, b in sorted(res['per_sector'].items(), key=lambda kv: kv[1]['mean']):
+                ok = b.get('ci_low') is not None
+                ci = f"[{b['ci_low']:+.3f}, {b['ci_high']:+.3f}]" if ok else f"{'n/a':>16s}"
+                print(f"       {g[:24]:<24s} {b['mean']:>+7.3f} {ci:>19s}")
+    print(f"  (groups under {MIN_GROUP_ROWS} rows are left out; Neutral - total is the "
+          "paired gain from removing the sector tilt, on the same raw returns)")
+
+
 # Top and bottom of the rating ladder for the per-snapshot spread.
 SPREAD_TOP = ('BUY', 'LEAN BUY')
 SPREAD_BOTTOM = ('PASS',)
@@ -1350,6 +1437,8 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None,
             'spy_return': spy_ret,
             'excess_return': excess,
             'delisted': (fwd.get('delisted') or {}).get('kind'),
+            'sector': s.get('sector'),
+            'industry': s.get('industry'),
         }
         details.append(detail)
 
@@ -2287,10 +2376,11 @@ def filter_metrics_to_cohort(all_metrics, cohort_key='mos',
     return out
 
 
-def print_summary(all_metrics, perm=None):
+def print_summary(all_metrics, perm=None, sector_ic=None):
     """Print a concise console summary of backtest results.
 
-    ``perm`` is ``composite_ic_permutation``'s result, printed beside the IC.
+    ``perm`` is ``composite_ic_permutation``'s result, printed beside the IC;
+    ``sector_ic`` is ``sector_ic_breakdown``'s, printed after it.
     """
     if not all_metrics:
         return
@@ -2326,6 +2416,7 @@ def print_summary(all_metrics, perm=None):
     # IC with a t-stat on the effective (independent) sample — the headline
     # number for "is the model working".
     print_composite_ic(composite_ic_summary(all_metrics), perm)
+    print_sector_ic(sector_ic)
     print_rating_inference(rating_bucket_inference(all_metrics))
 
     # Strong BUY hit rate
@@ -3299,6 +3390,8 @@ def _evaluate_params_on_snapshots(snapshots, params, horizons):
                     '_composite_score': r.get('_composite_score'),
                     'excess_return': fwd['excess_return'] if fwd else None,
                     'end_price': fwd['end_price'] if fwd else None,
+                    'sector': r.get('sector'),
+                    'industry': r.get('industry'),
                 })
             metrics.append({
                 'run_date': run_date,
@@ -3336,8 +3429,10 @@ def _cli_measure(args):
                                cache_dir=args.cache_dir, report=report)
 
     if all_metrics:
-        perm = composite_ic_permutation(all_metrics, n_perm=getattr(args, 'n_perm', DEFAULT_N_PERM))
-        print_summary(all_metrics, perm)
+        n_perm = getattr(args, 'n_perm', DEFAULT_N_PERM)
+        perm = composite_ic_permutation(all_metrics, n_perm=n_perm)
+        sector_ic = sector_ic_breakdown(all_metrics, n_perm=n_perm)
+        print_summary(all_metrics, perm, sector_ic)
 
         # Evidence census: how much of this is statistically independent, and
         # when the corpus becomes long enough to calibrate / test.
@@ -3384,7 +3479,7 @@ def _cli_measure(args):
             logger.warning('re-scored view failed (%s); summary carries as-recorded only', e)
         summary = build_measure_summary(all_metrics, horizons, since, stamp,
                                         readiness, report, rescored=rescored,
-                                        permutation=perm)
+                                        permutation=perm, sector_ic=sector_ic)
         print_regimes_and_rescored(summary['regimes'], rescored)
         with open(summary_path, 'w', encoding='utf-8') as f:
             json.dump(summary, f, indent=2, default=str)
@@ -3466,13 +3561,16 @@ def rescored_current_view(snapshots, horizons, n_perm=0):
                                     rating_bucket_inference(metrics).items()},
         'composite_ic_permutation': {str(h): v for h, v in
                                      composite_ic_permutation(metrics, n_perm).items()},
+        'sector_ic': {str(h): v for h, v in
+                      sector_ic_breakdown(metrics, n_perm).items()},
         'note': ('current weights and gates re-applied to every snapshot; '
                  'in-sample if those weights were calibrated on this corpus'),
     }
 
 
 def build_measure_summary(all_metrics, horizons, since, stamp, readiness,
-                          report=None, rescored=None, permutation=None):
+                          report=None, rescored=None, permutation=None,
+                          sector_ic=None):
     """The versioned ``backtest_summary_<stamp>.json`` body.
 
     Beyond the headline IC and rating buckets it carries what is needed to
@@ -3481,9 +3579,13 @@ def build_measure_summary(all_metrics, horizons, since, stamp, readiness,
     that produced nothing, and per pair how much of the snapshot was priced
     and which ratings the unpriced names held. ``composite_ic`` carries each
     horizon's block-bootstrap CI, ``composite_ic_permutation`` the ticker
-    permutation test (``permutation``, from ``composite_ic_permutation``) and
-    ``rating_bucket_inference`` per-snapshot bucket means with CIs.
+    permutation test (``permutation``, from ``composite_ic_permutation``),
+    ``rating_bucket_inference`` per-snapshot bucket means with CIs, and
+    ``sector_ic`` the within/between-sector split (``sector_ic_breakdown``;
+    computed here without its permutation test when not passed).
     """
+    if sector_ic is None:
+        sector_ic = sector_ic_breakdown(all_metrics)
     report = report or {}
     coverage = [dict({'run_date': m['run_date'], 'horizon': m['horizon']},
                      **(m.get('coverage') or {}))
@@ -3516,6 +3618,7 @@ def build_measure_summary(all_metrics, horizons, since, stamp, readiness,
                                     rating_bucket_inference(all_metrics).items()},
         'composite_ic_permutation': {str(h): v for h, v in
                                      (permutation or {}).items()},
+        'sector_ic': {str(h): v for h, v in sector_ic.items()},
         'regimes': model_regimes(all_metrics),
         'rescored_current': rescored,
     }
@@ -3549,6 +3652,7 @@ def print_regimes_and_rescored(regimes, rescored):
     print(f"  ({rescored['note']})")
     print_composite_ic({int(h): v for h, v in rescored['composite_ic'].items()},
                        rescored.get('composite_ic_permutation'))
+    print_sector_ic(rescored.get('sector_ic'))
     print_rating_inference(rescored.get('rating_bucket_inference'))
     for h, by_rating in sorted(rescored['rating_buckets'].items(), key=lambda kv: int(kv[0])):
         print(f"\n  {h}d  {'Rating':<10s} {'n':>7s} {'Mean ex':>9s} {'Median ex':>10s} {'Beat SPY':>9s}")

@@ -36,7 +36,9 @@ cold. These subcommands keep that logic out of shell heredocs:
                  failure) say when the scoring model changed, the
                  as-recorded headline pools more than one model, or a
                  horizon's composite IC changed significance (its
-                 block-bootstrap 90% CI came to exclude zero, or stopped).
+                 block-bootstrap 90% CI came to exclude zero, or stopped);
+                 likewise its within-sector IC, its between-sector IC, and
+                 the gain a sector-neutral score would have had.
 
 Usage:
     python scripts/backtest_cloud.py stage --repo .cloud-backtest/snapshots-data --dest output
@@ -587,6 +589,38 @@ def significance_notices(cur, prior):
     return out
 
 
+_SECTOR_IC_NOTICE = (
+    ('within_sector', 'within-sector IC'),
+    ('between_sector', 'between-sector IC'),
+    ('neutral_minus_total', 'sector-neutral gain over the headline IC'),
+)
+
+
+def sector_ic_notices(cur, prior):
+    """NOTICE lines when a ``sector_ic`` component changed verdict since last week.
+
+    Same CI verdict as ``significance_notices``, read from each component's
+    bootstrap (``models.ic_decomposition``). A between-sector IC turning
+    positive would say the sector tilt earns its place; a positive
+    neutral-minus-total would say removing it pays.
+    """
+    out = []
+    prior_sic = (prior or {}).get('sector_ic') or {}
+    for h, entry in sorted((cur.get('sector_ic') or {}).items(), key=lambda kv: int(kv[0])):
+        comps = entry.get('components') or {}
+        then_comps = (prior_sic.get(h) or {}).get('components') or {}
+        for key, label in _SECTOR_IC_NOTICE:
+            b = comps.get(key)
+            now = _ic_verdict({'bootstrap': b})
+            then = _ic_verdict({'bootstrap': then_comps.get(key)})
+            if now and then and now != then:
+                out.append(f'{h}d {label} went {then} -> {now} '
+                           f'(mean {b["mean"]:+.3f}, 90% CI '
+                           f'[{b["ci_low"]:+.3f}, {b["ci_high"]:+.3f}] over '
+                           f'{b["n_blocks"]} independent period(s))')
+    return out
+
+
 def _prior_summary_path(current_path):
     """The newest ``backtest_summary_*.json`` beside *current_path*, dated before it."""
     m = SUMMARY_RE.fullmatch(os.path.basename(current_path))
@@ -701,7 +735,8 @@ def main(argv=None):
     if prior:
         print(f'snapshots measured: {len(prior.get("snapshots", []))} -> '
               f'{len(cur.get("snapshots", []))}')
-    for line in model_notices(cur, prior) + significance_notices(cur, prior):
+    for line in (model_notices(cur, prior) + significance_notices(cur, prior)
+                 + sector_ic_notices(cur, prior)):
         print(f'NOTICE: {line}')
     problems = compare_summaries(cur, prior)
     for line in problems:
