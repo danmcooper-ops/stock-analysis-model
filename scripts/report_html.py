@@ -258,9 +258,10 @@ def _load_prev_ratings(out_dir, run_date, max_lookback=7, extra_keys=()):
     every ticker it
     records the rating from the *most recent* snapshot that contains it — i.e.
     "last known rating", not "rating in exactly the prior file". This makes the
-    "Yesterday's Rating" column resilient to a single degraded run: a ticker
-    that transiently dropped out of the immediately-prior snapshot (e.g. a
-    yfinance/SEC fetch timeout) still shows its last real rating instead of N/A.
+    rating-change baseline (the ticker page's "Rating upgraded: X → Y" line
+    and the Upgrades/Downgrades filters) resilient to a single degraded run: a
+    ticker that transiently dropped out of the immediately-prior snapshot (e.g.
+    a yfinance/SEC fetch timeout) still compares against its last real rating.
 
     The look-back is bounded to the ``max_lookback`` most recent prior snapshots
     (~1-2 weeks) so a genuinely delisted or long-absent ticker isn't resurrected
@@ -2229,7 +2230,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         print(f"[report_html] rate-change baseline: {prev_run_date} "
               f"({len(_prev_ratings)} tickers)")
     else:
-        print("[report_html] rate-change baseline: none found (Yesterday's Rating shows N/A)")
+        print("[report_html] rate-change baseline: none found (no rating changes shown)")
     # Long-horizon rating change-points for the popup's "BUY since ..." line.
     _rating_hist = _load_rating_history(_out_dir_early, run_date)
     avg_spread, qualifying_with_mos, buy_count, lean_buy_count = \
