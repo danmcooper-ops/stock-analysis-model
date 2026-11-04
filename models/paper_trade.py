@@ -118,7 +118,8 @@ def plan_orders(targets, positions, account, prices, closes, assets, limits=None
 
     Returns ``{'orders': [...], 'skipped': [...], 'turnover': $,
     'buy_scale': x}``; each order is ``{ticker, side, qty, limit_price,
-    dollars, reason}``, sells first.
+    dollars, reason}``, sells first. An exit's ``limit_price`` is None: it
+    goes as a market order.
     """
     limits = limits or Limits()
     equity = float(account['equity'])
@@ -206,8 +207,11 @@ def plan_orders(targets, positions, account, prices, closes, assets, limits=None
 
 
 def _order(o, qty, limits):
+    # An exit is a market order: a limit sell on a thin name can expire day
+    # after day (CMRE on 11-02 and 11-03), leaving a non-member in the book.
     return {'ticker': o['ticker'], 'side': o['side'], 'qty': qty,
-            'limit_price': _limit_price(o['px'], o['side'], limits.limit_slip),
+            'limit_price': None if o['exit'] else
+            _limit_price(o['px'], o['side'], limits.limit_slip),
             'dollars': round(qty * o['px'], 2), 'reason': o['reason']}
 
 

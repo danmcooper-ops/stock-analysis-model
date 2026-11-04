@@ -58,6 +58,13 @@ def test_exit_sells_everything_whatever_its_size():
     assert sells == [dict(sells[0], ticker='X', qty=0.01, reason='left the book')]
 
 
+def test_exit_is_a_market_order_and_a_trim_stays_a_limit():
+    p = _plan({'A': 0.5}, positions={'A': 999, 'X': 5}, max_turnover=1.0)
+    by = {o['ticker']: o for o in p['orders']}
+    assert by['X']['limit_price'] is None
+    assert by['A']['side'] == 'sell' and by['A']['limit_price'] is not None
+
+
 def test_position_cap():
     p = _plan({'A': 0.9, 'B': 0.1}, max_turnover=1.0, max_position=0.10)  # A capped
     assert {o['ticker']: o['dollars'] for o in p['orders']} == {'A': 1000.0, 'B': 1000.0}

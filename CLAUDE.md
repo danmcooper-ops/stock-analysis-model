@@ -1499,7 +1499,8 @@ ruff check .
   - at most 25% of equity traded a day, exits first, so the first build
     takes ~4 days;
   - sells before buys, buys scaled to cash;
-  - limit orders at quote ± 0.5%;
+  - limit orders at quote ± 0.5%, except exits, which go at market
+    (2026-11-04: a thin name's limit sell expired two days running);
   - a quote more than 15% from the snapshot close is skipped, and so is a
     ticker that rounds to zero whole shares;
   - names Alpaca cannot trade (41 OTC lines on 10-28, ~4%) are dropped and
