@@ -10,6 +10,16 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 
 @pytest.fixture(autouse=True)
+def _no_database(monkeypatch):
+    """No test reaches a configured database by accident: importing
+    analyze_stock loads ``.env``, and a rewritten snapshot is republished
+    whenever a database is configured (``snapshot_store._republish_to_database``).
+    A test that needs one sets these itself."""
+    for v in ('SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_DB_URL', 'SUPABASE_READER_URL'):
+        monkeypatch.delenv(v, raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _offline_fx_store(tmp_path_factory, monkeypatch):
     """Every test gets an empty FX store that cannot fetch, so a non-USD
     filer never reaches Yahoo or FRED. A test that needs rates pins them

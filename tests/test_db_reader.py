@@ -144,9 +144,13 @@ def test_sync_republishes_unless_deferred(monkeypatch, tmp_path):
     write_snapshot_file(path, data)
     published = []
     monkeypatch.setattr(pub, 'publish_file', lambda p, d=None, **k: published.append(p) or {'rows': 1})
-    sync_snapshot_file(path, data=data)
-    assert published == []                                     # backend not selected
     monkeypatch.setenv('SNAPSHOT_STORE_BACKEND', 'postgres')
+    sync_snapshot_file(path, data=data)
+    assert published == []                                     # no database configured
+    monkeypatch.delenv('SNAPSHOT_STORE_BACKEND')
+    # Configured but read from DuckDB (the Mac mini): a rewrite still publishes.
+    monkeypatch.setenv('SUPABASE_URL', 'https://x.supabase.co')
+    monkeypatch.setenv('SUPABASE_SERVICE_ROLE_KEY', 'k')
     monkeypatch.setenv('DB_DEFER_PUBLISH', '1')
     sync_snapshot_file(path, data=data)
     assert published == []                                     # nightly run: step 06a publishes
@@ -159,7 +163,7 @@ def test_sync_survives_a_publish_failure(monkeypatch, tmp_path, caplog):
     path = str(tmp_path / 'results_2031-11-03.json')
     data = {'date': '2031-11-03', 'results': [{'ticker': 'A', 'rating': 'BUY'}]}
     write_snapshot_file(path, data)
-    monkeypatch.setenv('SNAPSHOT_STORE_BACKEND', 'postgres')
+    monkeypatch.setenv('SUPABASE_DB_URL', 'postgresql://localhost/x')
 
     def boom(*a, **k):
         raise pub.PublishError('down')

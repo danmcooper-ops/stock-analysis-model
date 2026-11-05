@@ -1269,15 +1269,20 @@ def sync_snapshot_file(path, data=None, db_path=None):
 
 
 def _republish_to_database(path, data):
-    """With the database backend selected, publish a rewritten snapshot so
-    the database never serves rows older than the file (plan item R2).
+    """With a database configured, publish a rewritten snapshot so the
+    database never serves rows older than the file (plan item R2).
+
+    Configured, not selected as the reader backend: the Mac mini reads the
+    local DuckDB store, and while this waited for ``SNAPSHOT_STORE_BACKEND``
+    its re-scores of 10-28 and 10-30 never reached the database, which broke
+    the cutover streak's rating-history parity for a week.
 
     The nightly run sets ``DB_DEFER_PUBLISH=1``: it rewrites the snapshot
     several times (enrich steps, rescore) and publishes once, at step 06a.
     A manual rescore or repair publishes here. Never raises; readers already
     fall back to the file when its hash no longer matches the database."""
-    from data.db.reader import db_backend_requested
-    if not db_backend_requested() or os.environ.get('DB_DEFER_PUBLISH') == '1':
+    from data.db.publish import database_configured
+    if not database_configured() or os.environ.get('DB_DEFER_PUBLISH') == '1':
         return
     try:
         from data.db.publish import publish_file

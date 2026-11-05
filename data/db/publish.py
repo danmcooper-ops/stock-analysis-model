@@ -283,6 +283,13 @@ def await_outcome(transport, load_id, run_date, cause, wait_s=OUTCOME_WAIT_S, po
     raise PublishError(f'publish_run outcome still {state or "unknown"} after {wait_s}s ({cause})') from cause
 
 
+def database_configured(dsn_vars=('SUPABASE_DB_URL',)):
+    """True when :func:`transport_from_env` would find a database to use."""
+    import os
+    return bool((os.environ.get('SUPABASE_URL') and os.environ.get('SUPABASE_SERVICE_ROLE_KEY'))
+                or any(os.environ.get(v) for v in dsn_vars))
+
+
 def transport_from_env(dsn_vars=('SUPABASE_DB_URL',)):
     """``(transport, closer, where)`` from the environment.
 

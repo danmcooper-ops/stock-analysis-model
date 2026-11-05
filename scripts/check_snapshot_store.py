@@ -23,7 +23,11 @@ With ``--database`` it checks the Supabase database instead (the post-publish
 check after ``scripts/db_publish.py``, design/supabase-migration.md): the run is
 ``complete``, holds one row per distinct ticker, and its ``source_sha256`` equals
 the file's, so the file has not been rewritten since it was published. The
-transport comes from the environment, as for db_publish.
+same goes for the published dates just before it (``DRIFT_LOOKBACK``): a
+re-score after the night's publish changes a file the database still serves,
+as 10-28 and 10-30 were. Only a file written after its run was published is
+hashed, so a quiet night reads no extra snapshot. The transport comes from
+the environment, as for db_publish.
 
 Usage:
     python scripts/check_snapshot_store.py --date 2026-09-11
@@ -46,6 +50,8 @@ from data.snapshot_store import (SCHEMA_VERSION, SnapshotStore, db_path_for,  # 
 # File mtimes and the store's ingested_at are both local wall-clock times; a
 # little slack absorbs filesystem timestamp granularity.
 _MTIME_SLACK_SECONDS = 2
+# Published dates before the checked one whose files are compared too.
+DRIFT_LOOKBACK = 10
 
 
 def snapshot_path(results_dir, run_date):
@@ -106,8 +112,37 @@ def check_store(results_dir, run_date, db_path=None):
     return problems, info
 
 
+def _published_at(run):
+    """A run's ``completed_at`` as an aware datetime, or None."""
+    try:
+        return datetime.fromisoformat(str(run['completed_at']).replace('Z', '+00:00'))
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def drifted_dates(results_dir, runs, before, lookback=DRIFT_LOOKBACK):
+    """``[(date, path)]`` of the *lookback* published dates before *before*
+    whose snapshot no longer hashes to what was published.
+
+    A file not modified since its run completed is taken as unchanged
+    (compact_output carries the mtime onto the .gz); one without a
+    ``completed_at`` is hashed."""
+    from data.db.publish import canonical_sha256
+    from data.snapshot_store import read_snapshot
+    files = [(d, p) for d, p in list_snapshot_files(results_dir) if d < before and d in runs]
+    out = []
+    for d, path in files[-lookback:]:
+        at = _published_at(runs[d])
+        if at is not None and os.path.getmtime(path) <= at.timestamp() + _MTIME_SLACK_SECONDS:
+            continue
+        if runs[d].get('source_sha256') != canonical_sha256(read_snapshot(path)):
+            out.append((d, path))
+    return out
+
+
 def check_database(results_dir, run_date, transport):
-    """``(problems, info)`` for the published run of *run_date*."""
+    """``(problems, info)`` for the published run of *run_date*, and for any
+    recently published date whose file has changed since (:func:`drifted_dates`)."""
     from data.db.publish import canonical_sha256
     from data.snapshot_store import read_snapshot, split_snapshot
     path = snapshot_path(results_dir, run_date)
@@ -126,6 +161,10 @@ def check_database(results_dir, run_date, transport):
         problems.append(f"database holds {run.get('n_rows')} rows for {run_date}, the snapshot {len(tickers)}")
     if run.get('source_sha256') != canonical_sha256(data):
         problems.append(f'{path} changed since it was published (source_sha256 differs); re-run db_publish')
+    del data
+    for d, p in drifted_dates(results_dir, runs, run_date):
+        problems.append(f'{p} changed since it was published (source_sha256 differs); '
+                        f're-run db_publish --run-date {d}')
     missing = sorted(d for d, _ in list_snapshot_files(results_dir) if d not in runs)
     info = [f"database holds {run_date}: {run.get('n_rows')} rows, status {run.get('status')}"]
     if missing:
