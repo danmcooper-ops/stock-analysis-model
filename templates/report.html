@@ -2966,6 +2966,7 @@ body.wide-table #subnav{padding-left:var(--pg-inset,20px);padding-right:var(--pg
   /* Icon-only, but it grows to fit the count badge rather than letting it
      spill past the button's edge. */
   .header #filter-bar .fpop-btn{width:auto;min-width:32px;padding:0 8px;justify-content:center;}
+  .header #filter-bar .fpop-btn svg{width:18px;height:18px;}
   .sn-title{font-size:18px;}
 }
 /* ---- phones: drawer + bottom tabs ---- */
@@ -2995,6 +2996,8 @@ body.wide-table #subnav{padding-left:var(--pg-inset,20px);padding-right:var(--pg
      the button with room on both sides instead of against its edge. */
   .header #filter-bar .fpop-btn,[data-theme="dark"] .header #filter-bar .fpop-btn{width:auto;min-width:36px;height:36px;padding:0 10px;gap:7px;justify-content:center;background:transparent;border:0;border-radius:8px;}
   .header #filter-bar .fpop-btn,.header #filter-bar .fpop-btn *{color:#fff !important;}
+  /* As large as the ☰ beside it: at 14px the funnel read as an afterthought. */
+  .header #filter-bar .fpop-btn svg{width:22px;height:22px;}
   .header #filter-bar .fpop-btn.active,[data-theme="dark"] .header #filter-bar .fpop-btn.active{background:#2a2a2a;}
   /* Same rule on the phone's icon button: hover is no state of its own
      (white icon on the near-white hover colour read as a blank tile). */
@@ -7095,7 +7098,7 @@ function bkv(pairs){return pairs.map(function(p){
 }).join('');}
 var TT={
 ticker:'The symbol stands for a business, not a lottery ticket. The rule: invest only in what you understand well enough to own for a decade.',
-rating:'The composite score’s bucket: BUY at 57 or more, LEAN BUY 39–56, HOLD 25–38, PASS below 25. The score comes from 26 gates across Moat, Valuation, Quality, Growth and Ownership, and the fair value counts through the margin-of-safety gate. Flags such as a negative margin of safety are warnings and don’t change the rating. Treat it as a starting point for your own work, not a substitute for it.',
+rating:'The composite score’s bucket: BUY at 57 or more, LEAN BUY 39–56, HOLD 25–38, PASS below 25. The score comes from 26 gates across Moat, Valuation, Quality, Growth and Ownership; fair value counts through the margin-of-safety gate. Flags are warnings and don’t change the rating. A starting point for your own work, not a substitute for it.',
 rating_prev:'The stock’s rating in the most recent earlier run that rated it — same colour pill as today’s, so upgrades and downgrades read side by side. Falls back through a fortnight of snapshots; N/A means it was in none of them.',
 _composite_score:'Score = 0.30·Moat + 0.20·Valuation + 0.20·Quality + 0.20·Growth + 0.10·Ownership — five pillars, each scored 0–100 and weighted by how much it matters to long-run returns. Ratings: ≥57 BUY; 39–56 LEAN BUY; 25–38 HOLD; below 25 PASS. The thresholds were set to match a target rating mix and have not yet been tested against returns.',
 _gates_passed:'Gates passed, out of those that apply. Gates that cannot describe the business — free-cash-flow tests for a bank, say — are excluded from the denominator, not failed. Diagnostic only: the composite score, not this count, drives the rating; but every failure deserves an explanation.',
