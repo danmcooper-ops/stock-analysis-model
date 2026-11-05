@@ -15,6 +15,12 @@ the P5 load test saw a 504 for a day that was published. :func:`publish` then
 asks ``pipeline.publish_outcome`` by load id until the answer is definite.
 Re-running the whole publish under a new ``load_id`` is still safe, because
 the database replaces the date in one transaction.
+
+A ``publish_run`` that fails on a lock (``lock_timeout``, a deadlock) rolled
+back and left its chunks staged, so it is called again on the same load, up
+to ``LOCK_RETRIES`` times. Autovacuum on a results partition can hold a lock
+past the function's 5 s ``lock_timeout``: one republish of 2026-10-15 failed
+that way and went through on a second try.
 """
 import hashlib
 import json
@@ -43,7 +49,12 @@ _NONFINITE_JSON = {math.inf: 'Infinity', -math.inf: '-Infinity'}
 
 
 class PublishError(RuntimeError):
-    """The snapshot was refused before or by ``publish_run``."""
+    """The snapshot was refused before or by ``publish_run``. *sqlstate* is
+    Postgres's error code when the database raised it."""
+
+    def __init__(self, msg, sqlstate=None):
+        super().__init__(msg)
+        self.sqlstate = sqlstate
 
 
 class PublishOutcomeUnknown(PublishError):
@@ -55,6 +66,10 @@ class PublishOutcomeUnknown(PublishError):
 _LOST_RESPONSE = frozenset({502, 503, 504})
 OUTCOME_WAIT_S = 900     # past service_role's 10-minute statement_timeout
 OUTCOME_POLL_S = 10
+# Lock failures roll publish_run back (lock_not_available, deadlock_detected).
+_LOCK_SQLSTATES = frozenset({'55P03', '40P01'})
+LOCK_RETRIES = 3
+LOCK_RETRY_S = 30        # doubles: 30, 60, 120 s
 
 
 def canonical_sha256(data):
@@ -195,9 +210,18 @@ class RestTransport:
             if resp.status_code in _LOST_RESPONSE:
                 raise PublishOutcomeUnknown(f'{fn}: HTTP {resp.status_code}: {resp.text[:500]}')
             if resp.status_code >= 400:
-                raise PublishError(f'{fn}: HTTP {resp.status_code}: {resp.text[:500]}')
+                raise PublishError(f'{fn}: HTTP {resp.status_code}: {resp.text[:500]}', _sqlstate(resp))
             return resp.json()
         raise PublishError(f'{fn}: no attempts left')   # pragma: no cover - loop always returns/raises
+
+
+def _sqlstate(resp):
+    """PostgREST's error body carries the SQLSTATE as ``code``."""
+    try:
+        body = resp.json()
+    except ValueError:
+        return None
+    return body.get('code') if isinstance(body, dict) else None
 
 
 class DirectTransport:
@@ -219,12 +243,13 @@ class DirectTransport:
             with self.con.transaction():
                 return self.con.execute(f'SELECT pipeline.{fn}({names})', values).fetchone()[0]
         except Exception as e:
-            raise PublishError(f'{fn}: {e}') from e
+            raise PublishError(f'{fn}: {e}', getattr(e, 'sqlstate', None)) from e
 
 
 def publish(load, transport, force=False, reason=None, chunk_bytes=DEFAULT_CHUNK_BYTES,
             max_cast_failure_rate=MAX_CAST_FAILURE_RATE, min_row_ratio=MIN_ROW_RATIO, pipeline_version=None,
-            outcome_wait_s=OUTCOME_WAIT_S, outcome_poll_s=OUTCOME_POLL_S):
+            outcome_wait_s=OUTCOME_WAIT_S, outcome_poll_s=OUTCOME_POLL_S,
+            lock_retries=LOCK_RETRIES, lock_retry_s=LOCK_RETRY_S):
     """Stage *load* chunk by chunk, then publish it; returns publish_run's result.
 
     *min_row_ratio*: refuse (without *force*) a run with fewer rows than this
@@ -247,13 +272,27 @@ def publish(load, transport, force=False, reason=None, chunk_bytes=DEFAULT_CHUNK
     run = dict(load.run, pipeline_version=pipeline_version)
     expect = {'n_rows': len(load.rows), 'n_chunks': len(chunks), 'force': bool(force), 'reason': reason,
               'min_row_ratio': min_row_ratio, 'client_stats': load.stats}
-    try:
-        result = transport.call('publish_run', {'p_load_id': load_id, 'p_run_date': load.run_date,
-                                                'p_run': run, 'p_expect': expect})
-    except PublishOutcomeUnknown as e:
-        result = await_outcome(transport, load_id, load.run_date, e, outcome_wait_s, outcome_poll_s)
+    args = {'p_load_id': load_id, 'p_run_date': load.run_date, 'p_run': run, 'p_expect': expect}
+    lock_waits = 0
+    while True:
+        try:
+            result = transport.call('publish_run', args)
+        except PublishOutcomeUnknown as e:
+            result = await_outcome(transport, load_id, load.run_date, e, outcome_wait_s, outcome_poll_s)
+        except PublishError as e:
+            if e.sqlstate not in _LOCK_SQLSTATES or lock_waits >= lock_retries:
+                raise
+            wait = lock_retry_s * 2 ** lock_waits
+            lock_waits += 1
+            logger.warning('publish_run for %s: %s; it rolled back, retrying the same load in %ds (%d/%d)',
+                           load.run_date, e, wait, lock_waits, lock_retries)
+            time.sleep(wait)
+            continue
+        break
     result = dict(result or {}, chunks=len(chunks), staged_s=round(staged_s, 1),
                   total_s=round(time.time() - t0, 1), load_id=load_id)
+    if lock_waits:
+        result['lock_retries'] = lock_waits
     return result
 
 

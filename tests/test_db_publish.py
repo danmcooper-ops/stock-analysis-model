@@ -173,6 +173,67 @@ def test_rest_marks_lost_responses():
     assert not isinstance(e.value, pub.PublishOutcomeUnknown)
 
 
+def test_rest_carries_the_sqlstate():
+    t, _ = _rest([FakeResponse(500, {'code': '55P03', 'message': 'canceling statement due to lock timeout'})])
+    with pytest.raises(pub.PublishError) as e:
+        t.call('publish_run', {})
+    assert e.value.sqlstate == '55P03'
+    t, _ = _rest([FakeResponse(400, ['not a dict'])])
+    with pytest.raises(pub.PublishError) as e:
+        t.call('publish_run', {})
+    assert e.value.sqlstate is None
+
+
+class LockedTransport(FakeTransport):
+    """publish_run fails with *errors* in turn, then succeeds."""
+
+    def __init__(self, errors):
+        super().__init__()
+        self.errors = list(errors)
+
+    def call(self, fn, args, idempotent=False):
+        if fn == 'publish_run' and self.errors:
+            self.calls.append((fn, args, idempotent))
+            raise self.errors.pop(0)
+        return super().call(fn, args, idempotent)
+
+
+def _locked(errors, **kw):
+    load = pub.build_load(_snapshot([{'ticker': f'T{i}', 'rating': 'BUY'} for i in range(5)]), '2031-11-03')
+    t = LockedTransport(errors)
+    return t, pub.publish(load, t, **kw)
+
+
+def _lock_error(code='55P03'):
+    return pub.PublishError('publish_run: HTTP 500: lock timeout', code)
+
+
+def test_a_lock_failure_retries_the_same_load(monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(pub.time, 'sleep', sleeps.append)
+    t, result = _locked([_lock_error(), _lock_error('40P01')])
+    runs = [c for c in t.calls if c[0] == 'publish_run']
+    assert len(runs) == 3 and len({c[1]['p_load_id'] for c in runs}) == 1
+    assert sum(c[0] == 'stage_chunk' for c in t.calls) == 1          # staged once, not again
+    assert sleeps == [pub.LOCK_RETRY_S, 2 * pub.LOCK_RETRY_S]
+    assert result['rows'] == 5 and result['lock_retries'] == 2
+
+
+def test_lock_retries_are_bounded(monkeypatch):
+    monkeypatch.setattr(pub.time, 'sleep', lambda s: None)
+    with pytest.raises(pub.PublishError, match='lock timeout'):
+        _locked([_lock_error()] * 3, lock_retries=2)
+
+
+def test_other_failures_are_not_retried(monkeypatch):
+    monkeypatch.setattr(pub.time, 'sleep', lambda s: None)
+    with pytest.raises(pub.PublishError, match='statement timeout') as e:
+        _locked([pub.PublishError('publish_run: statement timeout', '57014')])
+    assert e.value.sqlstate == '57014'
+    _, result = _locked([])
+    assert 'lock_retries' not in result
+
+
 class LostResponseTransport(FakeTransport):
     """publish_run's response is lost; publish_outcome answers from *states*."""
 
