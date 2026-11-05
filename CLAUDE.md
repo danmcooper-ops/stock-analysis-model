@@ -1736,7 +1736,10 @@ by analyze_stock and gitignored):
   `service_role` has a 10-minute `statement_timeout` (Supabase's
   `authenticator` default of 8 s cancelled an 8k-row publish), and a lost
   response (502/503/504, dropped connection) is resolved by polling
-  `pipeline.publish_outcome` rather than reported as a failure. Scale
+  `pipeline.publish_outcome` rather than reported as a failure. A lock
+  failure (its 5 s `lock_timeout`, which autovacuum on a results partition
+  can exceed, or a deadlock) rolled back with the chunks still staged, so the
+  same load is published again, up to 3 times 30 s doubling apart. Scale
   numbers and the harness that measures them: design/supabase-migration.md
   (P5) and `tests/load/`.
 - `DB_PRIMARY=1` — the P6 cutover: step 06a becomes blocking (the git archive
