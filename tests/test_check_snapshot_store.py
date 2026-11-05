@@ -72,3 +72,50 @@ def test_stale_schema_fails(results_dir):
 def test_no_snapshot_is_exit_2(results_dir, capsys):
     assert main(['--results-dir', str(results_dir), '--date', '2026-01-09']) == 2
     assert 'could not read' in capsys.readouterr().err
+
+
+# --- the database check ------------------------------------------------------
+
+class _Runs:
+    """A transport whose ``list_runs`` returns *runs*, as the RPC does."""
+    def __init__(self, runs):
+        self.runs = runs
+
+    def call(self, name, params=None, idempotent=False):
+        assert name == 'list_runs'
+        return self.runs
+
+
+def _published(path, day, completed_at='2099-01-01T00:00:00+00:00'):
+    from data.db.publish import canonical_sha256
+    from data.snapshot_store import read_snapshot
+    return {'run_date': day, 'status': 'complete', 'n_rows': len(read_snapshot(path)['results']),
+            'source_sha256': canonical_sha256(read_snapshot(path)), 'completed_at': completed_at}
+
+
+def test_database_check_passes_when_every_recent_date_matches(results_dir):
+    from scripts.check_snapshot_store import check_database
+    runs = [_published(_write(results_dir, d, ['AAA']), d) for d in ('2026-01-02', '2026-01-05')]
+    problems, info = check_database(str(results_dir), '2026-01-05', _Runs(runs))
+    assert problems == [] and info[0].startswith('database holds 2026-01-05')
+
+
+def test_database_check_flags_an_earlier_date_rewritten_after_its_publish(results_dir):
+    """10-28 and 10-30 were re-scored after the publish; only tonight's date
+    was checked, so the database served the old rows unnoticed."""
+    from scripts.check_snapshot_store import check_database
+    p = _write(results_dir, '2026-01-02', ['AAA'])
+    old = _published(p, '2026-01-02', completed_at='2000-01-01T00:00:00Z')
+    _write(results_dir, '2026-01-02', ['AAA', 'BBB'])                  # the re-score
+    tonight = _published(_write(results_dir, '2026-01-05', ['AAA']), '2026-01-05')
+    problems, _ = check_database(str(results_dir), '2026-01-05', _Runs([old, tonight]))
+    assert len(problems) == 1 and 'db_publish --run-date 2026-01-02' in problems[0]
+
+
+def test_database_check_does_not_hash_a_file_untouched_since_its_publish(results_dir, monkeypatch):
+    import data.db.publish as pub
+    from scripts.check_snapshot_store import drifted_dates
+    p = _write(results_dir, '2026-01-02', ['AAA'])
+    run = _published(p, '2026-01-02')                         # completed after the write
+    monkeypatch.setattr(pub, 'canonical_sha256', lambda d: pytest.fail('hashed an unchanged file'))
+    assert drifted_dates(str(results_dir), {'2026-01-02': run}, '2026-01-05') == []
