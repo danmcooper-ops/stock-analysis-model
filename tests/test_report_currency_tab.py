@@ -133,7 +133,8 @@ def _render(after):
     # The tab's search is the header's #f-search; Q stands in for it.
     stub = ("var Q='';var document={getElementById:function(id){return id==='f-search'?{value:Q}:null;},"
             "documentElement:{classList:{contains:function(){return false;}}}};")
-    js = '\n'.join([stub, _fn_src('_esc', src), *pick, fm, block,
+    fd = src[src.index('var _FD_RC='):src.index('function _fdJump(')]
+    js = '\n'.join([stub, _fn_src('_esc', src), _fn_src('_qHelp', src), *pick, fm, fd, block,
                     f'_CX=_cxPrep({json.dumps(REPORT)});', after])
     return subprocess.run(['node', '-e', js], capture_output=True, text=True, check=True).stdout
 
@@ -141,14 +142,22 @@ def _render(after):
 def test_render_draws_the_header_tiles_and_views():
     html = _render('process.stdout.write(_cxHtml(_CX));')
     assert 'Run 2026-10-27 · 2 currencies ranked rich to cheap on 2 gates in 2 weighted pillars' in html
-    assert '<span>LONG</span><b>1</b>' in html and '<span>NEUTRAL</span><b>1</b>' in html
+    assert '<b>1</b><span>LONG</span>' in html and '<b>1</b><span>NEUTRAL</span>' in html
+    assert '_cxDashGo(&quot;r&quot;,&quot;LONG&quot;)' in html
     assert '<span>Top ranked</span><b>HKD · 66</b>' in html
     assert '<span>Capped</span><b>1</b>' in html
-    for v in ('Screener', 'Gate Matrix', 'Map', 'Detail', 'Summary'):
+    for v in ('Dashboard', 'Screener', 'Gate Matrix', 'Map', 'Detail'):
         assert '>' + v + '</button>' in html
-    # Opens on the table: the grid pane serves the three table-like tabs;
-    # the tiles and notes are the Summary tab's.
-    assert re.findall(r'<div data-pane="([\w ]+)"', html) == ['table matrix map', 'detail', 'summary']
+    assert '>Summary</button>' not in html
+    # Opens on the Dashboard; the grid pane serves the three table-like tabs.
+    assert re.findall(r'<div data-pane="([\w ]+)"', html) == ['dash', 'table matrix map', 'detail']
+    dash = html.split('<div data-pane="dash">')[1].split('data-pane="table matrix map"')[0]
+    # Pillar cards (Valuation averages JPY's 89 alone; HKD's is missing).
+    assert '<div class="fd-k">Valuation</div><div class="fd-v">89%</div>' in dash
+    assert '_cxDashGo(&quot;s&quot;,&quot;_score_pillar_valuation&quot;)' in dash
+    # Pass rates over the currencies a gate applies to: REER z 1 of 1.
+    assert 'passes when z &lt; -0.5 · 1 of 1' in dash or '1 of 1' in dash
+    assert 'class="fd-hist"' in dash and 'Gate Pass Rates' in dash
     grid = html.split('<div data-pane="table matrix map">')[1].split('data-pane="detail"')[0]
     assert 'pp-tile' not in grid and 'bv-note' not in grid
 

@@ -127,13 +127,16 @@ def _render(report, after=''):
     start = src.index('var _BV=null,')
     block = src[start:src.index('function renderBondView(){', start)]
     fns = [_fn_src(n, src) for n in ('_esc', '_bvCls', '_bvFmt', '_bvDist', '_bvLine',
-                                     '_bvCard', '_bvHtml', '_bvIdx', '_bvRows', '_fmBar', '_qHelp')]
+                                     '_bvCard', '_bvDash', '_bvHtml', '_bvIdx', '_bvRows', '_fmBar', '_qHelp')]
     fm = src[src.index('var _FM_SUB='):src.index('function _fmBar(')]
+    # The dashboard's shared builders (_fdCards ... _fdList) and its ratings.
+    fd = src[src.index('var _FD_RC='):src.index('function _fdJump(')]
+    rt = re.search(r'^var _BV_RATINGS=.*?;$', src, re.M).group(0)
     js = '\n'.join([
         # The table's search is the header's #f-search; Q stands in for it.
         "var Q='';var document={getElementById:function(id){return id==='f-search'?{value:Q}:null;},"
         "documentElement:{classList:{contains:function(){return false;}}}};",
-        'function isCapped(){return false;}', attr, rb, rc, fm, block, *fns,
+        'function isCapped(){return false;}', attr, rb, rc, fm, fd, rt, block, *fns,
         f'_BV={json.dumps(report)};',
         after or 'process.stdout.write(_bvHtml(_BV));'])
     return subprocess.run(['node', '-e', js], capture_output=True, text=True, check=True).stdout
@@ -145,9 +148,9 @@ def test_render_draws_every_section_from_the_report():
     assert 'title="Every bond priced."><span>Instruments</span><b>2</b>' in html
     assert 'Marks are 179 days old' in html and '2026-04-30' in html
     assert '<b>Prices are monthly.</b> Marks are &lt;old&gt;.' in html
-    for t in ('Rating distribution', 'Implied credit bucket', 'Treasury par curve',
+    for t in ('Implied credit bucket', 'Treasury par curve', 'By Category',
               'Spread term structure, fitted vs FRED', 'Why rows are capped',
-              'Mean score by category'):
+              'Composite Score Distribution'):
         assert t in html
     assert 'title="Solid investment grade."' in html
     assert 'Fitted from spreads.' in html and 'Dropped, not zero.' in html
@@ -175,17 +178,17 @@ process.stdout.write(JSON.stringify({h:box.innerHTML,hidden:box.hidden,stock:el[
         assert t in d['h']
 
 
-def test_opens_on_the_table_with_the_rest_in_sub_tabs():
-    """The tab is a table: tiles and distributions sit under Summary, the
-    two curves under Charts, the caveats under Notes, in the sector page's
-    sub-tab row."""
+def test_opens_on_the_dashboard_with_the_rest_in_sub_tabs():
+    """The tab opens on its Dashboard (tiles, category cards, rating boxes,
+    distributions), then the Table, the two curves under Charts and the
+    caveats under Notes, in the sector page's sub-tab row."""
     html = _render(REPORT)
     assert 'class="d-stmt-tabs sa-chrome pp-subtabs fm-subtabs"' in html
-    for k, label in (('table', 'Table'), ('summary', 'Summary'), ('charts', 'Charts'), ('notes', 'Notes ⚠')):
+    for k, label in (('dash', 'Dashboard'), ('table', 'Table'), ('charts', 'Charts'), ('notes', 'Notes ⚠')):
         assert f'data-k="{k}"' in html and f'>{label}</button>' in html
     panes = re.findall(r'<div data-pane="(\w+)"', html)
-    assert panes == ['table', 'summary', 'charts', 'notes']
-    table = html.split('<div data-pane="table">')[1].split('<div data-pane="summary"')[0]
+    assert panes == ['dash', 'table', 'charts', 'notes']
+    table = html.split('<div data-pane="table">')[1].split('<div data-pane="charts"')[0]
     assert '<table class="ppi-tbl bv-tbl">' in table
     assert 'pp-tile' not in table and 'bv-warn' not in table and '<svg' not in table
     notes = html.split('<div data-pane="notes"')[1]
@@ -208,3 +211,18 @@ def test_rows_filter_and_sort_like_the_bond_page():
     assert r[5] == '<span class="bv-pos">212</span>'
     assert r[6] == '<span class="bv-neg">-3</span>'
     assert 'bv-mut' in r[7] and r[8] == 'T-BILL'
+
+
+def test_dashboard_cards_boxes_and_either_end():
+    """The Dashboard reads the bond model's categories as cards, its ratings
+    as boxes that open the Table on one rating (the rating tiles are not
+    repeated), the score histogram, and the cheapest and richest bonds."""
+    html = _render(REPORT)
+    dash = html.split('<div data-pane="dash">')[1].split('<div data-pane="table">')[0]
+    assert '<div class="fd-k">Valuation</div><div class="fd-v">34%</div>' in dash
+    assert dash.count('class="fd-box"') == 2
+    assert '_bvDashGo(&quot;r&quot;,&quot;BUY&quot;)' in dash
+    assert '<span>BUY</span><b>1</b>' not in dash       # a box, not a tile too
+    assert 'title="Every bond priced."><span>Instruments</span><b>2</b>' in dash
+    assert 'class="fd-hist"' in dash
+    assert '_bvDashGo(&quot;b&quot;,&quot;A&quot;)' in dash

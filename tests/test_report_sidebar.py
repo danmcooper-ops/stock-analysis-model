@@ -461,14 +461,17 @@ def test_portfolio_page_has_no_all_portfolios_link():
 
 
 def test_financial_model_has_stock_and_etf_valuations_tabs():
-    """Investing's sub-tabs read Dashboard, Stocks (the gate
-    matrix), ETFs (the SPDRs read through the model, moved off
+    """Investing's sub-tabs read Stocks (its Dashboard, the gate matrix and
+    the data tables), ETFs (the SPDRs read through the model, moved off
     the Sector Analysis Charts tab so the table appears once) and Bonds (tests/test_report_bond_tab.py), then Currencies
-    (tests/test_report_currency_tab.py)."""
+    (tests/test_report_currency_tab.py). The Stocks Dashboard is the first
+    tab of Stocks' own row, not Investing's."""
     src = _tpl()
-    assert ("items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Stocks'},"
+    assert ("items:[{k:'matrix',l:'Stocks'},"
             "{k:'etf',l:'ETFs'},{k:'bond',l:'Bonds'},"
             "{k:'ccy',l:'Currencies'}]},") in src
+    assert "{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Stocks'}" not in src
+    assert "curMSub==='dashboard'?'matrix'" in src     # the Dashboard lights Stocks
     assert '<div id="m-etf-view" style="display:none"></div>' in src
     show = re.search(r'function _mShow\(\)\{.*?\n\}\n', src, re.S).group(0)
     assert "else if(k==='etf')renderEtfView();" in show
@@ -487,7 +490,8 @@ def test_charts_is_its_own_entry_and_stocks_holds_the_data_tables():
     assert groups.index("v:'matrix',l:'Investing'") < groups.index("v:'charts',l:'Charts'") \
         < groups.index("v:'pf',l:'Portfolios'")
     assert "function _navView(){if(curView==='table')return curTSub==='prices'?'charts':'matrix';" in src
-    assert "return [{k:'matrix',l:'Model'}].concat(Object.keys(TL).filter(function(k){return k!=='prices';})" in src
+    assert ("return [{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Model'}]"
+            ".concat(Object.keys(TL).filter(function(k){return k!=='prices';})") in src
     assert 'id="sn-sub2"' in src
     # Hidden by style: .d-stmt-tabs' display:flex outranks the hidden
     # attribute, which drew an empty underline under every view's tabs.
@@ -495,7 +499,9 @@ def test_charts_is_its_own_entry_and_stocks_holds_the_data_tables():
     assert "s2.style.display=stk?'':'none';" in src and 's2.hidden' not in src
     assert "ch.style.display=g.items.length<2?'none':'';" in src
     assert "}else if(v==='charts'){\n    curTSub='prices';" in src
-    assert "}else if(v==='matrix'&&k==='matrix'){\n    /* Stocks reopens on whichever of its tabs was last open. */\n    stkGo(_stkLast);" in src
+    # Stocks reopens on its last tab; the Investing entry on its Dashboard.
+    assert "}else if(v==='matrix'&&(k==='matrix'||k==='dashboard')){" in src
+    assert "stkGo(top?'dashboard':k==='dashboard'?k:_stkLast);" in src
 
 
 def test_sector_analysis_first_sub_tab_is_overview():
