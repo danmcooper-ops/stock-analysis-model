@@ -1268,32 +1268,32 @@ def apply_composite_rating_override(results, params=None):
 
 
 _GATE_DISPLAY = {
-    'mos': {'label': 'MoS', 'threshold': 'MoS > 10%', 'fmt': 'pct1'},
-    'fv_dispersion': {'label': 'FV Dispersion', 'threshold': 'Model MAD <= 15%', 'fmt': 'pct1'},
-    'ebit_ev': {'label': 'EBIT/EV', 'threshold': 'EBIT/EV > 8%', 'fmt': 'pct1'},
-    'int_coverage': {'label': 'Int Cov', 'threshold': 'IC > 3x', 'fmt': 'ratio'},
-    'accruals': {'label': 'Accruals', 'threshold': 'Accruals < 8%', 'fmt': 'pct1'},
-    'shrhldr_yield': {'label': 'Shrhldr Yld', 'threshold': 'Yield > 2%', 'fmt': 'pct1'},
-    'insider_own': {'label': 'Insider %', 'threshold': 'Insider >= 5%', 'fmt': 'pct1'},
-    'insider_buying': {'label': 'Insider Buys', 'threshold': 'Buy ratio >= 50%', 'fmt': 'pct1'},
-    'roic_consistency': {'label': 'ROIC CV', 'threshold': 'CV < 30%', 'fmt': 'pct1'},
-    'spread': {'label': 'Spread', 'threshold': 'Spread > 7%', 'fmt': 'pct1'},
-    'incr_roic': {'label': 'Incr ROIC', 'threshold': 'ΔNOPAT/ΔIC > 10%', 'fmt': 'pct1'},
-    'fund_growth': {'label': 'Fund Growth', 'threshold': 'FG > 3%', 'fmt': 'pct1'},
-    'margins': {'label': 'Margins', 'threshold': 'Margin >= 0', 'fmt': 'pct1'},
-    'rev_volatility': {'label': 'Rev Vol', 'threshold': 'Rev growth σ < 12%', 'fmt': 'pct1'},
-    'margin_vs_hist': {'label': 'Mgn vs Hist', 'threshold': 'OpM < hist avg + 5pp', 'fmt': 'pct1'},
-    'net_debt_ebitda': {'label': 'ND/EBITDA', 'threshold': 'ND/EBITDA <= 1.5x', 'fmt': 'ratio'},
-    'rev_durability': {'label': '10Y Rev CAGR', 'threshold': '10Y RevCAGR > 2%', 'fmt': 'pct1'},
-    'sbc_dilution': {'label': 'SBC/Rev', 'threshold': 'SBC/Rev <= 2%', 'fmt': 'pct1'},
-    'p_tbv': {'label': 'P/TBV', 'threshold': 'P/TBV <= 2.5x', 'fmt': 'ratio'},
-    'pool_share': {'label': 'Pool Share Δ', 'threshold': '5y profit-pool share CAGR > 0', 'fmt': 'pct1'},
-    'fcf_durability': {'label': '5Y FCF CAGR', 'threshold': '5Y FCF CAGR > 5%', 'fmt': 'pct1'},
-    'share_shrink': {'label': 'Share Shrink', 'threshold': '5Y Shares CAGR < 0', 'fmt': 'pct1'},
-    'piotroski': {'label': 'Piotroski', 'threshold': 'F-Score >= 7', 'fmt': 'int'},
-    'margin_advantage': {'label': 'Margin Adv', 'threshold': 'OpM vs sector > 5pp', 'fmt': 'pct1'},
-    'mult_vs_hist': {'label': 'Mult vs Hist', 'threshold': '>=10% below own 10y median', 'fmt': 'pct1'},
-    'fcf_yield': {'label': 'FCF Yield', 'threshold': 'FCF Yield > risk-free', 'fmt': 'pct1'},
+    'mos': {'label': 'MoS', 'threshold': 'MoS > 10%', 'target': '> 10%', 'fmt': 'pct1'},
+    'fv_dispersion': {'label': 'FV Dispersion', 'threshold': 'Model MAD <= 15%', 'target': '≤ 15%', 'fmt': 'pct1'},
+    'ebit_ev': {'label': 'EBIT/EV', 'threshold': 'EBIT/EV > 8%', 'target': '> 8%', 'fmt': 'pct1'},
+    'int_coverage': {'label': 'Int Cov', 'threshold': 'IC > 3x', 'target': '> 3×', 'fmt': 'ratio'},
+    'accruals': {'label': 'Accruals', 'threshold': 'Accruals < 8%', 'target': '< 8%', 'fmt': 'pct1'},
+    'shrhldr_yield': {'label': 'Shrhldr Yld', 'threshold': 'Yield > 2%', 'target': '> 2%', 'fmt': 'pct1'},
+    'insider_own': {'label': 'Insider %', 'threshold': 'Insider >= 5%', 'target': '≥ 5%', 'fmt': 'pct1'},
+    'insider_buying': {'label': 'Insider Buys', 'threshold': 'Buy ratio >= 50%', 'target': '≥ 50% buys', 'fmt': 'pct1'},
+    'roic_consistency': {'label': 'ROIC CV', 'threshold': 'CV < 30%', 'target': '< 30%', 'fmt': 'pct1'},
+    'spread': {'label': 'Spread', 'threshold': 'Spread > 7%', 'target': '> 7%', 'fmt': 'pct1'},
+    'incr_roic': {'label': 'Incr ROIC', 'threshold': 'ΔNOPAT/ΔIC > 10%', 'target': '> 10%', 'fmt': 'pct1'},
+    'fund_growth': {'label': 'Fund Growth', 'threshold': 'FG > 3%', 'target': '> 3%', 'fmt': 'pct1'},
+    'margins': {'label': 'Margins', 'threshold': 'Margin >= 0', 'target': '≥ 0', 'fmt': 'pct1'},
+    'rev_volatility': {'label': 'Rev Vol', 'threshold': 'Rev growth σ < 12%', 'target': '< 12%', 'fmt': 'pct1'},
+    'margin_vs_hist': {'label': 'Mgn vs Hist', 'threshold': 'OpM < hist avg + 5pp', 'target': '< hist avg + 5pp', 'fmt': 'pct1'},
+    'net_debt_ebitda': {'label': 'ND/EBITDA', 'threshold': 'ND/EBITDA <= 1.5x', 'target': '≤ 1.5×', 'fmt': 'ratio'},
+    'rev_durability': {'label': '10Y Rev CAGR', 'threshold': '10Y RevCAGR > 2%', 'target': '> 2%', 'fmt': 'pct1'},
+    'sbc_dilution': {'label': 'SBC/Rev', 'threshold': 'SBC/Rev <= 2%', 'target': '≤ 2%', 'fmt': 'pct1'},
+    'p_tbv': {'label': 'P/TBV', 'threshold': 'P/TBV <= 2.5x', 'target': '≤ 2.5×', 'fmt': 'ratio'},
+    'pool_share': {'label': 'Pool Share Δ', 'threshold': '5y profit-pool share CAGR > 0', 'target': '> 0', 'fmt': 'pct1'},
+    'fcf_durability': {'label': '5Y FCF CAGR', 'threshold': '5Y FCF CAGR > 5%', 'target': '> 5%', 'fmt': 'pct1'},
+    'share_shrink': {'label': 'Share Shrink', 'threshold': '5Y Shares CAGR < 0', 'target': '< 0', 'fmt': 'pct1'},
+    'piotroski': {'label': 'Piotroski', 'threshold': 'F-Score >= 7', 'target': '≥ 7', 'fmt': 'int'},
+    'margin_advantage': {'label': 'Margin Adv', 'threshold': 'OpM vs sector > 5pp', 'target': '> 5pp vs sector', 'fmt': 'pct1'},
+    'mult_vs_hist': {'label': 'Mult vs Hist', 'threshold': '>=10% below own 10y median', 'target': '≤ −10% vs 10y median', 'fmt': 'pct1'},
+    'fcf_yield': {'label': 'FCF Yield', 'threshold': 'FCF Yield > risk-free', 'target': '> risk-free', 'fmt': 'pct1'},
 }
 
 _CATEGORY_DISPLAY = {
@@ -1318,6 +1318,9 @@ def gate_metadata(params=None):
             'gpKey': _gp_key(gate.name),
             'scoreKey': _score_key(gate.name),
             'threshold': display.get('threshold', ''),
+            # Short form for the ticker page's Model card ('> 7%'); the
+            # sentence above stays the tooltip and the Gate Matrix label.
+            'target': display.get('target', ''),
             'category': gate.category,
             'fmt': display.get('fmt', 'ratio'),
             'weight': gate.weight,
@@ -1337,7 +1340,13 @@ def gate_metadata(params=None):
             'light': display['light'],
             'scoreKey': '_score_' + name.lower(),
         })
-    return {'gates': gates, 'categories': categories}
+    # The composite's rating lines, highest first, for the Model card's bar.
+    ratings = [
+        {'rating': 'BUY', 'min': p.get('rating_threshold_buy', 57)},
+        {'rating': 'LEAN BUY', 'min': p.get('rating_threshold_lean', 39)},
+        {'rating': 'HOLD', 'min': p.get('rating_threshold_pass', 25)},
+    ]
+    return {'gates': gates, 'categories': categories, 'ratings': ratings}
 
 
 def _rating_cap_for_row(row, params=None):

@@ -569,11 +569,11 @@ def test_model_gate_categories_fold():
     """The Model's category headers fold their gates: folded by default, the
     reader's choice (open or shut) kept per browser across tickers."""
     src = (Path(__file__).resolve().parent.parent / 'templates' / 'report.html').read_text(encoding='utf-8')
-    assert "var _gvSt=_gvState()[c.name],_gvShut=_gvSt===undefined||_gvSt===true;" in src
+    assert "var st=shutAll[c.name],shut=st===undefined||st===true;" in src
     assert "st[h.getAttribute('data-gvc')]=shut;" in src
     assert 'onclick="_gvToggle(this)"' in src
     assert "localStorage.setItem('stock_gv_shut_v1',JSON.stringify(st));" in src
-    assert '.gv-shut .gv-items,.gv-shut .gv-wt{display:none;}' in src
+    assert '.gv-shut .gv-items{display:none;}' in src
 
 
 def test_filters_panel_is_one_column_of_summarised_sections():

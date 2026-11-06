@@ -27,12 +27,14 @@ def test_snapshot_cells_wrap_on_tablets():
     assert 'white-space:normal' in body
 
 
-def test_gate_columns_truncate_instead_of_clipping():
+def test_gate_columns_stack_instead_of_clipping():
+    """The Model card's columns are ~150-225px on a wide page: a category row
+    stacks its bar under its name there, and the short targets wrap rather
+    than being cut off (test_report_model_card has the rest)."""
     css = _css()
     assert re.search(r'\.gv-col\{[^}]*container-type:inline-size', css)
-    assert re.search(r'\.gv-item\{gap:\d+px;\}', css), 'label and value need a gap'
-    assert re.search(r'\.gv-v\{[^}]*min-width:0;[^}]*text-overflow:ellipsis', css)
-    assert re.search(r'@container \(max-width:\d+px\)\{\.gv-thr\{display:none;\}\}', css)
+    assert re.search(r'@container \(max-width:\d+px\)\{\s*\.gv-cat\{grid-template-columns', css)
+    assert not re.search(r'\.gv-[a-z]+\{[^}]*text-overflow:ellipsis', css)
 
 
 def test_peer_tables_pan_rather_than_clip():
