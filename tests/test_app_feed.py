@@ -11,6 +11,7 @@ import scripts.report_html as rh
 import re
 
 from scripts.report_html import (_APP_LIST_FIELDS, _APP_SCHEMA_VERSION, _APP_SCREENER_FIELDS,
+                                 _build_app_portfolios,
                                  _app_is_blue_chip, _app_profit_pool, _app_sector_heatmap,
                                  _build_app_list, _build_app_screener, _write_app_feed,
                                  unpack_rows)
@@ -203,7 +204,7 @@ def test_run_daily_publishes_the_app_feed_and_the_change_files():
     # Sector Analysis and the screener ride with the list feed, and a night
     # without one drops last night's copy rather than serving it beside
     # today's list.
-    assert 'for f in sectors.json screener.json; do' in sh
+    assert 'for f in sectors.json screener.json portfolios.json; do' in sh
     assert 'cp "output/app/$f" "$docs/app/$f"' in sh
     assert 'rm -f "$docs/app/$f"' in sh
     assert r'docs/app/detail/* *.json\n' in sh
@@ -356,3 +357,53 @@ def test_feed_writes_a_dated_screener(tmp_path):
     screener = json.loads((app / 'screener.json').read_text(encoding='utf-8'))
     assert screener['date'] == '2026-11-05' and screener['tickers'] == ['AAA', 'BBB']
     assert len(unpack_rows(screener['rows'])) == 2
+
+
+# --- portfolios (app/portfolios.json) --------------------------------------
+
+def _pf_payload():
+    return {
+        'rev': 'abc', 'prev_date': '2026-11-04', 'changes': [], 'events': [],
+        'portfolios': [
+            {'id': 'semis', 'name': 'Semiconductors', 'color': '#2a78d6', 'description': '',
+             'created': '2026-09-26', 'tickers': ['NVDA', 'TSM', 'ZZZ'], 'exclude': [], 'rule': None,
+             'alerts': 'buy_line', 'missing': ['ZZZ'],
+             # Anything not on the allow-list stays out of the app's copy.
+             'targets': {'NVDA': 0.5}},
+            {'id': 'paper', 'name': 'Paper book', 'color': '#2a78d6',
+             'rule': {'rating': ['BUY']}, 'alerts': 'all', 'missing': []},
+        ],
+        'nav': {'spy': [['2026-11-04', 100.0], ['2026-11-05', 101.0]], 'universe': [],
+                'pf': {'semis': [['2026-11-04', 100.0, 0], ['2026-11-05', 97.0, 0]]}},
+    }
+
+
+def test_portfolios_carry_only_the_published_fields():
+    index = {'NVDA': ['semis'], 'TSM': ['semis'], 'AAA': ['paper']}
+    out = _build_app_portfolios(_pf_payload(), index, '2026-11-05')
+    assert out['date'] == '2026-11-05' and out['schema_version'] == _APP_SCHEMA_VERSION
+    semis, paper = out['portfolios']
+    assert set(semis) == {'id', 'name', 'color', 'description', 'created', 'alerts',
+                          'members', 'missing'}
+    assert 'targets' not in semis and 'tickers' not in semis
+    # Members as the engine resolved them (rules included), sorted.
+    assert semis['members'] == ['NVDA', 'TSM'] and semis['missing'] == ['ZZZ']
+    assert paper['members'] == ['AAA'] and paper['rule'] == {'rating': ['BUY']}
+    # The public NAV, as the report's payload carries it.
+    assert out['nav']['pf']['semis'][-1] == ['2026-11-05', 97.0, 0]
+
+
+def test_no_portfolios_means_no_file(tmp_path):
+    assert _build_app_portfolios({'portfolios': []}, {}, '2026-11-05') is None
+    app = tmp_path / 'app'
+    _write_app_feed(str(app), _records(), _details(), _rows(), '2026-11-05')
+    assert not (app / 'portfolios.json').exists()
+
+
+def test_feed_writes_portfolios_when_given(tmp_path):
+    app = tmp_path / 'app'
+    _write_app_feed(str(app), _records(), _details(), _rows(), '2026-11-05',
+                    portfolios=_pf_payload(), pf_index={'AAA': ['semis']})
+    pfs = json.loads((app / 'portfolios.json').read_text(encoding='utf-8'))
+    assert [p['id'] for p in pfs['portfolios']] == ['semis', 'paper']
+    assert pfs['portfolios'][0]['members'] == ['AAA']

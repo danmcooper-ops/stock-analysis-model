@@ -2236,10 +2236,44 @@ def _build_app_screener(chart_records, run_date):
     }
 
 
+# The report's Portfolios view, for the app: what the inline PORTFOLIOS
+# payload already publishes, and no more. Fields are taken by allow-list, so
+# anything a definition grows later (strategy targets, say) stays out until
+# someone decides the app should carry it; a held portfolio's book-weighted
+# NAV and the lots, cash and sales in positions.json never reach this
+# payload in the first place (_portfolio_nav keeps them private).
+_APP_PORTFOLIO_FIELDS = ('id', 'name', 'color', 'description', 'created', 'alerts', 'rule')
+
+
+def _build_app_portfolios(payload, index, run_date):
+    """``app/portfolios.json``: each portfolio's definition and members as
+    resolved for the report, and the public NAV series; None without any."""
+    pfs = (payload or {}).get('portfolios') or []
+    if not pfs:
+        return None
+    members = {}
+    for tk, ids in (index or {}).items():
+        for pid in ids:
+            members.setdefault(pid, []).append(tk)
+    out = []
+    for pf in pfs:
+        row = {k: pf.get(k) for k in _APP_PORTFOLIO_FIELDS if pf.get(k) is not None}
+        row['members'] = sorted(members.get(pf.get('id'), []))
+        row['missing'] = sorted(pf.get('missing') or [])
+        out.append(row)
+    return {
+        'schema_version': _APP_SCHEMA_VERSION,
+        'date': run_date,
+        'portfolios': out,
+        'nav': (payload or {}).get('nav'),
+    }
+
+
 def _write_app_feed(app_dir, chart_records, details_payload, rows, run_date,
-                    sector_pool=None):
+                    sector_pool=None, portfolios=None, pf_index=None):
     """Write ``app/latest.json``, ``app/detail/<TICKER>.json``,
-    ``app/sectors.json``, ``app/screener.json`` and ``app/manifest.json``;
+    ``app/sectors.json``, ``app/screener.json``, ``app/portfolios.json`` and
+    ``app/manifest.json``;
     return the tickers written.
 
     The manifest goes last, so the app can tell a complete night from a
@@ -2314,6 +2348,13 @@ def _write_app_feed(app_dir, chart_records, details_payload, rows, run_date,
                             _build_app_screener(chart_records, _date))
         except Exception as _ce:
             print(f"[warn] app/screener.json write failed: {_ce}")
+        # Portfolios: best-effort the same way, and only when there are any.
+        try:
+            _pfs = _build_app_portfolios(portfolios, pf_index, _date)
+            if _pfs:
+                _write_app_json(os.path.join(app_dir, 'portfolios.json'), _pfs)
+        except Exception as _pe:
+            print(f"[warn] app/portfolios.json write failed: {_pe}")
 
         with open(_manifest_path, 'w', encoding='utf-8') as _mf:
             json.dump({
@@ -2741,7 +2782,8 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     # The iOS app's feed, written after every sidecar it mirrors: its
     # manifest is what tells the app the night is complete.
     _write_app_feed(app_dir, chart_records, details_payload, rows, run_date,
-                    sector_pool=sector_pool_data)
+                    sector_pool=sector_pool_data, portfolios=portfolios_payload,
+                    pf_index=_pf_index)
 
     # Render Jinja2 template
     template_dir = os.path.join(os.path.dirname(__file__), '..', 'templates')
