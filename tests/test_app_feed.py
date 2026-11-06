@@ -1,6 +1,7 @@
 """The iOS app's feed: app/latest.json, app/detail/<TICKER>.json and the
 manifest that tells the app a night is complete (StockModel-iOS-Handoff
 README section 4), plus its publish path."""
+import datetime as dt
 import hashlib
 import json
 import os
@@ -120,6 +121,23 @@ def test_feed_is_rebuilt_wholesale_and_skips_unsafe_tickers(tmp_path):
     assert not stale.exists()
     manifest = json.loads((app / 'manifest.json').read_text(encoding='utf-8'))
     assert manifest['date'] == '2026-11-05' and manifest['tickers'] == ['AAA']
+
+
+def test_feed_takes_a_date_run_date_and_date_valued_fields(tmp_path):
+    # The nightly render passes run_date as a datetime.date and a row can
+    # carry one too; both used to raise inside the wrapped write, which cost
+    # the whole feed and left only a warning line.
+    app = tmp_path / 'app'
+    recs = [{'ticker': 'AAA', 'last_filing': dt.date(2026, 10, 31),
+             'fetched_at': dt.datetime(2026, 11, 5, 17, 30, 15)}]
+    assert _write_app_feed(str(app), recs, {}, _rows(), dt.date(2026, 11, 5)) == ['AAA']
+    latest = json.loads((app / 'latest.json').read_text(encoding='utf-8'))
+    manifest = json.loads((app / 'manifest.json').read_text(encoding='utf-8'))
+    assert latest['date'] == '2026-11-05' and manifest['date'] == '2026-11-05'
+    detail = json.loads((app / 'detail' / 'AAA.json').read_text(encoding='utf-8'))
+    assert detail['date'] == '2026-11-05'
+    assert detail['last_filing'] == '2026-10-31'
+    assert detail['fetched_at'] == '2026-11-05T17:30:15'
 
 
 def test_feed_is_skipped_without_a_run_date(tmp_path):

@@ -1991,6 +1991,21 @@ def _sha256_file(path, _chunk=1 << 20):
     return _h.hexdigest()
 
 
+def _app_json_default(obj):
+    """``_json_default``, plus dates as ISO strings.
+
+    It raises for ``datetime.date``, which is right for the inline DATA blob
+    (a date there is a bug) but wrong here: the nightly render passes
+    ``run_date`` as a ``date`` (rescore_and_render.py), and a detail shard
+    carries whatever ~370 fields the row has. One of either cost the whole
+    feed on 2026-11-06 — the write is wrapped, so the only trace was a
+    ``[warn] app/ feed write failed`` line and no manifest.
+    """
+    if isinstance(obj, date):        # datetime is a subclass of date
+        return obj.isoformat()
+    return _json_default(obj)
+
+
 def _write_app_json(path, payload):
     """Write one app feed file.
 
@@ -2004,7 +2019,7 @@ def _write_app_json(path, payload):
     manifest pointing the app at the file.
     """
     with open(path, 'w', encoding='utf-8') as _fh:
-        json.dump(_sanitize(payload), _fh, default=_json_default,
+        json.dump(_sanitize(payload), _fh, default=_app_json_default,
                   separators=_COMPACT, allow_nan=False)
 
 
@@ -2033,6 +2048,10 @@ def _write_app_feed(app_dir, chart_records, details_payload, rows, run_date):
             # staleness, so no feed beats a feed it must not trust.
             print("[report_html] app/: skipped (no run date)")
             return []
+        # analyze_stock passes a string, the nightly re-render a date.
+        # The feed always stores YYYY-MM-DD, which is what the app parses.
+        _date = run_date.isoformat() if isinstance(run_date, date) else str(run_date)
+        _date = _date[:10]
         _detail_dir = os.path.join(app_dir, 'detail')
         _latest_path = os.path.join(app_dir, 'latest.json')
         _manifest_path = os.path.join(app_dir, 'manifest.json')
@@ -2041,7 +2060,7 @@ def _write_app_feed(app_dir, chart_records, details_payload, rows, run_date):
         os.makedirs(_detail_dir, exist_ok=True)
 
         _write_app_json(_latest_path,
-                        _build_app_list(chart_records, run_date,
+                        _build_app_list(chart_records, _date,
                                         _app_risk_free_rate(rows)))
         # The one file the app fetches before it trusts the night.
         _files = {'app/latest.json': _sha256_file(_latest_path)}
@@ -2062,14 +2081,14 @@ def _write_app_feed(app_dir, chart_records, details_payload, rows, run_date):
             _detail['ticker'] = _tk
             # Each shard names its own night, so a detail served from the
             # app's cache can be matched to the list without the manifest.
-            _detail['date'] = run_date
+            _detail['date'] = _date
             _write_app_json(os.path.join(_detail_dir, f'{_tk}.json'), _detail)
             _written.append(_tk)
 
         with open(_manifest_path, 'w', encoding='utf-8') as _mf:
             json.dump({
                 'schema_version': _APP_SCHEMA_VERSION,
-                'date': run_date,
+                'date': _date,
                 'generated_at': datetime.now(timezone.utc)
                                         .replace(microsecond=0).isoformat(),
                 'count': len(_written),
