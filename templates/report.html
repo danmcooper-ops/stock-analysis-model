@@ -2970,12 +2970,13 @@ html.sb-rail .sb-chev-l,html:not(.sb-rail) .sb-chev-r{display:none;}
 .hdr-qr .qr-nm{--sac:var(--chrome-muted);flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .hdr-qr .qr-empty{--sac:var(--chrome-muted);padding:8px 10px;font-size:13px;}
 .header .filter-count{color:var(--topbar-muted) !important;font-size:12.5px;}
-/* The Filters panel's count is the view's only one: the panel's own colour,
-   not the top bar's, and shown on every width. */
-.header #filt-panel #filt-count{--sac:var(--accent);color:var(--accent) !important;display:block;font-size:12.5px;white-space:normal;}
-/* Count on its own line under the title, so neither wraps on a phone. */
-.header #filt-panel .fpop-title-wrap{flex-direction:column;align-items:flex-start;gap:1px;}
-.header #filt-panel .fpop-title{white-space:nowrap;}
+/* The view's count ("N of M stocks", or the ETFs', bonds' or currencies'),
+   centred in the top bar between two spacers. Below 1024px the bar has no
+   room, so #sn-count carries it, centred in the view title's row. Empty on
+   the views with nothing to count, and then takes no space. */
+.hdr-center{display:flex;align-items:center;flex-shrink:0;white-space:nowrap;}
+.hdr-center:has(#f-count:empty){display:none;}
+.sn-count{display:none;}
 .header #filter-bar .fpop-btn{background:var(--topbtn-bg);border:1.5px solid var(--topbtn-border);color:var(--topbar-fg);height:32px;padding:0 11px;border-radius:6px;font-size:12px;letter-spacing:.4px;text-transform:uppercase;display:flex;align-items:center;gap:6px;border-width:1px;}
 .header #filter-bar .fpop-btn:hover{background:var(--menu-hover);border-color:var(--topbtn-border);}
 .header #filter-bar .fpop-btn.active,.header #filter-bar .fpop-btn.active:hover{background:var(--chip-on-bg);border-color:var(--chip-on-bg);color:var(--chip-on-fg);}
@@ -3007,6 +3008,10 @@ body.wide-table #subnav{padding-left:var(--pg-inset,20px);padding-right:var(--pg
 .sn-title{font-size:20px;font-weight:800;letter-spacing:-.5px;text-transform:uppercase;line-height:1.05;margin:0;}
 .sn-crumb{--sac:var(--chrome-muted);font-size:12.5px;}
 .sn-date{--sac:var(--chrome-muted);font-size:12px;margin-left:auto;white-space:nowrap;}
+@media(max-width:1023px){
+  .header .hdr-center{display:none !important;}
+  .sn-count{--sac:var(--chrome-muted);display:block;flex:1 1 auto;text-align:center;font-size:12.5px;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums;}
+}
 .sn-chips{display:flex;gap:22px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;border-bottom:1px solid var(--tab-line);}
 .sn-chips::-webkit-scrollbar{display:none;}
 .sn-chip{--sac:var(--chrome-muted);flex-shrink:0;height:34px;padding:0 2px;border:0;border-radius:0;background:none;font:inherit;font-size:13px;font-weight:500;white-space:nowrap;cursor:pointer;}
@@ -3731,6 +3736,8 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
     <div class="hdr-view-row"><span class="hdr-view" id="hdr-view"></span><span class="hdr-date">{{ generated_at }}</span></div>
   </div>
   <span class="hdr-spacer"></span>
+  <div class="hdr-center"><span class="filter-count" id="f-count"></span></div>
+  <span class="hdr-spacer"></span>
   <div class="filter-bar" id="filter-bar">
     <!-- Filters menu — same treatment as the nav tabs: the row of filter
          controls (Ratings / Sectors / Countries multi-selects, Quick
@@ -3749,10 +3756,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
       </button>
       <div class="fpop-panel filt-panel" id="filt-panel">
         <div class="fpop-header">
-          <!-- The view's one count rides beside the title ("N of M stocks",
-               or the ETFs', bonds' or currencies' on those tabs); the top
-               bar and the view title carry none. Fed by _filtCountSync. -->
-          <span class="fpop-title-wrap"><span class="fpop-title">Filters</span><span class="filter-count" id="filt-count"></span></span>
+          <span class="fpop-title-wrap"><span class="fpop-title">Filters</span></span>
           <span class="filt-header-actions"><button class="filter-clear" onclick="_filtClear()" title="Clear every filter and close this panel">Clear</button><button class="fpop-close" onclick="toggleFiltMenu(event)">&#215;</button></span>
         </div>
         <div class="fpop-body">
@@ -3873,7 +3877,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
        the only route to a sub-tab now that the Views dropdown is gone. -->
   <div id="subnav" class="sa-chrome">
     <button type="button" class="d-back sa-chrome" id="sn-back" onclick="drillBack()"></button>
-    <div class="sn-head"><h2 class="sn-title" id="sn-title"></h2><span class="sn-crumb" id="sn-crumb"></span><span class="sn-date">{{ generated_at }}</span></div>
+    <div class="sn-head"><h2 class="sn-title" id="sn-title"></h2><span class="sn-count" id="sn-count"></span><span class="sn-crumb" id="sn-crumb"></span><span class="sn-date">{{ generated_at }}</span></div>
     <div class="sn-chips" id="sn-chips" role="tablist"></div>
     <div class="d-stmt-tabs sa-chrome pp-subtabs" id="sn-sub2" role="tablist" aria-label="Stocks" style="display:none"></div>
   </div>
@@ -7651,20 +7655,20 @@ function _updateCountLabel(){
   }
   _filtCountSync();
 }
-/* The count beside the Filters panel's title, for whichever rows the view
-   holds: stocks, or on Investing's ETFs, Bonds and Currencies that tab's own
-   (each draw records its numbers in _altN). Chart options take none. */
+/* The view's count, centred in the top bar (#f-count) and, below 1024px,
+   in the view title's row (#sn-count): stocks, or on Investing's ETFs, Bonds
+   and Currencies that tab's own (each draw records its numbers in _altN).
+   Sector Analysis, Macro, Chart options and a portfolio's non-member tabs
+   take none. The Filters panel carries no count. */
 var _altN={};
 function _filtCountSync(){
-  var fc=document.getElementById('filt-count');if(!fc)return;
   var k=_altFiltKind(),f=function(n){return (+n||0).toLocaleString();};
-  var w={bond:['bond','bonds'],ccy:['currency','currencies'],etf:['ETF','ETFs']}[k];
-  if(k==='chart'||(k==='pf'&&!_pfMembersOn())){fc.textContent='';return;}
+  var w={bond:['bond','bonds'],ccy:['currency','currencies'],etf:['ETF','ETFs']}[k],t='';
   if(k==='pf')w=['stock','stocks'];
-  if(!k){fc.textContent=f(FD.length)+' of '+f(DATA.length)+' stock'+(DATA.length===1?'':'s');return;}
-  var a=_altN[k];
-  if(!a){fc.textContent='';return;}
-  fc.textContent=f(a[0])+' of '+f(a[1])+' '+(a[1]===1?w[0]:w[1])+(a[2]?' \u00b7 '+f(a[2])+' shown':'');
+  if(curView==='pool'||curView==='macro'||k==='chart'||(k==='pf'&&!_pfMembersOn()))t='';
+  else if(!k)t=f(FD.length)+' of '+f(DATA.length)+' stock'+(DATA.length===1?'':'s');
+  else{var a=_altN[k];if(a)t=f(a[0])+' of '+f(a[1])+' '+(a[1]===1?w[0]:w[1])+(a[2]?' \u00b7 '+f(a[2])+' shown':'');}
+  ['f-count','sn-count'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent=t;});
 }
 /* Is relevance ordering in effect for the CURRENT view? Active query +
    the user hasn't clicked a column header on that view this session. */
