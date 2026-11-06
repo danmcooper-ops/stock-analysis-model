@@ -621,6 +621,10 @@ publish() {
   if [ -f output/app/manifest.json ] && [ -f output/app/latest.json ]; then
     mkdir -p "$docs/app" || return 1
     cp output/app/latest.json "$docs/app/latest.json" || return 1
+    # Sector Analysis; dated, and best-effort like its writer, so a night
+    # without it publishes the rest and drops last night's copy.
+    if [ -f output/app/sectors.json ]; then cp output/app/sectors.json "$docs/app/sectors.json" || return 1
+    else rm -f "$docs/app/sectors.json"; fi
     cp output/app/manifest.json "$docs/app/manifest.json" || return 1
   else
     rm -rf "$docs/app"

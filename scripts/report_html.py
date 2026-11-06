@@ -2023,9 +2023,141 @@ def _write_app_json(path, payload):
                   separators=_COMPACT, allow_nan=False)
 
 
-def _write_app_feed(app_dir, chart_records, details_payload, rows, run_date):
-    """Write ``app/latest.json``, ``app/detail/<TICKER>.json`` and
-    ``app/manifest.json``; return the tickers written.
+# The Sector Analysis numbers the report computes in the browser from the
+# inline DATA blob, which the app never downloads: the Sector Heatmap
+# (renderCrossSectorDashboard's _sumStats) and the Cross-Sector Profit Pool
+# (renderCrossSectorProfitPool). Ported line for line so the app shows the
+# report's figures; tests/test_app_feed.py pins them against the same rows.
+_APP_LENDER_INDUSTRY = re.compile(r'Bank|Mortgage|Credit Services|Capital Markets')
+
+
+def _app_num(v):
+    """A finite number, or None (the JS ``v!=null&&!isNaN(v)``)."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    return float(v) if math.isfinite(v) else None
+
+
+def _app_or0(v):
+    """The JS ``(v||0)``: a missing or non-finite value counts as zero."""
+    n = _app_num(v)
+    return n if n is not None else 0.0
+
+
+def _app_median(vals):
+    if not vals:
+        return None
+    s = sorted(vals)
+    m = len(s) // 2
+    return s[m] if len(s) % 2 else (s[m - 1] + s[m]) / 2
+
+
+def _app_is_lender(r):
+    # A lender's FCF is deposit and loan flow and Altman Z was built for
+    # industrial balance sheets, so the heatmap leaves lenders out of both.
+    return (r.get('sector') == 'Financial Services'
+            and bool(_APP_LENDER_INDUSTRY.search(r.get('industry') or '')))
+
+
+def _app_sector_heatmap(chart_records):
+    """One row per sector: the report's Sector Heatmap."""
+    by_sector = {}
+    for r in chart_records or ():
+        if r.get('sector') and r.get('pp_revenue_share') is not None:
+            by_sector.setdefault(r['sector'], []).append(r)
+    out = []
+    for sec in sorted(by_sector):
+        cos = by_sector[sec]
+        srt = sorted(cos, key=lambda d: _app_or0(d.get('operating_margin')), reverse=True)
+        total_rev = sum(_app_or0(d.get('pp_revenue_share')) for d in srt)
+        if not total_rev:
+            continue
+        wtd_m = sum(_app_or0(d.get('operating_margin')) * _app_or0(d.get('pp_revenue_share'))
+                    for d in srt) / total_rev
+        best = srt[0]
+        for d in srt[1:]:
+            # reduce((a,b) => a > b ? a : b): a tie goes to the later row.
+            if not _app_or0(best.get('pp_multiple')) > _app_or0(d.get('pp_multiple')):
+                best = d
+
+        def vals(key, rows=cos, keep=lambda v: True):
+            return [v for v in (_app_num(d.get(key)) for d in rows) if v is not None and keep(v)]
+
+        growth = vals('rev_cagr_5y') or vals('rev_cagr')
+        shr = []
+        for d in cos:
+            sy = _app_num(d.get('shareholder_yield'))
+            if sy is None or sy == 0:
+                # yfinance's cash-flow statement is sparse, leaving sy at 0.0
+                # where a real dividend exists: fall back to buyback + yield.
+                bb, dy = _app_num(d.get('share_buyback_rate')), _app_num(d.get('div_yield'))
+                if (bb is not None and bb != 0) or (dy is not None and dy != 0):
+                    sy = (bb or 0.0) + (dy or 0.0)
+            if sy is not None:
+                shr.append(sy)
+        non_lend = [d for d in cos if not _app_is_lender(d)]
+        n_buy = sum(1 for d in cos if d.get('rating') in ('BUY', 'LEAN BUY'))
+        out.append({
+            'sector': sec, 'n': len(srt), 'op_margin': wtd_m,
+            'hhi': _app_num(srt[0].get('pp_sector_hhi')), 'cr4': _app_num(srt[0].get('pp_sector_cr4')),
+            'med_mos': _app_median(vals('mos')),
+            'med_p_tbv': _app_median(vals('p_tbv', keep=lambda v: 0 < v < 50)),
+            'med_ev_ebitda': _app_median(vals('ev_ebitda', keep=lambda v: 0 < v < 100)),
+            'med_spread': _app_median(vals('spread')),
+            'med_growth': _app_median(growth),
+            'med_roic': _app_median(vals('roic')),
+            'med_nd_ebitda': _app_median(vals('nd_ebitda')),
+            'med_shr_yld': _app_median(shr),
+            'med_fcf_margin': _app_median(vals('fcf_margin', rows=non_lend)),
+            'med_altman_z': _app_median(vals('altman_z', rows=non_lend)),
+            'n_buy': n_buy, 'pct_buy': n_buy / len(cos),
+            'best': {'ticker': best.get('ticker'), 'pp_multiple': _app_num(best.get('pp_multiple'))},
+        })
+    return out
+
+
+def _app_profit_pool(chart_records):
+    """Each sector's operating revenue, operating income and margin, one
+    contribution per issuer (share classes and preferreds repeat the parent's
+    statements), ordered by margin: the Cross-Sector Profit Pool."""
+    agg, seen = {}, set()
+    for r in chart_records or ():
+        sec = r.get('sector')
+        rev, oi = _app_num(r.get('revenue')), _app_num(r.get('operating_income'))
+        if not sec or rev is None or oi is None or rev <= 0:
+            continue
+        key = (sec, rev, oi)
+        if key in seen:
+            continue
+        seen.add(key)
+        a = agg.setdefault(sec, {'sector': sec, 'revenue': 0.0, 'operating_income': 0.0, 'companies': 0})
+        a['revenue'] += rev
+        a['operating_income'] += oi
+        a['companies'] += 1
+    if len(agg) < 2:
+        return []
+    for a in agg.values():
+        a['margin'] = a['operating_income'] / a['revenue']
+    return sorted(agg.values(), key=lambda a: a['margin'], reverse=True)
+
+
+def _build_app_sectors(chart_records, sector_pool, run_date):
+    """``app/sectors.json``: the heatmap, the profit pool, and each sector's
+    pool (the sector pages' narrative, history, industries, economics and
+    forces, as built for SECTOR_POOL)."""
+    return {
+        'schema_version': _APP_SCHEMA_VERSION,
+        'date': run_date,
+        'heatmap': _app_sector_heatmap(chart_records),
+        'profit_pool': _app_profit_pool(chart_records),
+        'pools': sector_pool or {},
+    }
+
+
+def _write_app_feed(app_dir, chart_records, details_payload, rows, run_date,
+                    sector_pool=None):
+    """Write ``app/latest.json``, ``app/detail/<TICKER>.json``,
+    ``app/sectors.json`` and ``app/manifest.json``; return the tickers written.
 
     The manifest goes last, so the app can tell a complete night from a
     half-written one: with no manifest, the app keeps the night it already
@@ -2084,6 +2216,15 @@ def _write_app_feed(app_dir, chart_records, details_payload, rows, run_date):
             _detail['date'] = _date
             _write_app_json(os.path.join(_detail_dir, f'{_tk}.json'), _detail)
             _written.append(_tk)
+
+        # Sector Analysis. Dated like the detail shards rather than hashed,
+        # and best-effort: a failure here costs the app its sector pages for
+        # the night, not the night.
+        try:
+            _write_app_json(os.path.join(app_dir, 'sectors.json'),
+                            _build_app_sectors(chart_records, sector_pool, _date))
+        except Exception as _se:
+            print(f"[warn] app/sectors.json write failed: {_se}")
 
         with open(_manifest_path, 'w', encoding='utf-8') as _mf:
             json.dump({
@@ -2510,7 +2651,8 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     _write_vol_shards(vol_dir, vol_payload)
     # The iOS app's feed, written after every sidecar it mirrors: its
     # manifest is what tells the app the night is complete.
-    _write_app_feed(app_dir, chart_records, details_payload, rows, run_date)
+    _write_app_feed(app_dir, chart_records, details_payload, rows, run_date,
+                    sector_pool=sector_pool_data)
 
     # Render Jinja2 template
     template_dir = os.path.join(os.path.dirname(__file__), '..', 'templates')

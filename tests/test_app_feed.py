@@ -7,8 +7,9 @@ import json
 import os
 
 import scripts.publish_vol_shards as pvs
-from scripts.report_html import (_APP_LIST_FIELDS, _APP_SCHEMA_VERSION, _build_app_list,
-                                 _write_app_feed)
+import scripts.report_html as rh
+from scripts.report_html import (_APP_LIST_FIELDS, _APP_SCHEMA_VERSION, _app_profit_pool,
+                                 _app_sector_heatmap, _build_app_list, _write_app_feed)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RUN_SH = os.path.join(REPO, 'scripts', 'run_daily.sh')
@@ -195,4 +196,101 @@ def test_run_daily_publishes_the_app_feed_and_the_change_files():
     # today's report.
     assert 'rm -rf "$docs/app"' in sh
     assert 'for f in rating_history.json portfolio_alerts.json; do' in sh
+    # Sector Analysis rides with the list feed, and a night without it drops
+    # last night's copy rather than serving it beside today's list.
+    assert 'cp output/app/sectors.json "$docs/app/sectors.json"' in sh
+    assert 'rm -f "$docs/app/sectors.json"' in sh
     assert r'docs/app/detail/* *.json\n' in sh
+
+
+# --- Sector Analysis (app/sectors.json) -------------------------------------
+# The report computes these in the browser from DATA; the app gets them
+# precomputed. Each assertion is a rule of renderCrossSectorDashboard or
+# renderCrossSectorProfitPool.
+
+def _sector_rows():
+    return [
+        {'ticker': 'A1', 'sector': 'Tech', 'pp_revenue_share': 0.75, 'operating_margin': 0.20,
+         'pp_sector_hhi': 0.3, 'pp_sector_cr4': 0.9, 'pp_multiple': 2.0, 'rating': 'BUY',
+         'mos': 0.4, 'p_tbv': 3.0, 'ev_ebitda': 12.0, 'roic': 0.25, 'rev_cagr_5y': 0.10,
+         'fcf_margin': 0.15, 'altman_z': 6.0, 'shareholder_yield': 0.02,
+         'revenue': 300.0, 'operating_income': 60.0},
+        {'ticker': 'A2', 'sector': 'Tech', 'pp_revenue_share': 0.25, 'operating_margin': 0.40,
+         'pp_sector_hhi': 0.3, 'pp_sector_cr4': 0.9, 'pp_multiple': 2.0, 'rating': 'HOLD',
+         'mos': 0.0, 'p_tbv': 80.0, 'ev_ebitda': -5.0, 'roic': 0.15, 'rev_cagr_5y': 0.30,
+         'fcf_margin': 0.25, 'altman_z': 4.0, 'shareholder_yield': 0.0,
+         'share_buyback_rate': 0.01, 'div_yield': 0.02,
+         'revenue': 100.0, 'operating_income': 40.0},
+        # A bank: in the heatmap, but not in FCF margin or Altman Z.
+        {'ticker': 'B1', 'sector': 'Financial Services', 'industry': 'Banks - Regional',
+         'pp_revenue_share': 1.0, 'operating_margin': 0.30, 'rating': 'LEAN BUY',
+         'fcf_margin': 0.9, 'altman_z': 0.5, 'rev_cagr': 0.05,
+         'revenue': 500.0, 'operating_income': 150.0},
+        # Its preferred: the parent's statements again, counted once.
+        {'ticker': 'B1-P', 'sector': 'Financial Services', 'industry': 'Banks - Regional',
+         'revenue': 500.0, 'operating_income': 150.0},
+        {'ticker': 'X', 'sector': 'Tech'},   # no pool share: not in the heatmap
+    ]
+
+
+def test_heatmap_matches_the_reports_rules():
+    rows = {r['sector']: r for r in _app_sector_heatmap(_sector_rows())}
+    tech = rows['Tech']
+    assert tech['n'] == 2
+    # Revenue-weighted: (0.20 * 0.75 + 0.40 * 0.25) / 1.0.
+    assert abs(tech['op_margin'] - 0.25) < 1e-12
+    assert (tech['hhi'], tech['cr4']) == (0.3, 0.9)
+    assert tech['med_mos'] == 0.2
+    # P/TBV keeps 0-50 and EV/EBITDA 0-100: A2's 80x and -5x drop out.
+    assert tech['med_p_tbv'] == 3.0 and tech['med_ev_ebitda'] == 12.0
+    # A zero shareholder yield falls back to buyback + dividend yield.
+    assert abs(tech['med_shr_yld'] - 0.025) < 1e-12
+    assert (tech['n_buy'], tech['pct_buy']) == (1, 0.5)
+    # A tie on the pool multiple goes to the later row, as reduce() does.
+    assert tech['best']['ticker'] == 'A1'
+
+    fin = rows['Financial Services']
+    # Lenders are left out of FCF margin and Altman Z.
+    assert fin['med_fcf_margin'] is None and fin['med_altman_z'] is None
+    # No five-year CAGR anywhere in the sector: the plain CAGR stands in.
+    assert fin['med_growth'] == 0.05
+    assert fin['pct_buy'] == 1.0
+
+
+def test_profit_pool_counts_each_issuer_once():
+    pool = _app_profit_pool(_sector_rows())
+    by = {a['sector']: a for a in pool}
+    assert by['Financial Services']['companies'] == 1
+    assert by['Financial Services']['revenue'] == 500.0
+    assert by['Tech']['revenue'] == 400.0 and by['Tech']['operating_income'] == 100.0
+    # Ordered by margin: Financial Services 30%, then Tech 25%.
+    assert [a['sector'] for a in pool] == ['Financial Services', 'Tech']
+    assert abs(by['Tech']['margin'] - 0.25) < 1e-12
+    # One sector is not a pool.
+    assert _app_profit_pool([r for r in _sector_rows() if r['sector'] == 'Tech']) == []
+
+
+def test_feed_writes_a_dated_sectors_file(tmp_path):
+    app = tmp_path / 'app'
+    pool = {'Tech': {'overview': 'Tech text', 'stats': {'hhi': 0.3}}}
+    _write_app_feed(str(app), _records() + _sector_rows(), _details(), _rows(), '2026-11-05',
+                    sector_pool=pool)
+    sectors = json.loads((app / 'sectors.json').read_text(encoding='utf-8'))
+    assert sectors['schema_version'] == _APP_SCHEMA_VERSION
+    assert sectors['date'] == '2026-11-05'
+    assert {r['sector'] for r in sectors['heatmap']} == {'Tech', 'Financial Services'}
+    assert len(sectors['profit_pool']) == 2
+    assert sectors['pools'] == pool
+    # Dated, not hashed: the manifest still hashes the list feed alone.
+    manifest = json.loads((app / 'manifest.json').read_text(encoding='utf-8'))
+    assert set(manifest['files']) == {'app/latest.json'}
+
+
+def test_a_sectors_failure_costs_only_the_sectors_file(tmp_path, monkeypatch):
+    def boom(*a, **k):
+        raise ValueError('bad pool')
+    monkeypatch.setattr(rh, '_build_app_sectors', boom)
+    app = tmp_path / 'app'
+    assert _write_app_feed(str(app), _records(), _details(), _rows(), '2026-11-05') == ['AAA', 'BBB']
+    assert not (app / 'sectors.json').exists()
+    assert (app / 'manifest.json').exists()
