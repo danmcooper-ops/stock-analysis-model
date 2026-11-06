@@ -2154,10 +2154,90 @@ def _build_app_sectors(chart_records, sector_pool, run_date):
     }
 
 
+# The Investing screener: every column of the report's Financial Data table
+# tabs (templates/report.html TC), which the app filters and sorts the way
+# the report's applyFilters does. Too wide for latest.json (the app downloads
+# that every night), so it is its own file, fetched when the screener opens.
+# tests/test_app_feed.py fails if this drifts from the template's columns.
+_APP_SCREENER_FIELDS = (
+    'rating', 'price', 'dcf_fv', 'mos', 'wacc', 'implied_growth',
+    'pct_from_52w_high', 'range_52w_position', 'pe', 'ev_ebitda', 'pfcf', 'pb',
+    'p_tbv', 'epv_fv', 'rim_fv', 'nav_fv', 'nav_mos', 'roic', 'roic_cv', 'spread',
+    'roe', 'dupont_margin', 'dupont_turnover', 'dupont_leverage', 'gross_margin',
+    'fcf_margin', 'fcf_margin_ex_sbc', 'cash_conv', 'accruals',
+    'rd_intensity_xbrl', 'sbc_pct_rev_xbrl', 'brand_spend_pct_rev', 'nim',
+    'efficiency_ratio', 'affo_margin', 'int_cov', 'nd_ebitda', 'altman_z',
+    'net_cash_to_mcap', 'cr', 'inventory_days', 'working_capital_days',
+    'beneish_m', 'trap_score', 'cet1_ratio', 'npl_ratio', 'reinvestment_rate',
+    'fundamental_growth', 'margin_trend', 'rev_cagr', 'rev_cagr_5y',
+    'rev_cagr_10y', 'fcf_growth', 'capex_intensity', 'capex_to_dd_ratio',
+    'ffo_growth_5y', 'deferred_rev_growth', 'backlog_to_revenue', 'er',
+    '_sens_low', '_sens_high', 'mc_p10_fv', 'mc_p90_fv', 'mc_confidence',
+    'terminal_growth', 'shares_out', 'float_shares', 'share_buyback_rate',
+    'insider_pct', 'inst_pct', 'short_ratio', 'short_pct_float', 'div_yield',
+    'payout_ratio', 'shareholder_yield', 'ddm_consecutive_years',
+    'dividend_cagr_5y', 'ddm_div_cagr', 'ddm_sustainable_growth', 'ddm_growth',
+    'ddm_fv', 'ddm_h_fv', 'ddm_mc_p10', 'ddm_mc_median', 'ddm_mc_p90', 'ddm_mc_cv',
+    'ddm_eligible', 'ddm_reason', 'momentum_12_1', 'momentum_6_1', 'momentum_3m',
+    'vol_adj_momentum', 'realized_vol', 'avg_dollar_volume_3m', 'volume_trend',
+    'amihud_illiquidity', 'share_turnover_rate', 'drawdown_2020', 'drawdown_2022',
+    'drawdown_2008', 'beta_adjusted',
+)
+# What the screener's quick filters read beyond the table columns.
+_APP_SCREENER_EXTRA = ('country', 'founder_led', 'r2000', 'rating_chg')
+_APP_SCREENER_SIG_DIGITS = 6   # the screener shows at most four
+
+
+def _app_trim(v):
+    if isinstance(v, bool) or not isinstance(v, float):
+        return v
+    return float(f'{v:.{_APP_SCREENER_SIG_DIGITS}g}') if math.isfinite(v) else None
+
+
+def _app_is_blue_chip(r):
+    """The report's _isBlueChip: $50B+ market cap, profitable, ROE of 10%+,
+    and a sound balance sheet by any one of three tests."""
+    mc, oi, roe = _app_num(r.get('mcap')), _app_num(r.get('operating_income')), _app_num(r.get('roe'))
+    if mc is None or mc < 50e9 or oi is None or oi <= 0 or roe is None or roe < 0.10:
+        return False
+    nde, ic, az = _app_num(r.get('nd_ebitda')), _app_num(r.get('int_cov')), _app_num(r.get('altman_z'))
+    return (nde is not None and nde <= 4) or (ic is not None and ic >= 6) or (az is not None and az >= 3)
+
+
+def _build_app_screener(chart_records, run_date):
+    """``app/screener.json``: the table columns for every ticker, packed
+    column-wise (pack_rows), in the list feed's ticker order."""
+    recs = sorted((r for r in chart_records or () if r.get('ticker')), key=lambda r: str(r['ticker']))
+    rows, gate_null = [], {}
+    for i, r in enumerate(recs):
+        row = {}
+        for k in _APP_SCREENER_FIELDS + _APP_SCREENER_EXTRA:
+            v = _sanitize(r.get(k), (r.get('ticker'), k))
+            if v is not None:
+                row[k] = _app_trim(v)
+            # A column whose scoring gate is null is filtered out even when
+            # its raw value is present (applyFilters' _gate_ check), so a
+            # column filter agrees with the Gate Matrix.
+            g = '_gate_' + k
+            if g in r and _app_num(r.get(g)) is None:
+                gate_null.setdefault(k, []).append(i)
+        if _app_is_blue_chip(r):
+            row['blue_chip'] = True
+        rows.append(row)
+    return {
+        'schema_version': _APP_SCHEMA_VERSION,
+        'date': run_date,
+        'tickers': [r['ticker'] for r in recs],
+        'rows': pack_rows(rows),
+        'gate_null': gate_null,
+    }
+
+
 def _write_app_feed(app_dir, chart_records, details_payload, rows, run_date,
                     sector_pool=None):
     """Write ``app/latest.json``, ``app/detail/<TICKER>.json``,
-    ``app/sectors.json`` and ``app/manifest.json``; return the tickers written.
+    ``app/sectors.json``, ``app/screener.json`` and ``app/manifest.json``;
+    return the tickers written.
 
     The manifest goes last, so the app can tell a complete night from a
     half-written one: with no manifest, the app keeps the night it already
@@ -2225,6 +2305,12 @@ def _write_app_feed(app_dir, chart_records, details_payload, rows, run_date,
                             _build_app_sectors(chart_records, sector_pool, _date))
         except Exception as _se:
             print(f"[warn] app/sectors.json write failed: {_se}")
+        # The screener: best-effort the same way.
+        try:
+            _write_app_json(os.path.join(app_dir, 'screener.json'),
+                            _build_app_screener(chart_records, _date))
+        except Exception as _ce:
+            print(f"[warn] app/screener.json write failed: {_ce}")
 
         with open(_manifest_path, 'w', encoding='utf-8') as _mf:
             json.dump({

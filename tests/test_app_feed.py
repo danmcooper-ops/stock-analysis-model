@@ -8,8 +8,12 @@ import os
 
 import scripts.publish_vol_shards as pvs
 import scripts.report_html as rh
-from scripts.report_html import (_APP_LIST_FIELDS, _APP_SCHEMA_VERSION, _app_profit_pool,
-                                 _app_sector_heatmap, _build_app_list, _write_app_feed)
+import re
+
+from scripts.report_html import (_APP_LIST_FIELDS, _APP_SCHEMA_VERSION, _APP_SCREENER_FIELDS,
+                                 _app_is_blue_chip, _app_profit_pool, _app_sector_heatmap,
+                                 _build_app_list, _build_app_screener, _write_app_feed,
+                                 unpack_rows)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RUN_SH = os.path.join(REPO, 'scripts', 'run_daily.sh')
@@ -196,10 +200,12 @@ def test_run_daily_publishes_the_app_feed_and_the_change_files():
     # today's report.
     assert 'rm -rf "$docs/app"' in sh
     assert 'for f in rating_history.json portfolio_alerts.json; do' in sh
-    # Sector Analysis rides with the list feed, and a night without it drops
-    # last night's copy rather than serving it beside today's list.
-    assert 'cp output/app/sectors.json "$docs/app/sectors.json"' in sh
-    assert 'rm -f "$docs/app/sectors.json"' in sh
+    # Sector Analysis and the screener ride with the list feed, and a night
+    # without one drops last night's copy rather than serving it beside
+    # today's list.
+    assert 'for f in sectors.json screener.json; do' in sh
+    assert 'cp "output/app/$f" "$docs/app/$f"' in sh
+    assert 'rm -f "$docs/app/$f"' in sh
     assert r'docs/app/detail/* *.json\n' in sh
 
 
@@ -294,3 +300,56 @@ def test_a_sectors_failure_costs_only_the_sectors_file(tmp_path, monkeypatch):
     assert _write_app_feed(str(app), _records(), _details(), _rows(), '2026-11-05') == ['AAA', 'BBB']
     assert not (app / 'sectors.json').exists()
     assert (app / 'manifest.json').exists()
+
+
+# --- the screener (app/screener.json) ---------------------------------------
+
+def _template_table_columns():
+    """Every column key of the report's Financial Data tabs (TC, plus the
+    separately assigned TC.mkt), as the app's screener spec is generated."""
+    src = open(os.path.join(REPO, 'templates', 'report.html'), encoding='utf-8').read()
+    start = src.index('var TC={')
+    block = src[start:src.index('\n};', start)]
+    mkt = src.index('TC.mkt=')
+    block += src[mkt:src.index('\n', mkt)]
+    return {k for k in re.findall(r"\{k:'([A-Za-z0-9_]+)'", block)} - {'ticker'}
+
+
+def test_screener_fields_track_the_reports_table():
+    # The app builds its screener columns from the template; a column added
+    # there must be published here, or it would show N/A for every company.
+    assert set(_APP_SCREENER_FIELDS) == _template_table_columns()
+
+
+def test_screener_packs_rows_in_ticker_order(tmp_path):
+    recs = [
+        {'ticker': 'ZZZ', 'rating': 'HOLD', 'pe': 12.3456789, 'country': 'US', 'r2000': True},
+        {'ticker': 'AAA', 'rating': 'BUY', 'pe': float('nan'), 'mos': 0.25, '_gate_mos': None,
+         'founder_led': True, 'rating_chg': 1},
+    ]
+    out = _build_app_screener(recs, '2026-11-05')
+    assert out['date'] == '2026-11-05' and out['tickers'] == ['AAA', 'ZZZ']
+    rows = unpack_rows(out['rows'])
+    # Six significant digits; a NaN is absent rather than null.
+    assert rows[1]['pe'] == 12.3457 and 'pe' not in rows[0]
+    assert rows[0]['founder_led'] is True and rows[0]['rating_chg'] == 1
+    assert rows[1]['country'] == 'US' and rows[1]['r2000'] is True
+    # AAA's MoS gate is null: the value ships, and the gate is listed.
+    assert rows[0]['mos'] == 0.25 and out['gate_null'] == {'mos': [0]}
+
+
+def test_blue_chip_is_the_reports_rule():
+    base = {'mcap': 60e9, 'operating_income': 1e9, 'roe': 0.15}
+    assert _app_is_blue_chip({**base, 'nd_ebitda': 3.0})
+    assert _app_is_blue_chip({**base, 'altman_z': 3.5})
+    assert not _app_is_blue_chip({**base, 'nd_ebitda': 5.0, 'int_cov': 2.0})
+    assert not _app_is_blue_chip({**base, 'mcap': 40e9, 'nd_ebitda': 1.0})
+    assert not _app_is_blue_chip({**base, 'roe': 0.05, 'nd_ebitda': 1.0})
+
+
+def test_feed_writes_a_dated_screener(tmp_path):
+    app = tmp_path / 'app'
+    _write_app_feed(str(app), _records(), _details(), _rows(), '2026-11-05')
+    screener = json.loads((app / 'screener.json').read_text(encoding='utf-8'))
+    assert screener['date'] == '2026-11-05' and screener['tickers'] == ['AAA', 'BBB']
+    assert len(unpack_rows(screener['rows'])) == 2
