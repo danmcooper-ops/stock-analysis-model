@@ -323,7 +323,8 @@ def test_screener_fields_track_the_reports_table():
 
 def test_screener_packs_rows_in_ticker_order(tmp_path):
     recs = [
-        {'ticker': 'ZZZ', 'rating': 'HOLD', 'pe': 12.3456789, 'country': 'US', 'r2000': True},
+        {'ticker': 'ZZZ', 'rating': 'HOLD', 'pe': 12.3456789, 'country': 'US', 'r2000': True,
+         'mcap': 5.5e9, 'net_debt': -1e8},
         {'ticker': 'AAA', 'rating': 'BUY', 'pe': float('nan'), 'mos': 0.25, '_gate_mos': None,
          'founder_led': True, 'rating_chg': 1},
     ]
@@ -334,6 +335,8 @@ def test_screener_packs_rows_in_ticker_order(tmp_path):
     assert rows[1]['pe'] == 12.3457 and 'pe' not in rows[0]
     assert rows[0]['founder_led'] is True and rows[0]['rating_chg'] == 1
     assert rows[1]['country'] == 'US' and rows[1]['r2000'] is True
+    # The Filters panel's Debt filters, which are not table columns.
+    assert rows[1]['mcap'] == 5.5e9 and rows[1]['net_debt'] == -1e8
     # AAA's MoS gate is null: the value ships, and the gate is listed.
     assert rows[0]['mos'] == 0.25 and out['gate_null'] == {'mos': [0]}
 

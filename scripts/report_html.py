@@ -2183,8 +2183,11 @@ _APP_SCREENER_FIELDS = (
     'amihud_illiquidity', 'share_turnover_rate', 'drawdown_2020', 'drawdown_2022',
     'drawdown_2008', 'beta_adjusted',
 )
-# What the screener's quick filters read beyond the table columns.
-_APP_SCREENER_EXTRA = ('country', 'founder_led', 'r2000', 'rating_chg')
+# Beyond the table columns: what the quick filters read, and the Filters
+# panel's "Debt" column filters (_CF_NUM). Its "Scores" filters ride the
+# list feed already.
+_APP_SCREENER_EXTRA = ('country', 'founder_led', 'r2000', 'rating_chg',
+                       'mcap', 'total_debt', 'net_debt', 'de', 'debt_maturity_wall_yrs')
 _APP_SCREENER_SIG_DIGITS = 6   # the screener shows at most four
 
 
