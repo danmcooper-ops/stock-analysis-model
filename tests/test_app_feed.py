@@ -11,6 +11,7 @@ import scripts.report_html as rh
 import re
 
 from scripts.report_html import (_APP_LIST_FIELDS, _APP_SCHEMA_VERSION, _APP_SCREENER_FIELDS,
+                                 _app_pool_companies,
                                  _build_app_portfolios,
                                  _app_is_blue_chip, _app_profit_pool, _app_sector_heatmap,
                                  _build_app_list, _build_app_screener, _write_app_feed,
@@ -287,7 +288,9 @@ def test_feed_writes_a_dated_sectors_file(tmp_path):
     assert sectors['date'] == '2026-11-05'
     assert {r['sector'] for r in sectors['heatmap']} == {'Tech', 'Financial Services'}
     assert len(sectors['profit_pool']) == 2
-    assert sectors['pools'] == pool
+    # Each pool as built, plus its largest companies.
+    assert sectors['pools']['Tech']['overview'] == 'Tech text'
+    assert [c['ticker'] for c in sectors['pools']['Tech']['companies']['shown']] == ['A1', 'A2']
     # Dated, not hashed: the manifest still hashes the list feed alone.
     manifest = json.loads((app / 'manifest.json').read_text(encoding='utf-8'))
     assert set(manifest['files']) == {'app/latest.json'}
@@ -407,3 +410,24 @@ def test_feed_writes_portfolios_when_given(tmp_path):
     pfs = json.loads((app / 'portfolios.json').read_text(encoding='utf-8'))
     assert [p['id'] for p in pfs['portfolios']] == ['semis', 'paper']
     assert pfs['portfolios'][0]['members'] == ['AAA']
+
+
+def test_pool_companies_are_the_top_25_and_the_rest_pooled():
+    rows = [{'ticker': f'T{i:02d}', 'pp_revenue_share': (30 - i) / 1000, 'pp_profit_share': 0.01,
+             'operating_margin': 0.10 if i < 28 else 0.40, 'rating': 'HOLD', 'mcap': 1e9,
+             '_gate_pool_share': 0.02} for i in range(30)]
+    out = _app_pool_companies(rows)
+    assert out['n'] == 30 and len(out['shown']) == 25
+    # Largest by revenue share first; the rest pooled.
+    assert out['shown'][0]['ticker'] == 'T00' and out['others']['n'] == 5
+    t = out['shown'][0]
+    assert (t['revenue_share'], t['pool_share'], t['margin'], t['pool_share_trend']) == (0.03, 0.01, 0.10, 0.02)
+    # Others' margin is revenue-weighted, as the report pools it: T25-T27 at
+    # 10% on 5, 4, 3 and T28-T29 at 40% on 2, 1 (thousandths).
+    assert abs(out['others']['margin'] - (0.10 * 12 + 0.40 * 3) / 15) < 1e-12
+    assert out['mcap_total'] == 30e9 and out['others']['mcap'] == 5e9
+
+
+def test_a_small_sector_has_no_others():
+    out = _app_pool_companies([{'ticker': 'A', 'pp_revenue_share': 1.0}])
+    assert len(out['shown']) == 1 and 'others' not in out
