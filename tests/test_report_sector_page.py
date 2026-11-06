@@ -352,15 +352,17 @@ def test_trading_tab_draws_figures_and_judges_by_ratio():
     assert 'partial alignment between business size' not in liq
 
 
-def test_the_count_lives_only_in_the_filters_panel():
-    """The top bar and the view title carry no count; the Filters panel's
-    title does, for whichever rows the tab holds (stocks, ETFs, bonds,
-    currencies)."""
+def test_the_count_is_centred_not_in_the_filters_panel():
+    """The view's count is centred in the top bar (#f-count) and, below
+    1024px, in the view title's row (#sn-count), for whichever rows the tab
+    holds (stocks, ETFs, bonds, currencies); the Filters panel carries none."""
     css = _tpl()
-    for gone in ('id="f-count"', 'id="sn-count"', 'id="bv-n"', 'id="cx-n"', 'id="etf-n"'):
+    for gone in ('id="filt-count"', 'id="bv-n"', 'id="cx-n"', 'id="etf-n"'):
         assert gone not in css, gone
-    assert 'id="filt-count"' in css
+    assert '<div class="hdr-center"><span class="filter-count" id="f-count"></span></div>' in css
+    assert 'id="sn-count"' in css
     fn = re.search(r'^function _filtCountSync\(\)\{.*?^\}', css, re.S | re.M).group(0)
+    assert "['f-count','sn-count']" in fn
     for word in ("' stock'", "'bonds'", "'currencies'", "'ETFs'"):
         assert word in fn, word
     for k in ('_altN.bond=', '_altN.ccy=', '_altN.etf='):
