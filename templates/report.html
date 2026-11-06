@@ -1516,6 +1516,54 @@ html.bvp-open{overflow:hidden;}
 [data-theme="dark"] #cx{--cx-na:#2b3138;--cx-cell:#161b22;--cx-edge:#21262d;--cx-hov:#1f3a5c;}
 /* Investing's ETFs/Bonds/Currencies panes (_fmApply sets hidden). */
 .fm-tabbed>[hidden]{display:none !important;}
+/* Investing's ETFs/Bonds/Currencies Dashboards (_fdCards, _fdBoxes,
+   _fdHist, _fdRates, _fdList): the Stocks Dashboard's cards, rating boxes,
+   histogram and pass-rate bars as classes, each tinted by --fd-c. */
+.fd-cards,.fd-boxes{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+.fd-boxes{gap:8px;}
+.fd-card{flex:1;min-width:130px;background:#fff;border-radius:10px;border-top:4px solid var(--fd-c);padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,0.07);}
+.fd-box{flex:1;min-width:64px;background:#fff;border-radius:8px;padding:11px 14px;border-left:4px solid var(--fd-c);box-shadow:0 1px 4px rgba(0,0,0,0.07);}
+.fd-card[onclick],.fd-box[onclick],.fd-bc[onclick],.fd-li[onclick],.bv-dist span[onclick]{cursor:pointer;}
+.fd-card.on,.fd-box.on{box-shadow:0 0 0 2px var(--fd-c),0 2px 8px rgba(0,0,0,0.07);}
+.fd-k{font-size:0.72em;font-weight:700;color:var(--fd-c);text-transform:uppercase;letter-spacing:0.06em;}
+.fd-v{font-size:1.9em;font-weight:700;color:#1a252f;margin:6px 0 2px;}
+.fd-s{font-size:0.7em;color:#999;margin-bottom:9px;}
+.fd-track{height:7px;background:#e8e8e8;border-radius:4px;overflow:hidden;}
+.fd-track i,.fd-gt i{display:block;height:100%;background:var(--fd-c);border-radius:4px;}
+.fd-box b{display:block;font-size:1.45em;color:var(--fd-c);}
+.fd-box span{display:block;font-size:0.78em;font-weight:600;color:var(--fd-c);}
+.fd-box em{display:block;font-style:normal;font-size:0.7em;color:#aaa;}
+.fd-hist,.fd-brk{display:flex;align-items:flex-end;gap:3px;height:70px;}
+.fd-brk{gap:6px;height:auto;min-height:96px;}
+.fd-hc,.fd-bc{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0;}
+.fd-bc span{font-size:0.62em;color:#888;text-align:center;margin-top:3px;}
+.fd-bb{width:100%;min-height:2px;border-radius:3px 3px 0 0;}
+.fd-hn{font-size:0.68em;font-weight:600;color:#555;min-height:14px;line-height:14px;}
+.fd-hb{width:100%;display:flex;flex-direction:column-reverse;border-radius:3px 3px 0 0;overflow:hidden;}
+.fd-hb i{display:block;width:100%;flex-shrink:0;}
+.fd-ax{display:flex;gap:3px;margin-top:2px;border-top:1px solid #f0f0f0;padding-top:3px;}
+.fd-ax span{flex:1;font-size:0.6em;color:#bbb;text-align:center;}
+.fd-lg{display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-top:5px;font-size:0.63em;color:#888;}
+.fd-lg i{display:inline-block;width:8px;height:8px;border-radius:2px;margin:0 3px 0 6px;}
+.fd-cat{font-size:0.7em;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--fd-c);margin:10px 0 5px 2px;}
+.fd-gr{display:flex;align-items:center;gap:7px;margin-bottom:5px;}
+.fd-gr::before{content:'';width:3px;height:14px;border-radius:2px;background:var(--fd-c);flex-shrink:0;}
+.fd-gl{font-size:0.76em;font-weight:600;color:#333;width:120px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.fd-gt{flex:1;height:9px;background:#f0f0f0;border-radius:5px;overflow:hidden;}
+.fd-gp{font-size:0.73em;color:#666;width:34px;text-align:right;flex-shrink:0;}
+.fd-li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--ppf-line);font-size:0.84em;}
+.fd-li:first-of-type{border-top:0;}
+.fd-li>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.fd-li em{font-style:normal;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.fd-li[onclick]:hover{background:var(--cx-hov,#eaf4fd);}
+[data-theme="dark"] .fd-card,[data-theme="dark"] .fd-box{background:#1c2128;box-shadow:0 2px 8px rgba(0,0,0,0.3);}
+[data-theme="dark"] .fd-card.on,[data-theme="dark"] .fd-box.on{box-shadow:0 0 0 2px var(--fd-c),0 2px 8px rgba(0,0,0,0.3);}
+[data-theme="dark"] .fd-track,[data-theme="dark"] .fd-gt{background:#21262d;}
+[data-theme="dark"] .fd-ax{border-top-color:#30363d;}
+[data-theme="dark"] .fd-li[onclick]:hover{background:#1f3a5c;}
+/* Muted captions: beats the blanket dark `body *{color:#fff !important}`. */
+[data-theme="dark"] .fd-s,[data-theme="dark"] .fd-box em,[data-theme="dark"] .fd-ax span,
+[data-theme="dark"] .fd-lg,[data-theme="dark"] .fd-bc span,[data-theme="dark"] .fd-gp{color:#8b949e !important;}
 .fm-tbl{background:var(--ppf-bg);}
 #cx .cx-wrap{overflow:auto;max-height:74vh;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.07);-webkit-overflow-scrolling:touch;margin-bottom:4px;}
 #cx .cx-tbl{border-collapse:separate;border-spacing:0;min-width:100%;background:var(--cx-cell);font-size:0.78em;white-space:nowrap;}
@@ -4104,7 +4152,7 @@ function _drillSub(){
 function _drillPush(label){
   if(_drillRestoring)return;
   var e={label:label,view:curView,sub:_drillSub(),ppTab:_ppSubTabCur(),
-         fm:curView==='matrix'&&_FM_SUB[curMSub]!=null?_FM_SUB[curMSub]:null,
+         fm:curView==='matrix'&&_FM_SUB[curMSub]!=null?_FM_SUB[curMSub]:null,alt:_altFState(),
          scrollY:window.scrollY||0,before:_getCurrentFilterState(),after:null,pushed:false};
   _drillStack.push(e);
   if(_drillStack.length>_DRILL_MAX)_drillStack.shift();
@@ -4118,7 +4166,22 @@ function _drillPush(label){
    launcher ends in _dashJump or drillPoolTab, which seal it). */
 function _drillSeal(){
   var e=_drillStack[_drillStack.length-1];
-  if(e&&!e.after)e.after=_getCurrentFilterState();
+  if(e&&!e.after){e.after=_getCurrentFilterState();e.altAfter=_altFState();}
+}
+/* The ETFs, Bonds and Currencies filters (their Filters-panel menus), which
+   their dashboards' cards and boxes set. Undone as the stock filters are:
+   where the drill changed one and it still holds what the drill set. */
+function _altFState(){
+  var J=JSON.stringify;
+  return {etf:typeof _etfF!=='undefined'?J(_etfF):null,bond:typeof _bvF!=='undefined'?J(_bvF):null,ccy:typeof _cxF!=='undefined'?J(_cxF):null};
+}
+function _drillUndoAlt(e){
+  var b=e.alt,a=e.altAfter;if(!b||!a)return;
+  var cur=_altFState(),ch=0;
+  if(b.etf!==a.etf&&cur.etf===a.etf){_etfF=JSON.parse(b.etf);ch=1;}
+  if(b.bond!==a.bond&&cur.bond===a.bond){_bvF=JSON.parse(b.bond);ch=1;}
+  if(b.ccy!==a.ccy&&cur.ccy===a.ccy){_cxF=JSON.parse(b.ccy);ch=1;}
+  if(ch&&typeof _altFiltSync==='function')_altFiltSync();
 }
 /* Undo what entry e's drill changed in the filters, field by field (column
    filters key by key), where the field still holds what the drill set. */
@@ -4148,7 +4211,7 @@ function _drillUndoState(e,cur){
 }
 function _drillUndoFilters(entries){
   var cur=_getCurrentFilterState(),st=cur;
-  entries.forEach(function(e){st=_drillUndoState(e,st);});
+  entries.forEach(function(e){st=_drillUndoState(e,st);_drillUndoAlt(e);});
   if(JSON.stringify(st)!==JSON.stringify(cur))_applyFilterState(st);
 }
 function _drillClear(){
@@ -7109,7 +7172,7 @@ function bkv(pairs){return pairs.map(function(p){
 }).join('');}
 var TT={
 ticker:'The symbol stands for a business, not a lottery ticket. The rule: invest only in what you understand well enough to own for a decade.',
-rating:'The composite score’s bucket: BUY at 57 or more, LEAN BUY 39–56, HOLD 25–38, PASS below 25. The score comes from 26 gates across Moat, Valuation, Quality, Growth and Ownership; fair value counts through the margin-of-safety gate. Flags are warnings and don’t change the rating. A starting point for your own work, not a substitute for it.',
+rating:'The composite score’s bucket: BUY at 57 or more, LEAN BUY 39–56, HOLD 25–38, PASS below 25. The score comes from 26 gates across Moat, Valuation, Quality, Growth and Ownership; fair value counts through the margin-of-safety gate. Flags, like a negative margin of safety, are warnings and don’t change the rating. A starting point for research, not a substitute.',
 rating_prev:'The stock’s rating in the most recent earlier run that rated it — same colour pill as today’s, so upgrades and downgrades read side by side. Falls back through a fortnight of snapshots; N/A means it was in none of them.',
 _composite_score:'Score = 0.30·Moat + 0.20·Valuation + 0.20·Quality + 0.20·Growth + 0.10·Ownership — five pillars, each scored 0–100 and weighted by how much it matters to long-run returns. Ratings: ≥57 BUY; 39–56 LEAN BUY; 25–38 HOLD; below 25 PASS. The thresholds were set to match a target rating mix and have not yet been tested against returns.',
 _gates_passed:'Gates passed, out of those that apply. Gates that cannot describe the business — free-cash-flow tests for a bank, say — are excluded from the denominator, not failed. Diagnostic only: the composite score, not this count, drives the rating; but every failure deserves an explanation.',
@@ -8313,9 +8376,10 @@ function swMSub(key){
   _syncHash();
   setTimeout(_setTableH,0);
 }
-/* Investing's five sub-tabs: Dashboard, Stocks (the gate
-   matrix table), ETFs (the SPDRs read through the model), Bonds (bonds/'s report) and Currencies (currencies/'s screener).
-   One view shows at a time. */
+/* Investing's views: the Stocks Dashboard and Stocks (the gate matrix
+   table; both are tabs of Stocks' own row), ETFs (the SPDRs read through
+   the model), Bonds (bonds/'s report) and Currencies (currencies/'s
+   screener). One view shows at a time. */
 function _mIsMatrix(){return (curMSub||'matrix')==='matrix';}
 function _mShow(){
   var mw=document.querySelector('.matrix-wrap'),ov=document.getElementById('m-overview-view'),ev=document.getElementById('m-etf-view'),bv=document.getElementById('m-bond-view'),cv=document.getElementById('m-ccy-view');
@@ -13768,15 +13832,15 @@ function _navSectors(){
    (#view-matrix), in a second tab row (#sn-sub2). _navView names the menu
    entry the page is on. */
 function _navView(){if(curView==='table')return curTSub==='prices'?'charts':'matrix';return curView;}
-var _stkLast='matrix';
-function _stkTabs(){return [{k:'matrix',l:'Model'}].concat(Object.keys(TL).filter(function(k){return k!=='prices';}).map(function(k){return{k:k,l:TL[k]};}));}
-function _stkCur(){return curView==='table'&&curTSub!=='prices'?curTSub:'matrix';}
-/* Investing › Stocks' second row: the Gate Matrix or one data table. */
+var _stkLast='dashboard';
+function _stkTabs(){return [{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Model'}].concat(Object.keys(TL).filter(function(k){return k!=='prices';}).map(function(k){return{k:k,l:TL[k]};}));}
+function _stkCur(){return curView==='table'&&curTSub!=='prices'?curTSub:curMSub==='dashboard'?'dashboard':'matrix';}
+/* Investing › Stocks' second row: the Dashboard, the Gate Matrix or one data table. */
 function stkGo(k){
   _hideFloatTips();
   _drillLeave();
   _stkLast=k;
-  if(k==='matrix'){curMSub='matrix';if(curView!=='matrix')showView('matrix');else swMSub('matrix');}
+  if(k==='matrix'||k==='dashboard'){curMSub=k;if(curView!=='matrix')showView('matrix');else swMSub(k);}
   else{curTSub=k;if(curView!=='table')showView('table');else swTSub(k);}
   var bar=document.getElementById('sn-sub2'),on=bar&&bar.querySelector('.d-stmt-tab.cur');
   if(on)on.scrollIntoView({block:'nearest',inline:'nearest'});
@@ -13789,8 +13853,10 @@ function _navGroups(){
   _navSectors().forEach(function(s){pool.push({k:s,l:s});});
   var groups=[
     {v:'pool',l:'Sector Analysis',cur:_poolTab||'__performance__',items:pool},
-    {v:'matrix',l:'Investing',cur:curView==='table'&&curTSub!=='prices'?'matrix':(curMSub||'matrix'),
-     items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Stocks'},{k:'etf',l:'ETFs'},{k:'bond',l:'Bonds'},{k:'ccy',l:'Currencies'}]},
+    /* The Stocks Dashboard is the first tab of Stocks' own row (_stkTabs),
+       as ETFs, Bonds and Currencies each open on theirs (_fmBar). */
+    {v:'matrix',l:'Investing',cur:curView==='table'&&curTSub!=='prices'||curMSub==='dashboard'?'matrix':(curMSub||'matrix'),
+     items:[{k:'matrix',l:'Stocks'},{k:'etf',l:'ETFs'},{k:'bond',l:'Bonds'},{k:'ccy',l:'Currencies'}]},
     {v:'charts',l:'Charts',cur:'price',items:[{k:'price',l:'Stock Comparison'}]},
     {v:'pf',l:'Portfolios',cur:curPfSub,
      items:[{k:'overview',l:'Overview'}].concat(_pfDefs().map(function(p){return{k:p.id,l:p.name};}))}
@@ -14009,6 +14075,7 @@ function navGo(v,k){
      sub-tab: it opens the section on its FIRST sub-tab — Macro Overview,
      Sector Charts, the Investing Dashboard, Charts,
      the Portfolios overview — rather than wherever it was last left. */
+  var top=k==null;
   if(k==null){
     var g=_navGroups().filter(function(x){return x.v===v;})[0];
     if(g&&g.items.length)k=g.items[0].k;
@@ -14021,9 +14088,10 @@ function navGo(v,k){
     curTSub='prices';
     if(curView!=='table')showView('table');
     else swTSub('prices');
-  }else if(v==='matrix'&&k==='matrix'){
-    /* Stocks reopens on whichever of its tabs was last open. */
-    stkGo(_stkLast);
+  }else if(v==='matrix'&&(k==='matrix'||k==='dashboard')){
+    /* Stocks reopens on whichever of its tabs was last open; the Investing
+       entry itself opens on its Dashboard. */
+    stkGo(top?'dashboard':k==='dashboard'?k:_stkLast);
   }else if(v==='matrix'){
     if(k!=null)curMSub=k;
     if(curView!=='matrix')showView('matrix');
@@ -16087,15 +16155,16 @@ function _ppEpRows(list,cls,maxV){
       +'</div>';
   }).join('');
 }
-/* Investing's ETFs, Bonds and Currencies open on their table; every
-   chart, tile and note sits in a sub-tab beside it, in the sector page's
-   sub-tab row (d-stmt-tabs + .pp-subtabs). Each view's panes are rendered
-   together and shown one at a time (_fmApply), so a switch redraws nothing
-   but a chart that needs its width. The choice is kept per view and visit
-   (localStorage stock_fm_subtab_v1). */
+/* Investing's ETFs, Bonds and Currencies open on their Dashboard, as Stocks
+   does; the table, charts and notes sit in sub-tabs beside it, in the sector
+   page's sub-tab row (d-stmt-tabs + .pp-subtabs). Each view's panes are
+   rendered together and shown one at a time (_fmApply), so a switch redraws
+   nothing but a chart that needs its width. The choice is kept per view and
+   visit (localStorage stock_fm_subtab_v2; v1 remembered 'table' from before
+   the dashboards). */
 var _FM_SUB=(function(){
-  var d={etf:'table',bond:'table',ccy:'table'};
-  try{var v=JSON.parse(localStorage.getItem('stock_fm_subtab_v1')||'{}');Object.keys(d).forEach(function(k){if(typeof v[k]==='string')d[k]=v[k];});}catch(e){}
+  var d={etf:'dash',bond:'dash',ccy:'dash'};
+  try{var v=JSON.parse(localStorage.getItem('stock_fm_subtab_v2')||'{}');Object.keys(d).forEach(function(k){if(typeof v[k]==='string')d[k]=v[k];});}catch(e){}
   return d;
 })();
 function _fmBar(view,tabs,label){
@@ -16128,7 +16197,7 @@ function _fmApply(root,k){
 }
 function _fmKeep(view,k){
   _FM_SUB[view]=k;
-  try{localStorage.setItem('stock_fm_subtab_v1',JSON.stringify(_FM_SUB));}catch(e){}
+  try{localStorage.setItem('stock_fm_subtab_v2',JSON.stringify(_FM_SUB));}catch(e){}
 }
 function _fmSubTab(view,k){
   _hideFloatTips();
@@ -16139,6 +16208,82 @@ function _fmSubTab(view,k){
   if(view==='etf'&&k==='detail')_etfcDrawAll(root);
   var bar=root&&root.querySelector('.fm-subtabs');
   if(bar&&bar.getBoundingClientRect().top<0)bar.scrollIntoView({block:'start'});
+}
+/* === INVESTING DASHBOARDS (ETFs, Bonds, Currencies) ===
+   Each view's first sub-tab, in the Stocks Dashboard's shape: summary tiles,
+   one card per scoring category, rating boxes, the score distribution and
+   the names at either end. A card, box or bar opens the view's table
+   filtered to it, as the Stocks Dashboard opens Stocks: a drill, so ‹ Back
+   returns and the filter it set is undone (_drillUndoAlt). Display only. */
+var _FD_RC={'BUY':'#276221','LEAN BUY':'#5d8a26','HOLD':'#b07d00','PASS':'#9c1d1d'};
+var _FD_PAL=['#2F5496','#548235','#C55A11','#7030A0','#BF8F00','#1F7A8C','#9C1D1D','#5B6770'];
+/* A JS call for an onclick attribute; the caller wraps it in _attr. */
+function _fdCall(fn){return fn+'('+[].slice.call(arguments,1).map(function(a){return JSON.stringify(a);}).join(',')+')';}
+function _fdClick(c){return c?' role="button" tabindex="0" onclick="'+_attr(c)+'" onkeydown="if(event.key===\'Enter\')this.click()"':'';}
+/* {name, color, val (html), sub, pct (0-100 track), click, title, on} */
+function _fdCards(items){
+  return '<div class="fd-cards">'+items.map(function(c){
+    return '<div class="fd-card'+(c.on?' on':'')+'" style="--fd-c:'+c.color+'" title="'+_attr(c.title||'')+'"'+_fdClick(c.click)+'>'
+      +'<div class="fd-k">'+_esc(c.name)+'</div><div class="fd-v">'+c.val+'</div><div class="fd-s">'+_esc(c.sub||'')+'</div>'
+      +(c.pct!=null?'<div class="fd-track"><i style="width:'+Math.max(0,Math.min(100,c.pct)).toFixed(0)+'%"></i></div>':'')
+      +'</div>';
+  }).join('')+'</div>';
+}
+/* {label, n, total, color, click, title, on} */
+function _fdBoxes(items){
+  return '<div class="fd-boxes">'+items.map(function(b){
+    var pct=b.total?Math.round(b.n/b.total*100):0;
+    return '<div class="fd-box'+(b.on?' on':'')+'" style="--fd-c:'+b.color+'" title="'+_attr(b.title||'')+'"'+_fdClick(b.click)+'>'
+      +'<b>'+b.n.toLocaleString()+'</b><span>'+_esc(b.label)+(b.on?' ✓':'')+'</span><em>'+pct+'% of '+b.total.toLocaleString()+'</em></div>';
+  }).join('')+'</div>';
+}
+/* Composite scores in 10-point brackets, stacked by rating (order: the
+   ratings bottom-up, colors: rating -> colour). */
+function _fdHist(vals,order,colors,unit){
+  var B=Array.from({length:10},function(){return{n:0,by:{}};});
+  vals.forEach(function(v){
+    if(typeof v[0]!=='number'||!isFinite(v[0]))return;
+    var b=B[Math.max(0,Math.min(9,Math.floor(v[0]/10)))];b.n++;b.by[v[1]]=(b.by[v[1]]||0)+1;
+  });
+  var top=Math.max.apply(null,B.map(function(b){return b.n;}))||1;
+  var h='<div class="fd-hist">'+B.map(function(b,i){
+    var H=Math.round(b.n/top*56),tip=(i*10)+'–'+((i+1)*10)+': '+b.n.toLocaleString()+' '+unit;
+    var seg='';
+    order.forEach(function(r){var n=b.by[r]||0;if(!n)return;tip+=' | '+r+': '+n.toLocaleString();
+      seg+='<i style="height:'+Math.max(1,Math.round(n/b.n*H))+'px;background:'+colors[r]+'"></i>';});
+    return '<div class="fd-hc" title="'+_attr(tip)+'"><div class="fd-hn">'+(b.n?b.n.toLocaleString():'')+'</div><div class="fd-hb" style="height:'+H+'px">'+seg+'</div></div>';
+  }).join('')+'</div>';
+  h+='<div class="fd-ax">'+B.map(function(b,i){return '<span>'+(i*10)+'</span>';}).join('')+'</div>';
+  h+='<div class="fd-lg"><span>Composite score →</span><span>'+order.map(function(r){return '<i style="background:'+colors[r]+'"></i>'+_esc(r);}).join(' ')+'</span></div>';
+  return h;
+}
+/* Pass-rate bars, grouped: [{name, color, rows:[{label, pct, title}]}]. */
+function _fdRates(groups){
+  return groups.map(function(g){
+    if(!g.rows.length)return '';
+    return '<div class="fd-cat" style="--fd-c:'+g.color+'">'+_esc(g.name)+'</div>'+g.rows.map(function(r){
+      return '<div class="fd-gr" style="--fd-c:'+g.color+'" title="'+_attr(r.title||'')+'"><span class="fd-gl">'+_esc(r.label)+'</span>'
+        +'<span class="fd-gt"><i style="width:'+r.pct.toFixed(0)+'%"></i></span><span class="fd-gp">'+r.pct.toFixed(0)+'%</span></div>';
+    }).join('');
+  }).join('');
+}
+/* A short ranked list: [{label, sub, val (html), click}]. */
+function _fdList(title,items){
+  return '<div class="bv-card"><h4>'+_esc(title)+'</h4>'+(items.length?items.map(function(it){
+    return '<div class="fd-li"'+_fdClick(it.click)+'><span><b>'+_esc(it.label)+'</b> <span class="etf-name">'+_esc(it.sub||'')+'</span></span><em>'+it.val+'</em></div>';
+  }).join(''):'<p class="bv-note">None.</p>')+'</div>';
+}
+/* A dashboard jump: push the drill from the Dashboard tab, set the view's
+   filter (set()), open the table and seal, so Back undoes just that. */
+function _fdJump(view,set,tab){
+  _hideFloatTips();
+  _fmDrill(view);
+  set();
+  _fmSubTab(view,tab||'table');
+  if(view==='etf')renderEtfView();else if(view==='bond')renderBondView();else _cxDraw();
+  _altFiltSync();
+  _drillSeal();
+  window.scrollTo(0,0);
 }
 /* === SECTOR ETFs ===
    Each SPDR read through the model: V = sum of weight x FV/P over its
@@ -16218,6 +16363,60 @@ function _etfOn(){return curView==='matrix'&&curMSub==='etf'&&!document.document
 function _etfQ(){var i=document.getElementById('f-search');return _etfOn()&&i?i.value:'';}
 /* A row opens that fund's Detail tab. */
 function _etfPick(t){_fmDrill('etf');_etfSel=t;renderEtfView();_fmSubTab('etf','detail');}
+function _etfMed(a){if(!a.length)return null;a=a.slice().sort(function(x,y){return x-y;});var m=a.length>>1;return a.length%2?a[m]:(a[m-1]+a[m])/2;}
+/* Investing › ETFs › Dashboard: every fund read against the base, by
+   category, its spread and the funds at either end. It ignores the search
+   and the category filter, as the Stocks Dashboard reads the whole run. */
+function _etfDash(){
+  var F=ETF_LT.funds,B=ETF_LT.base,base=F[B],ids=Object.keys(F);
+  var ok=ids.filter(function(t){return F[t].status==='ok'&&t!==B&&F[t].rel!=null&&isFinite(F[t].rel);});
+  var rels=ok.map(function(t){return F[t].rel;}),med=_etfMed(rels);
+  var srt=ok.slice().sort(function(a,b){return F[b].rel-F[a].rel;});
+  var cheap=ok.filter(function(t){return F[t].rel>0;}).length;
+  var h='<div class="sx"><div class="qh-card qh-flush">'
+    +_qHelp('<span class="note-q-t">Each fund is valued from the companies it holds and read against '+B+', because the model values the market as a whole below its price. Tap a category card to open those funds in the Table, a bracket for the Table, or a fund for its Detail.</span>','About the ETF Dashboard','corner')
+    +'<div class="sec-label">ETF Summary</div></div>'
+    +'<div class="xsect-sub">'+ids.length+' SPDR US equity funds · holdings as of '+_esc((base&&base.as_of)||ETF_LT.date||'?')+' · display only, no fund is rated</div>'
+    +'<div class="pp-tiles bv-tiles">'
+    +'<div class="pp-tile" title="Funds with at least 80% of their weight at a fair value today; the rest read INSUFFICIENT."><span>Funds read</span><b>'+(ok.length+(base&&base.status==='ok'?1:0))+' of '+ids.length+'</b></div>'
+    +'<div class="pp-tile" title="'+_attr(B+'’s own margin of safety on the model’s fair values: mostly the model’s market-wide bias, which is why the funds are read against it.')+'"><span>'+_esc(B)+' MoS</span><b>'+(base&&base.status==='ok'?_etfPct(base.mos):'—')+'</b></div>'
+    +'<div class="pp-tile" title="'+_attr('The middle fund’s value against '+B+'.')+'"><span>Median vs '+_esc(B)+'</span><b>'+_etfPct(med)+'</b></div>'
+    +'<div class="pp-tile" title="'+_attr('Funds the model values above '+B+', per dollar of price.')+'"><span>Cheaper than '+_esc(B)+'</span><b>'+cheap+' of '+ok.length+'</b></div>'
+    +(srt.length?'<div class="pp-tile" title="Best value against the base."><span>Cheapest</span><b>'+_esc(srt[0])+' · '+_etfPct(F[srt[0]].rel)+'</b></div>'
+      +'<div class="pp-tile" title="Worst value against the base."><span>Richest</span><b>'+_esc(srt[srt.length-1])+' · '+_etfPct(F[srt[srt.length-1]].rel)+'</b></div>':'')
+    +'</div>';
+  /* One card per registry category: its median read against the base, and
+     (the track) the share of its funds cheaper than the base. */
+  var cats=Object.keys(_ETF_CATS).map(function(c,i){
+    var all=ids.filter(function(t){return _etfCat(F[t])===c;});
+    var rd=ok.filter(function(t){return _etfCat(F[t])===c;});
+    if(!all.length)return null;
+    var m=_etfMed(rd.map(function(t){return F[t].rel;}));
+    var ch=rd.filter(function(t){return F[t].rel>0;}).length;
+    return {name:_ETF_CATS[c],color:_FD_PAL[i%_FD_PAL.length],val:m==null?'—':_etfPct(m),
+      sub:'median vs '+B+' · '+rd.length+' of '+all.length+' read',pct:rd.length?ch/rd.length*100:0,on:_etfF.c===c,
+      title:(rd.length?ch+' of '+rd.length+' read cheaper than '+B+'. ':'')+'Open the Table with only '+_ETF_CATS[c]+' funds.',
+      click:_fdCall('_etfDashCat',c)};
+  }).filter(function(x){return x;});
+  h+='<div class="sec-label" style="margin-top:14px">By Category</div>'+_fdCards(cats)+'</div>';
+  /* Spread of reads, in brackets: green above the base, red below. */
+  var BR=[[-Infinity,-0.2,'below −20%','#9c1d1d'],[-0.2,-0.1,'−20 to −10%','#c0504d'],[-0.1,0,'−10 to 0%','#e3a29c'],
+          [0,0.1,'0 to +10%','#9cc59a'],[0.1,0.2,'+10 to +20%','#5d8a26'],[0.2,Infinity,'above +20%','#276221']];
+  var cnt=BR.map(function(b){return ok.filter(function(t){var r=F[t].rel;return r>=b[0]&&r<b[1];});}),mx=Math.max.apply(null,cnt.map(function(c){return c.length;}))||1;
+  h+='<div class="sx"><div class="sec-label">Value vs '+_esc(B)+'</div><div class="sec-sub">Funds per bracket of value against '+_esc(B)+'; tap one for the Table, which runs in this order</div>'
+    +'<div class="fd-brk">'+BR.map(function(b,i){
+      var n=cnt[i].length;
+      return '<div class="fd-bc" title="'+_attr(b[2]+': '+(cnt[i].join(', ')||'none'))+'"'+(n?_fdClick('_fdJump("etf",function(){})'):'')+'>'
+        +'<div class="fd-hn">'+(n||'')+'</div><div class="fd-bb" style="height:'+Math.round(n/mx*60)+'px;background:'+b[3]+'"></div><span>'+b[2]+'</span></div>';
+    }).join('')+'</div></div>';
+  var li=function(t){var r=F[t];return {label:t,sub:r.sector||_ETF_CATS[_etfCat(r)],val:_etfPct(r.rel),click:_fdCall('_etfPick',t)};};
+  h+='<div class="sx"><div class="sec-label">Either End</div><div class="bv-grid">'
+    +_fdList('Cheapest against '+B,srt.slice(0,5).map(li))
+    +_fdList('Richest against '+B,srt.slice(-5).reverse().map(li))
+    +'</div></div>';
+  return h;
+}
+function _etfDashCat(c){_fdJump('etf',function(){_etfF.c=c;});}
 /* Investing › ETFs: every fund, best relative value first. */
 function renderEtfLookthrough(){
   if(!ETF_LT||!ETF_LT.funds)return '';
@@ -16235,8 +16434,9 @@ function renderEtfLookthrough(){
   });
   _altN.etf=[shown.length,ids.length];
   _filtCountSync();
-  var h='<div id="etf-lt">'+_fmBar('etf',[['table','Table'],['detail','Detail · '+_etfSel],['notes','Notes']],'ETF sections')
+  var h='<div id="etf-lt">'+_fmBar('etf',[['dash','Dashboard'],['table','Table'],['detail','Detail · '+_etfSel],['notes','Notes']],'ETF sections')
     +'<div class="fm-tabbed">'
+    +'<div data-pane="dash">'+_etfDash()+'</div>'
     +'<div data-pane="table">'
     +'<div class="ppi-wrap fm-tbl"><table class="ppi-tbl"><thead><tr><th>Fund</th><th class="etf-sm-hide">Category</th><th>Value vs '+ETF_LT.base+'</th><th>Model MoS</th><th>Has fair value</th></tr></thead><tbody>';
   if(!shown.length)h+='<tr><td colspan="5">No fund matches '+(_etfQ().trim()?'“'+_esc(_etfQ().trim())+'”':'this category')+'.</td></tr>';
@@ -16339,15 +16539,16 @@ function _bvFmt(v,f){
   }
 }
 /* label | bar | value rows for a small distribution. o: total (shares),
-   top (bar scale), col(label) (bar colour), tip(label), val(v) (value text). */
+   top (bar scale), col(label) (bar colour), tip(label), val(v) (value text),
+   click(label) (a call that makes the label a link). */
 function _bvDist(items,o){
   if(!items||!items.length)return '<p class="bv-note">No data.</p>';
   o=o||{};
   var top=o.top||Math.max.apply(null,items.map(function(i){return i[1];}))||1;
   var tot=o.total||items.reduce(function(a,i){return a+i[1];},0)||1;
   return '<div class="bv-dist">'+items.map(function(it){
-    var tip=o.tip&&o.tip(it[0]);
-    return '<span'+(tip?' class="bv-tl"':'')+' title="'+_attr(tip||it[0])+'">'+_esc(it[0])+'</span>'
+    var tip=o.tip&&o.tip(it[0]),ck=o.click&&o.click(it[0]);
+    return '<span'+(tip?' class="bv-tl"':'')+' title="'+_attr(tip||it[0])+'"'+(ck?_fdClick(ck):'')+'>'+_esc(it[0])+'</span>'
       +'<span><i style="width:'+Math.max(it[1]/top*100,0.5).toFixed(1)+'%'+(o.col?';background:'+o.col(it[0]):'')+'"></i></span>'
       +'<em>'+(o.val?o.val(it[1]):it[1].toLocaleString()+' · '+(it[1]/tot*100).toFixed(1)+'%')+'</em>';
   }).join('')+'</div>';
@@ -16380,23 +16581,60 @@ function _bvCard(title,tip,body,note){
   return '<div class="bv-card'+(note?' qh-card':'')+'">'+(note?_qHelp('<span class="note-q-t">'+_esc(note)+'</span>','About this chart','corner'):'')
     +'<h4'+(tip?' title="'+_attr(tip)+'"':'')+'>'+title+'</h4>'+body+'</div>';
 }
+/* Investing › Bonds › Dashboard: the bond model's tiles, its category
+   means as the Stocks Dashboard's category cards, rating boxes that open
+   the Table on one rating, the score distribution, the credit and cap
+   breakdowns, and the cheapest and richest bonds by spread mispricing (the
+   signal the bond model's own backtest supports). Reads every bond, not
+   the filtered set. */
+var _BV_RATINGS=['BUY','LEAN BUY','HOLD','PASS'];
+function _bvDash(D){
+  var T=D.tips||{},N=D.notes||{},bt=D.bucket_tips||{},total=(D.total||0).toLocaleString();
+  var rn={};(D.ratings||[]).forEach(function(r){rn[r[0]]=r[1];});
+  var h='<div class="sx"><div class="qh-card qh-flush">'
+    +_qHelp('<span class="note-q-t">'+_esc(N.categories||'Category scores are 0–100 means over the bonds each category can describe.')+'</span><span class="note-q-t" style="display:block;margin-top:6px">Tap a rating box or credit bucket to open those bonds in the Table, or a bond for its details.</span>','About the Bond Dashboard','corner')
+    +'<div class="sec-label">Bond Summary</div></div>'
+    +'<div class="xsect-sub">Run '+_esc(D.run_date)+' · curve '+_esc(D.curve_date)+' · '+total+' instruments · US Treasuries and corporate bonds · free data only</div>'
+    +'<div class="pp-tiles bv-tiles">'+(D.cards||[]).filter(function(c){return !(c.k in rn);}).map(function(c){return '<div class="pp-tile" title="'+_attr(c.t)+'"><span>'+_esc(c.k)+'</span><b>'+_esc(c.v)+'</b></div>';}).join('')+'</div>'
+    +'<div class="sec-label" style="margin-top:14px"'+(T.categories?' title="'+_attr(T.categories)+'"':'')+'>By Category</div>'
+    +_fdCards((D.categories||[]).map(function(c,i){
+      return {name:c.label,color:_FD_PAL[i%_FD_PAL.length],val:Math.round(c.mean)+'%',pct:c.mean,
+        sub:'mean score'+(c.n!=null?' · '+c.n.toLocaleString()+' bonds':''),title:T.categories||''};
+    }))
+    +_fdBoxes(_BV_RATINGS.filter(function(r){return r in rn;}).map(function(r){
+      var tip=((D.cards||[]).filter(function(c){return c.k===r;})[0]||{}).t||'';
+      return {label:r,n:rn[r],total:D.total||0,color:_FD_RC[r],on:_bvF.r===r,
+        title:tip+(tip?' ':'')+'Open the Table with only '+r+' bonds.',click:_fdCall('_bvDashGo','r',r)};
+    }))
+    +'</div>';
+  var I=_bvIdx(),rows=D.rows||[];
+  if(I._composite_score!=null&&I.rating!=null)
+    h+='<div class="sx"><div class="sec-label">Composite Score Distribution</div><div class="sec-sub">Bonds per 10-point bracket, colored by rating</div>'
+      +_fdHist(rows.map(function(r){return [r[I._composite_score],r[I.rating]];}),_BV_RATINGS.slice().reverse(),_FD_RC,'bonds')+'</div>';
+  h+='<div class="sx"><div class="sec-label">Credit and Caps</div><div class="bv-grid">'
+    +_bvCard('Implied credit bucket',T.buckets,_bvDist(D.buckets,{tip:function(b){return bt[b];},click:function(b){return _fdCall('_bvDashGo','b',b);}}))
+    +_bvCard('Why rows are capped',T.caps,_bvDist(D.cap_reasons,{col:function(){return 'var(--bv-warn)';},val:function(v){return v.toLocaleString();}}))
+    +'</div></div>';
+  if(I.spread_mispricing!=null){
+    var ix=[];rows.forEach(function(r,i){if(typeof r[I.spread_mispricing]==='number')ix.push(i);});
+    ix.sort(function(a,b){return rows[b][I.spread_mispricing]-rows[a][I.spread_mispricing];});
+    var li=function(i){var r=rows[i],c=String(r[I.coupon_rate]==null?'':(+r[I.coupon_rate]).toFixed(2)+'% ');
+      return {label:String(r[I.issuer_name]||r[I.cusip]),sub:c+String(r[I.maturity_date]||'').slice(0,4),val:_bvFmt(r[I.spread_mispricing],'bp')+' bp',click:_fdCall('_bvDashOpen',i)};};
+    h+='<div class="sx"><div class="sec-label">Either End</div><div class="sec-sub">Spread mispricing: observed spread less fair spread; positive is cheap</div><div class="bv-grid">'
+      +_fdList('Cheapest',ix.slice(0,5).map(li))+_fdList('Richest',ix.slice(-5).reverse().map(li))+'</div></div>';
+  }
+  return h;
+}
+function _bvDashGo(k,v){_fdJump('bond',function(){_bvF[k]=v;});}
+function _bvDashOpen(i){if(_BV)_bvOpenRow(_BV.rows[i]);}
 function _bvHtml(D){
-  var T=D.tips||{},N=D.notes||{},total=(D.total||0).toLocaleString();
-  var bt=D.bucket_tips||{};
-  var h='<div id="bv">'+_fmBar('bond',[['table','Table'],['summary','Summary'],['charts','Charts'],['notes','Notes'+(D.vintage?' ⚠':'')]],'Bond sections')
+  var T=D.tips||{},N=D.notes||{};
+  var h='<div id="bv">'+_fmBar('bond',[['dash','Dashboard'],['table','Table'],['charts','Charts'],['notes','Notes'+(D.vintage?' ⚠':'')]],'Bond sections')
     +'<div class="fm-tabbed">'
+    +'<div data-pane="dash">'+_bvDash(D)+'</div>'
     +'<div data-pane="table">'
     +'<div class="ppi-wrap bv-wrap fm-tbl"><table class="ppi-tbl bv-tbl"><thead><tr id="bv-head"></tr></thead><tbody id="bv-body"></tbody></table></div>'
     +'</div>'
-    +'<div data-pane="summary" class="xsect-dashboard"><div class="sec-label">Bonds</div>'
-    +'<div class="xsect-sub">Run '+_esc(D.run_date)+' · curve '+_esc(D.curve_date)+' · '+total+' instruments · US Treasuries and corporate bonds · free data only</div>'
-    +'<div class="pp-tiles bv-tiles">'+(D.cards||[]).map(function(c){return '<div class="pp-tile" title="'+_attr(c.t)+'"><span>'+_esc(c.k)+'</span><b>'+_esc(c.v)+'</b></div>';}).join('')+'</div>'
-    +'<div class="bv-grid">'
-    +_bvCard('Rating distribution',T.ratings,_bvDist(D.ratings,{total:D.total,col:function(r){return RC[r]||'#888';}}))
-    +_bvCard('Implied credit bucket',T.buckets,_bvDist(D.buckets,{tip:function(b){return bt[b];}}))
-    +_bvCard('Why rows are capped',T.caps,_bvDist(D.cap_reasons,{col:function(){return 'var(--bv-warn)';},val:function(v){return v.toLocaleString();}}))
-    +_bvCard('Mean score by category',T.categories,_bvDist((D.categories||[]).map(function(c){return [c.label,c.mean];}),{top:100,val:function(v){return Math.round(v);}}),N.categories)
-    +'</div></div>'
     +'<div data-pane="charts" class="xsect-dashboard"><div class="bv-grid">'
     +_bvCard('Treasury par curve',T.curve,_bvLine([{name:'Treasury par curve',points:D.curve||[]}],'pct'))
     +_bvCard('Spread term structure, fitted vs FRED',T.term,_bvLine(D.term||[],'x'),N.term)
@@ -16547,7 +16785,7 @@ function _cxQ(){var i=document.getElementById('f-search');return i?i.value:'';}
 var _CX_RATINGS=['LONG','LEAN LONG','NEUTRAL','AVOID'];
 /* The screener's four ratings take the stock ratings' colours, rank for rank. */
 var _CX_RC={'LONG':'BUY','LEAN LONG':'LEAN BUY','NEUTRAL':'HOLD','AVOID':'PASS'};
-var _CX_VIEWS=[['table','Screener'],['matrix','Gate Matrix'],['map','Map'],['detail','Detail'],['summary','Summary']];
+var _CX_VIEWS=[['dash','Dashboard'],['table','Screener'],['matrix','Gate Matrix'],['map','Map'],['detail','Detail']];
 /* k=field, t=title, f=format, l=left-aligned, s=hidden on phones */
 var _CX_COLS=[
   {k:'code',t:'CCY',f:'code',l:1},
@@ -16636,31 +16874,67 @@ function _cxTh(k,label,cls,extra){
   return '<th class="'+(cls||'')+'"'+(k?' onclick="_cxSortBy(\''+k+'\')"':'')+(tip?' data-col-tip="ccy_'+_attr(k)+'" data-col-label="'+_attr(label)+'" data-col-tip-body="'+_attr(tip)+'"':'')
     +(on?' aria-sort="'+(_cxDir>0?'ascending':'descending')+'"':'')+(extra||'')+'>'+label+(on?' <span class="arrow">'+(_cxDir>0?'▲':'▼')+'</span>':'')+'</th>';
 }
+/* Investing › Currencies › Dashboard: the rating counts as boxes that open
+   the Screener on one rating, the pillars as the Stocks Dashboard's category
+   cards (a tap sorts the Screener by that pillar), the score distribution,
+   the gate pass rates and the currencies at either end. Reads every
+   currency, not the filtered set. */
+function _cxDash(D){
+  var gm=D.gate_meta,R=D.rows,n={};R.forEach(function(r){n[r.rating]=(n[r.rating]||0)+1;});
+  var capped=R.filter(function(r){return r._rating_cap&&r.rating!==r.rating_raw;}).length;
+  var srt=R.filter(function(r){return _cxNum(r._composite_score);}).sort(function(a,b){return b._composite_score-a._composite_score;});
+  var th=gm.thresholds||{},col={};
+  _CX_RATINGS.forEach(function(r){col[r]=_FD_RC[_CX_RC[r]];});
+  var avg=function(k){var v=R.map(function(r){return r[k];}).filter(_cxNum);return v.length?v.reduce(function(a,b){return a+b;},0)/v.length:null;};
+  var h='<div class="sx"><div class="qh-card qh-flush">'
+    +_qHelp('<span class="note-q-t">Pillar scores are 0–100; the composite is their weighted average over the pillars that apply to that currency. Tap a rating box to open the Screener on that rating, a pillar card to sort it by that pillar, or a currency for its Detail.</span>','About the Currency Dashboard','corner')
+    +'<div class="sec-label">Currency Summary</div></div>'
+    +'<div class="xsect-sub">Run '+_esc(D.run_date)+' · '+D.total+' currencies ranked rich to cheap on '+gm.gates.length+' gates in '+gm.categories.length+' weighted pillars · ECB, BIS and World Bank data</div>'
+    +'<div class="pp-tiles bv-tiles">'
+    +(srt.length?'<div class="pp-tile" title="Highest composite score."><span>Top ranked</span><b>'+_esc(srt[0].code)+' · '+srt[0]._composite_score.toFixed(0)+'</b></div>'
+      +'<div class="pp-tile" title="Lowest composite score."><span>Bottom ranked</span><b>'+_esc(srt[srt.length-1].code)+' · '+srt[srt.length-1]._composite_score.toFixed(0)+'</b></div>':'')
+    +'<div class="pp-tile" title="Rows whose rating was capped below what the score reads (pegs, the base currency, thin data, very high inflation)."><span>Capped</span><b>'+capped+'</b></div>'
+    +'</div>'
+    +_fdBoxes(_CX_RATINGS.map(function(r){
+      var t=r==='LONG'?'Composite ≥ '+th.long:r==='LEAN LONG'?'Composite ≥ '+th.lean:r==='NEUTRAL'?'Composite ≥ '+th.neutral:'Below '+th.neutral;
+      return {label:r,n:n[r]||0,total:R.length,color:col[r],on:_cxF.r===r,
+        title:t+'. '+((gm.ui&&gm.ui.rating)||'')+' Open the Screener with only '+r+'.',click:_fdCall('_cxDashGo','r',r)};
+    }))
+    +'<div class="sec-label" style="margin-top:14px">By Pillar</div>'
+    +_fdCards(gm.categories.map(function(c){
+      var a=avg(c.scoreKey);
+      return {name:c.name,color:c.dark,val:a==null?'—':Math.round(a)+'%',pct:a,on:_cxSortK===c.scoreKey,
+        sub:'avg score · '+Math.round(c.weight*100)+'% wt · '+c.gates.length+' gates',
+        title:c.tip+' Open the Screener sorted by '+c.name+'.',click:_fdCall('_cxDashGo','s',c.scoreKey)};
+    }))
+    +'</div>';
+  h+='<div class="sx"><div class="sec-label">Composite Score Distribution</div><div class="sec-sub">Currencies per 10-point bracket, colored by rating</div>'
+    +_fdHist(R.map(function(r){return [r._composite_score,r.rating];}),_CX_RATINGS.slice().reverse(),col,'currencies')+'</div>';
+  h+='<div class="sx"><div class="sec-label">Gate Pass Rates</div><div class="sec-sub">Share of the currencies each gate applies to that pass it</div>'
+    +_fdRates(gm.categories.map(function(c){
+      return {name:c.name,color:c.dark,rows:c.gates.map(function(g){
+        var t=0,p=0;R.forEach(function(r){var v=r[g.gpKey];if(v!=null){t++;if(v===true)p++;}});
+        return t?{label:g.label,pct:p/t*100,title:g.label+': passes when '+g.threshold+' · '+p+' of '+t}:null;
+      }).filter(function(x){return x;})};
+    }))+'</div>';
+  var li=function(r){return {label:r.code,sub:r.name,val:_cxPill(r)+' '+r._composite_score.toFixed(0),click:_fdCall('_cxPick',r.code)};};
+  h+='<div class="sx"><div class="sec-label">Either End</div><div class="bv-grid">'
+    +_fdList('Top ranked',srt.slice(0,5).map(li))+_fdList('Bottom ranked',srt.slice(-5).reverse().map(li))+'</div>'
+    +'<div class="bv-note">Gate Matrix: green passes the gate, red fails, grey is not applicable: either the data is missing (scored 0, kept in the pillar) or the gate cannot describe this currency (left out of the pillar), as for a peg’s volatility or the dollar’s carry against itself.</div>'
+    +'<div class="etf-note">'+_cxProv(D)+' Built by the currency screener (currencies/). Not investment advice. Display only: nothing here changes a stock rating.</div>'
+    +'</div>';
+  return h;
+}
+function _cxDashGo(k,v){_fdJump('ccy',function(){if(k==='r')_cxF.r=v;else{_cxSortK=v;_cxDir=-1;}});}
 function _cxHtml(D){
-  var gm=D.gate_meta,n={};D.rows.forEach(function(r){n[r.rating]=(n[r.rating]||0)+1;});
-  var capped=D.rows.filter(function(r){return r._rating_cap&&r.rating!==r.rating_raw;}).length;
-  var top=D.rows.filter(function(r){return _cxNum(r._composite_score);}).sort(function(a,b){return b._composite_score-a._composite_score;})[0];
-  var th=gm.thresholds||{};
   var h='<div id="cx">'+_fmBar('ccy',_CX_VIEWS,'Currency sections')
     +'<div class="fm-tabbed">'
+    +'<div data-pane="dash">'+_cxDash(D)+'</div>'
     +'<div data-pane="table matrix map">'
     +'<div id="cx-body"></div></div>'
     +'<div data-pane="detail" id="cx-det"></div>'
-    +'<div data-pane="summary" class="xsect-dashboard">'
-    +'<div class="sec-label">Currencies</div>'
-    +'<div class="xsect-sub">Run '+_esc(D.run_date)+' · '+D.total+' currencies ranked rich to cheap on '+gm.gates.length+' gates in '+gm.categories.length+' weighted pillars · ECB, BIS and World Bank data</div>'
-    +'<div class="pp-tiles bv-tiles">'
-    +_CX_RATINGS.map(function(r){
-      var t=r==='LONG'?'Composite ≥ '+th.long:r==='LEAN LONG'?'Composite ≥ '+th.lean:r==='NEUTRAL'?'Composite ≥ '+th.neutral:'Below '+th.neutral;
-      return '<div class="pp-tile" title="'+_attr(t+'. '+(gm.ui&&gm.ui.rating||''))+'"><span>'+r+'</span><b>'+(n[r]||0)+'</b></div>';}).join('')
-    +(top?'<div class="pp-tile" title="Highest composite score."><span>Top ranked</span><b>'+_esc(top.code)+' · '+top._composite_score.toFixed(0)+'</b></div>':'')
-    +'<div class="pp-tile" title="Rows whose rating was capped below what the score reads (pegs, the base currency, thin data, very high inflation)."><span>Capped</span><b>'+capped+'</b></div>'
-    +'</div>'
-    +'<div class="bv-note">Screener: click a row for its gate-by-gate breakdown (Detail); hover a header for what it measures. Pillar scores are 0–100; the composite is their weighted average over the pillars that apply to that currency.</div>'
-    +'<div class="bv-note">Gate Matrix: green passes the gate, red fails, grey is not applicable: either the data is missing (scored 0, kept in the pillar) or the gate cannot describe this currency (left out of the pillar), as for a peg’s volatility or the dollar’s carry against itself.</div>'
-    +'<div class="etf-note">'+_cxProv(D)+' Built by the currency screener (currencies/). Not investment advice. Display only: nothing here changes a stock rating.</div>'
     +'</div></div>';
-  return h+'</div>';
+  return h;
 }
 function _cxProv(D){
   var P=D.provenance||{},p=[];
