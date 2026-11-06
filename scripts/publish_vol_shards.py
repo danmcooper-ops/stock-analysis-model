@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 """Copy per-ticker shard directories into the pages-live worktree, by manifest.
 
-Four shard families ship with the report: vol/ (daily volume) and px/
+Five shard families ship with the report: vol/ (daily volume) and px/
 (daily closes), manifested in prices_meta.json ("vol" and "manifest" keys);
 hist/ (annual EDGAR fundamentals), manifested in hist_index.json
-("tickers"); all three one small JSON per ticker. And details/ (the popup's
+("tickers"); all three one small JSON per ticker. details/ (the popup's
 heavy text fields), ~8 MiB numbered parts manifested in details_index.json
-("parts").
+("parts"). And app/detail/ (the iOS app's per-ticker detail), manifested in
+app/manifest.json ("tickers").
+
+app/detail/ is optional: the app feed is written by the same render but must
+never fail the web publish, so a run that did not produce app/manifest.json
+has its stale app/detail/ pruned and the sync carries on. The app reads the
+missing manifest as "no new night" and keeps the one it has.
 
 The repo lives under ~/Desktop, which iCloud Drive syncs. iCloud continuously
 resurrects shards that were deleted locally, under space-suffixed conflict
@@ -39,16 +45,19 @@ def _paths():
 
 
 def families(repo, docs):
-    """(label, manifest file, manifest key, source dir, dest dir) per family."""
+    """(label, manifest file, manifest key, source dir, dest dir, optional)
+    per family."""
     out = os.path.join(repo, "output")
     meta = os.path.join(out, "prices_meta.json")
     return [
-        ("vol", meta, "vol", os.path.join(out, "vol"), os.path.join(docs, "vol")),
-        ("px", meta, "manifest", os.path.join(out, "px"), os.path.join(docs, "px")),
+        ("vol", meta, "vol", os.path.join(out, "vol"), os.path.join(docs, "vol"), False),
+        ("px", meta, "manifest", os.path.join(out, "px"), os.path.join(docs, "px"), False),
         ("hist", os.path.join(out, "hist_index.json"), "tickers",
-         os.path.join(out, "hist"), os.path.join(docs, "hist")),
+         os.path.join(out, "hist"), os.path.join(docs, "hist"), False),
         ("details", os.path.join(out, "details_index.json"), "parts",
-         os.path.join(out, "details"), os.path.join(docs, "details")),
+         os.path.join(out, "details"), os.path.join(docs, "details"), False),
+        ("app/detail", os.path.join(out, "app", "manifest.json"), "tickers",
+         os.path.join(out, "app", "detail"), os.path.join(docs, "app", "detail"), True),
     ]
 
 
@@ -106,7 +115,7 @@ def main():
     repo, docs = _paths()
     ok = True
     manifests = {}
-    for label, manifest, key, src_dir, dst_dir in families(repo, docs):
+    for label, manifest, key, src_dir, dst_dir, optional in families(repo, docs):
         if manifest not in manifests:
             try:
                 with open(manifest, encoding="utf-8") as fh:
@@ -116,6 +125,13 @@ def main():
                 manifests[manifest] = {}
         want = set(manifests[manifest].get(key) or [])
         if not want:
+            if optional:
+                # Drop a stale copy rather than publish last night's under
+                # today's report, then carry on: see the module docstring.
+                if os.path.isdir(dst_dir):
+                    shutil.rmtree(dst_dir)
+                print(f"[{label}] no '{key}' manifest in {manifest} — pruned, skipped")
+                continue
             print(f"ERROR: no '{key}' manifest in {manifest}", file=sys.stderr)
             ok = False
             continue

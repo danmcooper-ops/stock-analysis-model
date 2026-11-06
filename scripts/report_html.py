@@ -2,12 +2,13 @@
 """HTML report builder — renders the interactive Jinja2 report."""
 import os
 import json
+import hashlib
 import logging
 import math
 import re
 import shutil
 import jinja2
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 import numpy as np
 
 import sys as _sys
@@ -1922,6 +1923,172 @@ def _write_vol_shards(vol_dir, vol_payload):
         print(f"[warn] vol/ shard write failed: {_e}")
 
 
+# ------------------------------------------------------------------ app feed
+# The iOS app (Projects/StockModel-iOS-Handoff, its README section 4) reads
+# three files of its own rather than the inline DATA blob in index.html. The
+# desktop sidecars are the wrong shape for a phone: details/ is ~8 MiB of
+# parts to open one company, and DATA is only reachable by parsing a 10 MB
+# HTML page.
+_APP_SCHEMA_VERSION = 1
+
+# What the ratings list shows, searches, filters and sorts on (handoff
+# section 3) and nothing else: the app downloads this whole file each night.
+_APP_LIST_FIELDS = (
+    'ticker', 'company_name', 'sector', 'industry', 'rating', 'price',
+    '_fv_effective', '_fv_source', 'mos', '_composite_score',
+    '_score_valuation', '_score_quality', '_score_moat', '_score_growth',
+    '_score_ownership', 'trap_score', 'price_data_stale',
+)
+
+
+def _app_risk_free_rate(rows):
+    # The results JSON's top-level risk_free_rate never reaches build_html,
+    # but every row carries the run's rate.
+    for _r in rows or ():
+        _v = _r.get('_risk_free_rate')
+        if isinstance(_v, (int, float)) and not isinstance(_v, bool) \
+                and math.isfinite(_v):
+            return float(_v)
+    return None
+
+
+def _build_app_list(chart_records, run_date, risk_free_rate):
+    """Build the slim list feed's payload.
+
+    A field the row does not carry is left out rather than nulled: every
+    numeric in the app's Codable types is already optional, and omitting
+    them is what keeps the file inside the handoff's 1.5 MB target. Values
+    are sanitised here rather than at write time so that a NaN price is
+    absent too, instead of becoming the one explicit null in the file.
+    """
+    _rows = []
+    for _rec in chart_records or ():
+        _tk = _rec.get('ticker')
+        if not _tk:
+            continue
+        _row = {}
+        for _k in _APP_LIST_FIELDS:
+            _v = _sanitize(_rec.get(_k), (_tk, _k))
+            if _v is not None:
+                _row[_k] = _v
+        _row['ticker'] = _tk
+        _rows.append(_row)
+    _rows.sort(key=lambda r: r['ticker'])
+    return {
+        'schema_version': _APP_SCHEMA_VERSION,
+        'date': run_date,
+        'risk_free_rate': risk_free_rate,
+        'count': len(_rows),
+        'results': _rows,
+    }
+
+
+def _sha256_file(path, _chunk=1 << 20):
+    _h = hashlib.sha256()
+    with open(path, 'rb') as _fh:
+        for _blk in iter(lambda: _fh.read(_chunk), b''):
+            _h.update(_blk)
+    return _h.hexdigest()
+
+
+def _write_app_json(path, payload):
+    """Write one app feed file.
+
+    ``_sanitize`` nulls NaN/inf (numeric or stringified) because the raw
+    snapshots carry both and ``json.dump`` writes them as the JavaScript
+    literals ``NaN``/``Infinity``, which are not JSON. The browser's parser
+    tolerates them in practice; Swift's ``JSONDecoder`` does not, so one
+    such value would read as a corrupt night rather than a missing field.
+    ``allow_nan=False`` makes that a guarantee instead of a convention:
+    whatever the sanitiser missed raises here, while there is still no
+    manifest pointing the app at the file.
+    """
+    with open(path, 'w', encoding='utf-8') as _fh:
+        json.dump(_sanitize(payload), _fh, default=_json_default,
+                  separators=_COMPACT, allow_nan=False)
+
+
+def _write_app_feed(app_dir, chart_records, details_payload, rows, run_date):
+    """Write ``app/latest.json``, ``app/detail/<TICKER>.json`` and
+    ``app/manifest.json``; return the tickers written.
+
+    The manifest goes last, so the app can tell a complete night from a
+    half-written one: with no manifest, the app keeps the night it already
+    has instead of mixing two runs. Rebuilt wholesale each run, like vol/
+    and hist/, so a ticker that leaves the universe leaves no shard behind.
+
+    ``files`` hashes only ``latest.json``, not the per-ticker shards, which
+    narrows the handoff's section 4 deliberately. Hashing 3,859 shards made
+    the manifest 363 KiB, and the app fetches it on every launch and
+    foreground to answer one question — is there a new night. The shards
+    carry their own ``date`` instead, so a detail can still be matched to
+    the list it was fetched for, and ``tickers`` still says which shards
+    that night has. Bump _APP_SCHEMA_VERSION if they are ever hashed again:
+    an app that checks a hash it no longer finds would reject every night.
+    """
+    _written = []
+    try:
+        if not run_date:
+            # Without a run date the app can neither date a number nor judge
+            # staleness, so no feed beats a feed it must not trust.
+            print("[report_html] app/: skipped (no run date)")
+            return []
+        _detail_dir = os.path.join(app_dir, 'detail')
+        _latest_path = os.path.join(app_dir, 'latest.json')
+        _manifest_path = os.path.join(app_dir, 'manifest.json')
+        if os.path.isdir(app_dir):
+            shutil.rmtree(app_dir)
+        os.makedirs(_detail_dir, exist_ok=True)
+
+        _write_app_json(_latest_path,
+                        _build_app_list(chart_records, run_date,
+                                        _app_risk_free_rate(rows)))
+        # The one file the app fetches before it trusts the night.
+        _files = {'app/latest.json': _sha256_file(_latest_path)}
+
+        for _rec in sorted(chart_records or (),
+                           key=lambda r: str(r.get('ticker') or '')):
+            _tk = _rec.get('ticker')
+            if not _tk or not _SHARD_TICKER.fullmatch(str(_tk)):
+                continue
+            # The row's remaining fields only: the app already holds the
+            # list feed's copy of the rest before it opens a detail.
+            _detail = {_k: _v for _k, _v in _rec.items()
+                       if _k not in _APP_LIST_FIELDS}
+            # The heavy text _extract_details_payload lifted out of the row,
+            # merged flat exactly as the template merges details/ into DATA.
+            for _k, _v in ((details_payload or {}).get(_tk) or {}).items():
+                _detail.setdefault(_k, _v)
+            _detail['ticker'] = _tk
+            # Each shard names its own night, so a detail served from the
+            # app's cache can be matched to the list without the manifest.
+            _detail['date'] = run_date
+            _write_app_json(os.path.join(_detail_dir, f'{_tk}.json'), _detail)
+            _written.append(_tk)
+
+        with open(_manifest_path, 'w', encoding='utf-8') as _mf:
+            json.dump({
+                'schema_version': _APP_SCHEMA_VERSION,
+                'date': run_date,
+                'generated_at': datetime.now(timezone.utc)
+                                        .replace(microsecond=0).isoformat(),
+                'count': len(_written),
+                # publish_vol_shards.py syncs app/detail by this list rather
+                # than by directory listing, as it does the other families.
+                'tickers': _written,
+                'files': dict(sorted(_files.items())),
+            }, _mf, separators=_COMPACT, allow_nan=False)
+        print(f"[report_html] app/: {len(_written)} detail shard(s), "
+              f"latest.json {os.path.getsize(_latest_path) / 1048576:.2f} MiB, "
+              f"manifest {os.path.getsize(_manifest_path) / 1024:.0f} KiB")
+    except Exception as _e:
+        # Never fail a render over the app feed. The absent manifest is
+        # itself the signal, and the web report is unaffected.
+        print(f"[warn] app/ feed write failed: {_e}")
+        _written = []
+    return _written
+
+
 def stopped_map(tickers, prices_dir, as_of, what='row'):
     """``{ticker: (last_bar, lag_bars)}`` for *tickers* whose price data shows
     they stopped trading as of *as_of* (``data.price_store.stopped_trading``
@@ -2305,6 +2472,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     macro_path = os.path.join(out_dir, 'macro.json')
     vol_dir = os.path.join(out_dir, 'vol')
     px_dir = os.path.join(out_dir, 'px')
+    app_dir = os.path.join(out_dir, 'app')
 
     details_parts = _write_details_parts(details_dir, details_index_path, details_payload,
                                          legacy_path=details_path)
@@ -2321,6 +2489,9 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         prices_meta_path, prices_path, prices_payload)
     _write_px_shards(px_dir, px_payload)
     _write_vol_shards(vol_dir, vol_payload)
+    # The iOS app's feed, written after every sidecar it mirrors: its
+    # manifest is what tells the app the night is complete.
+    _write_app_feed(app_dir, chart_records, details_payload, rows, run_date)
 
     # Render Jinja2 template
     template_dir = os.path.join(os.path.dirname(__file__), '..', 'templates')
