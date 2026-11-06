@@ -2103,7 +2103,11 @@ button.wind-h{cursor:pointer;}
 .ph-snm{color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
 .ph-sclr{position:absolute;right:6px;background:none;border:none;color:#bbb;cursor:pointer;font-size:1.15em;padding:2px 4px;line-height:1;display:none;}
 .ph-sclr:hover{color:#555;}
-#ph-tip-bar{min-height:30px;margin:4px 0 2px;line-height:1.5;}
+/* The legend sits under the chart on one line; when the stocks overflow it
+   scrolls sideways rather than wrapping into a block over the lines. */
+#ph-tip-bar{min-height:30px;margin:6px 0 2px;line-height:1.5;display:flex;flex-wrap:nowrap;align-items:center;overflow-x:auto;overflow-y:hidden;white-space:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+#ph-tip-bar::-webkit-scrollbar{display:none;}
+#ph-tip-bar>span{flex-shrink:0;}
 #ph-chart{user-select:none;}
 /* Gate detail sub-tab */
 .gate-detail-card{display:flex;align-items:center;gap:20px;flex-wrap:wrap;background:var(--surface);border-radius:8px;border-left:5px solid #ccc;padding:14px 18px;margin-bottom:10px;box-shadow:0 2px 6px rgba(0,0,0,0.06);}
@@ -8840,8 +8844,8 @@ function initPriceChart(){
      as one segmented row (hidden for today-only metrics). The view itself is
      just the chart, under the title. */
   phv.innerHTML='<div class="sx"><div class="sec-label">Stock Comparison</div>'
-    +'<div id="ph-tip-bar" style="min-height:28px"></div>'
-    +'<div id="ph-chart"></div></div>';
+    +'<div id="ph-chart"></div>'
+    +'<div id="ph-tip-bar"></div></div>';
   var pm=document.getElementById('ph-menu');
   if(pm)pm.innerHTML='<div class="phm-sec"><div class="phm-h">Metric</div><div id="ph-metric"></div></div>'
     +'<div class="phm-sec"><div class="phm-h">Stocks<span id="ph-count"></span></div>'
