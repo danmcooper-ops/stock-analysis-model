@@ -249,12 +249,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .d-kmetrics .km-sub{font-size:0.44em;white-space:normal;}
   .d-kmetrics .km-v .km-conf{display:block;width:max-content;margin:3px 0 0;font-size:0.52em;padding:1px 5px 2px;}
   .d-kmetrics .km-conf .km-conf-word{display:none;}
-  .d-gate-values{grid-template-columns:1fr;gap:6px;}
-  .gv-cat{font-size:0.78em;padding:6px 12px;text-align:left;justify-content:space-between;}
-  .gv-item{padding:7px 12px;}
-  .gv-k{font-size:0.85em;}
-  .gv-v{font-size:0.88em;}
-  .gv-thr{font-size:0.95em;}
 }
 /* Small phones (SE-class, <=360px): shrink only the PLACEHOLDER so the
    full list of searchable fields still fits; typed text keeps the
@@ -1110,46 +1104,60 @@ td.ct{font-weight:700;}
 .km-conf-med{background:#e67e22;}
 .km-conf-low{background:#de2d26;}
 .km-tag{display:inline-block;margin-left:4px;padding:1px 5px 2px;border-radius:7px;font-size:0.58em;font-weight:700;letter-spacing:0.03em;vertical-align:middle;background:rgba(255,255,255,0.18);color:rgba(255,255,255,0.85);}
-.d-gate-values{margin:6px 0 14px;display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}
-.gv-col{display:flex;flex-direction:column;border-radius:7px;overflow:hidden;border:1px solid #e0e4ec;}
-.gv-cat{font-size:0.68em;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;padding:5px 10px;white-space:nowrap;text-align:center;}
-.gv-items{display:flex;flex-direction:column;gap:0;background:#fff;flex:1;}
-.gv-item{display:flex;flex-direction:row;justify-content:space-between;align-items:center;padding:4px 10px;border-bottom:1px solid #f0f2f6;}
-.gv-item:last-child{border-bottom:none;}
-.gv-item:nth-child(even){background:#fafbfd;}
-.gv-k{font-size:0.65em;color:#666;white-space:nowrap;}
-.gv-v{font-size:0.68em;font-weight:700;color:#1a252f;white-space:nowrap;text-align:right;}
-.gv-v.pass{color:#1a9850;}.gv-v.fail{color:#de2d26;}
-.gv-thr{font-size:0.82em;font-weight:400;color:#aaa;white-space:nowrap;}
-.gv-wt{font-size:0.62em;font-style:italic;color:#888;padding:4px 10px;background:#fff;text-align:left;border-top:1px solid #f0f2f6;}
-/* Five columns share whatever the page column leaves: ~150px each on a
-   phone in landscape, ~170px on an iPad, ~225px on a 1440px desktop. The
-   nowrap label, value and threshold note then overran the column and its
-   overflow:hidden cut them mid-word, with the label butting into the value
-   ("Spread79.2%"). So the label and value keep a gap, the threshold note
-   truncates with an ellipsis, and a narrow column drops the note (it is
-   still in the label's tooltip, data-gv-thr). */
-.gv-col{min-width:0;container-type:inline-size;}
-.gv-cat{overflow:hidden;text-overflow:ellipsis;}
-.gv-item{gap:8px;}
-.gv-k{flex:0 0 auto;max-width:62%;overflow:hidden;text-overflow:ellipsis;}
-.gv-v{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;}
-@container (max-width:240px){.gv-thr{display:none;}}
-/* Folding header (_gvToggle): title and a chevron that turns when shut. A
-   shut column keeps its own height instead of stretching to the row's. */
-.gv-cat{display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;}
-.gv-cat-t{min-width:0;overflow:hidden;text-overflow:ellipsis;}
+/* The Model card (_gvRender): the composite and its rating lines, then one
+   row per category (score bar, weight, gates passed) with its failing gates
+   as chips, then the gates themselves when a row is opened (_gvToggle). One
+   column at every width: five columns left a gate ~140px at 1024px and its
+   label wrapped a letter a line. Under 360px a row stacks its bar under the
+   category's name. Targets are the short form (gate_metadata 'target'), so
+   nothing is cut off; the full threshold stays in the label's tooltip. */
+.d-gate-values{--gv-pass:#1a9850;--gv-fail:#de2d26;--gv-txt:#1a252f;--gv-sub:#6a7a90;--gv-line:#e6e9f0;--gv-track:#e9edf3;--gv-chip:#fdecea;--gv-na:#f0f2f6;
+  margin:6px 0 14px;display:grid;grid-template-columns:minmax(0,1fr);gap:8px;max-width:760px;}
+.gv-score{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;padding:2px 0 6px;}
+.gv-sc-n{font-size:1.35em;font-weight:800;color:var(--gv-txt);white-space:nowrap;}
+.gv-sc-n small{font-size:0.55em;font-weight:600;color:var(--gv-sub);}
+.gv-sc-r{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:4px;color:#fff;font-size:0.5em;font-weight:800;letter-spacing:0.04em;vertical-align:middle;}
+.gv-sc-bar{flex:1 1 220px;min-width:180px;}
+.gv-trk{position:relative;height:10px;border-radius:5px;background:var(--gv-track);}
+.gv-trk>i{position:absolute;left:0;top:0;bottom:0;border-radius:5px;}
+.gv-tick{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:var(--gv-sub);opacity:0.55;}
+.gv-tick-l{position:absolute;top:13px;transform:translateX(-50%);font-size:0.62em;color:var(--gv-sub);white-space:nowrap;}
+.gv-sc-bar .gv-trk{margin-bottom:16px;}
+.gv-sc-why{flex:1 1 100%;font-size:0.78em;color:var(--gv-sub);}
+.gv-sc-why b{color:var(--gv-txt);}
+.gv-flag{flex:1 1 100%;font-size:0.76em;color:#b35c00;}
+.gv-flag>span{font-weight:700;}
+.gv-flag ul{margin:2px 0 0;padding-left:18px;}
+.gv-col{display:flex;flex-direction:column;min-width:0;border:1px solid var(--gv-line);border-radius:7px;overflow:hidden;background:var(--surface,#fff);container-type:inline-size;}
+.gv-cat{display:grid;grid-template-columns:minmax(64px,auto) 1fr auto auto auto 12px;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;border-left:4px solid var(--gv-c);}
+.gv-cat-t{font-size:0.8em;font-weight:700;color:var(--gv-txt);white-space:nowrap;}
+.gv-cat .gv-trk{height:7px;}
+.gv-cat-s{font-size:0.9em;font-weight:800;color:var(--gv-txt);min-width:2ch;text-align:right;}
+.gv-cat-w,.gv-cat-p{font-size:0.72em;color:var(--gv-sub);white-space:nowrap;text-align:right;}
 .gv-cat .ppf-chev{flex:none;margin:0 0 1px;}
 .gv-shut .gv-cat .ppf-chev{transform:rotate(-90deg);}
-.gv-shut .gv-items,.gv-shut .gv-wt{display:none;}
-.gv-col.gv-shut{align-self:start;}
+@container (max-width:360px){
+  .gv-cat{grid-template-columns:1fr auto 12px;row-gap:5px;}
+  .gv-cat .gv-trk{grid-column:1/-1;grid-row:2;}
+  .gv-cat-w,.gv-cat-p{grid-row:3;text-align:left;}
+  .gv-cat-w{grid-column:1;}.gv-cat-p{grid-column:2/-1;}
+}
+.gv-chips{display:flex;flex-wrap:wrap;gap:4px;padding:0 10px 8px 14px;}
+.gv-chips:empty,.gv-col:not(.gv-shut) .gv-chips{display:none;}
+.gv-chip{font-size:0.7em;line-height:1.35;padding:2px 7px;border-radius:9px;background:var(--gv-chip);color:var(--gv-txt);}
+.gv-chip b{color:var(--gv-fail);}
+.gv-chip-na{background:var(--gv-na);color:var(--gv-sub);}
+.gv-items{border-top:1px solid var(--gv-line);}
+.gv-shut .gv-items{display:none;}
+.gv-item{display:grid;grid-template-columns:14px minmax(0,1fr) auto minmax(0,auto);align-items:baseline;gap:8px;padding:6px 10px 6px 14px;border-bottom:1px solid var(--gv-line);}
+.gv-item:last-child{border-bottom:none;}
+.gv-ic{font-size:0.75em;font-weight:800;color:var(--gv-sub);text-align:center;}
+.gv-item.pass .gv-ic{color:var(--gv-pass);}.gv-item.fail .gv-ic{color:var(--gv-fail);}
+.gv-k{font-size:0.78em;color:var(--gv-txt);min-width:0;overflow-wrap:anywhere;}
+.gv-v{font-size:0.8em;font-weight:700;color:var(--gv-txt);white-space:nowrap;text-align:right;}
+.gv-item.pass .gv-v{color:var(--gv-pass);}.gv-item.fail .gv-v{color:var(--gv-fail);}
+.gv-tg{font-size:0.72em;color:var(--gv-sub);text-align:right;}
 @media(max-width:900px) and (orientation:portrait){
-  .detail-content .d-gate-values{grid-template-columns:1fr!important;gap:6px;}
-  .detail-content .gv-cat{font-size:0.78em;padding:6px 12px;text-align:left;justify-content:space-between;}
-  .detail-content .gv-item{padding:7px 12px;}
-  .detail-content .gv-k{font-size:0.85em;}
-  .detail-content .gv-v{font-size:0.88em;}
-  .detail-content .gv-thr{font-size:0.95em;}
   .detail-content .dkvg{grid-template-columns:1fr!important;}
   .detail-content .sig-grid{grid-template-columns:1fr!important;}
   .detail-content .ps-nm{max-width:110px;}
@@ -2151,7 +2159,11 @@ button.wind-h{cursor:pointer;}
 .ph-snm{color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
 .ph-sclr{position:absolute;right:6px;background:none;border:none;color:#bbb;cursor:pointer;font-size:1.15em;padding:2px 4px;line-height:1;display:none;}
 .ph-sclr:hover{color:#555;}
-#ph-tip-bar{min-height:30px;margin:4px 0 2px;line-height:1.5;}
+/* The legend sits under the chart on one line; when the stocks overflow it
+   scrolls sideways rather than wrapping into a block over the lines. */
+#ph-tip-bar{min-height:30px;margin:6px 0 2px;line-height:1.5;display:flex;flex-wrap:nowrap;align-items:center;overflow-x:auto;overflow-y:hidden;white-space:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+#ph-tip-bar::-webkit-scrollbar{display:none;}
+#ph-tip-bar>span{flex-shrink:0;}
 #ph-chart{user-select:none;}
 /* Gate detail sub-tab */
 .gate-detail-card{display:flex;align-items:center;gap:20px;flex-wrap:wrap;background:var(--surface);border-radius:8px;border-left:5px solid #ccc;padding:14px 18px;margin-bottom:10px;box-shadow:0 2px 6px rgba(0,0,0,0.06);}
@@ -2257,14 +2269,8 @@ button.wind-h{cursor:pointer;}
 [data-theme="dark"] .ps-tk{color:#e6edf3;}
 [data-theme="dark"] .ps-nm,[data-theme="dark"] .ps-ext{color:#8b949e;}
 [data-theme="dark"] .pp-bar{background:#30363d;}
-[data-theme="dark"] .gv-col{border-color:#30363d;}
-[data-theme="dark"] .gv-items{background:#1c2128;}
-[data-theme="dark"] .gv-item{border-color:#30363d;}
-[data-theme="dark"] .gv-item:nth-child(even){background:#21262d;}
-[data-theme="dark"] .gv-k{color:#8b949e;}
-[data-theme="dark"] .gv-v{color:#e6edf3;}
-[data-theme="dark"] .gv-thr{color:#6e7681;}
-[data-theme="dark"] .gv-wt{background:#1c2128;color:#8b949e;border-top-color:#30363d;}
+[data-theme="dark"] .d-gate-values{--gv-pass:#7ee787;--gv-fail:#ff7b72;--gv-txt:#e6edf3;--gv-sub:#8b949e;--gv-line:#30363d;--gv-track:#30363d;--gv-chip:rgba(255,123,114,0.14);--gv-na:#262c36;}
+[data-theme="dark"] .gv-col{background:#1c2128;}
 [data-theme="dark"] .gate-detail-card{background:#161b22;color:#e6edf3;}
 [data-theme="dark"] .gate-detail-threshold,[data-theme="dark"] .gate-pass-label{color:#8b949e;}
 [data-theme="dark"] .stat{background:rgba(255,255,255,0.08);}
@@ -2350,8 +2356,13 @@ button.wind-h{cursor:pointer;}
 [data-theme="dark"] p[style*="color:#999"]{color:#8b949e !important;}
 [data-theme="dark"] .ps-tbl th{color:#8b949e;border-color:#30363d;}
 [data-theme="dark"] .ps-tbl td{border-color:#21262d;color:#c9d1d9;}
-[data-theme="dark"] .gv-v.pass{color:#7ee787;}
-[data-theme="dark"] .gv-v.fail{color:#ff7b72;}
+/* The Model card: !important beats the blanket dark `body *` rule below. */
+[data-theme="dark"] .d-gate-values,[data-theme="dark"] .d-gate-values *{color:var(--gv-txt) !important;}
+[data-theme="dark"] .gv-sc-n small,[data-theme="dark"] .gv-sc-why,[data-theme="dark"] .gv-tick-l,[data-theme="dark"] .gv-cat-w,[data-theme="dark"] .gv-cat-p,[data-theme="dark"] .gv-ic,[data-theme="dark"] .gv-tg,[data-theme="dark"] .gv-chip-na{color:var(--gv-sub) !important;}
+[data-theme="dark"] .gv-item.pass .gv-ic,[data-theme="dark"] .gv-item.pass .gv-v{color:var(--gv-pass) !important;}
+[data-theme="dark"] .gv-item.fail .gv-ic,[data-theme="dark"] .gv-item.fail .gv-v,[data-theme="dark"] .gv-chip b{color:var(--gv-fail) !important;}
+[data-theme="dark"] .gv-flag,[data-theme="dark"] .gv-flag *{color:#ffa657 !important;}
+[data-theme="dark"] .gv-sc-r{color:#fff !important;}
 [data-theme="dark"] .score-sep,[data-theme="dark"] .col-unit,[data-theme="dark"] .col-filters-and-label{color:#8b949e;}
 [data-theme="dark"] .fpop-section-label{color:#e6edf3;border-bottom-color:#30363d;}
 [data-theme="dark"] .fpop-close{color:#8b949e;}
@@ -2375,8 +2386,8 @@ button.wind-h{cursor:pointer;}
 [data-theme="dark"] .rev-chk:not(.checked),[data-theme="dark"] .rev-chk-det:not(.checked),[data-theme="dark"] #f-reviewed,[data-theme="dark"] #f-unreviewed{color:#fff !important;--chk-border:#fff;--chk-mark:#fff;}
 [data-theme="dark"] .rev-chk:not(.checked):hover,[data-theme="dark"] .rev-chk-det:not(.checked):hover{--chk-border:#fff;--chk-mark:#fff;}
 [data-theme="dark"] #f-reviewed svg,[data-theme="dark"] #f-reviewed span,[data-theme="dark"] #f-unreviewed svg,[data-theme="dark"] #f-unreviewed span{color:#fff !important;}
-[data-theme="dark"] td.gp,[data-theme="dark"] td.sg,[data-theme="dark"] .gv-v.pass,[data-theme="dark"] [style*="color:#1a9850"],[data-theme="dark"] [style*="color:#27ae60"],[data-theme="dark"] [style*="color:#2e7d48"]{color:#7ee787 !important;}
-[data-theme="dark"] td.gf,[data-theme="dark"] td.sp,[data-theme="dark"] .gv-v.fail,[data-theme="dark"] [style*="color:#de2d26"],[data-theme="dark"] [style*="color:#e74c3c"],[data-theme="dark"] [style*="color:#c0392b"]{color:#ff7b72 !important;}
+[data-theme="dark"] td.gp,[data-theme="dark"] td.sg,[data-theme="dark"] [style*="color:#1a9850"],[data-theme="dark"] [style*="color:#27ae60"],[data-theme="dark"] [style*="color:#2e7d48"]{color:#7ee787 !important;}
+[data-theme="dark"] td.gf,[data-theme="dark"] td.sp,[data-theme="dark"] [style*="color:#de2d26"],[data-theme="dark"] [style*="color:#e74c3c"],[data-theme="dark"] [style*="color:#c0392b"]{color:#ff7b72 !important;}
 [data-theme="dark"] td.sm,[data-theme="dark"] [style*="color:#fd8d3c"],[data-theme="dark"] [style*="color:#e67e22"]{color:#ffd33d !important;}
 [data-theme="dark"] td.gn{color:#c9d1d9 !important;}
 /* Sector Analysis SVG charts — dark mode (CSS overrides hardcoded SVG fill/stroke attributes) */
@@ -3014,6 +3025,7 @@ body.wide-table #subnav{padding-left:var(--pg-inset,20px);padding-right:var(--pg
   /* Icon-only, but it grows to fit the count badge rather than letting it
      spill past the button's edge. */
   .header #filter-bar .fpop-btn{width:auto;min-width:32px;padding:0 8px;justify-content:center;}
+  .header #filter-bar .fpop-btn svg{width:18px;height:18px;}
   .sn-title{font-size:18px;}
 }
 /* ---- phones: drawer + bottom tabs ---- */
@@ -3043,6 +3055,8 @@ body.wide-table #subnav{padding-left:var(--pg-inset,20px);padding-right:var(--pg
      the button with room on both sides instead of against its edge. */
   .header #filter-bar .fpop-btn,[data-theme="dark"] .header #filter-bar .fpop-btn{width:auto;min-width:36px;height:36px;padding:0 10px;gap:7px;justify-content:center;background:transparent;border:0;border-radius:8px;}
   .header #filter-bar .fpop-btn,.header #filter-bar .fpop-btn *{color:#fff !important;}
+  /* As large as the ☰ beside it: at 14px the funnel read as an afterthought. */
+  .header #filter-bar .fpop-btn svg{width:22px;height:22px;}
   .header #filter-bar .fpop-btn.active,[data-theme="dark"] .header #filter-bar .fpop-btn.active{background:#2a2a2a;}
   /* Same rule on the phone's icon button: hover is no state of its own
      (white icon on the near-white hover colour read as a blank tile). */
@@ -8901,8 +8915,8 @@ function initPriceChart(){
      as one segmented row (hidden for today-only metrics). The view itself is
      just the chart, under the title. */
   phv.innerHTML='<div class="sx"><div class="sec-label">Stock Comparison</div>'
-    +'<div id="ph-tip-bar" style="min-height:28px"></div>'
-    +'<div id="ph-chart"></div></div>';
+    +'<div id="ph-chart"></div>'
+    +'<div id="ph-tip-bar"></div></div>';
   var pm=document.getElementById('ph-menu');
   if(pm)pm.innerHTML='<div class="phm-sec"><div class="phm-h">Metric</div><div id="ph-metric"></div></div>'
     +'<div class="phm-sec"><div class="phm-h">Stocks<span id="ph-count"></span></div>'
@@ -13164,37 +13178,9 @@ function openDet(tk){
     _krows.push(['52-Wk Range',_px(d.low_52w)+' – '+_px(d.high_52w),'',_rs.join(' · ')]);
   }
   _km.innerHTML=_krows.map(function(r){var _kmTipKey=DKV_TIPS[r[0]]||'';var _kmTxt=_kmTipKey?tt(_kmTipKey):'';return'<div class="km-cell">'+  '<span class="km-k"'+(_kmTxt?' data-km-tip="'+_kmTipKey+'" data-km-lbl="'+r[0]+'"':'')+'>'+r[0]+'</span><span class="km-v"'+(r[4]?' data-lq="'+r[4]+'"':'')+(r[2]?' style="'+r[2]+'"':'')+'>'+r[1]+'</span>'+(r[3]?'<span class="km-sub">'+r[3]+'</span>':'')+'</div>';}).join('');
-  /* --- Gate values section --- */
-  try{
-    var _gvEl=document.getElementById('d-gate-values');
-    var _fmtGate=function(v,fmt){if(v==null)return'\u2014';if(fmt==='pct1')return(v*100).toFixed(1)+'%';if(fmt==='ratio')return v.toFixed(2)+'\u00d7';if(fmt==='int')return Math.round(v)+'';return v.toFixed?v.toFixed(2):String(v);};
-    var _gvHtml='';
-    GM.categories.forEach(function(c){
-      var gates=GM.gates.filter(function(g){return g.category===c.name;});
-      if(!gates.length)return;
-      var _catScore=d[c.scoreKey];
-      var _catScoreTxt=_catScore!=null?Math.round(_catScore)+'%':'—';
-      var _gvSt=_gvState()[c.name],_gvShut=_gvSt===undefined||_gvSt===true;
-      _gvHtml+='<div class="gv-col'+(_gvShut?' gv-shut':'')+'"><div class="gv-cat" role="button" tabindex="0" aria-expanded="'+(_gvShut?'false':'true')+'"'
-        +' data-gvc="'+_attr(c.name)+'" onclick="_gvToggle(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_gvToggle(this);}"'
-        +' style="background:'+c.dark+'"><span class="gv-cat-t">'+c.name+' - '+_catScoreTxt+'</span><i class="ppf-chev" aria-hidden="true"></i></div><div class="gv-items">';
-      gates.forEach(function(g){
-        var raw=d[g.key];
-        var pass=d[g.gpKey];
-        var cls=pass===true?' pass':pass===false?' fail':'';
-        var _gTipKey=g.key.replace(/^_gate_/,'');
-        var _gLbl=(g.label||'').replace(/"/g,'&quot;');
-        var _gThr=(g.threshold||'').replace(/"/g,'&quot;');
-        var _gSc=d[g.scoreKey];
-        _gvHtml+='<div class="gv-item">'+
-          '<span class="gv-k" data-gv-tip="'+_gTipKey+'" data-gv-lbl="'+_gLbl+'"'+(_gThr?' data-gv-thr="'+_gThr+'"':'')+(_gSc!=null?' data-gv-score="'+Math.round(_gSc)+'"':'')+'>'+g.label+'</span>'+
-          '<span class="gv-v'+cls+'">'+_fmtGate(raw,g.fmt)+
-            (g.threshold?'<span class="gv-thr">\u00a0\u00b7\u00a0'+g.threshold+'</span>':'')+'</span></div>';
-      });
-      _gvHtml+='</div><div class="gv-wt">* '+Math.round(c.weight*100)+'% weight</div></div>';
-    });
-    _gvEl.innerHTML=_gvHtml;
-  }catch(e){console.error('gate values error:',e);}
+  /* --- The Model card (_gvRender) --- */
+  try{document.getElementById('d-gate-values').innerHTML=_gvRender(d);}
+  catch(e){console.error('gate values error:',e);}
   /* _dpTicker is the popup's "currently open company" for every lazy
      re-render guard (Track Record, statements, data tabs, details.json
      merge) — it used to be set as a side effect of the Price History
@@ -17469,6 +17455,105 @@ function renderPoolSectorSignals(sec){
    open unless the caller passes shut (the ticker page's start folded);
    the reader's own fold or unfold is kept per browser
    (stock_wind_shut_v1, {"<scope>:<key>": true|false}). */
+/* The Model card on a ticker's Summary tab. Three levels, failures first:
+   the composite on a 0-100 bar with the rating lines (gate_meta 'ratings')
+   and how far it sits from them, plus any rating flag; one row per category
+   (score out of 100, its weight in the composite, gates passed) with its
+   failing gates as chips, so the folded card already says what holds the
+   score back; and, opened, every gate as icon, label, value and short
+   target. A gate with no pass/fail is N/A: "doesn't apply" when it was not
+   scored, "no data" when it was (missing data scores 0). Display only. */
+var _GV_RC={'BUY':'#1a9850','LEAN BUY':'#5d8a26','HOLD':'#b07d00','PASS':'#de2d26'};
+function _gvFmt(v,fmt){
+  if(v==null||(typeof v==='number'&&!isFinite(v)))return 'N/A';
+  if(typeof v!=='number')return String(v);
+  if(fmt==='pct1')return (v*100).toFixed(1)+'%';
+  if(fmt==='ratio')return v.toFixed(2)+'×';
+  if(fmt==='int')return Math.round(v)+'';
+  return v.toFixed(2);
+}
+function _gvGates(d,cat){
+  return GM.gates.filter(function(g){return g.category===cat;}).map(function(g){
+    var gp=d[g.gpKey],sc=d[g.scoreKey];
+    return {g:g,st:gp===true?'pass':gp===false?'fail':sc==null?'na':'nodata',
+      val:_gvFmt(d[g.key],g.fmt),tg:g.target||g.threshold||'',sc:sc};
+  });
+}
+/* Where a composite sits against the rating lines: above the line it
+   clears and short of the next one up. */
+function _gvLines(comp,lines){
+  var ls=(lines||[]).slice().sort(function(a,b){return b.min-a.min;}),out=[];
+  var f=function(x){return Math.abs(x)<10?(Math.round(Math.abs(x)*10)/10)+'':Math.round(Math.abs(x))+'';};
+  for(var i=0;i<ls.length;i++){
+    if(comp>=ls[i].min){
+      out.push({k:'above',r:ls[i].rating,n:f(comp-ls[i].min)});
+      if(i>0)out.push({k:'short',r:ls[i-1].rating,n:f(ls[i-1].min-comp)});
+      return out;
+    }
+  }
+  if(ls.length)out.push({k:'short',r:ls[ls.length-1].rating,n:f(ls[ls.length-1].min-comp)});
+  return out;
+}
+function _gvRender(d){
+  if(typeof GM==='undefined'||!GM||!GM.categories)return '';
+  var h='',comp=d._composite_score_raw!=null?d._composite_score_raw:d._composite_score;
+  if(comp!=null&&isFinite(comp)){
+    var lines=GM.ratings||[],rt=d.rating_raw||d.rating||'',col=_GV_RC[rt]||'#6a7a90';
+    /* Whole numbers, unless rounding would carry the score across a line. */
+    var shown=Math.round(comp);
+    lines.forEach(function(l){if((comp<l.min)!==(shown<l.min))shown=comp.toFixed(1);});
+    var why=_gvLines(comp,lines).map(function(x){
+      return x.k==='above'?'<b>'+x.n+'</b> above the '+esc(x.r)+' line':'<b>'+x.n+'</b> short of '+esc(x.r);
+    });
+    var lbl=isCapped(d)?'Rating cap':'Flag',flags=[];
+    (d._rating_cap_reasons||[]).forEach(function(r){
+      var t=typeof r==='string'?r:(r&&r.text)||'';
+      if(t)flags.push('<li>'+esc(t.charAt(0).toUpperCase()+t.slice(1))+'</li>');
+    });
+    var pct=Math.max(0,Math.min(100,comp));
+    h+='<div class="gv-score"><div class="gv-sc-n">'+shown+'<small> / 100</small>'
+      +(rt?'<span class="gv-sc-r" style="background:'+col+'">'+esc(rt)+'</span>':'')+'</div>'
+      +'<div class="gv-sc-bar"><div class="gv-trk" role="img" aria-label="'+_attr('Composite '+shown+' of 100')+'">'
+      +'<i style="width:'+pct+'%;background:'+col+'"></i>'
+      +lines.map(function(l){return '<span class="gv-tick" style="left:'+l.min+'%"></span><span class="gv-tick-l" style="left:'+l.min+'%">'+l.min+'</span>';}).join('')
+      +'</div></div>'
+      +(why.length?'<div class="gv-sc-why">'+why.join(' · ')+'</div>':'')
+      +(flags.length?'<div class="gv-flag"><span>⚠ '+lbl+(flags.length>1?'s':'')+'</span><ul>'+flags.join('')+'</ul></div>':'')+'</div>';
+  }
+  var shutAll=_gvState();
+  GM.categories.forEach(function(c){
+    var rows=_gvGates(d,c.name);
+    if(!rows.length)return;
+    var cs=d[c.scoreKey],np=0,nf=0,nn=0,chips='';
+    rows.forEach(function(r){
+      if(r.st==='pass')np++;
+      else if(r.st==='fail'){nf++;chips+='<span class="gv-chip"><b>✗</b> '+esc(r.g.label)+' '+esc(r.val)+(r.tg?' · '+esc(r.tg):'')+'</span>';}
+      else nn++;
+    });
+    if(nn)chips+='<span class="gv-chip gv-chip-na">'+nn+' N/A · count 0</span>';
+    var st=shutAll[c.name],shut=st===undefined||st===true;
+    h+='<div class="gv-col'+(shut?' gv-shut':'')+'" style="--gv-c:'+c.dark+'">'
+      +'<div class="gv-cat" role="button" tabindex="0" aria-expanded="'+(shut?'false':'true')+'" data-gvc="'+_attr(c.name)+'"'
+      +' onclick="_gvToggle(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_gvToggle(this);}">'
+      +'<span class="gv-cat-t">'+esc(c.name)+'</span>'
+      +'<span class="gv-trk"><i style="width:'+(cs!=null?Math.max(0,Math.min(100,cs)):0)+'%;background:'+c.dark+'"></i></span>'
+      +'<span class="gv-cat-s">'+(cs!=null?Math.round(cs):'—')+'</span>'
+      +'<span class="gv-cat-w">'+Math.round(c.weight*100)+'% of score</span>'
+      +'<span class="gv-cat-p">'+np+'/'+(np+nf)+' pass</span>'
+      +'<i class="ppf-chev" aria-hidden="true"></i></div>'
+      +'<div class="gv-chips">'+chips+'</div><div class="gv-items">';
+    rows.forEach(function(r){
+      var g=r.g,ic=r.st==='pass'?'✓':r.st==='fail'?'✗':'–';
+      var tg=r.st==='na'?"doesn't apply":r.st==='nodata'?'no data':r.tg;
+      h+='<div class="gv-item '+r.st+'"><span class="gv-ic" aria-hidden="true">'+ic+'</span>'
+        +'<span class="gv-k" data-gv-tip="'+_attr(g.key.replace(/^_gate_/,''))+'" data-gv-lbl="'+_attr(g.label)+'"'
+        +(g.threshold?' data-gv-thr="'+_attr(g.threshold)+'"':'')+(r.sc!=null?' data-gv-score="'+Math.round(r.sc)+'"':'')+'>'+esc(g.label)+'</span>'
+        +'<span class="gv-v">'+esc(r.val)+'</span><span class="gv-tg">'+esc(tg)+'</span></div>';
+    });
+    h+='</div></div>';
+  });
+  return h;
+}
 /* The Model's gate categories fold the same way: a header tap shows or
    hides the category's gates. They start folded, so the card opens as five
    category scores; the reader's choice is kept per browser for every ticker
