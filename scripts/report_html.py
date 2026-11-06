@@ -1992,7 +1992,7 @@ def _sha256_file(path, _chunk=1 << 20):
 
 
 def _write_app_json(path, payload):
-    """Write one app feed file and return its sha256.
+    """Write one app feed file.
 
     ``_sanitize`` nulls NaN/inf (numeric or stringified) because the raw
     snapshots carry both and ``json.dump`` writes them as the JavaScript
@@ -2006,18 +2006,25 @@ def _write_app_json(path, payload):
     with open(path, 'w', encoding='utf-8') as _fh:
         json.dump(_sanitize(payload), _fh, default=_json_default,
                   separators=_COMPACT, allow_nan=False)
-    return _sha256_file(path)
 
 
 def _write_app_feed(app_dir, chart_records, details_payload, rows, run_date):
     """Write ``app/latest.json``, ``app/detail/<TICKER>.json`` and
     ``app/manifest.json``; return the tickers written.
 
-    The manifest goes last and names every file with its sha256, so the app
-    can tell a complete night from a half-written one: with no manifest, or
-    a file whose hash does not match it, the app keeps the night it already
+    The manifest goes last, so the app can tell a complete night from a
+    half-written one: with no manifest, the app keeps the night it already
     has instead of mixing two runs. Rebuilt wholesale each run, like vol/
     and hist/, so a ticker that leaves the universe leaves no shard behind.
+
+    ``files`` hashes only ``latest.json``, not the per-ticker shards, which
+    narrows the handoff's section 4 deliberately. Hashing 3,859 shards made
+    the manifest 363 KiB, and the app fetches it on every launch and
+    foreground to answer one question — is there a new night. The shards
+    carry their own ``date`` instead, so a detail can still be matched to
+    the list it was fetched for, and ``tickers`` still says which shards
+    that night has. Bump _APP_SCHEMA_VERSION if they are ever hashed again:
+    an app that checks a hash it no longer finds would reject every night.
     """
     _written = []
     try:
@@ -2033,10 +2040,11 @@ def _write_app_feed(app_dir, chart_records, details_payload, rows, run_date):
             shutil.rmtree(app_dir)
         os.makedirs(_detail_dir, exist_ok=True)
 
-        _files = {'app/latest.json': _write_app_json(
-            _latest_path,
-            _build_app_list(chart_records, run_date,
-                            _app_risk_free_rate(rows)))}
+        _write_app_json(_latest_path,
+                        _build_app_list(chart_records, run_date,
+                                        _app_risk_free_rate(rows)))
+        # The one file the app fetches before it trusts the night.
+        _files = {'app/latest.json': _sha256_file(_latest_path)}
 
         for _rec in sorted(chart_records or (),
                            key=lambda r: str(r.get('ticker') or '')):
@@ -2055,8 +2063,7 @@ def _write_app_feed(app_dir, chart_records, details_payload, rows, run_date):
             # Each shard names its own night, so a detail served from the
             # app's cache can be matched to the list without the manifest.
             _detail['date'] = run_date
-            _files['app/detail/%s.json' % _tk] = _write_app_json(
-                os.path.join(_detail_dir, f'{_tk}.json'), _detail)
+            _write_app_json(os.path.join(_detail_dir, f'{_tk}.json'), _detail)
             _written.append(_tk)
 
         with open(_manifest_path, 'w', encoding='utf-8') as _mf:

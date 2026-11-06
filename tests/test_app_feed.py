@@ -70,12 +70,18 @@ def test_feed_writes_latest_detail_and_a_matching_manifest(tmp_path):
     assert manifest['date'] == '2026-11-05' and manifest['count'] == 2
     assert manifest['tickers'] == ['AAA', 'BBB']
     assert manifest['generated_at'].endswith('+00:00')
-    # Every file the manifest names exists and hashes to what it claims —
-    # the whole point of the manifest is that the app can check this.
-    assert set(manifest['files']) == {'app/latest.json', 'app/detail/AAA.json',
-                                      'app/detail/BBB.json'}
+    # Only latest.json is hashed: hashing every shard made the manifest
+    # 363 KiB for a file the app fetches on each launch just to ask whether
+    # there is a new night.
+    assert set(manifest['files']) == {'app/latest.json'}
     for rel, digest in manifest['files'].items():
         assert _sha256(tmp_path / rel) == digest
+    # The shards are accounted for by name, and each carries its own night,
+    # which is what replaces a per-shard hash.
+    assert manifest['tickers'] == ['AAA', 'BBB']
+    for tk in manifest['tickers']:
+        shard = json.loads((app / 'detail' / f'{tk}.json').read_text(encoding='utf-8'))
+        assert shard['date'] == '2026-11-05'
 
     detail = json.loads((app / 'detail' / 'AAA.json').read_text(encoding='utf-8'))
     # The row's remaining fields, plus the heavy text, plus its own night.
