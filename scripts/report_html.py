@@ -2141,16 +2141,64 @@ def _app_profit_pool(chart_records):
     return sorted(agg.values(), key=lambda a: a['margin'], reverse=True)
 
 
+_APP_POOL_TOP_N = 25   # the report's _ppTopN
+
+
+def _app_pool_companies(rows):
+    """A sector's "Who Earns It": the PP_TOP_N largest companies by revenue
+    share with what the report's pool chart and table show for each, and
+    the rest pooled as Others (renderPool / renderPoolCompanyTable)."""
+    by_rev = sorted(rows, key=lambda d: _app_or0(d.get('pp_revenue_share')), reverse=True)
+    shown, tail = by_rev[:_APP_POOL_TOP_N], by_rev[_APP_POOL_TOP_N:]
+    out = {
+        'n': len(by_rev),
+        # The sector's market value over the charted set and the tail (mcap
+        # > 0): the denominator of each company's value / pool.
+        'mcap_total': sum(_app_num(d.get('mcap')) or 0.0 for d in by_rev
+                          if (_app_num(d.get('mcap')) or 0) > 0),
+        'shown': [{
+            'ticker': d.get('ticker'), 'company_name': d.get('company_name'),
+            'rating': d.get('rating'), 'industry': d.get('industry'),
+            'revenue_share': _app_num(d.get('pp_revenue_share')),
+            'pool_share': _app_num(d.get('pp_profit_share')),
+            'margin': _app_num(d.get('operating_margin')),
+            'spread': _app_num(d.get('spread')),
+            # The Pool Share gate: the 5-year CAGR of the company's share.
+            'pool_share_trend': _app_num(d.get('_gate_pool_share')),
+            'mcap': _app_num(d.get('mcap')),
+        } for d in shown],
+    }
+    if tail:
+        rev = sum(_app_or0(d.get('pp_revenue_share')) for d in tail)
+        out['others'] = {
+            'n': len(tail),
+            'revenue_share': rev,
+            'pool_share': sum(_app_or0(d.get('pp_profit_share')) for d in tail),
+            'margin': (sum(_app_or0(d.get('operating_margin')) * _app_or0(d.get('pp_revenue_share'))
+                           for d in tail) / rev) if rev > 0 else None,
+            'mcap': sum(_app_num(d.get('mcap')) or 0.0 for d in tail if (_app_num(d.get('mcap')) or 0) > 0),
+        }
+    return out
+
+
 def _build_app_sectors(chart_records, sector_pool, run_date):
     """``app/sectors.json``: the heatmap, the profit pool, and each sector's
     pool (the sector pages' narrative, history, industries, economics and
-    forces, as built for SECTOR_POOL)."""
+    forces, as built for SECTOR_POOL), plus its largest companies."""
+    pools = {}
+    by_sector = {}
+    for r in chart_records or ():
+        if r.get('sector') and r.get('pp_revenue_share') is not None:
+            by_sector.setdefault(r['sector'], []).append(r)
+    for sec, pool in (sector_pool or {}).items():
+        # A shallow copy: SECTOR_POOL itself is also inlined in the report.
+        pools[sec] = dict(pool, companies=_app_pool_companies(by_sector.get(sec, [])))
     return {
         'schema_version': _APP_SCHEMA_VERSION,
         'date': run_date,
         'heatmap': _app_sector_heatmap(chart_records),
         'profit_pool': _app_profit_pool(chart_records),
-        'pools': sector_pool or {},
+        'pools': pools,
     }
 
 
