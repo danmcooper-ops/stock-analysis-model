@@ -585,7 +585,7 @@ publish() {
   # Written every time, as the cloud publish does: the shard families are
   # tracked by manifest and conflict copies (a space in the name) never are;
   # _worker.js carries the Access config and is deployed to Cloudflare only.
-  printf 'docs/vol/* *.json\ndocs/px/* *.json\ndocs/hist/* *.json\ndocs/details/* *.json\ndocs/_worker.js\n' \
+  printf 'docs/vol/* *.json\ndocs/px/* *.json\ndocs/hist/* *.json\ndocs/details/* *.json\ndocs/app/detail/* *.json\ndocs/_worker.js\n' \
     > "$PAGES_WT/.gitignore" || return 1
   cp "$HTML" "$docs/index.html" || return 1
   cp "$PAGES_HEADERS" "$docs/_headers" || return 1   # Cloudflare headers (inert on GitHub Pages)
@@ -608,6 +608,23 @@ publish() {
   # this machine has the paper bot's records; public by choice.
   if [ -f output/paper.json ]; then cp output/paper.json "$docs/paper.json" || return 1
   else rm -f "$docs/paper.json"; fi
+  # rating_history.json (the app's Changes screen) and portfolio_alerts.json
+  # (its Alerts), both already written by the run but never published before.
+  for f in rating_history.json portfolio_alerts.json; do
+    if [ -f "output/$f" ]; then cp "output/$f" "$docs/$f" || return 1
+    else rm -f "$docs/$f"; fi
+  done
+  # The iOS app's feed: latest.json + manifest.json here, app/detail/ by
+  # manifest in publish_vol_shards.py below. Optional the way macro.json is,
+  # and for a stronger reason — the app treats a manifest it cannot match as
+  # "no new night", so a half-copied app/ is worse than none.
+  if [ -f output/app/manifest.json ] && [ -f output/app/latest.json ]; then
+    mkdir -p "$docs/app" || return 1
+    cp output/app/latest.json "$docs/app/latest.json" || return 1
+    cp output/app/manifest.json "$docs/app/manifest.json" || return 1
+  else
+    rm -rf "$docs/app"
+  fi
   rm -f "$docs/prices.json"   # retired 2026-08-11
   rm -f "$docs/hist.json" "$docs/details.json"   # split into hist/ and details/ (P4c)
   "$VPY" scripts/publish_vol_shards.py || { echo "publish: shard sync failed"; return 1; }
