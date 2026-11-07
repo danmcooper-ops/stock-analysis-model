@@ -12,7 +12,7 @@ import re
 
 from scripts.report_html import (_APP_LIST_FIELDS, _APP_SCHEMA_VERSION, _APP_SCREENER_FIELDS,
                                  _app_pool_companies,
-                                 _build_app_portfolios,
+                                 _build_app_portfolios, _app_portfolio_news, _pfn_matchers,
                                  _app_is_blue_chip, _app_profit_pool, _app_sector_heatmap,
                                  _build_app_etfs, _build_app_gates, _build_app_list,
                                  _build_app_screener,
@@ -465,7 +465,82 @@ def _pf_payload():
         ],
         'nav': {'spy': [['2026-11-04', 100.0], ['2026-11-05', 101.0]], 'universe': [],
                 'pf': {'semis': [['2026-11-04', 100.0, 0], ['2026-11-05', 97.0, 0]]}},
+        'analytics': {'semis': {'val': {'status': 'ok', 'rel': 0.1}}},
     }
+
+
+def _template_set(name):
+    src = open(os.path.join(REPO, 'templates', 'report.html'), encoding='utf-8').read()
+    body = re.search(r'var ' + name + r'=\{(.*?)\};', src).group(1)
+    return {k.strip("'") for k in re.findall(r"('[^']*'|[A-Za-z0-9_]+):1", body)}
+
+
+def test_news_word_lists_are_the_templates():
+    assert set(rh._PFN_LEGAL) == _template_set('_PFN_LEGAL')
+    assert set(rh._PFN_GENERIC) == _template_set('_PFN_GENERIC')
+    assert set(rh._PFN_STOPTK) == _template_set('_PFN_STOPTK')
+    assert str(rh._PFN_MAX) in re.search(r'var _PFN_MAX=(\d+);', open(
+        os.path.join(REPO, 'templates', 'report.html'), encoding='utf-8').read()).group(1)
+
+
+def _names(m, text):
+    return any(r.search(text) for r in m)
+
+
+def test_news_matchers_follow_the_reports_rules():
+    nv = _pfn_matchers('NVDA', {'company_name': 'NVIDIA Corporation'})
+    assert _names(nv, 'Nvidia beats') and _names(nv, '$NVDA jumps')
+    # Tickers are case-sensitive and whole: no "nvda", no XNVDA or NVDAQ.
+    assert not _names(nv, 'nvda lower') and not _names(nv, 'XNVDA') and not _names(nv, 'NVDAQ moves')
+    # A longer name matches by its full name or first two words, never one.
+    ttd = _pfn_matchers('TTD', {'company_name': 'The Trade Desk, Inc.'})
+    assert _names(ttd, 'Trade Desk stock') and not _names(ttd, 'Trade war')
+    # Stop-listed and one-letter tickers never match on their own.
+    assert not _names(_pfn_matchers('ON', {'company_name': 'ON Semiconductor Corp'}), 'turned on today')
+    # A generic one-word name does not match alone (Ford the verb, Target).
+    assert not _names(_pfn_matchers('TGT', {'company_name': 'Target Corporation'}), 'price target raised')
+    # A share-class suffix is dropped from the ticker.
+    assert _names(_pfn_matchers('BRK-B', {'company_name': 'Berkshire Hathaway Inc.'}), 'BRK results')
+
+
+def test_portfolio_news_folds_credits_filters_and_sorts():
+    by_tk = {'AAA': {'company_name': 'Alphacorp Inc.'}, 'BBB': {'company_name': 'Betaworks Ltd'}}
+    details = {
+        'AAA': {'news_headlines': [
+            {'title': 'Alphacorp and Betaworks merge', 'link': 'L1', 'date': '2026-11-05', 'tier': 0},
+            {'title': 'Sector rally', 'link': 'L2', 'date': '2026-11-06', 'scope': 'sector'},
+            {'title': 'Markets drift', 'link': 'L3', 'date': '2026-11-06', 'origin': 'google_news'},
+            {'title': 'Alphacorp upgraded', 'link': 'L4', 'date': '2026-11-06', 'timestamp': 1, 'tags': ['rating']},
+            {'title': 'Unrelated', 'link': 'L5', 'date': '2026-11-06'},
+        ]},
+        'BBB': {'news_headlines': [
+            {'title': 'Alphacorp and Betaworks merge', 'link': 'L1', 'date': '2026-11-05', 'tier': 1},
+            {'title': 'Company news for Betaworks', 'link': 'L6', 'date': '2026-11-06', 'timestamp': 2},
+            {'title': 'Earnings call held', 'link': 'L7', 'date': '2026-11-04', 'tier': 1},
+        ]},
+    }
+    news = _app_portfolio_news(['AAA', 'BBB'], by_tk, details)
+    titles = [i['title'] for i in news['items']]
+    # Sector-scope and Google items without a scope are dropped, as is one
+    # that names no member; the duplicate is folded.
+    assert 'Sector rally' not in titles and 'Markets drift' not in titles and 'Unrelated' not in titles
+    assert titles.count('Alphacorp and Betaworks merge') == 1
+    # Newest day first; within a day the later timestamp first.
+    assert titles == ['Company news for Betaworks', 'Alphacorp upgraded',
+                      'Alphacorp and Betaworks merge', 'Earnings call held']
+    merged = news['items'][2]
+    assert merged['tickers'] == ['AAA', 'BBB'] and merged['link'] == 'L1'
+    # A tier 0/1 item is credited to the member whose feed it came from.
+    assert news['items'][3]['tickers'] == ['BBB']
+    assert news['items'][1]['tags'] == ['rating'] and news['total'] == 4
+
+
+def test_portfolio_news_keeps_the_newest_sixty():
+    by_tk = {'AAA': {'company_name': 'Alphacorp Inc.'}}
+    feed = [{'title': f'Alphacorp item {i}', 'link': f'L{i}', 'date': f'2026-10-{i % 28 + 1:02d}'} for i in range(80)]
+    news = _app_portfolio_news(['AAA'], by_tk, {'AAA': {'news_headlines': feed}})
+    assert news['total'] == 80 and len(news['items']) == rh._PFN_MAX
+    assert news['items'][0]['date'] >= news['items'][-1]['date']
 
 
 def test_portfolios_carry_only_the_published_fields():
@@ -481,6 +556,11 @@ def test_portfolios_carry_only_the_published_fields():
     assert paper['members'] == ['AAA'] and paper['rule'] == {'rating': ['BUY']}
     # The public NAV, as the report's payload carries it.
     assert out['nav']['pf']['semis'][-1] == ['2026-11-05', 97.0, 0]
+    # Value & risk and the changes' comparison day, as PF_PUB carries them;
+    # no rows given, so no news.
+    assert out['analytics'] == {'semis': {'val': {'status': 'ok', 'rel': 0.1}}}
+    assert out['prev_date'] == '2026-11-04'
+    assert 'news' not in semis and out['news_tag_labels']
 
 
 def test_no_portfolios_means_no_file(tmp_path):
@@ -497,6 +577,8 @@ def test_feed_writes_portfolios_when_given(tmp_path):
     pfs = json.loads((app / 'portfolios.json').read_text(encoding='utf-8'))
     assert [p['id'] for p in pfs['portfolios']] == ['semis', 'paper']
     assert pfs['portfolios'][0]['members'] == ['AAA']
+    # The rows are there, so each portfolio carries its News tab.
+    assert pfs['portfolios'][0]['news'] == {'items': [], 'total': 0}
 
 
 def test_pool_companies_are_the_top_25_and_the_rest_pooled():

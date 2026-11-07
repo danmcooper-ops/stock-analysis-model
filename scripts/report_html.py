@@ -2335,9 +2335,107 @@ def _build_app_etfs(payload, run_date):
 _APP_PORTFOLIO_FIELDS = ('id', 'name', 'color', 'description', 'created', 'alerts', 'rule')
 
 
-def _build_app_portfolios(payload, index, run_date):
+# A portfolio's News tab (the template's _pfNewsItems), built here because
+# the app does not download every member's detail shard. The word lists are
+# the template's, and tests/test_app_feed.py fails if the two drift apart.
+_PFN_MAX = 60
+_PFN_LEGAL = frozenset((
+    'inc', 'incorporated', 'corp', 'corporation', 'co', 'company', 'ltd', 'limited', 'plc', 'llc',
+    'lp', 'l.p.', 'holdings', 'holding', 'group', 'sa', 'nv', 'ag', 'se', 'ab', 'the', 'class',
+    'common', 'stock', 'adr', 'ads', 's.a.', 'n.v.', 'n.v', 'inc.', 'corp.', 'co.', 'ltd.'))
+_PFN_GENERIC = frozenset((
+    'american', 'general', 'united', 'first', 'national', 'international', 'global', 'advanced',
+    'taiwan', 'china', 'new', 'southern', 'northern', 'western', 'eastern', 'energy', 'capital',
+    'financial', 'bank', 'royal', 'the', 'applied', 'digital', 'us', 'u', 's', 'east', 'west',
+    'north', 'south', 'pacific', 'atlantic', 'texas', 'canadian', 'japan', 'british', 'data',
+    'service', 'services', 'health', 'healthcare', 'real', 'public', 'home', 'power', 'world',
+    'best', 'city', 'century', 'great', 'old', 'standard', 'premier', 'universal', 'continental',
+    'federal', 'state', 'ally', 'target', 'block', 'match', 'visa', 'progressive', 'ford'))
+_PFN_STOPTK = frozenset((
+    'A', 'AN', 'AI', 'ALL', 'ARE', 'BE', 'BIG', 'CAN', 'CEO', 'FOR', 'GO', 'HAS', 'IT', 'KEY',
+    'NOW', 'ON', 'ONE', 'OR', 'OUT', 'SO', 'TV', 'UP', 'US', 'USA', 'WELL', 'ET', 'EV', 'IPO',
+    'ETF', 'FAST', 'LOW', 'MAIN', 'RUN', 'SEE', 'TRUE', 'TWO', 'VS'))
+# A headline's fields the app shows.
+_PFN_ITEM_FIELDS = ('title', 'link', 'date', 'source', 'sentiment', 'tags')
+
+
+def _pfn_word(w):
+    """The template's _pfnRe: the phrase between non-alphanumerics, any case."""
+    return re.compile(r'(?<![A-Za-z0-9])' + re.escape(w) + r'(?![A-Za-z0-9])', re.IGNORECASE)
+
+
+def _pfn_matchers(ticker, row):
+    """_pfnMatchers: what in a headline names this member. Its ticker
+    (case-sensitive, an optional $), its full name, and a one-word name or
+    a longer name's first two words."""
+    out = []
+    nm = re.sub(r'\(the\)', '', str((row or {}).get('company_name') or ''), flags=re.IGNORECASE)
+    words = [w for w in nm.replace(',', ' ').split() if w.lower() not in _PFN_LEGAL]
+    while words and re.fullmatch(r'and|&|of', words[-1], re.IGNORECASE):
+        words.pop()
+    words = [w for w in words if re.search(r'[A-Za-z0-9]', w)]
+    base = str(ticker).split('-', 1)[0]
+    if len(base) >= 2 and base not in _PFN_STOPTK:
+        out.append(re.compile(r'(?<![A-Za-z0-9$])\$?' + re.escape(base) + r'(?![A-Za-z0-9])'))
+    if len(words) > 1:
+        out.append(_pfn_word(' '.join(words)))
+    w0 = re.sub(r"[^A-Za-z0-9&'-]", '', words[0] if words else '')
+    if len(words) == 1 and len(w0) >= 4 and w0.lower() not in _PFN_GENERIC:
+        out.append(_pfn_word(w0))
+    elif len(words) >= 3:
+        out.append(_pfn_word(' '.join(words[:2])))
+    return out
+
+
+def _pfn_norm(title):
+    return re.sub(r'[^A-Za-z0-9_]+', ' ', str(title).lower()).strip()
+
+
+def _app_portfolio_news(members, by_tk, details):
+    """_pfNewsItems: the members' company headlines that name a member,
+    duplicates folded and each credited to every member it names, newest
+    first (several members first within a day). ``{'items', 'total'}`` with
+    at most _PFN_MAX items, the most the tab shows."""
+    matchers = {t: _pfn_matchers(t, by_tk.get(t)) for t in members}
+    seen, out = {}, []
+    for t in members:
+        feed = ((details or {}).get(t) or {}).get('news_headlines')
+        if feed is None:
+            feed = (by_tk.get(t) or {}).get('news_headlines')
+        for n in feed or ():
+            if not isinstance(n, dict) or not n.get('title'):
+                continue
+            if (n.get('scope') == 'sector') if n.get('scope') else (n.get('origin') == 'google_news'):
+                continue
+            norm = _pfn_norm(n['title'])
+            key = n.get('link') or norm
+            hit = seen.get(key, seen.get('t:' + norm))
+            if hit is not None:
+                if n.get('tier') in (0, 1) and t not in out[hit]['tks']:
+                    out[hit]['tks'].append(t)
+                continue
+            tks = [u for u in members if any(r.search(n['title']) for r in matchers[u])]
+            if n.get('tier') in (0, 1) and t not in tks:
+                tks.append(t)
+            if not tks:
+                continue
+            seen[key] = seen['t:' + norm] = len(out)
+            out.append({'n': n, 'tks': tks})
+    # The template's comparator, as three stable sorts, least significant
+    # first: timestamp, then members named, then date.
+    out.sort(key=lambda x: x['n'].get('timestamp') or 0, reverse=True)
+    out.sort(key=lambda x: len(x['tks']), reverse=True)
+    out.sort(key=lambda x: str(x['n'].get('date') or ''), reverse=True)
+    items = [dict({k: x['n'][k] for k in _PFN_ITEM_FIELDS if x['n'].get(k) is not None}, tickers=x['tks'])
+             for x in out[:_PFN_MAX]]
+    return {'items': items, 'total': len(out)}
+
+
+def _build_app_portfolios(payload, index, run_date, chart_records=None, details_payload=None):
     """``app/portfolios.json``: each portfolio's definition and members as
-    resolved for the report, and the public NAV series; None without any."""
+    resolved for the report, its News tab's headlines, the public NAV
+    series, the published analytics (Value & risk; PF_PUB.analytics) and
+    the day the changes compare against; None without any portfolios."""
     pfs = (payload or {}).get('portfolios') or []
     if not pfs:
         return None
@@ -2345,17 +2443,23 @@ def _build_app_portfolios(payload, index, run_date):
     for tk, ids in (index or {}).items():
         for pid in ids:
             members.setdefault(pid, []).append(tk)
+    by_tk = {r['ticker']: r for r in chart_records or () if isinstance(r, dict) and r.get('ticker')}
     out = []
     for pf in pfs:
         row = {k: pf.get(k) for k in _APP_PORTFOLIO_FIELDS if pf.get(k) is not None}
         row['members'] = sorted(members.get(pf.get('id'), []))
         row['missing'] = sorted(pf.get('missing') or [])
+        if by_tk or details_payload:
+            row['news'] = _app_portfolio_news(row['members'], by_tk, details_payload)
         out.append(row)
     return {
         'schema_version': _APP_SCHEMA_VERSION,
         'date': run_date,
         'portfolios': out,
         'nav': (payload or {}).get('nav'),
+        'analytics': (payload or {}).get('analytics'),
+        'prev_date': (payload or {}).get('prev_date'),
+        'news_tag_labels': TAG_LABELS,
     }
 
 
@@ -2455,7 +2559,8 @@ def _write_app_feed(app_dir, chart_records, details_payload, rows, run_date,
             print(f"[warn] app/etfs.json write failed: {_ee}")
         # Portfolios: best-effort the same way, and only when there are any.
         try:
-            _pfs = _build_app_portfolios(portfolios, pf_index, _date)
+            _pfs = _build_app_portfolios(portfolios, pf_index, _date,
+                                         chart_records=chart_records, details_payload=details_payload)
             if _pfs:
                 _write_app_json(os.path.join(app_dir, 'portfolios.json'), _pfs)
         except Exception as _pe:
