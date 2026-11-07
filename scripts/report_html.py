@@ -2234,8 +2234,10 @@ _APP_SCREENER_FIELDS = (
 # Beyond the table columns: what the quick filters read, and the Filters
 # panel's "Debt" column filters (_CF_NUM). Its "Scores" filters ride the
 # list feed already.
+# earnings_next_date: a portfolio Summary's "Earnings ≤ 7 days" (_pfRowStats).
 _APP_SCREENER_EXTRA = ('country', 'founder_led', 'r2000', 'rating_chg',
-                       'mcap', 'total_debt', 'net_debt', 'de', 'debt_maturity_wall_yrs')
+                       'mcap', 'total_debt', 'net_debt', 'de', 'debt_maturity_wall_yrs',
+                       'earnings_next_date')
 _APP_SCREENER_SIG_DIGITS = 6   # the screener shows at most four
 
 
