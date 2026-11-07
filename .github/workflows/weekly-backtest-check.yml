@@ -1,0 +1,39 @@
+name: Weekly backtest delivery check
+
+# The weekly backtest runs on the Mac mini (scheduled-tasks/weekly-backtest/)
+# and commits backtest_summary_<date>.json to data/snapshots each Sunday. When
+# it does not run -- the app was closed, the Mac asleep, the task never fired
+# -- nothing else says so: Sunday 2026-10-11 produced nothing and went
+# unnoticed for five days, because the runbook described this workflow before
+# it existed.
+#
+# Monday 15:00 UTC (11:00 New York in summer, 10:00 in winter): the hour does
+# not matter, only that Sunday's run has long finished. check_eod_delivery
+# allows 7 days for --kind weekly, so a missed Sunday is red this Monday.
+on:
+  schedule:
+    - cron: '0 15 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-backtest-check
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      # stdlib-only: reads the branch listing from the GitHub API. Exit 1 =
+      # stale (no summary in 7 days), 2 = the branch could not be read.
+      - run: |
+          python scripts/check_eod_delivery.py --repo "${{ github.repository }}" --kind weekly
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
