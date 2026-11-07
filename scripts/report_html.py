@@ -2317,6 +2317,15 @@ def _build_app_gates(chart_records, run_date, gate_meta=None):
     }
 
 
+def _build_app_etfs(payload, run_date):
+    """``app/etfs.json``: the SPDR look-through (Investing › ETFs) exactly
+    as the template's ETF_LT gets it, dated; None when the night has none
+    (no holdings archived, or a coverage-degraded run)."""
+    if not payload or not payload.get('funds'):
+        return None
+    return {'schema_version': _APP_SCHEMA_VERSION, 'date': run_date, **payload}
+
+
 # The report's Portfolios view, for the app: what the inline PORTFOLIOS
 # payload already publishes, and no more. Fields are taken by allow-list, so
 # anything a definition grows later (strategy targets, say) stays out until
@@ -2351,7 +2360,7 @@ def _build_app_portfolios(payload, index, run_date):
 
 
 def _write_app_feed(app_dir, chart_records, details_payload, rows, run_date,
-                    sector_pool=None, portfolios=None, pf_index=None):
+                    sector_pool=None, portfolios=None, pf_index=None, etfs=None):
     """Write ``app/latest.json``, ``app/detail/<TICKER>.json``,
     ``app/sectors.json``, ``app/screener.json``, ``app/portfolios.json`` and
     ``app/manifest.json``;
@@ -2436,6 +2445,14 @@ def _write_app_feed(app_dir, chart_records, details_payload, rows, run_date,
                             _build_app_gates(chart_records, _date))
         except Exception as _ge:
             print(f"[warn] app/gates.json write failed: {_ge}")
+        # The ETF look-through: best-effort the same way, and only when the
+        # night has one.
+        try:
+            _etfs = _build_app_etfs(etfs, _date)
+            if _etfs:
+                _write_app_json(os.path.join(app_dir, 'etfs.json'), _etfs)
+        except Exception as _ee:
+            print(f"[warn] app/etfs.json write failed: {_ee}")
         # Portfolios: best-effort the same way, and only when there are any.
         try:
             _pfs = _build_app_portfolios(portfolios, pf_index, _date)
@@ -2871,7 +2888,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     # manifest is what tells the app the night is complete.
     _write_app_feed(app_dir, chart_records, details_payload, rows, run_date,
                     sector_pool=sector_pool_data, portfolios=portfolios_payload,
-                    pf_index=_pf_index)
+                    pf_index=_pf_index, etfs=etf_payload)
 
     # Render Jinja2 template
     template_dir = os.path.join(os.path.dirname(__file__), '..', 'templates')
