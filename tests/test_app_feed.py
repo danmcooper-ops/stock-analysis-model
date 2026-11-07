@@ -14,7 +14,8 @@ from scripts.report_html import (_APP_LIST_FIELDS, _APP_SCHEMA_VERSION, _APP_SCR
                                  _app_pool_companies,
                                  _build_app_portfolios,
                                  _app_is_blue_chip, _app_profit_pool, _app_sector_heatmap,
-                                 _build_app_gates, _build_app_list, _build_app_screener,
+                                 _build_app_etfs, _build_app_gates, _build_app_list,
+                                 _build_app_screener,
                                  _write_app_feed,
                                  unpack_rows)
 
@@ -206,7 +207,7 @@ def test_run_daily_publishes_the_app_feed_and_the_change_files():
     # Sector Analysis and the screener ride with the list feed, and a night
     # without one drops last night's copy rather than serving it beside
     # today's list.
-    assert 'for f in sectors.json screener.json gates.json portfolios.json; do' in sh
+    assert 'for f in sectors.json screener.json gates.json etfs.json portfolios.json; do' in sh
     assert 'cp "output/app/$f" "$docs/app/$f"' in sh
     assert 'rm -f "$docs/app/$f"' in sh
     assert r'docs/app/detail/* *.json\n' in sh
@@ -414,6 +415,38 @@ def test_feed_writes_a_dated_gates_file(tmp_path):
     gates = json.loads((app / 'gates.json').read_text(encoding='utf-8'))
     assert gates['date'] == '2026-11-05' and gates['tickers'] == ['AAA', 'BBB']
     assert gates['gate_meta']['gates']
+
+
+# --- ETFs (app/etfs.json) --------------------------------------------------
+
+def _etf_payload():
+    return {'base': 'SPY', 'sector_fund': {'Technology': 'XLK'},
+            'funds': {'XLK': {'fund': 'XLK', 'status': 'ok', 'mos': float('nan'), 'sector': 'Technology',
+                              'category': 'sector', 'top': [{'t': 'AAPL', 'w': 0.12}]}}}
+
+
+def test_etfs_are_the_look_through_dated():
+    out = _build_app_etfs(_etf_payload(), '2026-11-06')
+    assert out['date'] == '2026-11-06' and out['schema_version'] == _APP_SCHEMA_VERSION
+    assert out['base'] == 'SPY' and out['sector_fund'] == {'Technology': 'XLK'}
+    assert out['funds']['XLK']['top'] == [{'t': 'AAPL', 'w': 0.12}]
+
+
+def test_no_look_through_means_no_etf_file(tmp_path):
+    assert _build_app_etfs(None, '2026-11-06') is None
+    assert _build_app_etfs({'base': 'SPY', 'funds': {}}, '2026-11-06') is None
+    app = tmp_path / 'app'
+    _write_app_feed(str(app), _records(), _details(), _rows(), '2026-11-05')
+    assert not (app / 'etfs.json').exists()
+
+
+def test_feed_writes_a_dated_etf_file_with_nan_nulled(tmp_path):
+    app = tmp_path / 'app'
+    _write_app_feed(str(app), _records(), _details(), _rows(), '2026-11-05', etfs=_etf_payload())
+    text = (app / 'etfs.json').read_text(encoding='utf-8')
+    assert 'NaN' not in text
+    etfs = json.loads(text)
+    assert etfs['date'] == '2026-11-05' and etfs['funds']['XLK']['mos'] is None
 
 
 # --- portfolios (app/portfolios.json) --------------------------------------
