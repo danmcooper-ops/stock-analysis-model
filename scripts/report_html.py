@@ -2284,6 +2284,39 @@ def _build_app_screener(chart_records, run_date):
     }
 
 
+def _build_app_gates(chart_records, run_date, gate_meta=None):
+    """``app/gates.json``: the Gate Matrix (Investing › Stocks › Model) and
+    the Stocks Dashboard's pass rates, for the app.
+
+    The gate definitions as the template's GM gets them (gate_metadata),
+    and per gate two columns in the list feed's ticker order: the gate's
+    value (``values[key]``) and its pass flag (``pass[gpKey]``, null when
+    the gate does not apply). Column-wise because 26 gates × ~3,900 rows
+    as objects would repeat every key on every row. The category totals
+    and the composite are already in latest.json.
+    """
+    gm = gate_meta or gate_metadata()
+    recs = sorted((r for r in chart_records or () if r.get('ticker')), key=lambda r: str(r['ticker']))
+    values, passes = {}, {}
+    for g in gm.get('gates', []):
+        col, flags = [], []
+        for r in recs:
+            v = _sanitize(r.get(g['key']), (r.get('ticker'), g['key']))
+            col.append(_app_trim(v) if v is not None else None)
+            p = _sanitize(r.get(g['gpKey']), (r.get('ticker'), g['gpKey']))
+            flags.append(None if p is None else bool(p))
+        values[g['key']] = col
+        passes[g['gpKey']] = flags
+    return {
+        'schema_version': _APP_SCHEMA_VERSION,
+        'date': run_date,
+        'gate_meta': gm,
+        'tickers': [r['ticker'] for r in recs],
+        'values': values,
+        'pass': passes,
+    }
+
+
 # The report's Portfolios view, for the app: what the inline PORTFOLIOS
 # payload already publishes, and no more. Fields are taken by allow-list, so
 # anything a definition grows later (strategy targets, say) stays out until
@@ -2396,6 +2429,13 @@ def _write_app_feed(app_dir, chart_records, details_payload, rows, run_date,
                             _build_app_screener(chart_records, _date))
         except Exception as _ce:
             print(f"[warn] app/screener.json write failed: {_ce}")
+        # The Gate Matrix and the Dashboard's pass rates: best-effort the
+        # same way.
+        try:
+            _write_app_json(os.path.join(app_dir, 'gates.json'),
+                            _build_app_gates(chart_records, _date))
+        except Exception as _ge:
+            print(f"[warn] app/gates.json write failed: {_ge}")
         # Portfolios: best-effort the same way, and only when there are any.
         try:
             _pfs = _build_app_portfolios(portfolios, pf_index, _date)

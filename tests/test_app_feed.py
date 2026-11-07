@@ -14,7 +14,8 @@ from scripts.report_html import (_APP_LIST_FIELDS, _APP_SCHEMA_VERSION, _APP_SCR
                                  _app_pool_companies,
                                  _build_app_portfolios,
                                  _app_is_blue_chip, _app_profit_pool, _app_sector_heatmap,
-                                 _build_app_list, _build_app_screener, _write_app_feed,
+                                 _build_app_gates, _build_app_list, _build_app_screener,
+                                 _write_app_feed,
                                  unpack_rows)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -205,7 +206,7 @@ def test_run_daily_publishes_the_app_feed_and_the_change_files():
     # Sector Analysis and the screener ride with the list feed, and a night
     # without one drops last night's copy rather than serving it beside
     # today's list.
-    assert 'for f in sectors.json screener.json portfolios.json; do' in sh
+    assert 'for f in sectors.json screener.json gates.json portfolios.json; do' in sh
     assert 'cp "output/app/$f" "$docs/app/$f"' in sh
     assert 'rm -f "$docs/app/$f"' in sh
     assert r'docs/app/detail/* *.json\n' in sh
@@ -360,6 +361,59 @@ def test_feed_writes_a_dated_screener(tmp_path):
     screener = json.loads((app / 'screener.json').read_text(encoding='utf-8'))
     assert screener['date'] == '2026-11-05' and screener['tickers'] == ['AAA', 'BBB']
     assert len(unpack_rows(screener['rows'])) == 2
+
+
+# --- the gates (app/gates.json) -------------------------------------------
+# The Gate Matrix and the Stocks Dashboard's pass rates, which the report
+# reads from DATA and GM.
+
+_GM = {
+    'gates': [
+        {'key': '_gate_mos', 'gpKey': '_gp_mos', 'scoreKey': '_score_mos', 'label': 'MoS',
+         'category': 'Valuation', 'fmt': 'pct1', 'threshold': 'MoS > 10%', 'weight': 2.0},
+        {'key': '_gate_roic', 'gpKey': '_gp_roic', 'scoreKey': '_score_roic', 'label': 'ROIC',
+         'category': 'Quality', 'fmt': 'pct1', 'threshold': 'ROIC > 12%', 'weight': 1.0},
+    ],
+    'categories': [{'name': 'Valuation', 'scoreKey': '_score_valuation', 'weight': 0.5},
+                   {'name': 'Quality', 'scoreKey': '_score_quality', 'weight': 0.5}],
+    'ratings': ['BUY', 'LEAN BUY', 'HOLD', 'PASS'],
+}
+
+
+def test_gates_pack_values_and_pass_flags_by_gate_in_ticker_order():
+    recs = [
+        {'ticker': 'ZZZ', '_gate_mos': 0.123456789, '_gp_mos': True, '_gate_roic': None, '_gp_roic': None},
+        {'ticker': 'AAA', '_gate_mos': float('nan'), '_gp_mos': 0, '_gate_roic': 0.2, '_gp_roic': 1},
+        {'company_name': 'no ticker'},
+    ]
+    out = _build_app_gates(recs, '2026-11-06', _GM)
+    assert out['date'] == '2026-11-06' and out['tickers'] == ['AAA', 'ZZZ']
+    assert out['gate_meta'] is _GM
+    # Six significant digits; a NaN is null, never a JavaScript literal.
+    assert out['values']['_gate_mos'] == [None, 0.123457]
+    assert out['values']['_gate_roic'] == [0.2, None]
+    # Pass flags are booleans, null where the gate does not apply.
+    assert out['pass']['_gp_mos'] == [False, True]
+    assert out['pass']['_gp_roic'] == [True, None]
+    # Every column is as long as the ticker list, so the app can index it.
+    for col in list(out['values'].values()) + list(out['pass'].values()):
+        assert len(col) == len(out['tickers'])
+
+
+def test_gates_default_to_the_reports_gate_metadata():
+    from scripts.scoring import gate_metadata
+    out = _build_app_gates([{'ticker': 'AAA'}], '2026-11-06')
+    assert out['gate_meta'] == gate_metadata()
+    assert set(out['values']) == {g['key'] for g in gate_metadata()['gates']}
+    assert set(out['pass']) == {g['gpKey'] for g in gate_metadata()['gates']}
+
+
+def test_feed_writes_a_dated_gates_file(tmp_path):
+    app = tmp_path / 'app'
+    _write_app_feed(str(app), _records(), _details(), _rows(), '2026-11-05')
+    gates = json.loads((app / 'gates.json').read_text(encoding='utf-8'))
+    assert gates['date'] == '2026-11-05' and gates['tickers'] == ['AAA', 'BBB']
+    assert gates['gate_meta']['gates']
 
 
 # --- portfolios (app/portfolios.json) --------------------------------------

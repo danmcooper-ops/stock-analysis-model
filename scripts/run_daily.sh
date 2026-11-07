@@ -621,10 +621,10 @@ publish() {
   if [ -f output/app/manifest.json ] && [ -f output/app/latest.json ]; then
     mkdir -p "$docs/app" || return 1
     cp output/app/latest.json "$docs/app/latest.json" || return 1
-    # Sector Analysis, the screener and portfolios; dated, and best-effort like their
-    # writer, so a night without one publishes the rest and drops last
-    # night's copy.
-    for f in sectors.json screener.json portfolios.json; do
+    # Sector Analysis, the screener, the gates and portfolios; dated, and
+    # best-effort like their writer, so a night without one publishes the
+    # rest and drops last night's copy.
+    for f in sectors.json screener.json gates.json portfolios.json; do
       if [ -f "output/app/$f" ]; then cp "output/app/$f" "$docs/app/$f" || return 1
       else rm -f "$docs/app/$f"; fi
     done
