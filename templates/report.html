@@ -11490,7 +11490,7 @@ var DT_TABS=[
  /* Sector Analysis renders entirely through its `after` hook — the block
     builds its own titled dgroup, so the tab declares no groups and
     _renderDetDataTab skips the standard shell. */
- {k:'sect',l:'Sector',groups:[],after:_detSectorAnalysisHtml},
+ {k:'sect',l:'Sector',groups:[]},
  {k:'mkt',l:'Market',groups:[
   {t:'Momentum',cols:[{k:'momentum_12_1'},{k:'momentum_6_1'},{k:'momentum_3m'},{k:'vol_adj_momentum'}]},
   {t:'Liquidity',cols:[{k:'avg_dollar_volume_3m'},{k:'volume_trend'},{k:'amihud_illiquidity'},{k:'share_turnover_rate'}]},
@@ -11780,27 +11780,6 @@ function _detEdgarWarnHtml(d){
 function _detCeoBioHtml(d){
   if(!d.ceo_bio)return '';
   return '<div class="dsec" style="grid-column:1/-1"><h3>CEO Bio'+(d.ceo?' — '+esc(d.ceo):'')+'</h3><div class="utx"><p>'+esc(d.ceo_bio)+'</p></div></div>';
-}
-function _detSectorAnalysisHtml(d){
-  if(!(d.revenue!=null&&d.revenue>0))return '';
-  var ppH='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#5a1f80,#7030a0)"><span class="dg-icon"></span><span class="sec-label">Sector Analysis</span></div><div class="dgrid-inner">';
-  /* Left column: company metrics */
-  var _opmC=d.operating_margin!=null?(d.pp_margin_advantage!=null&&d.pp_margin_advantage>0?'color:#27ae60':d.pp_margin_advantage!=null&&d.pp_margin_advantage<0?'color:#c0392b':''):'';
-  var _ppm=d.pp_multiple;
-  var _ppmC=_ppm!=null?(_ppm>=1.5?'color:#27ae60;font-weight:700':_ppm>=1.0?'font-weight:700':_ppm>=0.5?'color:#e67e22;font-weight:700':'color:#c0392b;font-weight:700'):'';
-  var _rs=d.pp_revenue_share;
-  var _ps=d.pp_profit_share;
-  ppH+='<div class="dsec"><h3>Company Position</h3><div class="dkvg">'+bkv([['Revenue',fds(d.revenue)],['Operating Income',fds(d.operating_income)],['Operating Margin',fp(d.operating_margin),_opmC],['Profit Pool Multiple',_ppm!=null?_ppm.toFixed(2)+'×':'N/A',_ppmC],['Revenue Share',_rs!=null?(_rs*100).toFixed(1)+'%':'N/A'],['Profit Share',_ps!=null?(_ps*100).toFixed(1)+'%':'N/A']])+'</div>';
-  ppH+='</div>';
-  /* Right column: sector context */
-  var _hhi=d.pp_sector_hhi;
-  var _hhiLbl=_hhi!=null?(_hhi>0.25?' Concentrated':_hhi>0.15?' Moderate':' Competitive'):'';
-  var _hhiC=_hhi!=null?(_hhi>0.25?'color:#c0392b;font-weight:600':_hhi>0.15?'color:#e67e22;font-weight:600':'color:#27ae60;font-weight:600'):'';
-  var _ma=d.pp_margin_advantage;
-  var _maC=_ma!=null?(_ma>0.05?'color:#27ae60;font-weight:600':_ma<-0.05?'color:#c0392b;font-weight:600':'font-weight:600'):'';
-  ppH+='<div class="dsec"><h3>Sector Context</h3><div class="dkvg">'+bkv([['Sector',esc(d.sector||'')],['Companies in Universe',d.pp_sector_count!=null?''+d.pp_sector_count:'N/A'],['Sector HHI',_hhi!=null?_hhi.toFixed(4)+_hhiLbl:'N/A',_hhiC],['CR4 (Top-4 Share)',d.pp_sector_cr4!=null?(d.pp_sector_cr4*100).toFixed(1)+'%':'N/A'],['Sector Median Op Margin',fp(d._sector_median_opm)],['Margin Advantage',_ma!=null?((_ma>0?'+':'')+(_ma*100).toFixed(1)+' pp'):'N/A',_maC]])+'</div></div>';
-  ppH+='</div></div>';
-  return ppH;
 }
 /* === Popup data-tab visuals ==================================================
    A bare "label … value" list says nothing about whether 0.13 is good. Every
@@ -12206,6 +12185,11 @@ function _dvHeroPeople(d){
     function(v){return Math.round(v)+' / 10';},{g:'Pay tied to performance',m:'Mixed',b:'Pay loosely tied to performance'},'',[4,7]);
   return out;
 }
+/* The Sector tab is its summary and these cards, nothing else: rank in the
+   sector, margin against the sector median, share of the profit pool, and
+   how concentrated the sector is. The Company Position / Sector Context
+   table that followed repeated every one of those numbers (and the summary
+   says them in words), so it is gone. */
 function _dvHeroSector(d){
   if(!(d.revenue!=null&&d.revenue>0))return '';
   var out='';
@@ -12318,7 +12302,7 @@ function _renderDetDataTab(key){
   h+='</div></div>';
   }
   if(tab.after)h+=tab.after(d)||'';   /* bespoke standalone block after the dgroup */
-  /* A hook-only tab (Sector Analysis) can come back empty — e.g. no revenue
+  /* A tab of cards only (Sector) can come back empty — e.g. no revenue
      data — and a silently blank pane reads as broken. */
   if(!h)h='<div style="color:#888;padding:24px;text-align:center;font-size:0.88em">No '+esc(tab.l)+' data for this company.</div>';
   el.innerHTML=h;_dsPlaceIn(el);
