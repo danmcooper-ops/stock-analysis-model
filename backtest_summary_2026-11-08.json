@@ -1,0 +1,3970 @@
+{
+  "date": "2026-11-08",
+  "horizons": [
+    30,
+    90,
+    180
+  ],
+  "since": "2026-07-06",
+  "provenance": {
+    "git_sha": "6b4eb83428dcaccc10256d720dd743a67e687261",
+    "current_params_hash": "ef97d73453c1",
+    "min_return_coverage": 0.9,
+    "snapshots_loaded": 83,
+    "snapshots_usable": 83
+  },
+  "snapshots": [
+    "2026-07-06",
+    "2026-07-07",
+    "2026-07-08",
+    "2026-07-10",
+    "2026-07-13",
+    "2026-07-14",
+    "2026-07-15",
+    "2026-07-16",
+    "2026-07-17",
+    "2026-07-20",
+    "2026-07-21",
+    "2026-07-22",
+    "2026-07-23",
+    "2026-07-24",
+    "2026-07-27",
+    "2026-07-28",
+    "2026-07-29",
+    "2026-07-30",
+    "2026-07-31",
+    "2026-08-03",
+    "2026-08-04",
+    "2026-08-05",
+    "2026-08-07",
+    "2026-08-10",
+    "2026-08-11",
+    "2026-08-12",
+    "2026-08-13",
+    "2026-08-14",
+    "2026-08-17",
+    "2026-08-18",
+    "2026-08-19",
+    "2026-08-21",
+    "2026-08-25",
+    "2026-08-26",
+    "2026-08-28",
+    "2026-08-31",
+    "2026-09-01",
+    "2026-09-02",
+    "2026-09-03",
+    "2026-09-04",
+    "2026-09-08",
+    "2026-09-09",
+    "2026-09-11",
+    "2026-09-14",
+    "2026-09-15",
+    "2026-09-16",
+    "2026-09-17",
+    "2026-09-18",
+    "2026-09-21",
+    "2026-09-22",
+    "2026-09-23",
+    "2026-09-24",
+    "2026-09-25",
+    "2026-09-28",
+    "2026-09-29",
+    "2026-09-30",
+    "2026-10-01",
+    "2026-10-02",
+    "2026-10-05",
+    "2026-10-06",
+    "2026-10-07"
+  ],
+  "skipped_snapshots": [],
+  "unmeasured": [],
+  "deferred": [
+    {
+      "run_date": "2026-08-10",
+      "horizon": 90,
+      "reason": "SPY bars end 2026-11-06, before the 2026-11-08 eval date"
+    },
+    {
+      "run_date": "2026-10-08",
+      "horizon": 30,
+      "reason": "SPY bars end 2026-11-06, before the 2026-11-07 eval date"
+    },
+    {
+      "run_date": "2026-10-09",
+      "horizon": 30,
+      "reason": "SPY bars end 2026-11-06, before the 2026-11-08 eval date"
+    }
+  ],
+  "coverage": [
+    {
+      "run_date": "2026-07-06",
+      "horizon": 30,
+      "rows": 2259,
+      "measured": 2145,
+      "priced": 2145,
+      "implausible": 0,
+      "coverage": 0.9495,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 4
+        },
+        "PASS": {
+          "merger": 6
+        }
+      },
+      "gone_before_snapshot": 5,
+      "unpriced_by_rating": {
+        "BUY": 4,
+        "HOLD": 60,
+        "LEAN BUY": 4,
+        "PASS": 41
+      }
+    },
+    {
+      "run_date": "2026-07-07",
+      "horizon": 30,
+      "rows": 2260,
+      "measured": 2146,
+      "priced": 2146,
+      "implausible": 0,
+      "coverage": 0.9496,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 4
+        },
+        "PASS": {
+          "merger": 6
+        }
+      },
+      "gone_before_snapshot": 5,
+      "unpriced_by_rating": {
+        "BUY": 5,
+        "HOLD": 59,
+        "LEAN BUY": 4,
+        "PASS": 41
+      }
+    },
+    {
+      "run_date": "2026-07-08",
+      "horizon": 30,
+      "rows": 2261,
+      "measured": 2149,
+      "priced": 2149,
+      "implausible": 0,
+      "coverage": 0.9505,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 4
+        },
+        "PASS": {
+          "merger": 6
+        }
+      },
+      "gone_before_snapshot": 5,
+      "unpriced_by_rating": {
+        "BUY": 5,
+        "HOLD": 57,
+        "LEAN BUY": 4,
+        "PASS": 41
+      }
+    },
+    {
+      "run_date": "2026-07-10",
+      "horizon": 30,
+      "rows": 2261,
+      "measured": 2143,
+      "priced": 2143,
+      "implausible": 0,
+      "coverage": 0.9478,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 3
+        },
+        "LEAN BUY": {
+          "merger": 2
+        },
+        "PASS": {
+          "merger": 5
+        }
+      },
+      "gone_before_snapshot": 6,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 58,
+        "LEAN BUY": 8,
+        "PASS": 45
+      }
+    },
+    {
+      "run_date": "2026-07-13",
+      "horizon": 30,
+      "rows": 2244,
+      "measured": 2129,
+      "priced": 2129,
+      "implausible": 0,
+      "coverage": 0.9488,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 2
+        },
+        "LEAN BUY": {
+          "merger": 2
+        },
+        "PASS": {
+          "merger": 4
+        }
+      },
+      "gone_before_snapshot": 7,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 57,
+        "LEAN BUY": 9,
+        "PASS": 41
+      }
+    },
+    {
+      "run_date": "2026-07-14",
+      "horizon": 30,
+      "rows": 2266,
+      "measured": 2150,
+      "priced": 2150,
+      "implausible": 0,
+      "coverage": 0.9488,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 2
+        },
+        "LEAN BUY": {
+          "merger": 2
+        },
+        "PASS": {
+          "merger": 5
+        }
+      },
+      "gone_before_snapshot": 7,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 59,
+        "LEAN BUY": 7,
+        "PASS": 42
+      }
+    },
+    {
+      "run_date": "2026-07-15",
+      "horizon": 30,
+      "rows": 2266,
+      "measured": 2152,
+      "priced": 2153,
+      "implausible": 1,
+      "coverage": 0.9501,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 2
+        },
+        "LEAN BUY": {
+          "merger": 2
+        },
+        "PASS": {
+          "merger": 4
+        }
+      },
+      "gone_before_snapshot": 8,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 59,
+        "LEAN BUY": 5,
+        "PASS": 41
+      }
+    },
+    {
+      "run_date": "2026-07-16",
+      "horizon": 30,
+      "rows": 2266,
+      "measured": 2152,
+      "priced": 2153,
+      "implausible": 1,
+      "coverage": 0.9501,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 2
+        },
+        "LEAN BUY": {
+          "merger": 2
+        },
+        "PASS": {
+          "merger": 4
+        }
+      },
+      "gone_before_snapshot": 8,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 57,
+        "LEAN BUY": 5,
+        "PASS": 43
+      }
+    },
+    {
+      "run_date": "2026-07-17",
+      "horizon": 30,
+      "rows": 2267,
+      "measured": 2154,
+      "priced": 2155,
+      "implausible": 1,
+      "coverage": 0.9506,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 2
+        },
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 4
+        }
+      },
+      "gone_before_snapshot": 9,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 56,
+        "LEAN BUY": 5,
+        "PASS": 42
+      }
+    },
+    {
+      "run_date": "2026-07-20",
+      "horizon": 30,
+      "rows": 2261,
+      "measured": 2150,
+      "priced": 2151,
+      "implausible": 1,
+      "coverage": 0.9513,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 3
+        },
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 4
+        }
+      },
+      "gone_before_snapshot": 9,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 55,
+        "LEAN BUY": 6,
+        "PASS": 40
+      }
+    },
+    {
+      "run_date": "2026-07-21",
+      "horizon": 30,
+      "rows": 2270,
+      "measured": 2157,
+      "priced": 2158,
+      "implausible": 1,
+      "coverage": 0.9507,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 2
+        },
+        "LEAN BUY": {
+          "merger": 2
+        },
+        "PASS": {
+          "merger": 4
+        }
+      },
+      "gone_before_snapshot": 8,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 57,
+        "LEAN BUY": 6,
+        "PASS": 41
+      }
+    },
+    {
+      "run_date": "2026-07-22",
+      "horizon": 30,
+      "rows": 2171,
+      "measured": 2061,
+      "priced": 2062,
+      "implausible": 1,
+      "coverage": 0.9498,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 2
+        },
+        "LEAN BUY": {
+          "merger": 2
+        },
+        "PASS": {
+          "merger": 3
+        }
+      },
+      "gone_before_snapshot": 9,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 59,
+        "LEAN BUY": 5,
+        "PASS": 36
+      }
+    },
+    {
+      "run_date": "2026-07-23",
+      "horizon": 30,
+      "rows": 2257,
+      "measured": 2142,
+      "priced": 2143,
+      "implausible": 1,
+      "coverage": 0.9495,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 2
+        },
+        "PASS": {
+          "merger": 4
+        }
+      },
+      "gone_before_snapshot": 10,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 61,
+        "LEAN BUY": 3,
+        "PASS": 40
+      }
+    },
+    {
+      "run_date": "2026-07-24",
+      "horizon": 30,
+      "rows": 2256,
+      "measured": 2142,
+      "priced": 2143,
+      "implausible": 1,
+      "coverage": 0.9499,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 2
+        },
+        "PASS": {
+          "merger": 4
+        }
+      },
+      "gone_before_snapshot": 10,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 61,
+        "LEAN BUY": 3,
+        "PASS": 39
+      }
+    },
+    {
+      "run_date": "2026-07-27",
+      "horizon": 30,
+      "rows": 2255,
+      "measured": 2143,
+      "priced": 2144,
+      "implausible": 1,
+      "coverage": 0.9508,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 2
+        },
+        "PASS": {
+          "merger": 5
+        }
+      },
+      "gone_before_snapshot": 10,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 59,
+        "LEAN BUY": 2,
+        "PASS": 40
+      }
+    },
+    {
+      "run_date": "2026-07-28",
+      "horizon": 30,
+      "rows": 2255,
+      "measured": 2146,
+      "priced": 2147,
+      "implausible": 1,
+      "coverage": 0.9521,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 2
+        },
+        "PASS": {
+          "merger": 5
+        }
+      },
+      "gone_before_snapshot": 10,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 57,
+        "LEAN BUY": 2,
+        "PASS": 39
+      }
+    },
+    {
+      "run_date": "2026-07-29",
+      "horizon": 30,
+      "rows": 2244,
+      "measured": 2138,
+      "priced": 2140,
+      "implausible": 2,
+      "coverage": 0.9537,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 3
+        },
+        "PASS": {
+          "merger": 5
+        }
+      },
+      "gone_before_snapshot": 10,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 54,
+        "LEAN BUY": 2,
+        "PASS": 39
+      }
+    },
+    {
+      "run_date": "2026-07-30",
+      "horizon": 30,
+      "rows": 2316,
+      "measured": 2203,
+      "priced": 2205,
+      "implausible": 2,
+      "coverage": 0.9521,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 2
+        },
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 5
+        }
+      },
+      "gone_before_snapshot": 10,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 59,
+        "LEAN BUY": 2,
+        "PASS": 41
+      }
+    },
+    {
+      "run_date": "2026-07-31",
+      "horizon": 30,
+      "rows": 2316,
+      "measured": 2208,
+      "priced": 2210,
+      "implausible": 2,
+      "coverage": 0.9542,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 2
+        },
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 5
+        }
+      },
+      "gone_before_snapshot": 9,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 56,
+        "LEAN BUY": 2,
+        "PASS": 40
+      }
+    },
+    {
+      "run_date": "2026-08-03",
+      "horizon": 30,
+      "rows": 2324,
+      "measured": 2213,
+      "priced": 2215,
+      "implausible": 2,
+      "coverage": 0.9531,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 1
+        },
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 4
+        }
+      },
+      "gone_before_snapshot": 11,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 59,
+        "LEAN BUY": 1,
+        "PASS": 39
+      }
+    },
+    {
+      "run_date": "2026-08-04",
+      "horizon": 30,
+      "rows": 2322,
+      "measured": 2212,
+      "priced": 2214,
+      "implausible": 2,
+      "coverage": 0.9535,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 1
+        },
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 4
+        }
+      },
+      "gone_before_snapshot": 10,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 60,
+        "LEAN BUY": 1,
+        "PASS": 38
+      }
+    },
+    {
+      "run_date": "2026-08-05",
+      "horizon": 30,
+      "rows": 2322,
+      "measured": 2212,
+      "priced": 2214,
+      "implausible": 2,
+      "coverage": 0.9535,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 1
+        },
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 3
+        }
+      },
+      "gone_before_snapshot": 11,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 59,
+        "LEAN BUY": 1,
+        "PASS": 38
+      }
+    },
+    {
+      "run_date": "2026-08-07",
+      "horizon": 30,
+      "rows": 2326,
+      "measured": 2212,
+      "priced": 2214,
+      "implausible": 2,
+      "coverage": 0.9518,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 1
+        },
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 3
+        }
+      },
+      "gone_before_snapshot": 12,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 62,
+        "LEAN BUY": 1,
+        "PASS": 38
+      }
+    },
+    {
+      "run_date": "2026-08-10",
+      "horizon": 30,
+      "rows": 2327,
+      "measured": 2212,
+      "priced": 2214,
+      "implausible": 2,
+      "coverage": 0.9514,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 3
+        }
+      },
+      "gone_before_snapshot": 13,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 57,
+        "LEAN BUY": 4,
+        "PASS": 40
+      }
+    },
+    {
+      "run_date": "2026-08-11",
+      "horizon": 30,
+      "rows": 2326,
+      "measured": 2217,
+      "priced": 2219,
+      "implausible": 2,
+      "coverage": 0.954,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 3
+        }
+      },
+      "gone_before_snapshot": 9,
+      "unpriced_by_rating": {
+        "HOLD": 56,
+        "LEAN BUY": 5,
+        "PASS": 39
+      }
+    },
+    {
+      "run_date": "2026-08-12",
+      "horizon": 30,
+      "rows": 2326,
+      "measured": 2217,
+      "priced": 2219,
+      "implausible": 2,
+      "coverage": 0.954,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 3
+        }
+      },
+      "gone_before_snapshot": 9,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 56,
+        "LEAN BUY": 4,
+        "PASS": 39
+      }
+    },
+    {
+      "run_date": "2026-08-13",
+      "horizon": 30,
+      "rows": 2326,
+      "measured": 2215,
+      "priced": 2217,
+      "implausible": 2,
+      "coverage": 0.9531,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 3
+        }
+      },
+      "gone_before_snapshot": 9,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 56,
+        "LEAN BUY": 4,
+        "PASS": 41
+      }
+    },
+    {
+      "run_date": "2026-08-14",
+      "horizon": 30,
+      "rows": 2307,
+      "measured": 2195,
+      "priced": 2196,
+      "implausible": 1,
+      "coverage": 0.9519,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 3
+        }
+      },
+      "gone_before_snapshot": 9,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 56,
+        "LEAN BUY": 4,
+        "PASS": 42
+      }
+    },
+    {
+      "run_date": "2026-08-17",
+      "horizon": 30,
+      "rows": 2324,
+      "measured": 2218,
+      "priced": 2219,
+      "implausible": 1,
+      "coverage": 0.9548,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 3
+        }
+      },
+      "gone_before_snapshot": 9,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 55,
+        "LEAN BUY": 1,
+        "PASS": 40
+      }
+    },
+    {
+      "run_date": "2026-08-18",
+      "horizon": 30,
+      "rows": 2315,
+      "measured": 2208,
+      "priced": 2209,
+      "implausible": 1,
+      "coverage": 0.9542,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 2
+        }
+      },
+      "gone_before_snapshot": 10,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 56,
+        "LEAN BUY": 1,
+        "PASS": 39
+      }
+    },
+    {
+      "run_date": "2026-08-19",
+      "horizon": 30,
+      "rows": 2329,
+      "measured": 2220,
+      "priced": 2221,
+      "implausible": 1,
+      "coverage": 0.9536,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 2
+        }
+      },
+      "gone_before_snapshot": 10,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 58,
+        "LEAN BUY": 1,
+        "PASS": 39
+      }
+    },
+    {
+      "run_date": "2026-08-21",
+      "horizon": 30,
+      "rows": 2331,
+      "measured": 2219,
+      "priced": 2220,
+      "implausible": 1,
+      "coverage": 0.9524,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 1
+        }
+      },
+      "gone_before_snapshot": 11,
+      "unpriced_by_rating": {
+        "BUY": 2,
+        "HOLD": 59,
+        "PASS": 40
+      }
+    },
+    {
+      "run_date": "2026-08-25",
+      "horizon": 30,
+      "rows": 2335,
+      "measured": 2226,
+      "priced": 2227,
+      "implausible": 1,
+      "coverage": 0.9537,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 1
+        }
+      },
+      "gone_before_snapshot": 11,
+      "unpriced_by_rating": {
+        "BUY": 2,
+        "HOLD": 57,
+        "PASS": 39
+      }
+    },
+    {
+      "run_date": "2026-08-26",
+      "horizon": 30,
+      "rows": 2337,
+      "measured": 2225,
+      "priced": 2226,
+      "implausible": 1,
+      "coverage": 0.9525,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "LEAN BUY": {
+          "merger": 1
+        }
+      },
+      "gone_before_snapshot": 12,
+      "unpriced_by_rating": {
+        "BUY": 2,
+        "HOLD": 58,
+        "PASS": 40
+      }
+    },
+    {
+      "run_date": "2026-08-28",
+      "horizon": 30,
+      "rows": 2335,
+      "measured": 2219,
+      "priced": 2219,
+      "implausible": 0,
+      "coverage": 0.9503,
+      "from_cache": false,
+      "delisted_by_rating": {},
+      "gone_before_snapshot": 12,
+      "unpriced_by_rating": {
+        "BUY": 2,
+        "HOLD": 59,
+        "PASS": 43
+      }
+    },
+    {
+      "run_date": "2026-08-31",
+      "horizon": 30,
+      "rows": 2336,
+      "measured": 2223,
+      "priced": 2223,
+      "implausible": 0,
+      "coverage": 0.9516,
+      "from_cache": false,
+      "delisted_by_rating": {},
+      "gone_before_snapshot": 12,
+      "unpriced_by_rating": {
+        "BUY": 2,
+        "HOLD": 60,
+        "PASS": 39
+      }
+    },
+    {
+      "run_date": "2026-09-01",
+      "horizon": 30,
+      "rows": 2247,
+      "measured": 2157,
+      "priced": 2158,
+      "implausible": 1,
+      "coverage": 0.9604,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "PASS": {
+          "merger": 1
+        }
+      },
+      "gone_before_snapshot": 2,
+      "unpriced_by_rating": {
+        "HOLD": 51,
+        "LEAN BUY": 1,
+        "PASS": 36
+      }
+    },
+    {
+      "run_date": "2026-09-02",
+      "horizon": 30,
+      "rows": 2466,
+      "measured": 2365,
+      "priced": 2365,
+      "implausible": 0,
+      "coverage": 0.959,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "PASS": {
+          "merger": 1
+        }
+      },
+      "gone_before_snapshot": 3,
+      "unpriced_by_rating": {
+        "BUY": 2,
+        "HOLD": 64,
+        "PASS": 32
+      }
+    },
+    {
+      "run_date": "2026-09-03",
+      "horizon": 30,
+      "rows": 2471,
+      "measured": 2369,
+      "priced": 2369,
+      "implausible": 0,
+      "coverage": 0.9587,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "PASS": {
+          "merger": 1
+        }
+      },
+      "gone_before_snapshot": 3,
+      "unpriced_by_rating": {
+        "BUY": 2,
+        "HOLD": 65,
+        "PASS": 32
+      }
+    },
+    {
+      "run_date": "2026-09-04",
+      "horizon": 30,
+      "rows": 2472,
+      "measured": 2369,
+      "priced": 2369,
+      "implausible": 0,
+      "coverage": 0.9583,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "PASS": {
+          "merger": 1
+        }
+      },
+      "gone_before_snapshot": 3,
+      "unpriced_by_rating": {
+        "BUY": 2,
+        "HOLD": 66,
+        "PASS": 32
+      }
+    },
+    {
+      "run_date": "2026-09-08",
+      "horizon": 30,
+      "rows": 2235,
+      "measured": 2137,
+      "priced": 2137,
+      "implausible": 0,
+      "coverage": 0.9562,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "PASS": {
+          "merger": 2
+        }
+      },
+      "gone_before_snapshot": 1,
+      "unpriced_by_rating": {
+        "BUY": 2,
+        "HOLD": 65,
+        "PASS": 30
+      }
+    },
+    {
+      "run_date": "2026-09-09",
+      "horizon": 30,
+      "rows": 2471,
+      "measured": 2366,
+      "priced": 2367,
+      "implausible": 1,
+      "coverage": 0.9579,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "PASS": {
+          "merger": 2
+        }
+      },
+      "gone_before_snapshot": 2,
+      "unpriced_by_rating": {
+        "BUY": 2,
+        "HOLD": 64,
+        "PASS": 37
+      }
+    },
+    {
+      "run_date": "2026-09-11",
+      "horizon": 30,
+      "rows": 2486,
+      "measured": 2377,
+      "priced": 2377,
+      "implausible": 0,
+      "coverage": 0.9562,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "PASS": {
+          "merger": 2
+        }
+      },
+      "gone_before_snapshot": 2,
+      "unpriced_by_rating": {
+        "BUY": 2,
+        "HOLD": 69,
+        "LEAN BUY": 1,
+        "PASS": 35
+      }
+    },
+    {
+      "run_date": "2026-09-14",
+      "horizon": 30,
+      "rows": 2489,
+      "measured": 2377,
+      "priced": 2377,
+      "implausible": 0,
+      "coverage": 0.955,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "PASS": {
+          "merger": 2
+        }
+      },
+      "gone_before_snapshot": 2,
+      "unpriced_by_rating": {
+        "BUY": 2,
+        "HOLD": 72,
+        "LEAN BUY": 1,
+        "PASS": 35
+      }
+    },
+    {
+      "run_date": "2026-09-15",
+      "horizon": 30,
+      "rows": 2490,
+      "measured": 2380,
+      "priced": 2380,
+      "implausible": 0,
+      "coverage": 0.9558,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "PASS": {
+          "merger": 3
+        }
+      },
+      "gone_before_snapshot": 2,
+      "unpriced_by_rating": {
+        "BUY": 2,
+        "HOLD": 70,
+        "LEAN BUY": 1,
+        "PASS": 35
+      }
+    },
+    {
+      "run_date": "2026-09-16",
+      "horizon": 30,
+      "rows": 2491,
+      "measured": 2381,
+      "priced": 2381,
+      "implausible": 0,
+      "coverage": 0.9558,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "PASS": {
+          "merger": 3
+        }
+      },
+      "gone_before_snapshot": 2,
+      "unpriced_by_rating": {
+        "BUY": 2,
+        "HOLD": 68,
+        "LEAN BUY": 1,
+        "PASS": 37
+      }
+    },
+    {
+      "run_date": "2026-09-17",
+      "horizon": 30,
+      "rows": 2492,
+      "measured": 2381,
+      "priced": 2381,
+      "implausible": 0,
+      "coverage": 0.9555,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 3
+        }
+      },
+      "gone_before_snapshot": 2,
+      "unpriced_by_rating": {
+        "BUY": 2,
+        "HOLD": 72,
+        "LEAN BUY": 1,
+        "PASS": 34
+      }
+    },
+    {
+      "run_date": "2026-09-18",
+      "horizon": 30,
+      "rows": 2499,
+      "measured": 2387,
+      "priced": 2388,
+      "implausible": 1,
+      "coverage": 0.9556,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 3
+        }
+      },
+      "gone_before_snapshot": 2,
+      "unpriced_by_rating": {
+        "BUY": 2,
+        "HOLD": 68,
+        "LEAN BUY": 1,
+        "PASS": 39
+      }
+    },
+    {
+      "run_date": "2026-09-21",
+      "horizon": 30,
+      "rows": 2499,
+      "measured": 2390,
+      "priced": 2391,
+      "implausible": 1,
+      "coverage": 0.9568,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 2
+        },
+        "PASS": {
+          "merger": 3
+        }
+      },
+      "gone_before_snapshot": 2,
+      "unpriced_by_rating": {
+        "BUY": 2,
+        "HOLD": 67,
+        "LEAN BUY": 1,
+        "PASS": 37
+      }
+    },
+    {
+      "run_date": "2026-09-22",
+      "horizon": 30,
+      "rows": 2515,
+      "measured": 2407,
+      "priced": 2408,
+      "implausible": 1,
+      "coverage": 0.9575,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 2
+        },
+        "PASS": {
+          "merger": 3
+        }
+      },
+      "gone_before_snapshot": 2,
+      "unpriced_by_rating": {
+        "BUY": 3,
+        "HOLD": 68,
+        "PASS": 35
+      }
+    },
+    {
+      "run_date": "2026-09-23",
+      "horizon": 30,
+      "rows": 2522,
+      "measured": 2415,
+      "priced": 2415,
+      "implausible": 0,
+      "coverage": 0.9576,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 2
+        },
+        "PASS": {
+          "merger": 3
+        }
+      },
+      "gone_before_snapshot": 2,
+      "unpriced_by_rating": {
+        "BUY": 2,
+        "HOLD": 66,
+        "PASS": 37
+      }
+    },
+    {
+      "run_date": "2026-09-24",
+      "horizon": 30,
+      "rows": 2524,
+      "measured": 2409,
+      "priced": 2410,
+      "implausible": 1,
+      "coverage": 0.9548,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 2
+        },
+        "PASS": {
+          "merger": 3
+        }
+      },
+      "gone_before_snapshot": 2,
+      "unpriced_by_rating": {
+        "BUY": 3,
+        "HOLD": 68,
+        "PASS": 42
+      }
+    },
+    {
+      "run_date": "2026-09-25",
+      "horizon": 30,
+      "rows": 2531,
+      "measured": 2416,
+      "priced": 2416,
+      "implausible": 0,
+      "coverage": 0.9546,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 4
+        }
+      },
+      "gone_before_snapshot": 2,
+      "unpriced_by_rating": {
+        "BUY": 3,
+        "HOLD": 60,
+        "PASS": 50
+      }
+    },
+    {
+      "run_date": "2026-09-28",
+      "horizon": 30,
+      "rows": 2525,
+      "measured": 2416,
+      "priced": 2416,
+      "implausible": 0,
+      "coverage": 0.9568,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 3
+        },
+        "PASS": {
+          "merger": 3
+        }
+      },
+      "gone_before_snapshot": 0,
+      "unpriced_by_rating": {
+        "BUY": 2,
+        "HOLD": 62,
+        "PASS": 45
+      }
+    },
+    {
+      "run_date": "2026-09-29",
+      "horizon": 30,
+      "rows": 2514,
+      "measured": 2414,
+      "priced": 2414,
+      "implausible": 0,
+      "coverage": 0.9602,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 2
+        },
+        "PASS": {
+          "merger": 3
+        }
+      },
+      "gone_before_snapshot": 0,
+      "unpriced_by_rating": {
+        "BUY": 3,
+        "HOLD": 55,
+        "PASS": 42
+      }
+    },
+    {
+      "run_date": "2026-09-30",
+      "horizon": 30,
+      "rows": 2434,
+      "measured": 2350,
+      "priced": 2351,
+      "implausible": 1,
+      "coverage": 0.9659,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 3
+        },
+        "PASS": {
+          "merger": 3
+        }
+      },
+      "gone_before_snapshot": 0,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 50,
+        "PASS": 33
+      }
+    },
+    {
+      "run_date": "2026-10-01",
+      "horizon": 30,
+      "rows": 2499,
+      "measured": 2401,
+      "priced": 2402,
+      "implausible": 1,
+      "coverage": 0.9612,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 3
+        },
+        "PASS": {
+          "merger": 2
+        }
+      },
+      "gone_before_snapshot": 1,
+      "unpriced_by_rating": {
+        "BUY": 3,
+        "HOLD": 54,
+        "PASS": 40
+      }
+    },
+    {
+      "run_date": "2026-10-02",
+      "horizon": 30,
+      "rows": 2503,
+      "measured": 2402,
+      "priced": 2403,
+      "implausible": 1,
+      "coverage": 0.96,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 3
+        },
+        "PASS": {
+          "merger": 2
+        }
+      },
+      "gone_before_snapshot": 1,
+      "unpriced_by_rating": {
+        "BUY": 3,
+        "HOLD": 58,
+        "PASS": 39
+      }
+    },
+    {
+      "run_date": "2026-10-05",
+      "horizon": 30,
+      "rows": 2507,
+      "measured": 2404,
+      "priced": 2405,
+      "implausible": 1,
+      "coverage": 0.9593,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 3
+        },
+        "PASS": {
+          "merger": 2
+        }
+      },
+      "gone_before_snapshot": 1,
+      "unpriced_by_rating": {
+        "BUY": 3,
+        "HOLD": 58,
+        "PASS": 41
+      }
+    },
+    {
+      "run_date": "2026-10-06",
+      "horizon": 30,
+      "rows": 2504,
+      "measured": 2406,
+      "priced": 2408,
+      "implausible": 2,
+      "coverage": 0.9617,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 3
+        },
+        "PASS": {
+          "merger": 2
+        }
+      },
+      "gone_before_snapshot": 0,
+      "unpriced_by_rating": {
+        "BUY": 3,
+        "HOLD": 57,
+        "PASS": 38
+      }
+    },
+    {
+      "run_date": "2026-10-07",
+      "horizon": 30,
+      "rows": 2508,
+      "measured": 2403,
+      "priced": 2405,
+      "implausible": 2,
+      "coverage": 0.9589,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 3
+        },
+        "PASS": {
+          "merger": 2
+        }
+      },
+      "gone_before_snapshot": 1,
+      "unpriced_by_rating": {
+        "BUY": 3,
+        "HOLD": 60,
+        "PASS": 41
+      }
+    },
+    {
+      "run_date": "2026-07-06",
+      "horizon": 90,
+      "rows": 2259,
+      "measured": 2188,
+      "priced": 2191,
+      "implausible": 3,
+      "coverage": 0.9699,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 5
+        },
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 10
+        }
+      },
+      "gone_before_snapshot": 5,
+      "unpriced_by_rating": {
+        "BUY": 4,
+        "HOLD": 36,
+        "LEAN BUY": 1,
+        "PASS": 25
+      }
+    },
+    {
+      "run_date": "2026-07-07",
+      "horizon": 90,
+      "rows": 2260,
+      "measured": 2189,
+      "priced": 2192,
+      "implausible": 3,
+      "coverage": 0.9699,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 6
+        },
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 9
+        }
+      },
+      "gone_before_snapshot": 5,
+      "unpriced_by_rating": {
+        "BUY": 4,
+        "HOLD": 36,
+        "LEAN BUY": 1,
+        "PASS": 25
+      }
+    },
+    {
+      "run_date": "2026-07-08",
+      "horizon": 90,
+      "rows": 2261,
+      "measured": 2190,
+      "priced": 2193,
+      "implausible": 3,
+      "coverage": 0.9699,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 6
+        },
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 9
+        }
+      },
+      "gone_before_snapshot": 5,
+      "unpriced_by_rating": {
+        "BUY": 4,
+        "HOLD": 36,
+        "LEAN BUY": 1,
+        "PASS": 25
+      }
+    },
+    {
+      "run_date": "2026-07-10",
+      "horizon": 90,
+      "rows": 2261,
+      "measured": 2189,
+      "priced": 2192,
+      "implausible": 3,
+      "coverage": 0.9695,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 4
+        },
+        "LEAN BUY": {
+          "merger": 4
+        },
+        "PASS": {
+          "merger": 8
+        }
+      },
+      "gone_before_snapshot": 6,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 36,
+        "LEAN BUY": 4,
+        "PASS": 25
+      }
+    },
+    {
+      "run_date": "2026-07-13",
+      "horizon": 90,
+      "rows": 2244,
+      "measured": 2174,
+      "priced": 2177,
+      "implausible": 3,
+      "coverage": 0.9701,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 3
+        },
+        "LEAN BUY": {
+          "merger": 4
+        },
+        "PASS": {
+          "merger": 7
+        }
+      },
+      "gone_before_snapshot": 7,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 35,
+        "LEAN BUY": 4,
+        "PASS": 23
+      }
+    },
+    {
+      "run_date": "2026-07-14",
+      "horizon": 90,
+      "rows": 2266,
+      "measured": 2193,
+      "priced": 2196,
+      "implausible": 3,
+      "coverage": 0.9691,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 3
+        },
+        "LEAN BUY": {
+          "merger": 4
+        },
+        "PASS": {
+          "merger": 8
+        }
+      },
+      "gone_before_snapshot": 7,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 35,
+        "LEAN BUY": 4,
+        "PASS": 26
+      }
+    },
+    {
+      "run_date": "2026-07-15",
+      "horizon": 90,
+      "rows": 2266,
+      "measured": 2192,
+      "priced": 2195,
+      "implausible": 3,
+      "coverage": 0.9687,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 3
+        },
+        "LEAN BUY": {
+          "merger": 3
+        },
+        "PASS": {
+          "merger": 8
+        }
+      },
+      "gone_before_snapshot": 8,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 37,
+        "LEAN BUY": 4,
+        "PASS": 24
+      }
+    },
+    {
+      "run_date": "2026-07-16",
+      "horizon": 90,
+      "rows": 2266,
+      "measured": 2192,
+      "priced": 2195,
+      "implausible": 3,
+      "coverage": 0.9687,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 3
+        },
+        "LEAN BUY": {
+          "merger": 3
+        },
+        "PASS": {
+          "merger": 8
+        }
+      },
+      "gone_before_snapshot": 8,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 36,
+        "LEAN BUY": 4,
+        "PASS": 25
+      }
+    },
+    {
+      "run_date": "2026-07-17",
+      "horizon": 90,
+      "rows": 2267,
+      "measured": 2191,
+      "priced": 2194,
+      "implausible": 3,
+      "coverage": 0.9678,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 3
+        },
+        "LEAN BUY": {
+          "merger": 3
+        },
+        "PASS": {
+          "merger": 7
+        }
+      },
+      "gone_before_snapshot": 9,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 37,
+        "LEAN BUY": 4,
+        "PASS": 25
+      }
+    },
+    {
+      "run_date": "2026-07-20",
+      "horizon": 90,
+      "rows": 2261,
+      "measured": 2185,
+      "priced": 2188,
+      "implausible": 3,
+      "coverage": 0.9677,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 4
+        },
+        "LEAN BUY": {
+          "merger": 2
+        },
+        "PASS": {
+          "merger": 8
+        }
+      },
+      "gone_before_snapshot": 9,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 37,
+        "LEAN BUY": 4,
+        "PASS": 25
+      }
+    },
+    {
+      "run_date": "2026-07-21",
+      "horizon": 90,
+      "rows": 2270,
+      "measured": 2195,
+      "priced": 2198,
+      "implausible": 3,
+      "coverage": 0.9683,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 5
+        },
+        "LEAN BUY": {
+          "merger": 2
+        },
+        "PASS": {
+          "merger": 7
+        }
+      },
+      "gone_before_snapshot": 8,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 37,
+        "LEAN BUY": 4,
+        "PASS": 25
+      }
+    },
+    {
+      "run_date": "2026-07-22",
+      "horizon": 90,
+      "rows": 2171,
+      "measured": 2096,
+      "priced": 2099,
+      "implausible": 3,
+      "coverage": 0.9668,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 5
+        },
+        "LEAN BUY": {
+          "merger": 2
+        },
+        "PASS": {
+          "merger": 6
+        }
+      },
+      "gone_before_snapshot": 9,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 39,
+        "LEAN BUY": 3,
+        "PASS": 23
+      }
+    },
+    {
+      "run_date": "2026-07-23",
+      "horizon": 90,
+      "rows": 2257,
+      "measured": 2179,
+      "priced": 2182,
+      "implausible": 3,
+      "coverage": 0.9668,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 4
+        },
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 7
+        }
+      },
+      "gone_before_snapshot": 10,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 40,
+        "LEAN BUY": 2,
+        "PASS": 25
+      }
+    },
+    {
+      "run_date": "2026-07-24",
+      "horizon": 90,
+      "rows": 2256,
+      "measured": 2179,
+      "priced": 2182,
+      "implausible": 3,
+      "coverage": 0.9672,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 5
+        },
+        "PASS": {
+          "merger": 7
+        }
+      },
+      "gone_before_snapshot": 10,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 39,
+        "LEAN BUY": 2,
+        "PASS": 25
+      }
+    },
+    {
+      "run_date": "2026-07-27",
+      "horizon": 90,
+      "rows": 2255,
+      "measured": 2174,
+      "priced": 2179,
+      "implausible": 5,
+      "coverage": 0.9663,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 5
+        },
+        "PASS": {
+          "merger": 7
+        }
+      },
+      "gone_before_snapshot": 10,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 40,
+        "LEAN BUY": 1,
+        "PASS": 29
+      }
+    },
+    {
+      "run_date": "2026-07-28",
+      "horizon": 90,
+      "rows": 2255,
+      "measured": 2174,
+      "priced": 2179,
+      "implausible": 5,
+      "coverage": 0.9663,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 5
+        },
+        "PASS": {
+          "merger": 7
+        }
+      },
+      "gone_before_snapshot": 10,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 41,
+        "LEAN BUY": 1,
+        "PASS": 28
+      }
+    },
+    {
+      "run_date": "2026-07-29",
+      "horizon": 90,
+      "rows": 2244,
+      "measured": 2163,
+      "priced": 2168,
+      "implausible": 5,
+      "coverage": 0.9661,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 5
+        },
+        "PASS": {
+          "merger": 8
+        }
+      },
+      "gone_before_snapshot": 10,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 40,
+        "LEAN BUY": 1,
+        "PASS": 29
+      }
+    },
+    {
+      "run_date": "2026-07-30",
+      "horizon": 90,
+      "rows": 2316,
+      "measured": 2233,
+      "priced": 2237,
+      "implausible": 4,
+      "coverage": 0.9659,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 4
+        },
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 8
+        }
+      },
+      "gone_before_snapshot": 10,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 41,
+        "LEAN BUY": 1,
+        "PASS": 30
+      }
+    },
+    {
+      "run_date": "2026-07-31",
+      "horizon": 90,
+      "rows": 2316,
+      "measured": 2234,
+      "priced": 2239,
+      "implausible": 5,
+      "coverage": 0.9668,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 4
+        },
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 8
+        }
+      },
+      "gone_before_snapshot": 9,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 41,
+        "LEAN BUY": 1,
+        "PASS": 30
+      }
+    },
+    {
+      "run_date": "2026-08-03",
+      "horizon": 90,
+      "rows": 2324,
+      "measured": 2240,
+      "priced": 2244,
+      "implausible": 4,
+      "coverage": 0.9656,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 3
+        },
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 7
+        }
+      },
+      "gone_before_snapshot": 11,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 40,
+        "LEAN BUY": 1,
+        "PASS": 31
+      }
+    },
+    {
+      "run_date": "2026-08-04",
+      "horizon": 90,
+      "rows": 2322,
+      "measured": 2239,
+      "priced": 2243,
+      "implausible": 4,
+      "coverage": 0.966,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 2
+        },
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 8
+        }
+      },
+      "gone_before_snapshot": 10,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 40,
+        "LEAN BUY": 1,
+        "PASS": 31
+      }
+    },
+    {
+      "run_date": "2026-08-05",
+      "horizon": 90,
+      "rows": 2322,
+      "measured": 2239,
+      "priced": 2243,
+      "implausible": 4,
+      "coverage": 0.966,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 2
+        },
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 7
+        }
+      },
+      "gone_before_snapshot": 11,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 39,
+        "LEAN BUY": 1,
+        "PASS": 31
+      }
+    },
+    {
+      "run_date": "2026-08-07",
+      "horizon": 90,
+      "rows": 2326,
+      "measured": 2239,
+      "priced": 2244,
+      "implausible": 5,
+      "coverage": 0.9647,
+      "from_cache": false,
+      "delisted_by_rating": {
+        "HOLD": {
+          "merger": 1
+        },
+        "LEAN BUY": {
+          "merger": 1
+        },
+        "PASS": {
+          "merger": 8
+        }
+      },
+      "gone_before_snapshot": 12,
+      "unpriced_by_rating": {
+        "BUY": 1,
+        "HOLD": 42,
+        "LEAN BUY": 1,
+        "PASS": 31
+      }
+    }
+  ],
+  "readiness": {
+    "30": {
+      "n_snapshots": 83,
+      "n_matured": 63,
+      "span_days": 95,
+      "effective_n": 4,
+      "spaced_matured": 4,
+      "spaced_needed": 4,
+      "date_walk_forward": null,
+      "date_calibrate": "2027-03-03",
+      "date_ic_test": "2027-10-29"
+    },
+    "90": {
+      "n_snapshots": 83,
+      "n_matured": 24,
+      "span_days": 35,
+      "effective_n": 1,
+      "spaced_matured": 1,
+      "spaced_needed": 4,
+      "date_walk_forward": "2027-07-01",
+      "date_calibrate": "2028-06-25",
+      "date_ic_test": "2030-06-15"
+    },
+    "180": {
+      "n_snapshots": 83,
+      "n_matured": 0,
+      "span_days": 0,
+      "effective_n": 0,
+      "spaced_matured": 0,
+      "spaced_needed": 4,
+      "date_walk_forward": "2028-06-25",
+      "date_calibrate": "2030-06-15",
+      "date_ic_test": "2034-05-25"
+    }
+  },
+  "composite_ic": {
+    "30": {
+      "n_snapshots": 61,
+      "mean_ic": 0.06900047704370578,
+      "median_ic": 0.054755896881424904,
+      "frac_positive": 0.819672131147541,
+      "effective_n": 4,
+      "t_stat_effective": 1.78278442458591,
+      "first": "2026-07-06",
+      "last": "2026-10-07",
+      "bootstrap": {
+        "mean": 0.06900047704370578,
+        "ci_low": 0.02746334259270209,
+        "ci_high": 0.1111244892140741,
+        "se": 0.024744714645913657,
+        "p_value": 0.004,
+        "ci": 0.9,
+        "block": 15,
+        "n_blocks": 4,
+        "n_boot": 2000
+      }
+    },
+    "90": {
+      "n_snapshots": 23,
+      "mean_ic": 0.11147868704843523,
+      "median_ic": 0.10641891162937533,
+      "frac_positive": 1.0,
+      "effective_n": 1,
+      "t_stat_effective": 2.577078430307937,
+      "first": "2026-07-06",
+      "last": "2026-08-07",
+      "bootstrap": {
+        "mean": 0.11147868704843523,
+        "ci_low": null,
+        "ci_high": null,
+        "se": null,
+        "p_value": null,
+        "ci": 0.9,
+        "block": 23,
+        "n_blocks": 1,
+        "n_boot": 0,
+        "reason": "1 independent period(s), need 3"
+      }
+    }
+  },
+  "rating_buckets": {
+    "30": {
+      "BUY": {
+        "n": 1317,
+        "mean_excess": 0.004735953129653652,
+        "median_excess": -0.0028604241194234055,
+        "hit_rate": 0.4912680334092635
+      },
+      "LEAN BUY": {
+        "n": 19582,
+        "mean_excess": 0.005848621149540521,
+        "median_excess": -0.007230695235647437,
+        "hit_rate": 0.46971708712082527
+      },
+      "HOLD": {
+        "n": 56630,
+        "mean_excess": 0.0076891261278634795,
+        "median_excess": -0.011577053767480302,
+        "hit_rate": 0.44444640649832245
+      },
+      "PASS": {
+        "n": 60223,
+        "mean_excess": -0.017837586411737234,
+        "median_excess": -0.02476821870575111,
+        "hit_rate": 0.39282333991996415
+      }
+    },
+    "90": {
+      "BUY": {
+        "n": 412,
+        "mean_excess": -0.026256102263929767,
+        "median_excess": -0.026797119263860254,
+        "hit_rate": 0.4029126213592233
+      },
+      "LEAN BUY": {
+        "n": 8530,
+        "mean_excess": -0.02438038536140159,
+        "median_excess": -0.04645695693061251,
+        "hit_rate": 0.3772567409144197
+      },
+      "HOLD": {
+        "n": 16998,
+        "mean_excess": -0.016731001709304798,
+        "median_excess": -0.040593894134737886,
+        "hit_rate": 0.3795152370867161
+      },
+      "PASS": {
+        "n": 24527,
+        "mean_excess": -0.05044271837453889,
+        "median_excess": -0.05936795515978931,
+        "hit_rate": 0.3404819178864109
+      }
+    }
+  },
+  "rating_bucket_inference": {
+    "30": {
+      "BUY": {
+        "mean": -0.0032104643734140966,
+        "ci_low": -0.030186520168816046,
+        "ci_high": 0.022055334767406835,
+        "se": 0.015612851446716937,
+        "p_value": 0.817,
+        "ci": 0.9,
+        "block": 15,
+        "n_blocks": 4,
+        "n_boot": 2000,
+        "n_snapshots": 60
+      },
+      "LEAN BUY": {
+        "mean": 0.0033321228743759387,
+        "ci_low": -0.021616192083091127,
+        "ci_high": 0.029770004595963608,
+        "se": 0.01535510018198867,
+        "p_value": 0.813,
+        "ci": 0.9,
+        "block": 15,
+        "n_blocks": 4,
+        "n_boot": 2000,
+        "n_snapshots": 61
+      },
+      "HOLD": {
+        "mean": 0.005874349407407597,
+        "ci_low": -0.007508859552315453,
+        "ci_high": 0.02031547578289699,
+        "se": 0.00840688717840109,
+        "p_value": 0.4815,
+        "ci": 0.9,
+        "block": 15,
+        "n_blocks": 4,
+        "n_boot": 2000,
+        "n_snapshots": 61
+      },
+      "PASS": {
+        "mean": -0.017710338543501226,
+        "ci_low": -0.027422718525462818,
+        "ci_high": -0.008388990811891577,
+        "se": 0.005727312083703835,
+        "p_value": 0.0005,
+        "ci": 0.9,
+        "block": 15,
+        "n_blocks": 4,
+        "n_boot": 2000,
+        "n_snapshots": 61
+      },
+      "spread": {
+        "mean": 0.020314559984328552,
+        "ci_low": 0.0021638956884169583,
+        "ci_high": 0.0394472941536367,
+        "se": 0.011056240684651459,
+        "p_value": 0.0675,
+        "ci": 0.9,
+        "block": 15,
+        "n_blocks": 4,
+        "n_boot": 2000,
+        "n_snapshots": 61
+      }
+    },
+    "90": {
+      "BUY": {
+        "mean": -0.03437175007061878,
+        "ci_low": null,
+        "ci_high": null,
+        "se": null,
+        "p_value": null,
+        "ci": 0.9,
+        "block": 23,
+        "n_blocks": 1,
+        "n_boot": 0,
+        "reason": "1 independent period(s), need 3",
+        "n_snapshots": 23
+      },
+      "LEAN BUY": {
+        "mean": -0.022435900193823157,
+        "ci_low": null,
+        "ci_high": null,
+        "se": null,
+        "p_value": null,
+        "ci": 0.9,
+        "block": 23,
+        "n_blocks": 1,
+        "n_boot": 0,
+        "reason": "1 independent period(s), need 3",
+        "n_snapshots": 23
+      },
+      "HOLD": {
+        "mean": -0.01955705696589239,
+        "ci_low": null,
+        "ci_high": null,
+        "se": null,
+        "p_value": null,
+        "ci": 0.9,
+        "block": 23,
+        "n_blocks": 1,
+        "n_boot": 0,
+        "reason": "1 independent period(s), need 3",
+        "n_snapshots": 23
+      },
+      "PASS": {
+        "mean": -0.05054497669147078,
+        "ci_low": null,
+        "ci_high": null,
+        "se": null,
+        "p_value": null,
+        "ci": 0.9,
+        "block": 23,
+        "n_blocks": 1,
+        "n_boot": 0,
+        "reason": "1 independent period(s), need 3",
+        "n_snapshots": 23
+      },
+      "spread": {
+        "mean": 0.02826517077754387,
+        "ci_low": null,
+        "ci_high": null,
+        "se": null,
+        "p_value": null,
+        "ci": 0.9,
+        "block": 23,
+        "n_blocks": 1,
+        "n_boot": 0,
+        "reason": "1 independent period(s), need 3",
+        "n_snapshots": 23
+      }
+    }
+  },
+  "composite_ic_permutation": {
+    "30": {
+      "observed": 0.06900047704370578,
+      "null_mean": 0.0004915885719538119,
+      "null_sd": 0.009808269414036851,
+      "null_p95": 0.0165098400242271,
+      "p_value": 0.004975124378109453,
+      "n_perm": 200
+    },
+    "90": {
+      "observed": 0.11147868704843523,
+      "null_mean": 0.0008140252986252563,
+      "null_sd": 0.01779864805918446,
+      "null_p95": 0.03174468421337771,
+      "p_value": 0.004975124378109453,
+      "n_perm": 200
+    }
+  },
+  "sector_ic": {
+    "30": {
+      "components": {
+        "total": {
+          "mean": 0.06900047704370578,
+          "ci_low": 0.02746334259270209,
+          "ci_high": 0.1111244892140741,
+          "se": 0.024744714645913657,
+          "p_value": 0.004,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000,
+          "n_snapshots": 61
+        },
+        "within_sector": {
+          "mean": 0.07773985506274836,
+          "ci_low": 0.045222227537406755,
+          "ci_high": 0.11175507799293677,
+          "se": 0.019978415187534026,
+          "p_value": 0.0,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000,
+          "n_snapshots": 61
+        },
+        "within_industry": {
+          "mean": 0.05932204212042815,
+          "ci_low": 0.03368010791350842,
+          "ci_high": 0.08615820635210748,
+          "se": 0.015695711021068304,
+          "p_value": 0.0,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000,
+          "n_snapshots": 61
+        },
+        "between_sector": {
+          "mean": 0.08912071535022353,
+          "ci_low": -0.07783904619970197,
+          "ci_high": 0.24024590163934428,
+          "se": 0.09374636349580205,
+          "p_value": 0.3445,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000,
+          "n_snapshots": 61
+        },
+        "sector_neutral": {
+          "mean": 0.08065534737699322,
+          "ci_low": 0.047686801626084636,
+          "ci_high": 0.11572465055668525,
+          "se": 0.02051819263155517,
+          "p_value": 0.0,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000,
+          "n_snapshots": 61
+        },
+        "neutral_minus_total": {
+          "mean": 0.011654870333287463,
+          "ci_low": 0.0013639642532113896,
+          "ci_high": 0.022577940520443197,
+          "se": 0.0063441851821099335,
+          "p_value": 0.0685,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000,
+          "n_snapshots": 61
+        }
+      },
+      "by_period": [
+        {
+          "period": 0,
+          "first": "2026-07-06",
+          "last": "2026-08-04",
+          "n_snapshots": 21,
+          "total": 0.043150162587948286,
+          "within_sector": 0.04270303242523979,
+          "within_industry": 0.033181117667655115,
+          "between_sector": 0.16190476190476188,
+          "sector_neutral": 0.048530835835234244,
+          "neutral_minus_total": 0.0053806732472859616
+        },
+        {
+          "period": 1,
+          "first": "2026-08-05",
+          "last": "2026-09-03",
+          "n_snapshots": 18,
+          "total": 0.01423235112364087,
+          "within_sector": 0.03999139478948284,
+          "within_industry": 0.027698204523263315,
+          "between_sector": -0.21313131313131312,
+          "sector_neutral": 0.04082611981034639,
+          "neutral_minus_total": 0.02659376868670552
+        },
+        {
+          "period": 2,
+          "first": "2026-09-04",
+          "last": "2026-10-02",
+          "n_snapshots": 19,
+          "total": 0.1261751951231873,
+          "within_sector": 0.13583608206787523,
+          "within_industry": 0.10259135798474259,
+          "between_sector": 0.23923444976076552,
+          "sector_neutral": 0.13807127053247645,
+          "neutral_minus_total": 0.011896075409289164
+        },
+        {
+          "period": 3,
+          "first": "2026-10-05",
+          "last": "2026-10-07",
+          "n_snapshots": 3,
+          "total": 0.21645488591768125,
+          "within_sector": 0.18154560413243134,
+          "within_industry": 0.15801253839883708,
+          "between_sector": 0.4424242424242424,
+          "sector_neutral": 0.18086811358446012,
+          "neutral_minus_total": -0.03558677233322113
+        }
+      ],
+      "per_sector": {
+        "Basic Materials": {
+          "mean": 0.14039729488017266,
+          "ci_low": 0.09125553945293648,
+          "ci_high": 0.193330631580637,
+          "se": 0.031144060919054646,
+          "p_value": 0.0,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000,
+          "n_snapshots": 61
+        },
+        "Communication Services": {
+          "mean": -0.023361517441606,
+          "ci_low": -0.061089696975256395,
+          "ci_high": 0.013754298809914288,
+          "se": 0.022434283451582722,
+          "p_value": 0.309,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000,
+          "n_snapshots": 61
+        },
+        "Consumer Cyclical": {
+          "mean": 0.09608461865071193,
+          "ci_low": 0.05630564862108529,
+          "ci_high": 0.13280326285064112,
+          "se": 0.022625240417201334,
+          "p_value": 0.0,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000,
+          "n_snapshots": 61
+        },
+        "Consumer Defensive": {
+          "mean": -0.10149115367559916,
+          "ci_low": -0.1364848878295627,
+          "ci_high": -0.0641776187539411,
+          "se": 0.02199871894884739,
+          "p_value": 0.0,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000,
+          "n_snapshots": 61
+        },
+        "Energy": {
+          "mean": 0.0762588593836748,
+          "ci_low": 0.017304256864726912,
+          "ci_high": 0.1370454300261046,
+          "se": 0.036486516001052495,
+          "p_value": 0.0305,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000,
+          "n_snapshots": 61
+        },
+        "Financial Services": {
+          "mean": 0.09048628233684386,
+          "ci_low": 0.029985637110767627,
+          "ci_high": 0.15029369925234545,
+          "se": 0.03563950529267339,
+          "p_value": 0.0045,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000,
+          "n_snapshots": 61
+        },
+        "Healthcare": {
+          "mean": -0.040543896576642244,
+          "ci_low": -0.09762443620812643,
+          "ci_high": 0.01407406073907437,
+          "se": 0.03302855795784057,
+          "p_value": 0.2355,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000,
+          "n_snapshots": 61
+        },
+        "Industrials": {
+          "mean": 0.13766759696103897,
+          "ci_low": 0.07217068366666728,
+          "ci_high": 0.20467050344092597,
+          "se": 0.039488609484571946,
+          "p_value": 0.0005,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000,
+          "n_snapshots": 61
+        },
+        "Real Estate": {
+          "mean": -0.014580351257351139,
+          "ci_low": -0.06120778819559447,
+          "ci_high": 0.02871669641826265,
+          "se": 0.027092828393324515,
+          "p_value": 0.5765,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000,
+          "n_snapshots": 61
+        },
+        "Technology": {
+          "mean": 0.1570867556304224,
+          "ci_low": 0.03887990981471551,
+          "ci_high": 0.26997686788885855,
+          "se": 0.06871253580399012,
+          "p_value": 0.015,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000,
+          "n_snapshots": 61
+        },
+        "Utilities": {
+          "mean": 0.10654429216817575,
+          "ci_low": 0.0020355971588872767,
+          "ci_high": 0.21079741231084845,
+          "se": 0.06215075155828368,
+          "p_value": 0.0925,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000,
+          "n_snapshots": 61
+        }
+      },
+      "min_group_rows": 15,
+      "within_permutation": {
+        "observed": 0.07881168537536531,
+        "null_mean": 0.00018275024634306823,
+        "null_p95": 0.018216517835941536,
+        "p_value": 0.004975124378109453,
+        "n_perm": 200
+      }
+    },
+    "90": {
+      "components": {
+        "total": {
+          "mean": 0.11147868704843523,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3",
+          "n_snapshots": 23
+        },
+        "within_sector": {
+          "mean": 0.13082000598855362,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3",
+          "n_snapshots": 23
+        },
+        "within_industry": {
+          "mean": 0.10633781077267236,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3",
+          "n_snapshots": 23
+        },
+        "between_sector": {
+          "mean": 0.1383399209486166,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3",
+          "n_snapshots": 23
+        },
+        "sector_neutral": {
+          "mean": 0.12488759300398636,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3",
+          "n_snapshots": 23
+        },
+        "neutral_minus_total": {
+          "mean": 0.013408905955551085,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3",
+          "n_snapshots": 23
+        }
+      },
+      "by_period": [
+        {
+          "period": 0,
+          "first": "2026-07-06",
+          "last": "2026-08-07",
+          "n_snapshots": 23,
+          "total": 0.11147868704843523,
+          "within_sector": 0.13082000598855362,
+          "within_industry": 0.10633781077267236,
+          "between_sector": 0.1383399209486166,
+          "sector_neutral": 0.12488759300398636,
+          "neutral_minus_total": 0.013408905955551085
+        }
+      ],
+      "per_sector": {
+        "Basic Materials": {
+          "mean": 0.24641075944046048,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3",
+          "n_snapshots": 23
+        },
+        "Communication Services": {
+          "mean": -0.04671074436819489,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3",
+          "n_snapshots": 23
+        },
+        "Consumer Cyclical": {
+          "mean": 0.12783875531529337,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3",
+          "n_snapshots": 23
+        },
+        "Consumer Defensive": {
+          "mean": -0.05854842943167887,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3",
+          "n_snapshots": 23
+        },
+        "Energy": {
+          "mean": 0.12211507599182328,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3",
+          "n_snapshots": 23
+        },
+        "Financial Services": {
+          "mean": 0.1288500353036963,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3",
+          "n_snapshots": 23
+        },
+        "Healthcare": {
+          "mean": -0.018199139810571394,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3",
+          "n_snapshots": 23
+        },
+        "Industrials": {
+          "mean": 0.15381447902206807,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3",
+          "n_snapshots": 23
+        },
+        "Real Estate": {
+          "mean": 0.25580186103122754,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3",
+          "n_snapshots": 23
+        },
+        "Technology": {
+          "mean": 0.2640421072066411,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3",
+          "n_snapshots": 23
+        },
+        "Utilities": {
+          "mean": 0.20631945716826952,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3",
+          "n_snapshots": 23
+        }
+      },
+      "min_group_rows": 15,
+      "within_permutation": {
+        "observed": 0.13049702941704863,
+        "null_mean": -0.0015227305455167742,
+        "null_p95": 0.025466697432651904,
+        "p_value": 0.004975124378109453,
+        "n_perm": 200
+      }
+    }
+  },
+  "regimes": [
+    {
+      "params_hash": "pre-fingerprint",
+      "first": "2026-07-06",
+      "last": "2026-09-25",
+      "snapshots": 53,
+      "composite_ic": {
+        "30": {
+          "n_snapshots": 53,
+          "mean_ic": 0.05277033768002668,
+          "median_ic": 0.0353772778396918,
+          "frac_positive": 0.7924528301886793,
+          "effective_n": 3,
+          "t_stat_effective": 1.336302186525967,
+          "first": "2026-07-06",
+          "last": "2026-09-25",
+          "bootstrap": {
+            "mean": 0.05277033768002668,
+            "ci_low": 0.02101485144887344,
+            "ci_high": 0.08571373120111453,
+            "se": 0.018979125554103044,
+            "p_value": 0.0035,
+            "ci": 0.9,
+            "block": 18,
+            "n_blocks": 3,
+            "n_boot": 2000
+          }
+        },
+        "90": {
+          "n_snapshots": 23,
+          "mean_ic": 0.11147868704843523,
+          "median_ic": 0.10641891162937533,
+          "frac_positive": 1.0,
+          "effective_n": 1,
+          "t_stat_effective": 2.577078430307937,
+          "first": "2026-07-06",
+          "last": "2026-08-07",
+          "bootstrap": {
+            "mean": 0.11147868704843523,
+            "ci_low": null,
+            "ci_high": null,
+            "se": null,
+            "p_value": null,
+            "ci": 0.9,
+            "block": 23,
+            "n_blocks": 1,
+            "n_boot": 0,
+            "reason": "1 independent period(s), need 3"
+          }
+        }
+      },
+      "rating_buckets": {
+        "30": {
+          "BUY": {
+            "n": 1045,
+            "mean_excess": -0.0076477448141489875,
+            "median_excess": -0.012311796345497505,
+            "hit_rate": 0.45933014354066987
+          },
+          "LEAN BUY": {
+            "n": 17041,
+            "mean_excess": -0.006115519148929035,
+            "median_excess": -0.01545328789693268,
+            "hit_rate": 0.4299630303385952
+          },
+          "HOLD": {
+            "n": 47121,
+            "mean_excess": -0.0005382052730146248,
+            "median_excess": -0.02002256767895863,
+            "hit_rate": 0.3948345748180217
+          },
+          "PASS": {
+            "n": 53349,
+            "mean_excess": -0.020669642582771996,
+            "median_excess": -0.027885123373422357,
+            "hit_rate": 0.37329659412547567
+          }
+        },
+        "90": {
+          "BUY": {
+            "n": 412,
+            "mean_excess": -0.026256102263929767,
+            "median_excess": -0.026797119263860254,
+            "hit_rate": 0.4029126213592233
+          },
+          "LEAN BUY": {
+            "n": 8530,
+            "mean_excess": -0.02438038536140159,
+            "median_excess": -0.04645695693061251,
+            "hit_rate": 0.3772567409144197
+          },
+          "HOLD": {
+            "n": 16998,
+            "mean_excess": -0.016731001709304798,
+            "median_excess": -0.040593894134737886,
+            "hit_rate": 0.3795152370867161
+          },
+          "PASS": {
+            "n": 24527,
+            "mean_excess": -0.05044271837453889,
+            "median_excess": -0.05936795515978931,
+            "hit_rate": 0.3404819178864109
+          }
+        }
+      }
+    },
+    {
+      "params_hash": "3328df495768",
+      "first": "2026-09-28",
+      "last": "2026-10-07",
+      "snapshots": 8,
+      "composite_ic": {
+        "30": {
+          "n_snapshots": 8,
+          "mean_ic": 0.17652515032807972,
+          "median_ic": 0.17125245834066605,
+          "frac_positive": 1.0,
+          "effective_n": 1,
+          "t_stat_effective": 4.720615116962167,
+          "first": "2026-09-28",
+          "last": "2026-10-07",
+          "bootstrap": {
+            "mean": 0.17652515032807972,
+            "ci_low": null,
+            "ci_high": null,
+            "se": null,
+            "p_value": null,
+            "ci": 0.9,
+            "block": 8,
+            "n_blocks": 1,
+            "n_boot": 0,
+            "reason": "1 independent period(s), need 3"
+          }
+        }
+      },
+      "rating_buckets": {
+        "30": {
+          "BUY": {
+            "n": 272,
+            "mean_excess": 0.052313027950513055,
+            "median_excess": 0.04531338153866258,
+            "hit_rate": 0.6139705882352942
+          },
+          "LEAN BUY": {
+            "n": 2541,
+            "mean_excess": 0.08608510868445579,
+            "median_excess": 0.08442483410258152,
+            "hit_rate": 0.7363242817788272
+          },
+          "HOLD": {
+            "n": 9509,
+            "mean_excess": 0.048458931884596795,
+            "median_excess": 0.05037725630059385,
+            "hit_rate": 0.6902934062467136
+          },
+          "PASS": {
+            "n": 6874,
+            "mean_excess": 0.004141954564191411,
+            "median_excess": 0.014137358742957639,
+            "hit_rate": 0.5443700901949374
+          }
+        }
+      }
+    }
+  ],
+  "rescored_current": {
+    "params_hash": "ef97d73453c1",
+    "snapshots": 61,
+    "composite_ic": {
+      "30": {
+        "n_snapshots": 61,
+        "mean_ic": 0.07167261700303637,
+        "median_ic": 0.06852640246554298,
+        "frac_positive": 0.6885245901639344,
+        "effective_n": 4,
+        "t_stat_effective": 1.2426770631475947,
+        "first": "2026-07-06",
+        "last": "2026-10-07",
+        "bootstrap": {
+          "mean": 0.07167261700303637,
+          "ci_low": -0.0007173938499785426,
+          "ci_high": 0.14123775848001732,
+          "se": 0.04169286395737665,
+          "p_value": 0.097,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000
+        }
+      },
+      "90": {
+        "n_snapshots": 23,
+        "mean_ic": 0.09746800900193896,
+        "median_ic": 0.107287312410283,
+        "frac_positive": 1.0,
+        "effective_n": 1,
+        "t_stat_effective": 3.2240020336274533,
+        "first": "2026-07-06",
+        "last": "2026-08-07",
+        "bootstrap": {
+          "mean": 0.09746800900193896,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3"
+        }
+      }
+    },
+    "rating_buckets": {
+      "30": {
+        "BUY": {
+          "n": 4774,
+          "mean_excess": 0.014467747712959214,
+          "median_excess": 0.0014401632188473297,
+          "hit_rate": 0.5035609551738583
+        },
+        "LEAN BUY": {
+          "n": 40527,
+          "mean_excess": 0.00017110761582825128,
+          "median_excess": -0.011169207664611974,
+          "hit_rate": 0.45535075381844203
+        },
+        "HOLD": {
+          "n": 46564,
+          "mean_excess": 0.0030952767855731383,
+          "median_excess": -0.015576300292012865,
+          "hit_rate": 0.4349497465853449
+        },
+        "PASS": {
+          "n": 45887,
+          "mean_excess": -0.016086577427220184,
+          "median_excess": -0.022276359330587813,
+          "hit_rate": 0.38267919018458385
+        }
+      },
+      "90": {
+        "BUY": {
+          "n": 1299,
+          "mean_excess": 0.0017795703596949217,
+          "median_excess": -0.01936915608523032,
+          "hit_rate": 0.4426481909160893
+        },
+        "LEAN BUY": {
+          "n": 14220,
+          "mean_excess": -0.020426952379551753,
+          "median_excess": -0.03453111391104789,
+          "hit_rate": 0.4122362869198312
+        },
+        "HOLD": {
+          "n": 16062,
+          "mean_excess": -0.03169487170632491,
+          "median_excess": -0.050273674438704355,
+          "hit_rate": 0.3678246793674511
+        },
+        "PASS": {
+          "n": 18886,
+          "mean_excess": -0.04993866841075929,
+          "median_excess": -0.06058034661975016,
+          "hit_rate": 0.30927671290903314
+        }
+      }
+    },
+    "rating_bucket_inference": {
+      "30": {
+        "BUY": {
+          "mean": 0.010481919060849134,
+          "ci_low": -0.015114598907076827,
+          "ci_high": 0.036809509314388415,
+          "se": 0.015390151152844244,
+          "p_value": 0.497,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000,
+          "n_snapshots": 61
+        },
+        "LEAN BUY": {
+          "mean": -0.0008593465462270546,
+          "ci_low": -0.020556202642252924,
+          "ci_high": 0.01985771486323046,
+          "se": 0.011785041714569528,
+          "p_value": 0.9255,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000,
+          "n_snapshots": 61
+        },
+        "HOLD": {
+          "mean": 0.00031435956569410354,
+          "ci_low": -0.013846476535444734,
+          "ci_high": 0.014580643618746307,
+          "se": 0.008366705834415638,
+          "p_value": 0.955,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000,
+          "n_snapshots": 61
+        },
+        "PASS": {
+          "mean": -0.017467827582618233,
+          "ci_low": -0.03215227219305002,
+          "ci_high": -0.004032899780254365,
+          "se": 0.008431448458347873,
+          "p_value": 0.0275,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000,
+          "n_snapshots": 61
+        },
+        "spread": {
+          "mean": 0.01776698410447617,
+          "ci_low": -0.0024307758478266527,
+          "ci_high": 0.0368773563900163,
+          "se": 0.011723103804167268,
+          "p_value": 0.143,
+          "ci": 0.9,
+          "block": 15,
+          "n_blocks": 4,
+          "n_boot": 2000,
+          "n_snapshots": 61
+        }
+      },
+      "90": {
+        "BUY": {
+          "mean": 0.0033014299806074033,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3",
+          "n_snapshots": 23
+        },
+        "LEAN BUY": {
+          "mean": -0.020936351120912224,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3",
+          "n_snapshots": 23
+        },
+        "HOLD": {
+          "mean": -0.031774685760614554,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3",
+          "n_snapshots": 23
+        },
+        "PASS": {
+          "mean": -0.05032281119581021,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3",
+          "n_snapshots": 23
+        },
+        "spread": {
+          "mean": 0.03117744361793113,
+          "ci_low": null,
+          "ci_high": null,
+          "se": null,
+          "p_value": null,
+          "ci": 0.9,
+          "block": 23,
+          "n_blocks": 1,
+          "n_boot": 0,
+          "reason": "1 independent period(s), need 3",
+          "n_snapshots": 23
+        }
+      }
+    },
+    "composite_ic_permutation": {
+      "30": {
+        "observed": 0.07167261700303637,
+        "null_mean": 0.00024127370980114168,
+        "null_sd": 0.012220490791053355,
+        "null_p95": 0.020922570548966946,
+        "p_value": 0.004975124378109453,
+        "n_perm": 200
+      },
+      "90": {
+        "observed": 0.09746800900193896,
+        "null_mean": 0.000327635785138087,
+        "null_sd": 0.018824371309396123,
+        "null_p95": 0.027797810018863,
+        "p_value": 0.004975124378109453,
+        "n_perm": 200
+      }
+    },
+    "sector_ic": {
+      "30": {
+        "components": {
+          "total": {
+            "mean": 0.07167261700303637,
+            "ci_low": -0.0007173938499785426,
+            "ci_high": 0.14123775848001732,
+            "se": 0.04169286395737665,
+            "p_value": 0.097,
+            "ci": 0.9,
+            "block": 15,
+            "n_blocks": 4,
+            "n_boot": 2000,
+            "n_snapshots": 61
+          },
+          "within_sector": {
+            "mean": 0.07729697781490735,
+            "ci_low": 0.028278586536195163,
+            "ci_high": 0.12679436625776755,
+            "se": 0.029123748323169194,
+            "p_value": 0.004,
+            "ci": 0.9,
+            "block": 15,
+            "n_blocks": 4,
+            "n_boot": 2000,
+            "n_snapshots": 61
+          },
+          "within_industry": {
+            "mean": 0.061471402959420725,
+            "ci_low": 0.020548328217537187,
+            "ci_high": 0.10218815437324102,
+            "se": 0.0245039050100064,
+            "p_value": 0.0075,
+            "ci": 0.9,
+            "block": 15,
+            "n_blocks": 4,
+            "n_boot": 2000,
+            "n_snapshots": 61
+          },
+          "between_sector": {
+            "mean": 0.059314456035767495,
+            "ci_low": -0.08555141579731747,
+            "ci_high": 0.1848360655737705,
+            "se": 0.0803489997254378,
+            "p_value": 0.451,
+            "ci": 0.9,
+            "block": 15,
+            "n_blocks": 4,
+            "n_boot": 2000,
+            "n_snapshots": 61
+          },
+          "sector_neutral": {
+            "mean": 0.07160996678400595,
+            "ci_low": 0.0216142828539624,
+            "ci_high": 0.1217935065008044,
+            "se": 0.029802015320039853,
+            "p_value": 0.0095,
+            "ci": 0.9,
+            "block": 15,
+            "n_blocks": 4,
+            "n_boot": 2000,
+            "n_snapshots": 61
+          },
+          "neutral_minus_total": {
+            "mean": -6.265021903043876e-05,
+            "ci_low": -0.02702353610952729,
+            "ci_high": 0.026896497668321775,
+            "se": 0.01634202549826016,
+            "p_value": 0.9795,
+            "ci": 0.9,
+            "block": 15,
+            "n_blocks": 4,
+            "n_boot": 2000,
+            "n_snapshots": 61
+          }
+        },
+        "by_period": [
+          {
+            "period": 0,
+            "first": "2026-07-06",
+            "last": "2026-08-04",
+            "n_snapshots": 21,
+            "total": 0.029434478337062735,
+            "within_sector": 0.02632635070974913,
+            "within_industry": 0.025239688148361833,
+            "between_sector": 0.19177489177489174,
+            "sector_neutral": 0.025436376407561558,
+            "neutral_minus_total": -0.003998101929501177
+          },
+          {
+            "period": 1,
+            "first": "2026-08-05",
+            "last": "2026-09-03",
+            "n_snapshots": 18,
+            "total": -0.03617381544098584,
+            "within_sector": 0.0175776914647706,
+            "within_industry": 0.006446932374381218,
+            "between_sector": -0.2277777777777778,
+            "sector_neutral": 0.006336592868463158,
+            "neutral_minus_total": 0.042510408309449
+          },
+          {
+            "period": 2,
+            "first": "2026-09-04",
+            "last": "2026-10-02",
+            "n_snapshots": 19,
+            "total": 0.20609795487850188,
+            "within_sector": 0.17479492122734516,
+            "within_industry": 0.13987635590637176,
+            "between_sector": 0.14114832535885166,
+            "sector_neutral": 0.1700897719084944,
+            "neutral_minus_total": -0.036008182970007484
+          },
+          {
+            "period": 3,
+            "first": "2026-10-05",
+            "last": "2026-10-07",
+            "n_snapshots": 3,
+            "total": 0.1630577091177037,
+            "within_sector": 0.17492011070639593,
+            "within_industry": 0.14867552814971344,
+            "between_sector": 0.3363636363636364,
+            "sector_neutral": 0.16275991045727975,
+            "neutral_minus_total": -0.000297798660423972
+          }
+        ],
+        "per_sector": {
+          "Basic Materials": {
+            "mean": 0.12637655406666157,
+            "ci_low": 0.09615389342192547,
+            "ci_high": 0.15860543639133332,
+            "se": 0.01912822735025059,
+            "p_value": 0.0,
+            "ci": 0.9,
+            "block": 15,
+            "n_blocks": 4,
+            "n_boot": 2000,
+            "n_snapshots": 61
+          },
+          "Communication Services": {
+            "mean": -0.018685998727320973,
+            "ci_low": -0.0544335008923828,
+            "ci_high": 0.01925529322824826,
+            "se": 0.022072734832880945,
+            "p_value": 0.412,
+            "ci": 0.9,
+            "block": 15,
+            "n_blocks": 4,
+            "n_boot": 2000,
+            "n_snapshots": 61
+          },
+          "Consumer Cyclical": {
+            "mean": 0.10066711995390944,
+            "ci_low": 0.04530431696051514,
+            "ci_high": 0.1560643852397952,
+            "se": 0.032562695318424685,
+            "p_value": 0.0,
+            "ci": 0.9,
+            "block": 15,
+            "n_blocks": 4,
+            "n_boot": 2000,
+            "n_snapshots": 61
+          },
+          "Consumer Defensive": {
+            "mean": -0.09268171361560681,
+            "ci_low": -0.12252938690464746,
+            "ci_high": -0.06397901034608659,
+            "se": 0.017813535762681968,
+            "p_value": 0.0,
+            "ci": 0.9,
+            "block": 15,
+            "n_blocks": 4,
+            "n_boot": 2000,
+            "n_snapshots": 61
+          },
+          "Energy": {
+            "mean": 0.04072690290586608,
+            "ci_low": -0.01303582547747809,
+            "ci_high": 0.09502941826677586,
+            "se": 0.03292450559777878,
+            "p_value": 0.2255,
+            "ci": 0.9,
+            "block": 15,
+            "n_blocks": 4,
+            "n_boot": 2000,
+            "n_snapshots": 61
+          },
+          "Financial Services": {
+            "mean": 0.12377009873605455,
+            "ci_low": 0.061481049798480104,
+            "ci_high": 0.186983325066863,
+            "se": 0.037631757957266435,
+            "p_value": 0.0,
+            "ci": 0.9,
+            "block": 15,
+            "n_blocks": 4,
+            "n_boot": 2000,
+            "n_snapshots": 61
+          },
+          "Healthcare": {
+            "mean": -0.020682187114982757,
+            "ci_low": -0.10616731754539181,
+            "ci_high": 0.06354360499106751,
+            "se": 0.05003925090471103,
+            "p_value": 0.6665,
+            "ci": 0.9,
+            "block": 15,
+            "n_blocks": 4,
+            "n_boot": 2000,
+            "n_snapshots": 61
+          },
+          "Industrials": {
+            "mean": 0.07441683333526652,
+            "ci_low": -0.0037530323408655054,
+            "ci_high": 0.15546380373781463,
+            "se": 0.047123319021000976,
+            "p_value": 0.1265,
+            "ci": 0.9,
+            "block": 15,
+            "n_blocks": 4,
+            "n_boot": 2000,
+            "n_snapshots": 61
+          },
+          "Real Estate": {
+            "mean": 0.09669856089923776,
+            "ci_low": 0.017503585128529665,
+            "ci_high": 0.17099056657935502,
+            "se": 0.04539661629995735,
+            "p_value": 0.0265,
+            "ci": 0.9,
+            "block": 15,
+            "n_blocks": 4,
+            "n_boot": 2000,
+            "n_snapshots": 61
+          },
+          "Technology": {
+            "mean": 0.12062294267057397,
+            "ci_low": 0.03423880933716809,
+            "ci_high": 0.20769263743549798,
+            "se": 0.051474397590687164,
+            "p_value": 0.0125,
+            "ci": 0.9,
+            "block": 15,
+            "n_blocks": 4,
+            "n_boot": 2000,
+            "n_snapshots": 61
+          },
+          "Utilities": {
+            "mean": 0.1517173406332264,
+            "ci_low": 0.11175357643579896,
+            "ci_high": 0.19506092314449688,
+            "se": 0.024826219097738182,
+            "p_value": 0.0,
+            "ci": 0.9,
+            "block": 15,
+            "n_blocks": 4,
+            "n_boot": 2000,
+            "n_snapshots": 61
+          }
+        },
+        "min_group_rows": 15,
+        "within_permutation": {
+          "observed": 0.07830970547119592,
+          "null_mean": -0.00017354686967454902,
+          "null_p95": 0.020939239835367444,
+          "p_value": 0.004975124378109453,
+          "n_perm": 200
+        }
+      },
+      "90": {
+        "components": {
+          "total": {
+            "mean": 0.09746800900193896,
+            "ci_low": null,
+            "ci_high": null,
+            "se": null,
+            "p_value": null,
+            "ci": 0.9,
+            "block": 23,
+            "n_blocks": 1,
+            "n_boot": 0,
+            "reason": "1 independent period(s), need 3",
+            "n_snapshots": 23
+          },
+          "within_sector": {
+            "mean": 0.11815532953097273,
+            "ci_low": null,
+            "ci_high": null,
+            "se": null,
+            "p_value": null,
+            "ci": 0.9,
+            "block": 23,
+            "n_blocks": 1,
+            "n_boot": 0,
+            "reason": "1 independent period(s), need 3",
+            "n_snapshots": 23
+          },
+          "within_industry": {
+            "mean": 0.10118772672317879,
+            "ci_low": null,
+            "ci_high": null,
+            "se": null,
+            "p_value": null,
+            "ci": 0.9,
+            "block": 23,
+            "n_blocks": 1,
+            "n_boot": 0,
+            "reason": "1 independent period(s), need 3",
+            "n_snapshots": 23
+          },
+          "between_sector": {
+            "mean": 0.15928853754940714,
+            "ci_low": null,
+            "ci_high": null,
+            "se": null,
+            "p_value": null,
+            "ci": 0.9,
+            "block": 23,
+            "n_blocks": 1,
+            "n_boot": 0,
+            "reason": "1 independent period(s), need 3",
+            "n_snapshots": 23
+          },
+          "sector_neutral": {
+            "mean": 0.10279200244631279,
+            "ci_low": null,
+            "ci_high": null,
+            "se": null,
+            "p_value": null,
+            "ci": 0.9,
+            "block": 23,
+            "n_blocks": 1,
+            "n_boot": 0,
+            "reason": "1 independent period(s), need 3",
+            "n_snapshots": 23
+          },
+          "neutral_minus_total": {
+            "mean": 0.005323993444373837,
+            "ci_low": null,
+            "ci_high": null,
+            "se": null,
+            "p_value": null,
+            "ci": 0.9,
+            "block": 23,
+            "n_blocks": 1,
+            "n_boot": 0,
+            "reason": "1 independent period(s), need 3",
+            "n_snapshots": 23
+          }
+        },
+        "by_period": [
+          {
+            "period": 0,
+            "first": "2026-07-06",
+            "last": "2026-08-07",
+            "n_snapshots": 23,
+            "total": 0.09746800900193896,
+            "within_sector": 0.11815532953097273,
+            "within_industry": 0.10118772672317879,
+            "between_sector": 0.15928853754940714,
+            "sector_neutral": 0.10279200244631279,
+            "neutral_minus_total": 0.005323993444373837
+          }
+        ],
+        "per_sector": {
+          "Basic Materials": {
+            "mean": 0.20003051324857485,
+            "ci_low": null,
+            "ci_high": null,
+            "se": null,
+            "p_value": null,
+            "ci": 0.9,
+            "block": 23,
+            "n_blocks": 1,
+            "n_boot": 0,
+            "reason": "1 independent period(s), need 3",
+            "n_snapshots": 23
+          },
+          "Communication Services": {
+            "mean": -0.03924412259040987,
+            "ci_low": null,
+            "ci_high": null,
+            "se": null,
+            "p_value": null,
+            "ci": 0.9,
+            "block": 23,
+            "n_blocks": 1,
+            "n_boot": 0,
+            "reason": "1 independent period(s), need 3",
+            "n_snapshots": 23
+          },
+          "Consumer Cyclical": {
+            "mean": 0.13170751221429267,
+            "ci_low": null,
+            "ci_high": null,
+            "se": null,
+            "p_value": null,
+            "ci": 0.9,
+            "block": 23,
+            "n_blocks": 1,
+            "n_boot": 0,
+            "reason": "1 independent period(s), need 3",
+            "n_snapshots": 23
+          },
+          "Consumer Defensive": {
+            "mean": -0.02884922747838492,
+            "ci_low": null,
+            "ci_high": null,
+            "se": null,
+            "p_value": null,
+            "ci": 0.9,
+            "block": 23,
+            "n_blocks": 1,
+            "n_boot": 0,
+            "reason": "1 independent period(s), need 3",
+            "n_snapshots": 23
+          },
+          "Energy": {
+            "mean": 0.05077127459956846,
+            "ci_low": null,
+            "ci_high": null,
+            "se": null,
+            "p_value": null,
+            "ci": 0.9,
+            "block": 23,
+            "n_blocks": 1,
+            "n_boot": 0,
+            "reason": "1 independent period(s), need 3",
+            "n_snapshots": 23
+          },
+          "Financial Services": {
+            "mean": 0.1548344821282466,
+            "ci_low": null,
+            "ci_high": null,
+            "se": null,
+            "p_value": null,
+            "ci": 0.9,
+            "block": 23,
+            "n_blocks": 1,
+            "n_boot": 0,
+            "reason": "1 independent period(s), need 3",
+            "n_snapshots": 23
+          },
+          "Healthcare": {
+            "mean": 0.001215717203047246,
+            "ci_low": null,
+            "ci_high": null,
+            "se": null,
+            "p_value": null,
+            "ci": 0.9,
+            "block": 23,
+            "n_blocks": 1,
+            "n_boot": 0,
+            "reason": "1 independent period(s), need 3",
+            "n_snapshots": 23
+          },
+          "Industrials": {
+            "mean": 0.062175899094516686,
+            "ci_low": null,
+            "ci_high": null,
+            "se": null,
+            "p_value": null,
+            "ci": 0.9,
+            "block": 23,
+            "n_blocks": 1,
+            "n_boot": 0,
+            "reason": "1 independent period(s), need 3",
+            "n_snapshots": 23
+          },
+          "Real Estate": {
+            "mean": 0.4182534619666249,
+            "ci_low": null,
+            "ci_high": null,
+            "se": null,
+            "p_value": null,
+            "ci": 0.9,
+            "block": 23,
+            "n_blocks": 1,
+            "n_boot": 0,
+            "reason": "1 independent period(s), need 3",
+            "n_snapshots": 23
+          },
+          "Technology": {
+            "mean": 0.19868353711061432,
+            "ci_low": null,
+            "ci_high": null,
+            "se": null,
+            "p_value": null,
+            "ci": 0.9,
+            "block": 23,
+            "n_blocks": 1,
+            "n_boot": 0,
+            "reason": "1 independent period(s), need 3",
+            "n_snapshots": 23
+          },
+          "Utilities": {
+            "mean": 0.21159945073844255,
+            "ci_low": null,
+            "ci_high": null,
+            "se": null,
+            "p_value": null,
+            "ci": 0.9,
+            "block": 23,
+            "n_blocks": 1,
+            "n_boot": 0,
+            "reason": "1 independent period(s), need 3",
+            "n_snapshots": 23
+          }
+        },
+        "min_group_rows": 15,
+        "within_permutation": {
+          "observed": 0.11809795207653719,
+          "null_mean": -0.0015034126866937676,
+          "null_p95": 0.02803661917234786,
+          "p_value": 0.004975124378109453,
+          "n_perm": 200
+        }
+      }
+    },
+    "note": "current weights and gates re-applied to every snapshot; in-sample if those weights were calibrated on this corpus"
+  }
+}
