@@ -11550,10 +11550,10 @@ var DT_FIN={k:'fin',l:'Finances'};
 var _detStmt=DT_STMTS[0].k;
 function _detDataItems(){
   var t=[];
-  /* Peers and News are not DT_TABS data tabs — their panes (#d-pane-peers /
-     #d-pane-news) are filled by openDet like Overview's sections. Slotted
-     right after Growth, in that order. */
-  DT_TABS.forEach(function(x){t.push({k:x.k,l:x.l});if(x.k==='growth'){t.push({k:'peers',l:'Peers'});t.push({k:'news',l:'News'});}});
+  /* Peers is not a DT_TABS data tab — its pane (#d-pane-peers) is filled by
+     openDet like Overview's sections. Slotted right after Growth. News sits
+     beside Summary instead (_detMenuItems). */
+  DT_TABS.forEach(function(x){t.push({k:x.k,l:x.l});if(x.k==='growth')t.push({k:'peers',l:'Peers'});});
   return t;
 }
 /* All sections live in ONE hamburger menu, opened by .detail-menu-btn in the
@@ -11570,7 +11570,8 @@ function _detMenuItems(){
   /* The Charts tab is retired — its Fundamental Charts block now sits at the
      top of Overview (and the duplicate Price History chart it sat above is
      gone; the price series is the block's default metric). */
-  return [{k:'overview',l:'Overview'},DT_FIN].concat(_detDataItems());
+  /* News second, next to Summary; then Finances and the data tabs. */
+  return [{k:'overview',l:'Overview'},{k:'news',l:'News'},DT_FIN].concat(_detDataItems());
 }
 function _renderDetTabBar(){
   /* The underlined section tabs, plus the back link naming where the page

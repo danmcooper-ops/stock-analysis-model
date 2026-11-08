@@ -103,11 +103,14 @@ def test_sub_tabs_are_underline_tabs():
 
 def test_statements_share_one_finances_tab_after_summary():
     """Balance Sheet, Income Statement and Cash Flow Statement live under one
-    Finances tab, second in the ticker page's tab bar, with a switch inside
-    its pane; a statement key passed to swDetTab still lands there."""
+    Finances tab, after Summary and News in the ticker page's tab bar, with a
+    switch inside its pane; a statement key passed to swDetTab still lands
+    there."""
     src = _tpl()
     assert "var DT_FIN={k:'fin',l:'Finances'};" in src
-    assert "return [{k:'overview',l:'Overview'},DT_FIN].concat(_detDataItems());" in src
+    assert "return [{k:'overview',l:'Overview'},{k:'news',l:'News'},DT_FIN].concat(_detDataItems());" in src
+    # News is no longer slotted after Growth with Peers.
+    assert "t.push({k:'news',l:'News'})" not in _fn(src, '_detDataItems')
     assert '.concat(DT_STMTS)' not in src
     sw = _fn(src, 'swDetTab')
     assert 'if(DT_STMTS[si].k===k){_detStmt=k;k=DT_FIN.k;}' in sw
