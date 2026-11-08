@@ -330,7 +330,8 @@ def test_screener_fields_track_the_reports_table():
 def test_screener_packs_rows_in_ticker_order(tmp_path):
     recs = [
         {'ticker': 'ZZZ', 'rating': 'HOLD', 'pe': 12.3456789, 'country': 'US', 'r2000': True,
-         'mcap': 5.5e9, 'net_debt': -1e8, 'earnings_next_date': '2026-11-10'},
+         'mcap': 5.5e9, 'net_debt': -1e8, 'earnings_next_date': '2026-11-10',
+         'revenue': 2e9, 'operating_income': -3e7, 'pp_revenue_share': 0.0123, 'pp_sector_cr4': 0.41},
         {'ticker': 'AAA', 'rating': 'BUY', 'pe': float('nan'), 'mos': 0.25, '_gate_mos': None,
          'founder_led': True, 'rating_chg': 1},
     ]
@@ -345,6 +346,9 @@ def test_screener_packs_rows_in_ticker_order(tmp_path):
     assert rows[1]['mcap'] == 5.5e9 and rows[1]['net_debt'] == -1e8
     # The portfolio Summary's earnings-within-a-week count.
     assert rows[1]['earnings_next_date'] == '2026-11-10'
+    # A sector's Trading tab.
+    assert rows[1]['revenue'] == 2e9 and rows[1]['operating_income'] == -3e7
+    assert rows[1]['pp_revenue_share'] == 0.0123 and rows[1]['pp_sector_cr4'] == 0.41
     # AAA's MoS gate is null: the value ships, and the gate is listed.
     assert rows[0]['mos'] == 0.25 and out['gate_null'] == {'mos': [0]}
 

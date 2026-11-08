@@ -2237,7 +2237,9 @@ _APP_SCREENER_FIELDS = (
 # earnings_next_date: a portfolio Summary's "Earnings ≤ 7 days" (_pfRowStats).
 _APP_SCREENER_EXTRA = ('country', 'founder_led', 'r2000', 'rating_chg',
                        'mcap', 'total_debt', 'net_debt', 'de', 'debt_maturity_wall_yrs',
-                       'earnings_next_date')
+                       'earnings_next_date',
+                       # A sector's Trading tab (renderPoolLiquidityInsights).
+                       'revenue', 'operating_income', 'pp_revenue_share', 'pp_sector_cr4')
 _APP_SCREENER_SIG_DIGITS = 6   # the screener shows at most four
 
 
