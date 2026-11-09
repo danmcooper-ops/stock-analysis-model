@@ -104,7 +104,7 @@ def test_retired_sector_code_stays_retired():
                  '_renderSectorBanner', '_buildAllSectorStats', '_poolSecTint',
                  '_buildScatterSVG', '_syncScatter', '_scatterTip',
                  'xsect-scatter-wrap', 'pool-stat-banner', '.pp-kpis',
-                 '_allSecStats', 'pool-sector-table'):
+                 '_allSecStats', 'pool-sector-table', 'kpiChip', 'xsect-kpi'):
         assert dead not in css, '%s came back' % dead
 
 
