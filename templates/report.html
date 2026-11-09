@@ -2005,11 +2005,6 @@ button.wind-h{cursor:pointer;}
 .wind-row{padding:10px 0;border-top:1px solid rgba(127,127,127,0.18);}
 .wind-row:first-child{border-top:none;}
 .wind-list .wind-row{font-size:13.5px;line-height:1.5;}
-.xsect-kpi-row{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
-.xsect-kpi{flex:1;min-width:140px;background:#f8fafd;border-radius:7px;padding:9px 12px;}
-.xsect-kpi-val{font-weight:700;font-size:1.05em;color:#1a252f;margin-bottom:1px;}
-.xsect-kpi-label{font-size:0.72em;color:#7f8c9a;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;}
-.xsect-kpi-sub{font-size:0.71em;color:#aab;margin-top:1px;}
 /* World MoS choropleth — inline SVG with each country as a <path
    data-iso="ISO3">. Default fill is light grey ("no coverage"); JS
    tints countries we have data for and tags them .hit so only those
@@ -2301,10 +2296,6 @@ button.wind-h{cursor:pointer;}
 [data-theme="dark"] .pool-legend{color:#8b949e;}
 [data-theme="dark"] .xsect-dashboard{background:#161b22;border-top-color:#58a6ff;box-shadow:0 3px 14px rgba(0,0,0,0.4);}
 [data-theme="dark"] .xsect-sub{color:#8b949e;}
-[data-theme="dark"] .xsect-kpi{background:#1c2128;}
-[data-theme="dark"] .xsect-kpi-val{color:#e6edf3;}
-[data-theme="dark"] .xsect-kpi-label{color:#8b949e;}
-[data-theme="dark"] .xsect-kpi-sub{color:#6e7681;}
 [data-theme="dark"] .xsect-bar-row:hover{background:#21262d;}
 [data-theme="dark"] .xsect-bar-label{color:#e6edf3;}
 [data-theme="dark"] .xsect-bar-track{background:#30363d;}
@@ -18469,25 +18460,7 @@ function renderCrossSectorDashboard(){
   /* _xsLensChart (per-lens sector bar list) was defined here but never
      called — removed rather than shipped dead, unescaped and with
      |value|-scaled widths that drew big losses identical to big gains. */
-  var byMargin=allStats.slice().sort(function(a,b){return b.margin-a.margin;});
-  var byHHI=allStats.slice().sort(function(a,b){return b.hhi-a.hhi;});
-  var maxM=byMargin[0].margin,minM=byMargin[byMargin.length-1].margin;
-  var mostConc=byHHI[0],leastConc=byHHI[byHHI.length-1];
-  var largest=allStats.slice().sort(function(a,b){return b.n-a.n;})[0];
-
-  function kpiChip(label,val,sub,col){
-    return'<div class="xsect-kpi" style="border-top:3px solid '+(col||'#3498db')+'">'
-      +'<div class="xsect-kpi-val">'+val+'</div>'
-      +'<div class="xsect-kpi-label">'+label+'</div>'
-      +(sub?'<div class="xsect-kpi-sub">'+sub+'</div>':'')
-      +'</div>';
-  }
-  var kpiHtml=kpiChip('Sectors Analyzed',allStats.length,'','#546e7a')
-    +kpiChip('Margin Range',(minM*100).toFixed(0)+'% \u2013 '+(maxM*100).toFixed(0)+'%','Blended pool margins','#1a9850')
-    +kpiChip('Most Concentrated',mostConc.name,'HHI\u00a0'+mostConc.hhi.toFixed(3),'#8e24aa')
-    +kpiChip('Most Fragmented',leastConc.name,'HHI\u00a0'+leastConc.hhi.toFixed(3)+'\u00a0\u00b7\u00a0'+leastConc.n+'\u00a0cos','#0288d1');
-
-  window._xsStats=allStats;window._xsMaxM=maxM;
+  window._xsStats=allStats;
 
   /* === Build per-sector stat rows for the heatmap summary table ===
      One row per sector with all numeric metrics; cell colors are computed
