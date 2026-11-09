@@ -7116,15 +7116,15 @@ function _mosColor(m){
 }
 var DKV_TIPS={
   'Mkt Cap':'mcap','Price':'price','Fair Value':'dcf_fv','MoS':'mos',
-  'Current Price':'price','DCF Fair Value':'dcf_fv','DCF MoS':'mos','Expected Return':'er',
-  'Blend Method':'er','MC Confidence':'mc_confidence','MC CV':'mc_confidence',
+  'Current Price':'price','DCF Fair Value':'dcf_fv','DCF MoS':'mos','Cost of Equity':'er',
+  'Blend Method':'blend_method','MC Confidence':'mc_confidence','MC CV':'mc_confidence',
   'MC P10 Fair Value':'mc_p10_fv','MC P90 Fair Value':'mc_p90_fv',
-  'DDM Fair Value':'ddm_fv','H-Model FV':'ddm_fv',
-  'Div CAGR':'share_buyback_rate','Sustainable Growth':'fundamental_growth',
+  'DDM Fair Value':'ddm_fv','H-Model FV':'ddm_h_fv',
+  'Div CAGR':'ddm_div_cagr','Sustainable Growth':'ddm_sustainable_growth',
   'EPV Fair Value':'epv_fv','EPV MoS':'epv_mos','EPV Growth-Adj':'epv_growth_fv',
   'RIM Fair Value':'rim_fv','RIM MoS':'rim_mos',
   'NAV (Tangible Book)':'nav_fv','NAV MoS':'nav_mos',
-  'Implied Growth (Rev DCF)':'implied_growth','Impl. vs Est.':'implied_growth',
+  'Implied Growth (Rev DCF)':'implied_growth','Impl. vs Est.':'implied_vs_estimated',
   'ROIC (5Y)':'roic','ROIC CV':'roic_cv','ROE':'roe','ROA':'roa',
   'Gross Margin':'gross_margin','Gross Mgn':'gross_margin',
   'Int Coverage':'int_cov','Interest Coverage':'int_cov','Cash Conversion':'cash_conv',
@@ -7148,20 +7148,20 @@ var DKV_TIPS={
   '% from High':'pct_from_52w_high','Range Position':'range_52w_position',
   'Rev CAGR (3Y)':'rev_cagr','Rev CAGR (5Y)':'rev_cagr_5y','Rev CAGR (10Y)':'rev_cagr_10y',
   'Revenue Share':'profit_pool','Profit Share':'profit_pool',
-  'Profit Pool Multiple':'profit_pool','Operating Margin':'gross_margin',
+  'Profit Pool Multiple':'profit_pool','Operating Margin':'operating_margin',
   'EDGAR Quality Score':'edgar_quality_score','FCF Margin':'fcf_margin',
   'Spread':'spread','ROIC':'roic',
   /* Monte Carlo / DDM popup rows (labels are shared by the DCF and DDM
      blocks, so the text each key carries has to read for both). */
   'MC Clip Rate':'mc_clip_rate','MC Wipeout Rate':'mc_invalid_rate',
-  'MC Median':'ddm_mc_median','MC P10':'mc_p10_fv','MC P90':'mc_p90_fv',
+  'MC Median':'ddm_mc_median','MC P10':'ddm_mc_p10','MC P90':'ddm_mc_p90',
   'DDM Growth':'ddm_growth','Consec. Years':'ddm_consecutive_years',
   'Payout Flag':'ddm_payout_flag','Low Confidence':'ddm_low_confidence',
   'DDM Note':'ddm_reason',
   /* Street View / Insider / Sector-context rows. */
   'Consensus':'street_consensus','Analysts':'num_analysts','Target Mean':'target_mean',
   'Target Range':'target_range','Upside to Target':'target_upside',
-  'Street vs Model FV':'street_vs_model','LT Growth Est':'analyst_ltg',
+  'Street vs Model FV':'street_vs_model','Analyst Growth Est':'analyst_ltg',
   'Next Earnings':'earnings_next_date','52-Wk Range':'range_52w_position',
   'Buys (1Y)':'insider_buying','Sells (1Y)':'insider_buying','Net Shares (1Y)':'insider_buying',
   'Sector':'sector','Sector HHI':'sector_hhi','CR4 (Top-4 Share)':'sector_cr4',
@@ -7177,11 +7177,11 @@ function bkv(pairs){return pairs.map(function(p){
 var TT={
 ticker:'The symbol stands for a business, not a lottery ticket. The rule: invest only in what you understand well enough to own for a decade.',
 rating:'The composite score’s bucket: BUY at 57 or more, LEAN BUY 39–56, HOLD 25–38, PASS below 25. The score comes from 26 gates across Moat, Valuation, Quality, Growth and Ownership; fair value counts through the margin-of-safety gate. Flags, like a negative margin of safety, are warnings and don’t change the rating. A starting point for research, not a substitute.',
-rating_prev:'The stock’s rating in the most recent earlier run that rated it — same colour pill as today’s, so upgrades and downgrades read side by side. Falls back through a fortnight of snapshots; N/A means it was in none of them.',
+rating_prev:'The stock’s rating in the most recent earlier run that rated it — same colour pill as today’s, so upgrades and downgrades read side by side. Falls back through up to seven earlier snapshots; N/A means it was in none of them.',
 _composite_score:'Score = 0.30·Moat + 0.20·Valuation + 0.20·Quality + 0.20·Growth + 0.10·Ownership — five pillars, each scored 0–100 and weighted by how much it matters to long-run returns. Ratings: ≥57 BUY; 39–56 LEAN BUY; 25–38 HOLD; below 25 PASS. The thresholds were set to match a target rating mix and have not yet been tested against returns.',
 _gates_passed:'Gates passed, out of those that apply. Gates that cannot describe the business — free-cash-flow tests for a bank, say — are excluded from the denominator, not failed. Diagnostic only: the composite score, not this count, drives the rating; but every failure deserves an explanation.',
-sector:'GICS sector. Benchmark a business only against peers with genuinely similar economics.',
-industry:'GICS industry sub-group — the peer set for margin and ROIC comparisons. Compare within the industry, never across it.',
+sector:'Sector as Yahoo Finance classifies it (close to GICS, not the same). Benchmark a business only against peers with genuinely similar economics.',
+industry:'Industry as Yahoo Finance classifies it — the peer set for margin and ROIC comparisons. Compare within the industry, never across it.',
 mcap:'Market Cap = Price × Shares Outstanding — what the whole company sells for today. The gap between this figure and intrinsic value is where returns are made.',
 roic:'ROIC = NOPAT / average Invested Capital (equity + debt − cash & short-term investments), shown as the trailing five-year median of the per-year figures — the after-tax operating profit earned on every dollar tied up in the business. The single most important metric: a five-year median above 15% is the hallmark of a compounder.',
 wacc:'WACC = (E/V)·Re + (D/V)·Rd·(1−t) — the blended, after-tax cost of the equity and debt that fund the business, and the hurdle every project must clear. Small swings move the DCF a great deal; err on the conservative side.',
@@ -7192,25 +7192,25 @@ incr_roic:'Incremental ROIC = ΔNOPAT / ΔInvested Capital — the return on eac
 pool_share:'Pool Share Δ = 5-yr growth of the company’s slice of its sector’s operating-profit pool, same peer set at both endpoints. A steadily bigger slice is the moat observed, not asserted — the trajectory to Margin Advantage’s level. Passes when the share is growing; N/A on short history, thin peer sets or loss-making endpoints.',
 rev_volatility:'Rev Volatility = σ of year-over-year revenue growth — how steady the top line is, regardless of how fast it grows. Growth-neutral by construction: it measures the variability of growth, not its level. It replaced ROE, which leverage and buybacks can flatter. The gate passes below 12%.',
 fcf_yield:'FCF Yield = Free Cash Flow / Market Cap, judged against the risk-free rate. An absolute, model-independent floor on value — does the cash the business throws off beat a Treasury? — that holds whether or not the fair-value models agree.',
-dcf_fv:'FV = Σ FCFₜ/(1+WACC)ᵗ + terminal value — every future free cash flow, discounted back to today. Treat the figure as a range; the assumptions, not the arithmetic, drive it.',
+dcf_fv:'FV = Σ FCFₜ/(1+WACC)ᵗ + terminal value — every future free cash flow, discounted back to today. The figure shown can be pulled toward sector multiples or blended with the dividend model (see Blend Method). Treat the figure as a range; the assumptions, not the arithmetic, drive it.',
 price:'The market’s offer for today — one you are never obliged to accept. Price is what you pay; value is what you get.',
 mos:'MoS = (Fair Value − Price) / Fair Value — the discount the market hands you, and the room your analysis has to be wrong. The gate passes above 10% and scores in full at 40%; the Summary PDF\u2019s INVEST verdict asks for 15%.',
-pe:'P/E = Price / Earnings per Share — a first-pass screen. A low P/E means little by itself; a low P/E with high ROIC and cash-backed earnings is one of the most reliable combinations in fundamental analysis.',
+pe:'P/E = Price / trailing EPS (forward EPS when trailing is unavailable) — a first-pass screen. A low P/E means little by itself; a low P/E with high ROIC and cash-backed earnings is one of the most reliable combinations in fundamental analysis.',
 ev_ebitda:'EV/EBITDA = (Market Cap + Net Debt) / EBITDA — a multiple the capital structure cannot flatter, since it prices the whole enterprise. But it flatters capex-heavy businesses, where EBITDA ignores the reinvestment needed just to stand still.',
 pfcf:'P/FCF = Price / Free Cash Flow — the multiple paid on owner earnings, the cash left after the business has paid its way. Below 20× is reasonable; below 15×, attractive.',
-ebit_ev:'EBIT/EV = Operating Income / Enterprise Value — Greenblatt’s earnings yield, the return on the whole business. Because EV counts net debt, leverage cannot flatter it as it can an equity-only yield. Passes above 8% (≈ ≤ 12.5× EV/EBITDA); not scored for financials, where enterprise value is meaningless.',
+ebit_ev:'EBIT/EV = Operating Income / Enterprise Value — Greenblatt’s earnings yield, the return on the whole business. Because EV counts net debt, leverage cannot flatter it as it can an equity-only yield. Passes above 8% (≈ ≤ 12.5× EV/EBIT); not scored for financials, where enterprise value is meaningless.',
 pb:'P/B = Price / Book Value — the original asset anchor. A high multiple is justified only by durably high ROIC; without it, the stock is a value trap.',
-epv_fv:'EPV = (NOPAT / WACC − Net Debt) / Shares — operating income after a through-cycle tax rate, capitalised at WACC as if it never grows again, then bridged from enterprise to equity value. When the price sits below EPV, the market is charging nothing for growth; whatever comes is free.',
-epv_growth_fv:'EPV Growth-Adj = EPV × (ROIC / WACC), capped at 2×. When the return on capital exceeds its cost, growth creates value and the zero-growth floor is scaled up by the spread; below it, the floor stands. ROE / cost of equity is used when ROIC is unavailable. This is the EPV leg of the fair-value consensus.',
+epv_fv:'EPV = (NOPAT / WACC − Net Debt) / Shares — operating income after a through-cycle tax rate, capitalised at WACC as if it never grows again, then bridged from enterprise to equity value. Lenders: after-tax earnings ÷ cost of equity, no bridge. When the price sits below EPV, the market is charging nothing for growth.',
+epv_growth_fv:'EPV Growth-Adj = EPV × (ROIC / WACC), capped at 2×. When the return on capital exceeds its cost, growth creates value and the zero-growth floor is scaled up by that ratio; below it, the floor stands. ROE / cost of equity replaces it for financials or without ROIC. This is the EPV leg of the fair-value consensus.',
 rim_fv:'RIM FV = Book Value + Σ (NI − r·BV)/(1+r)ᵗ — book value plus the present value of earnings above the cost of equity, with that excess fading by half over ten years. When RIM and DCF agree by different routes, conviction rises.',
-ddm_fv:'DDM FV = D₁ / (r − g) — next year’s dividend, capitalised at the cost of equity less growth. A growing dividend is proof of disciplined capital allocation. Blank means the stock is ineligible.',
+ddm_fv:'DDM FV = the average of a two-stage dividend discount model and an H-model (either alone when only one resolves), each discounting dividends at the cost of equity. A growing dividend is proof of disciplined capital allocation. Blank means the stock is ineligible.',
 div_yield:'Dividend Yield = Dividends per Share / Price — cash in hand today. A fat yield on a shrinking business is bait, not income. Judge it alongside payout and growth.',
 payout_ratio:'Payout = Dividends / Net Income. Below about 60% leaves room to grow the dividend and reinvest; above 100%, the dividend is funded by debt or asset sales, not earnings.',
 dividend_cagr_5y:'Compound annual dividend growth over five years. A steadily rising dividend is management committing itself in public — cuts are rare and painful, so growth here signals confidence.',
 ddm_div_cagr:'Historical dividend CAGR from the full payment record, capped at the extremes. One of three growth signals blended into the DDM, at 30% weight.',
 ddm_consecutive_years:'Consecutive years of uninterrupted dividends, counted back from the most recent. Long streaks are defended fiercely, which makes them a useful proxy for earnings durability.',
 ddm_sustainable_growth:'Sustainable Growth = ROE × (1 − Payout) — the dividend growth the business can fund from its own earnings, without borrowing. The DDM’s heaviest-weighted growth signal, at 40%.',
-ddm_growth:'The blended dividend growth used in the DDM: 30% historical CAGR, 40% sustainable growth, 30% analyst long-term estimates. Conservative by construction.',
+ddm_growth:'The blended dividend growth used in the DDM: 30% historical CAGR, 40% sustainable growth, 30% analyst growth estimates. Conservative by construction.',
 ddm_h_fv:'H-Model FV — a two-stage DDM in which growth fades linearly from today’s rate to the terminal rate. A more realistic path than a single-stage Gordon model for a maturing payer.',
 ddm_mc_p10:'The 10th-percentile DDM fair value from Monte Carlo simulation over growth and discount-rate uncertainty — the pessimistic-but-plausible floor.',
 ddm_mc_median:'The median Monte Carlo DDM fair value — more robust than the point estimate when the inputs are noisy.',
@@ -7218,14 +7218,14 @@ ddm_mc_p90:'The 90th-percentile Monte Carlo DDM fair value — the optimistic ta
 ddm_mc_cv:'MC CV = σ / μ across the Monte Carlo DDM runs. Low means the dividend valuation holds up across assumptions; high means the DDM fair value is a sketch, not a figure.',
 ddm_payout_flag:'Yes means the payout exceeds 100% of earnings — the dividend is not earnings-funded. A dividend paid from the balance sheet is a return of capital, not a return on it.',
 ddm_eligible:'Whether the stock qualifies for DDM valuation: a current dividend, positive earnings and a sufficient payment streak. The DDM Note gives the reason.',
-ddm_reason:'Why the stock is or is not DDM-eligible — no current dividend, too short a streak, or a payout above 100%.',
+ddm_reason:'Why the stock is or is not DDM-eligible — no current dividend, non-positive EPS, no dividend history or too short a streak. A payout above 100% is flagged but does not disqualify.',
 implied_growth:'Implied g — the growth rate that, fed through the DCF, reproduces today’s price. If it exceeds anything the business has ever delivered, the market is pricing for perfection.',
 roe:'ROE = Net Income / Equity. Look for 15%+ earned without leverage; the DuPont decomposition tells you whether it comes durably from margin and turnover, or fragilely from debt.',
 roa:'ROA = Net Income / Assets — profitability with the leverage stripped out. A high ROA is structural efficiency, the kind that compounds.',
 cash_conv:'Cash Conversion = Operating Cash Flow / Net Income. Earnings are opinions; cash is fact. Persistently below 0.8 points to accounting or working-capital trouble.',
 gross_margin:'Gross Margin = (Revenue − COGS) / Revenue — the first test of a moat. Pricing power is the single most important trait in evaluating a business; above 40% is a premium competitors cannot replicate.',
-accruals:'Accruals = (Net Income − Operating Cash Flow) / Average Assets — the slice of profit not backed by cash. Sloan (1996) showed high-accrual firms systematically underperform. The gate passes below 8% (negative accruals, cash ahead of profit, always pass) and scores by sector percentile, lower is better.',
-rev_cagr:'CAGR = (Revₙ/Rev₀)^(1/3) − 1 over the past three years. Growth with stable margins signals pricing power and durable demand; growth without them is bought, not earned.',
+accruals:'Accruals = (Net Income − Operating Cash Flow) / Total Assets — the slice of profit not backed by cash. Sloan (1996) showed high-accrual firms systematically underperform. The gate passes below 8% (negative accruals, cash ahead of profit, always pass) and scores by sector percentile, lower is better.',
+rev_cagr:'CAGR = (Revₙ/Rev₀)^(1/n) − 1 over the past three years, or as many as are reported. Growth with stable margins signals pricing power and durable demand; growth without them is bought, not earned.',
 dupont_margin:'Net Margin = Net Income / Revenue — the first DuPont pillar. The best businesses pair pricing power with cost discipline and keep more of every revenue dollar.',
 dupont_turnover:'Asset Turnover = Revenue / Assets — the second DuPont pillar. Asset-light businesses, software and brands above all, generate more revenue per dollar deployed: the preferred structure.',
 dupont_leverage:'Equity Multiplier = Assets / Equity — the third DuPont pillar. Leverage can flatter ROE: check that margin and turnover stand on their own without it.',
@@ -7234,8 +7234,8 @@ int_cov:'Interest Coverage = EBIT / Interest Expense. Below 3×, one bad year be
 nd_ebitda:'Net Debt/EBITDA = (Debt − Cash) / EBITDA — the years of earnings needed to retire the debt. No debt or very modest debt is ideal; a negative figure means net cash, the gold standard.',
 de:'D/E = Total Debt / Equity — the direct leverage test. Below 1.0, owners fund more of the business than creditors do. Leverage turns temporary undervaluation into permanent loss.',
 total_debt:'All interest-bearing borrowings — long-term debt plus the short-term and current portions — from the latest annual balance sheet (SEC XBRL where available). The absolute claim creditors hold ahead of shareholders; judge it against cash flow, not in isolation.',
-net_debt:'Net Debt = Total Debt − Cash & Equivalents — what would remain owed if the cash pile paid down borrowings today. Negative means net cash: a fortress posture, freedom to act when others must sell.',
-cash:'Cash and equivalents on the latest annual balance sheet — the buffer that buys time in a downturn and optionality in a panic. Idle cash is not wasted; it is a call option on future bargains.',
+net_debt:'Net Debt = Total Debt − Cash & Short-Term Investments — what would remain owed if the cash pile paid down borrowings today. Negative means net cash: a fortress posture, freedom to act when others must sell.',
+cash:'Cash and short-term investments on the latest annual balance sheet — the buffer that buys time in a downturn and optionality in a panic. Idle cash is not wasted; it is a call option on future bargains.',
 cr:'Current Ratio = Current Assets / Current Liabilities. At least 2.0 is the classic bar for defensive stocks; below 1.0, the business depends on rolling its credit.',
 altman_z:'Z = 1.2·WC/A + 1.4·RE/A + 3.3·EBIT/A + 0.6·MktEq/Liab + 1.0·Sales/A — five balance-sheet ratios weighted into one distress score. Above 2.99 is safe; below 1.81, distress. The point: avoid permanent loss of capital.',
 beneish_m:'M-Score — an eight-variable index of earnings manipulation. Above −1.78, the risk is elevated. Management integrity comes first; without it, nothing else in the numbers can be trusted.',
@@ -7243,13 +7243,13 @@ trap_score:'Value-trap score (0–100, experimental): how much this stock looks 
 fundamental_growth:'g = ROIC × Reinvestment Rate — the growth a business funds from its own returns. A 20% ROIC with half of profits reinvested compounds at 10% a year with no outside financing: internally consistent, as growth claims should be.',
 reinvestment_rate:'Reinvestment Rate = (CapEx + ΔWC − D&A) / NOPAT — the share of after-tax operating profit ploughed back into the business. The ideal grows substantially while retaining little; reinvestment creates value only when ROIC is high.',
 terminal_growth:'The perpetual growth rate beyond year 10, anchored near long-run GDP of 2–3%. Small changes here swing the fair value a great deal — this model avoids heroic terminal assumptions.',
-margin_trend:'The year-over-year change in operating margin. An expanding margin is a moat deepening; a contracting one is the first warning that the competitive advantage is under pressure.',
+margin_trend:'The average yearly change in operating margin over the reported years. An expanding margin is a moat deepening; a contracting one is the first warning that the competitive advantage is under pressure.',
 margin_vs_hist:'Margin vs Hist = current operating margin − the company’s own ~10-year average. An over-earning guard: peak-cycle earnings inflate every fair-value model just when caution is due — which is why earnings are best normalised across the cycle. Fails only 5pp+ above its own history; N/A under five years of record.',
 fcf_growth:'The free-cash-flow growth used in Stage 1 of the DCF. The test is that growth be organic — check it is supported by revenue growth and stable margins, not by deferred capex.',
 shareholder_yield:'Shareholder Yield = (Dividends + Net Buybacks) / Market Cap — all cash returned to owners, by either route. The gate passes above 2%; above 5% is a genuine, consistent commitment.',
-er:'The annual return implied by buying at today’s price and receiving the DCF’s cash flows. Think in compounding rates: above 12–15% on a quality business deserves serious attention. Always compare it with your opportunity cost.',
-_sens_low:'The bear-case fair value from the DCF sensitivity grid. The question: what is it worth under adverse conditions? A price below this figure means a margin of safety even in the pessimistic scenario.',
-_sens_high:'The bull-case fair value from the DCF sensitivity grid. A price above it is priced for perfection. The test: would you stake permanent capital on these assumptions?',
+er:'Cost of equity — the annual return shareholders require, usually the risk-free rate + beta × the equity risk premium. It is the hurdle the fair-value models discount at, not a forecast of what the stock will return.',
+_sens_low:'The bear-case fair value: the Monte Carlo P10 when the simulation ran, otherwise the low end of the DCF sensitivity grid. The question: what is it worth under adverse conditions? A price below this figure means a margin of safety even in the pessimistic scenario.',
+_sens_high:'The bull-case fair value: the Monte Carlo P90 when the simulation ran, otherwise the high end of the DCF sensitivity grid. A price above it is priced for perfection. The test: would you stake permanent capital on these assumptions?',
 mc_p10_fv:'The 10th-percentile Monte Carlo fair value: 90% of simulations came out higher. A price below it means undervaluation in nearly every scenario — the strongest entry signal.',
 mc_p90_fv:'The 90th-percentile Monte Carlo fair value: only 10% of simulations exceeded it. A wide P10–P90 band is irreducible uncertainty — demand proportionally more margin of safety.',
 mc_confidence:'MC Confidence = the coefficient of variation (σ / μ) of simulated fair values. Below 20% is reliable; 20–40%, moderate; above 40%, treat the point estimate with real caution. "constrained" means the band was downgraded a notch because too many scenarios hit a constraint wall or wiped out equity.',
@@ -7274,7 +7274,7 @@ epv_pfv:'P/EPV = Price / Earnings Power Value. Below 1.0×, the market charges n
 int_coverage:'Interest-coverage gate: EBIT / Interest Expense. Passes above 3×; above 10× is a fortress balance sheet. Avoid leverage that forces selling at the worst time.',
 shrhldr_yield:'Shareholder-yield gate: (Dividends + Net Buybacks) / Market Cap. Passes above 2%. The best thing a company can do with a cheap stock is buy it back.',
 fund_growth:'Fundamental-growth gate: g = ROIC × Reinvestment Rate. A 20% ROIC with half reinvested compounds at 10% a year internally. Passes above 3%.',
-margins:'Operating-margin trend gate. Passes when the trend is flat or rising — contraction is the first warning that the moat is under pressure.',
+margins:'Gross-margin trend gate: the per-year slope of gross margin over up to five years. Passes when the trend is flat or rising — contraction is the first warning that the moat is under pressure.',
 surprise:'EPS-surprise gate: (actual − estimated) / estimated earnings, averaged across recent quarters. Consistent beats suggest honest, conservative guidance. Passes above 0%.',
 roic_consistency:'ROIC-consistency gate: CV = σ(ROIC) / μ(ROIC). Passes below 30% — stable returns are the proof that a moat is real. What matters most is the durability of the advantage.',
 'spread_>_5%':'Spread gate: ROIC − WACC. Passes above 7% — the business earns meaningfully more than its capital costs, year after year.',
@@ -7284,9 +7284,9 @@ turnover:'Share-turnover gate: Average Daily Volume / Shares Outstanding. Passes
 buyback_rate:'Buyback gate: Net Buybacks / Market Cap. Passes above 0%. Consistent repurchases shrink the share count and lift owner earnings per share.',
 insider_buying:'Insider Buying = open-market buys ÷ (buys + sells) from SEC Form 4 filings over the trailing year. Insiders sell for many reasons, but buy for only one — they think the stock is cheap. Grants and option exercises are excluded; they cost the insider nothing. Passes at 50%+; N/A below four transactions.',
 edgar_quality_score:'EDGAR Data Quality Score, 0–100: cross-validation of yfinance figures against SEC XBRL filings. 100 is a perfect match; a low score demands verification against the 10-K before valuing anything.',
-profit_pool:'Profit Pool Multiple = profit share ÷ revenue share within the sector. Above 1×, the company captures more than its proportionate share of sector profit — Porter’s moat, in one number. Passes at 1× or better.',
+profit_pool:'Profit Pool Multiple = profit share ÷ revenue share within the sector. Above 1×, the company captures more than its proportionate share of sector profit — Porter’s moat, in one number. Shown for context; it is not a scored gate.',
 net_debt_ebitda:'Net-debt gate: (Debt − Cash) / EBITDA. Passes at 1.5× or below — debt retirable from under two years of earnings. No debt or very modest debt is ideal.',
-rev_durability:'Revenue-durability gate: the 10-year revenue CAGR. Persistent growth through two recessions means demand does not depend on a single cycle or macro tailwind. Passes above 2%.',
+rev_durability:'Revenue-durability gate: the 10-year revenue CAGR. Persistent growth across a full decade means demand does not depend on a single cycle or macro tailwind. Passes above 2%.',
 sbc_dilution:'Stock-compensation gate: SBC / Revenue — the silent-dilution test. Stock compensation is a real cost, not a footnote. Passes at 2% or below; above 10%, shareholders are subsidising management pay.',
 p_tbv:'P/TBV = Price / Tangible Book Value — the strictest asset floor, stripping goodwill and intangibles down to what could actually be liquidated. Cheap only when ROIC justifies it; otherwise a value trap.',
 nav_fv:'NAV FV: net tangible assets per share, at book value — an asset-based intrinsic value for capital-heavy or asset-rich businesses such as REITs and financials. Best read beside the DCF, not instead of it.',
@@ -7325,8 +7325,8 @@ momentum_12_1:'Price return from 12 months ago to 1 month ago. The last month is
 momentum_6_1:'Price return from 6 months ago to 1 month ago. A shorter-horizon read on the same idea as Mom 12-1M — when the two disagree, the trend turned somewhere in between.',
 momentum_3m:'Simple trailing 3-month price return, most recent month included. The most reactive of the three momentum columns and the noisiest; useful mainly for spotting a name that just broke down or just re-rated.',
 vol_adj_momentum:'12-1 month momentum divided by realized volatility — momentum per unit of risk taken to get it. A quiet 20% grind scores higher than a violent 20% round trip.',
-realized_vol:'Annualized standard deviation of daily returns over the past year. Also feeds the Monte Carlo WACC sigma, so a volatile stock gets a wider fair-value band and a lower MC Confidence. It is a guide only: it does not change the composite score.',
-avg_dollar_volume_3m:'Median daily dollar volume (price × shares) over the last three months — the median, not the mean, so one earnings-day spike does not flatter the number. This is the tradeability check: below $1M a BUY is capped to HOLD, because a rating you cannot fill is not a recommendation.',
+realized_vol:'Annualized standard deviation of daily returns over the past year. Shown for context and used in Vol-Adjusted Momentum. The Monte Carlo band is set by how precisely beta is estimated, not by this figure, and it does not change the composite score.',
+avg_dollar_volume_3m:'Median daily dollar volume (price × shares) over the last three months — the median, not the mean, so one earnings-day spike does not flatter the number. This is the tradeability check: below $1M the stock carries a warning flag, though its rating does not change, because a rating you cannot fill is not a recommendation.',
 volume_trend:'Average volume over the last month divided by the average over the last year. Above 1.0 means trading interest is running hotter than this stock’s own norm — read it next to momentum, never alone.',
 amihud_illiquidity:'Amihud price impact, in basis points of price move per $1M traded. Near zero for mega-caps by construction; it earns its keep at the illiquid end, where it tells you what building a position would cost you in slippage.',
 drawdown_2020:'Worst peak-to-trough fall during the COVID crash (Jan–Sep 2020). A stress test you did not have to design — how far did this business fall when the world stopped?',
@@ -7339,7 +7339,7 @@ _flagged:'Your personal flag for stocks that deserve a closer look. Click ⚑ to
 employees:'Reported headcount, and the denominator for every per-employee figure below. A rough read on how labour-intensive the business model is.',
 revenue_per_emp:'Revenue ÷ employees — output per head. Only comparable inside a sector: software runs high, retail low. Rising productivity is operating leverage you can see.',
 fcf_per_emp:'Free cash flow ÷ employees — cash generated per head after capex. A harsher test than revenue per employee, and far harder to flatter.',
-rpe_cagr:'Annual growth in revenue per employee, measured across the filed revenue history at today’s headcount. Positive means each worker carries more of the business than before.',
+rpe_cagr:'Annual revenue growth across the filed history. Past headcount is not available, so today’s is used at both ends and cancels out: this is revenue growth, not a measure of productivity.',
 sbc_per_emp:'Stock compensation ÷ employees — the average equity grant per head. A real cost, paid in dilution rather than cash.',
 ceo_total_pay:'Total reported CEO compensation for the latest proxy year: salary, bonus, equity grants and perquisites.',
 ceo_pay_ratio:'CEO pay ÷ revenue per employee — the package measured in units of what one employee produces. Context for whether pay is proportionate to the business.',
@@ -7355,14 +7355,18 @@ culture_award_signal:'Set when recent headlines mention a workplace-culture awar
 beta_raw:'The unadjusted 5-year weekly regression beta, before any shrinkage toward 1.0. Noisy for thinly traded names; the adjusted figure is what the model uses.',
 beta_shrink_weight:'Share of the raw beta that survived shrinkage; the rest came from the prior of 1.0. A low weight means the raw estimate was too noisy to trust.',
 beta_se:'Standard error of the regression beta — how precisely it is estimated, and the reason a noisy beta gets pulled toward 1.0.',
-beta_r2:'R² of the beta regression: the share of this stock’s weekly moves the market explains. Below 0.20, beta says very little.',
-beta_n_obs:'Weekly observations behind the beta regression. Under 60 the estimate is noisy and is shrunk harder toward the market.',
-beta_stability:'Gap between the 1-year and 5-year raw betas. A drift of 0.2 or more marks a stock whose sensitivity to the market is changing.',
+beta_r2:'R² of the beta regression: the share of this stock’s weekly moves the market explains. The model labels anything below 0.40 unreliable; the label does not change how beta is used.',
+beta_n_obs:'Weekly observations behind the beta regression. Fewer observations raise the standard error, which pulls the estimate harder toward the market.',
+beta_stability:'Standard deviation of the raw 1-, 3- and 5-year betas. Below 0.1 is stable; 0.2 or more marks a stock whose sensitivity to the market is changing.',
 /* Remaining table and popup metrics. */
+_fv_effective:'The fair value behind the margin of safety: the DCF, after any blending, when it exists; otherwise the median of at least two of EPV-growth, RIM and DDM.',
+blend_method:'How the fair value was built. DCF: the DCF stands alone. DCF+DDM: 70% DCF and 30% dividend model, used only when the two differ by 50% or less and the payout is at most 100%.',
+implied_vs_estimated:'Implied vs Estimated = implied growth − the model’s own Stage-1 FCF growth. Negative means the market is asking for less growth than the model expects.',
+operating_margin:'Operating Margin = Operating Income / Revenue — what the business keeps from sales before interest and tax. The base of Margin Advantage and Margin vs Hist. Not meaningful for banks, where operating income is derived rather than reported.',
 pct_from_52w_low:'How far the price sits above its 52-week low. A high reading means the market has already re-rated the story.',
 tangible_book_per_share:'Tangible book value ÷ shares — equity after goodwill and intangibles are stripped out. The floor asset-based valuation tests measure against.',
-epv_mos:'EPV MoS = (EPV Fair Value − Price) / EPV Fair Value — the margin of safety against earnings power alone, assuming no growth at all. The most conservative of the safety margins.',
-ddm_low_confidence:'Flags a DDM built on a short or erratic dividend record. The fair value still renders; weight it less.',
+epv_mos:'EPV MoS = (EPV Fair Value − Price) / EPV Fair Value — the margin of safety against earnings power alone, assuming no growth at all. A conservative test, since it gives no credit for growth.',
+ddm_low_confidence:'Yes means the DDM and DCF differ by more than 50%, or the payout exceeds 100% of earnings. The DDM fair value still renders, but it is not blended into the headline fair value.',
 debt_maturity_wall_yrs:'Weighted average years until the reported debt matures (SEC XBRL). A short wall turns a shut refinancing market into a going-concern question.',
 goodwill_pct:'Goodwill ÷ total assets. Above roughly 35% the balance sheet is largely acquisition accounting, and a write-down is a live risk.',
 sga_pct_rev:'SG&A ÷ revenue — the overhead carried to sell the product. Falling is operating leverage; rising against flat sales is not.',
@@ -7370,12 +7374,12 @@ sga_yoy_change:'Year-over-year change in SG&A spend. Compare it with revenue gro
 deposit_beta:'Share of the 2021–23 rate rise a bank passed on to its depositors (FDIC). A low beta means sticky, cheap funding — the deposit franchise working.',
 combined_ratio:'Insurance losses plus expenses ÷ premiums earned. Below 100% the underwriting itself made money, before a cent of investment income.',
 float_cost:'Combined ratio − 100% — what the insurer pays to hold its float. Negative is the ideal: other people’s money, better than free.',
-rule_of_40:'Revenue growth + FCF margin, in percentage points. Above 40 the business is balancing growth against cash generation well.',
+rule_of_40:'5-year revenue CAGR + FCF margin after stock compensation, in percentage points. Above 40 the business is balancing growth against cash generation well.',
 surprise_avg:'Average earnings surprise versus consensus over recent quarters. Consistent beats feed a small uplift to the growth estimate; misses, a penalty.',
 book_to_bill_proxy:'Orders booked ÷ revenue billed, proxied from the change in backlog. Above 1× the order book is growing faster than the company can ship.',
 brand_spend_trend:'Annualised change in advertising ÷ revenue. Rising brand investment is a moat being fed; a quiet cut often precedes share loss.',
 fda_pipeline_count:'Active sponsored interventional trials on ClinicalTrials.gov — a crude read on how much future revenue is still in the lab.',
-position_weight:'This holding’s share of the portfolio’s market value.',
+position_weight:'The model’s suggested position size for a BUY or LEAN BUY with a positive margin of safety: larger with more margin and a tighter Monte Carlo band. Blank when the size falls below the 1% minimum.',
 _via:'How the name got into this portfolio: a manual pick, a match on the portfolio’s rule, or both.',
 earnings_next_date:'The next scheduled earnings date. Results inside a few days are the usual reason a screen’s numbers move under you.',
 /* Sector-context and Street-view popup rows. */
@@ -7387,7 +7391,7 @@ target_mean:'Average sell-side 12-month price target. Anchored to today’s pric
 target_range:'Lowest to highest analyst price target. A wide spread says the Street disagrees, which is often where mispricing hides.',
 target_upside:'Distance from today’s price to the average analyst target.',
 street_vs_model:'Gap between the Street’s average target and this model’s fair value. A large gap is worth understanding before trusting either number.',
-analyst_ltg:'Consensus long-term growth estimate. Cross-check it against the growth today’s price already implies.',
+analyst_ltg:'Analysts’ growth estimate from Yahoo: the long-term consensus where it exists, otherwise next year’s, then this year’s. Cross-check it against the growth today’s price already implies.',
 _reviewed:'Mark a stock reviewed once your own due diligence is complete. Click ✓ to toggle — it tracks what you have evaluated against what remains on the list. Saved in browser local storage.'
 };
 function tt(k){return TT[k]||'';}
@@ -8582,10 +8586,10 @@ var TC={
      growth, capex/reinvestment intensity, and the sector-specific growth
      signals (REIT FFO, SaaS deferred revenue, backlog) at the end. */
   growth:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'reinvestment_rate',l:'Reinvest Rate',f:'pct',g:'gg'},{k:'fundamental_growth',l:'Fund. Growth',f:'pct',g:'gg'},{k:'margin_trend',l:'Margin Trend',f:'pct',g:'gg'},{k:'rev_cagr',l:'Rev CAGR 3Y',f:'pct',g:'gg'},{k:'rev_cagr_5y',l:'Rev CAGR 5Y',f:'pct',g:'gg'},{k:'rev_cagr_10y',l:'Rev CAGR 10Y',f:'pct',g:'gg'},{k:'fcf_growth',l:'FCF Growth',f:'pct'},{k:'capex_intensity',l:'Capex/Sales',f:'pct',g:'gg'},{k:'capex_to_dd_ratio',l:'Capex/D&A',f:'n2',g:'gg'},{k:'ffo_growth_5y',l:'FFO Growth',f:'pct',g:'gg'},{k:'deferred_rev_growth',l:'Def Rev Growth',f:'pct',g:'gg'},{k:'backlog_to_revenue',l:'Backlog/Rev',f:'n2',g:'gg'}],
-  /* Projections — price and the base-case DCF with its expected return, then
+  /* Projections — price and the base-case DCF with its cost of equity, then
      the sensitivity band and Monte Carlo band (fair-value dollars grouped for
      comparison), with the growth assumptions that drive them at the end. */
-  proj:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'price',l:'Price',f:'dollar'},{k:'dcf_fv',l:'DCF Base',f:'dollar',g:'gj'},{k:'er',l:'Er',f:'pct',g:'gj'},{k:'_sens_low',l:'Sens Low',f:'dollar',g:'gj'},{k:'_sens_high',l:'Sens High',f:'dollar',g:'gj'},{k:'mc_p10_fv',l:'MC P10',f:'dollar',g:'gj'},{k:'mc_p90_fv',l:'MC P90',f:'dollar',g:'gj'},{k:'mc_confidence',l:'MC Conf',f:'text',g:'gj'},{k:'fundamental_growth',l:'Fund. Growth',f:'pct',g:'gj'},{k:'terminal_growth',l:'Term. Growth',f:'pct',g:'gj'}],
+  proj:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'price',l:'Price',f:'dollar'},{k:'dcf_fv',l:'DCF Base',f:'dollar',g:'gj'},{k:'er',l:'Cost of Eq',f:'pct',g:'gj'},{k:'_sens_low',l:'Sens Low',f:'dollar',g:'gj'},{k:'_sens_high',l:'Sens High',f:'dollar',g:'gj'},{k:'mc_p10_fv',l:'MC P10',f:'dollar',g:'gj'},{k:'mc_p90_fv',l:'MC P90',f:'dollar',g:'gj'},{k:'mc_confidence',l:'MC Conf',f:'text',g:'gj'},{k:'fundamental_growth',l:'Fund. Growth',f:'pct',g:'gj'},{k:'terminal_growth',l:'Term. Growth',f:'pct',g:'gj'}],
   /* Ownership — share structure first (shares outstanding, float), then the
      buyback rate that shrinks it, ownership composition (insider, institutional),
      and short interest last. */
@@ -11530,7 +11534,7 @@ var DT_TABS=[
   {t:'Dividend Record',cols:[{k:'ddm_consecutive_years',sec:1},{k:'dividend_cagr_5y',sec:1},{k:'ddm_div_cagr',sec:1},{k:'ddm_sustainable_growth',sec:1},{k:'ddm_growth',sec:1},{k:'ddm_eligible',sec:1},{k:'ddm_reason',sec:1}]}
  ],extra:_detInsiderHtml},
  {k:'people',l:'People',groups:[
-  {t:'Workforce',cols:[{k:'employees',l:'Employees',f:'cnt'},{k:'revenue_per_emp',l:'Revenue/Employee',f:'ds'},{k:'fcf_per_emp',l:'FCF/Employee',f:'ds'},{k:'rpe_cagr',l:'Rev/Emp CAGR',f:'pct'},{k:'sbc_per_emp',l:'SBC/Employee',f:'ds',sec:1}]},
+  {t:'Workforce',cols:[{k:'employees',l:'Employees',f:'cnt'},{k:'revenue_per_emp',l:'Revenue/Employee',f:'ds'},{k:'fcf_per_emp',l:'FCF/Employee',f:'ds'},{k:'rpe_cagr',l:'Revenue CAGR (Filed History)',f:'pct'},{k:'sbc_per_emp',l:'SBC/Employee',f:'ds',sec:1}]},
   {t:'Leadership & Pay',cols:[{k:'ceo_total_pay',l:'CEO Total Pay',f:'ds'},{k:'ceo_pay_ratio',l:'CEO Pay Ratio',f:'n1'},{k:'compensation_risk',l:'Comp Risk Score',f:'int'},{k:'sbc',l:'SBC (Total)',f:'ds',sec:1}]},
   {t:'Culture Signals',cols:[{k:'glassdoor_rating',l:'Glassdoor Rating',f:'n2',sec:1},{k:'glassdoor_ceo_pct',l:'CEO Approval',f:'pct',sec:1},{k:'glassdoor_rec_pct',l:'Would Recommend',f:'pct',sec:1},{k:'employment_legal_flag',l:'Employment Legal Flag',f:'bool'},{k:'layoff_news_signal',l:'Layoff Signal',f:'bool'},{k:'culture_award_signal',l:'Culture Award',f:'bool'}]}
  ],extra:_detCeoBioHtml}
@@ -11690,7 +11694,7 @@ function _detIntrinsicHtml(d){
   var ms=d.mos!=null?(d.mos>0.15?'color:#1a9850;font-weight:700':(d.mos<0?'color:#de2d26':'')):'';
   var sr=d.dcf_sens_range?fd(d.dcf_sens_range[0])+' – '+fd(d.dcf_sens_range[1]):'N/A';
   var ivH='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a2f5e,#2f5496)"><span class="dg-icon"></span><span class="sec-label">Intrinsic Value</span></div><div class="dgrid-inner">';
-  ivH+='<div class="dsec"><h3>DCF Model</h3><div class="dkvg">'+bkv([['Current Price',fd(d.price)],['DCF Fair Value',fd(d.dcf_fv)],['DCF MoS',fp(d.mos),ms],['Expected Return',fp(d.er)],['Blend Method',d._blended_method||'DCF']])+'</div></div>';
+  ivH+='<div class="dsec"><h3>DCF Model</h3><div class="dkvg">'+bkv([['Current Price',fd(d.price)],['DCF Fair Value',fd(d.dcf_fv)],['DCF MoS',fp(d.mos),ms],['Cost of Equity',fp(d.er)],['Blend Method',d._blended_method||'DCF']])+'</div></div>';
   ivH+='<div class="dsec"><h3>DCF Monte Carlo</h3><div class="dkvg">'+bkv([['MC Confidence',d.mc_confidence!=null?d.mc_confidence:'N/A'],['MC CV',fp(d.mc_cv)],['MC P10 Fair Value',fd(d.mc_p10_fv)],['MC P90 Fair Value',fd(d.mc_p90_fv)],['MC Clip Rate',fp(d.mc_clip_rate)],['MC Wipeout Rate',fp(d.mc_invalid_rate)]])+'</div></div>';
   if(d.ddm_eligible){var ddmFlag=d.ddm_payout_flag?'color:#de2d26;font-weight:700':'';var ddmLcFlag=d._ddm_low_confidence?'color:#e67e22;font-weight:700':'';ivH+='<div class="dsec"><h3>Dividend Discount Model</h3><div class="dkvg">'+bkv([['DDM Fair Value',fd(d.ddm_fv)],['H-Model FV',fd(d.ddm_h_fv)],['DDM Growth',fp(d.ddm_growth)],['Div CAGR',fp(d.ddm_div_cagr)],['Sustainable Growth',fp(d.ddm_sustainable_growth)],['Consec. Years',d.ddm_consecutive_years!=null?d.ddm_consecutive_years+'':'N/A'],['Payout Flag',d.ddm_payout_flag?'Yes':'No',ddmFlag],['Low Confidence',d._ddm_low_confidence?'Yes':'No',ddmLcFlag]])+'</div></div>';ivH+='<div class="dsec"><h3>DDM Monte Carlo</h3><div class="dkvg">'+bkv([['MC Median',fd(d.ddm_mc_median)],['MC P10',fd(d.ddm_mc_p10)],['MC P90',fd(d.ddm_mc_p90)],['MC CV',fp(d.ddm_mc_cv)],['MC Clip Rate',fp(d.ddm_mc_clip_rate)]])+'</div></div>';}
   var navMosStyle=d.nav_mos!=null?(d.nav_mos>0.15?'color:#1a9850':(d.nav_mos<0?'color:#de2d26':'')):'';
@@ -11721,7 +11725,7 @@ function _detStreetHtml(d){
   var _svRec=d.analyst_rec?d.analyst_rec.replace(/_/g,' '):'N/A';
   var _svEarn='N/A';
   if(d.earnings_next_date){_svEarn=d.earnings_next_date+(d.earnings_date_est?' (est.)':'');}
-  return '<div class="dsec"><h3>Street View</h3><div class="dkvg">'+bkv([['Consensus',_svRec],['Analysts',d.num_analysts!=null?''+d.num_analysts:'N/A'],['Target Mean',fd(d.target_mean)],['Target Range',(d.target_low!=null&&d.target_high!=null)?fd(d.target_low)+' – '+fd(d.target_high):'N/A'],['Upside to Target',fp(_svUp),_svUpC],['Street vs Model FV',_svDeltaTxt,_svDeltaC],['LT Growth Est',fp(d.analyst_ltg)],['Next Earnings',_svEarn]])+'</div></div>';
+  return '<div class="dsec"><h3>Street View</h3><div class="dkvg">'+bkv([['Consensus',_svRec],['Analysts',d.num_analysts!=null?''+d.num_analysts:'N/A'],['Target Mean',fd(d.target_mean)],['Target Range',(d.target_low!=null&&d.target_high!=null)?fd(d.target_low)+' – '+fd(d.target_high):'N/A'],['Upside to Target',fp(_svUp),_svUpC],['Street vs Model FV',_svDeltaTxt,_svDeltaC],['Analyst Growth Est',fp(d.analyst_ltg)],['Next Earnings',_svEarn]])+'</div></div>';
 }
 function _detInsiderHtml(d){
   if(d.insider_buy_ratio==null&&!(d.insider_transactions&&d.insider_transactions.length>0))return '';
