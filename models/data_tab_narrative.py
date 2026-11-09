@@ -818,8 +818,8 @@ def _summ_people(row, stats):
                   else f', {rel:.1f}x the {sec} median')
         g = _num(row, 'rpe_cagr', lo=-0.9, hi=2)
         if g is not None and abs(g) >= 0.02:
-            s += (f', and productivity has {"risen" if g > 0 else "fallen"} '
-                  f'{_pct(g, 1)} a year')
+            s += (f', and revenue has {"grown" if g > 0 else "fallen"} '
+                  f'{_pct(g, 1)} a year across its filed history')
         out.append(s + '.')
         fpe = _num(row, 'fcf_per_emp')
         if fpe is not None and abs(fpe) >= 1e3:

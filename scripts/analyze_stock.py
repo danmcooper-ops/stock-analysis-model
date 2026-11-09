@@ -5239,6 +5239,18 @@ def _run_postprocess(results, ms_pfv_data, _carry_prior_rows,
             'sector_median_opm': sector_median_opm}
 
 
+# Labour matters in a legal filing's text. Whole terms only: bare "employment"
+# and "strike" flagged executive employment agreements and a zero-strike call
+# on every one of 2026-11-06's 11 flagged rows, and bare "union" or "class
+# action" would catch credit unions and securities suits.
+_EMPLOYMENT_LEGAL_RE = re.compile(
+    r'\b(?:labou?r (?:dispute|union|strike|relations board|law|claim)s?'
+    r'|trade unions?|collective bargaining|work stoppages?|nlrb'
+    r'|wages?|wrongful termination|hostile work|harassment|layoffs?'
+    r'|(?:employee|employment) (?:class action|litigation|lawsuit|claim)s?'
+    r'|(?<!price )discrimination)\b')
+
+
 def _run_narratives(results, args, sector_etf_data, macro_regime_result,
                     commodity_data, sector_median_ee, sector_median_opm):
     """Peer percentiles, culture and stock narratives, and the final sort."""
@@ -5297,7 +5309,8 @@ def _run_narratives(results, args, sector_etf_data, macro_regime_result,
     for s in _cult_sector_rpe:
         _cult_sector_rpe[s].sort()
 
-    # Step 3 — multi-year RPE trend from EDGAR revenue history
+    # Step 3 — multi-year trend from EDGAR revenue history. Only today's
+    # headcount is known, so it cancels: rpe_cagr is revenue CAGR.
     for r in results:
         emp = r.get('employees')
         if not emp:
@@ -5326,11 +5339,6 @@ def _run_narratives(results, args, sector_etf_data, macro_regime_result,
             r['rpe_cagr'] = None
 
     # Step 4 — employment-related legal flag
-    _EMPLOYMENT_KEYWORDS = {
-        'labor', 'labour', 'employee', 'employment', 'wage', 'salary',
-        'discrimination', 'wrongful termination', 'class action', 'nlrb',
-        'union', 'strike', 'layoff', 'hostile work',
-    }
     for r in results:
         filings = r.get('legal_filings') or []
         flag = False
@@ -5339,7 +5347,7 @@ def _run_narratives(results, args, sector_etf_data, macro_regime_result,
                 (f.get('description') or ''),
                 (f.get('summary') or ''),
             ]).lower()
-            if any(kw in text for kw in _EMPLOYMENT_KEYWORDS):
+            if _EMPLOYMENT_LEGAL_RE.search(text):
                 flag = True
                 break
         r['employment_legal_flag'] = flag
@@ -5417,9 +5425,9 @@ def _run_narratives(results, args, sector_etf_data, macro_regime_result,
             trend_str = ""
             if rpe_cagr is not None:
                 if rpe_cagr > 0.05:
-                    trend_str = f", improving at {rpe_cagr:.0%}/yr — growing workforce leverage"
+                    trend_str = f", with revenue growing {rpe_cagr:.0%}/yr across its filed history"
                 elif rpe_cagr < -0.05:
-                    trend_str = f", declining at {abs(rpe_cagr):.0%}/yr — weakening productivity"
+                    trend_str = f", with revenue falling {abs(rpe_cagr):.0%}/yr across its filed history"
             sentences.append(
                 f"Revenue per employee of {_fmt_money(rpe)} ranks in the "
                 f"{pct_desc} among {s} peers{trend_str}."

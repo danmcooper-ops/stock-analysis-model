@@ -23,9 +23,11 @@ from models.sector_pool import panel_pools, year_series
 #   weight: scales the gate's contribution within its category (default 1.0)
 #   applicable: optional row-predicate; when it returns False the gate is
 #     STRUCTURALLY INAPPLICABLE for that ticker (a bank has no meaningful FCF
-#     yield; negative tangible book makes P/TBV undefined) and is excluded
-#     from numerator AND denominator — unlike missing data, which still
-#     scores 0 (worst). `applicable=None` means always applicable.
+#     yield; negative tangible book makes P/TBV undefined). It renders N/A
+#     and leaves the gates-passed count. In the composite it counts 0 against
+#     its full weight under NA_GATES_SCORE_ZERO (the default), as missing data
+#     always does; only with that off does it leave the category average.
+#     `applicable=None` means always applicable.
 # The category is the gate name's prefix ("Valuation: MoS" → "Valuation").
 class Gate(namedtuple('Gate',
                       ['name', 'field', 'test_fn', 'score_fn',
