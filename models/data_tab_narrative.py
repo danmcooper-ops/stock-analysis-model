@@ -32,7 +32,7 @@ MOS_PASS_CAP = -0.20       # scoring._rating_cap_for_row: MoS <= -20% (caps at P
 FV_DISPERSION_MAX = 0.15   # fv_dispersion gate: model MAD <= 15%
 SPREAD_MOAT = 0.07         # spread gate: ROIC - WACC > 7%
 ROIC_CV_MAX = 0.30         # roic_consistency gate: CV < 30%
-ACCRUALS_MAX = 0.08        # accruals gate: |accruals| < 8%
+ACCRUALS_MAX = 0.08        # accruals gate: accruals < 8% (negative passes)
 PIOTROSKI_STRONG = 7       # piotroski gate: F-Score >= 7
 PIOTROSKI_WEAK = 3         # narrative.generate_financial_summary weak band
 ND_EBITDA_MAX = 1.5        # net_debt_ebitda gate: ND/EBITDA <= 1.5x
@@ -468,7 +468,7 @@ def _summ_profitability(row, stats):
             elif cc < 0.8:
                 bad.append(f'cash conversion of only {cc:.2f}x')
         acc = _num(row, 'accruals', lo=-1, hi=1)
-        if acc is not None and abs(acc) >= ACCRUALS_MAX:
+        if acc is not None and acc >= ACCRUALS_MAX:
             bad.append(f'high accruals ({_pct(acc, 1, signed=True)} of assets)')
         if good and not bad:
             out.append(f'Earnings quality looks solid: {_join(good)}.')

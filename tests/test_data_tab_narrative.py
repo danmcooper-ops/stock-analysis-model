@@ -8,6 +8,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from models.data_tab_narrative import TAB_KEYS, MAX_SENTENCES, generate_data_tab_summaries
+from models.narrative import generate_financial_summary
 
 
 def _row(**over):
@@ -52,6 +53,17 @@ _STATS = {'pe': 25.0, 'ev_ebitda': 16.0, 'pfcf': 24.0, 'revenue_per_emp': 450_00
 
 def _text(summ, key):
     return ' '.join(summ[key])
+
+
+def test_only_positive_accruals_read_as_a_concern():
+    # The gate is one-sided (accruals < 8%): cash running ahead of profit is
+    # the good case, so a large negative figure must not read as "high".
+    assert 'high accruals' not in _text(
+        generate_data_tab_summaries(_row(accruals=-0.18), _STATS), 'prof')
+    assert 'high accruals' in _text(
+        generate_data_tab_summaries(_row(accruals=0.18), _STATS), 'prof')
+    assert 'Accruals are elevated' not in str(generate_financial_summary(_row(accruals=-0.18)))
+    assert 'Accruals are elevated' in str(generate_financial_summary(_row(accruals=0.18)))
 
 
 def test_rich_row_fills_every_tab():
