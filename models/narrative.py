@@ -1189,7 +1189,7 @@ def generate_financial_summary(row):
         else:
             parts.append(f'The company is burning through {_ds(abs(fcf))} of cash, and without positive owner earnings any valuation rests on hope rather than evidence.')
 
-    if accruals is not None and abs(accruals) > 0.08:
+    if accruals is not None and accruals > 0.08:
         parts.append(f'Accruals are elevated at {accruals * 100:+.1f}% of assets, and Sloan showed firms building earnings through accruals rather than cash systematically underperform.')
 
     # --- Sentence 5: Balance sheet ---
