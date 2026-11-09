@@ -1355,6 +1355,7 @@ td.ct{font-weight:700;}
 .pp-subtabs{margin:0 0 14px;}
 #sn-sub2{margin:0;}
 .pp-tabbed:not([data-tab="overview"])>[data-pane="overview"]{display:none;}
+.pp-tabbed:not([data-tab="price"])>[data-pane="price"]{display:none;}
 .pp-tabbed:not([data-tab="forces"])>[data-pane="forces"]{display:none;}
 .pp-tabbed:not([data-tab="pool"])>[data-pane="pool"]{display:none;}
 .pp-tabbed:not([data-tab="history"])>[data-pane="history"]{display:none;}
@@ -18910,7 +18911,7 @@ function _attr(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g
    the .pp-tabbed CSS rules. A tab whose sections are all empty is left
    out. The choice carries across sectors (window._ppSubTabSel) and visits
    (localStorage stock_pp_subtab_v1). */
-var _PP_SUBTABS=[['overview','Overview'],['forces','Drivers'],['pool','Profit Pool'],['history','History'],['value','Value Creation'],['flow','Trading']];
+var _PP_SUBTABS=[['overview','Overview'],['price','Price Comparison'],['forces','Drivers'],['pool','Profit Pool'],['history','History'],['value','Value Creation'],['flow','Trading']];
 function _ppSubTabCur(){
   /* Not window._ppSubTabCur: a top-level function declaration IS that
      window property, so the state used to overwrite this function — the
@@ -19053,6 +19054,7 @@ function renderPool(){
     chartHtml+='<div class="pool-sector" id="pool-sec-'+sec.replace(/\s+/g,'-')+'">';
     /* === The sector page's sub-tabs (_PP_SUBTABS) ===================
        Overview       — how the sector makes money, and its pool today
+       Price comparison — the sector's SPDR against the market
        Drivers        — the headwinds and tailwinds acting on it
        Profit pool    — the pool's shape in four tiles, then the chart
                         and tables of who earns it
@@ -19085,9 +19087,9 @@ function renderPool(){
     if(primerHtml){
       chartHtml+='<div data-pane="overview" class="pp-section pp-primer"><span class="pp-section-label">How This Sector Makes Money</span>'+primerHtml+'</div>';
     }
-    /* Then the sector's SPDR read through the model. */
+    /* The sector's SPDR read through the model, on its own sub-tab. */
     if(etfHtml){
-      chartHtml+='<div data-pane="overview" class="pp-section pp-etf"><span class="pp-section-label">Sector v. Market</span>'+etfHtml+'</div>';
+      chartHtml+='<div data-pane="price" class="pp-section pp-etf"><span class="pp-section-label">Sector v. Market</span>'+etfHtml+'</div>';
     }
     /* The Claude macro narrative's read on this sector lives on the
        Macro Outlook Overview (Key sector influences); the sector tab keeps
@@ -19131,8 +19133,8 @@ function renderPool(){
        sector's card, as the ticker page's statement tabs sit under its
        section tabs; the card holds the chosen pane. */
     var _tabs=_ppSubTabs(chartHtml.slice(_bodyStart),{
-      overview:!!(primerHtml||todayHtml),forces:!!signalsHtml,pool:true,history:!!(historyHtml||shiftsHtml),
-      value:!!(econHtml||etfHtml),flow:!!liquidityHtml});
+      overview:!!(primerHtml||todayHtml),price:!!etfHtml,forces:!!signalsHtml,pool:true,history:!!(historyHtml||shiftsHtml),
+      value:!!econHtml,flow:!!liquidityHtml});
     chartHtml=chartHtml.slice(0,_secStart)+_tabs.bar+chartHtml.slice(_secStart,_bodyStart)+_tabs.body;
     chartHtml+='</div>';
     /* Per-sector summary tableRows removed: rows were only built when a

@@ -158,6 +158,17 @@ def test_every_section_belongs_to_a_sub_tab_with_a_hide_rule():
         assert ('.pp-tabbed:not([data-tab="%s"])>[data-pane="%s"]{display:none;}' % (pane, pane)) in css
 
 
+def test_price_comparison_is_its_own_sub_tab_after_overview():
+    """The sector's SPDR against the market left the Overview for a tab of
+    its own, next to it, shown only when the sector has a fund."""
+    css = _tpl()
+    tabs = re.search(r'^var _PP_SUBTABS=(.*);$', css, re.M).group(1)
+    assert tabs.startswith("[['overview','Overview'],['price','Price Comparison'],")
+    body = _assembly(css)
+    assert '<div data-pane="price" class="pp-section pp-etf">' in body
+    assert 'price:!!etfHtml' in css and 'value:!!econHtml' in css
+
+
 def test_sub_tabs_sit_above_the_sector_card():
     """Main tabs, then sub-tabs, stacked like the ticker page's section and
     statement tabs: the bar is spliced in before the sector's card."""
