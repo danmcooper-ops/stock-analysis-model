@@ -20,7 +20,12 @@ Limits (``scripts/config.py``, ``PAPER_*``):
 * sells before buys, buys scaled down to the cash the day has;
 * a quote more than ``quote_max_gap`` from the snapshot close is skipped
   (bad print or news the model has not seen), and so is a ticker the broker
-  cannot trade.
+  cannot trade;
+* a held name stays in the book while its rating is in ``keep_ratings``
+  (``PAPER_KEEP_RATINGS``, LEAN BUY): bought on BUY, sold only on HOLD or
+  PASS, so a score wobbling across the BUY line is not a round trip. This
+  is where the paper book departs from the NAV ledger, which holds the
+  portfolio's members (BUY) only.
 """
 from __future__ import annotations
 
@@ -49,15 +54,37 @@ class Limits:
                    quote_max_gap=config.PAPER_QUOTE_MAX_GAP)
 
 
-def target_weights(portfolio, rows):
+def kept_holdings(held, by_tk, keep_ratings, members=()):
+    """Held tickers (resolved to their kept listing) that are not members
+    but whose rating is still in *keep_ratings*: hysteresis on the way out.
+    A row with no price or identity is left to ``hold_set``."""
+    if not keep_ratings:
+        return []
+    keep = set(keep_ratings)
+    aliases = pg.listing_aliases(by_tk)
+    mem = set(members)
+    out = set()
+    for t in held:
+        kt = t if t in by_tk else aliases.get(t)
+        r = by_tk.get(kt)
+        if kt and kt not in mem and r and r.get('rating') in keep \
+                and not pg.data_missing(r):
+            out.add(kt)
+    return sorted(out)
+
+
+def target_weights(portfolio, rows, held=(), keep_ratings=()):
     """{ticker: weight} the book should hold, summing to 1 (cash, when a
     ``target`` weighting leaves some, under ``portfolio_nav.CASH``).
 
     Members without a usable price are dropped first: the NAV ledger leaves
-    them unpriced too, and an order cannot be sized without one."""
+    them unpriced too, and an order cannot be sized without one. *held*
+    names still rated in *keep_ratings* join the members (``kept_holdings``)
+    and are weighted like them."""
     by_tk = pg.rows_by_ticker(rows)
     members = [t for t in pg.resolve_members(portfolio, by_tk)['members']
                if not pg.data_missing(by_tk.get(t))]
+    members += kept_holdings(held, by_tk, keep_ratings, members)
     if not members:
         return {}
     w = pn.entry_weights(portfolio, members, by_tk, cash=False)

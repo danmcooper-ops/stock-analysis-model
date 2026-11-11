@@ -1542,6 +1542,12 @@ ruff check .
   - a held name whose row has no price or identity, or which has no row
     at all and is not a folded listing (`hold_set`), is kept, not sold, so
     a data gap below the systemic threshold is not a round trip.
+  - a held name stays while it is rated LEAN BUY and is sold only on
+    HOLD or PASS (`kept_holdings`, `PAPER_KEEP_RATINGS`, 2026-11-11):
+    bought on BUY, so a score wobbling across 57 is not a round trip (36%
+    of buy-line crossings reverse). Kept names are weighted like members.
+    The NAV ledger still holds BUY members only, so the paper − model gap
+    now includes this rule as well as trading costs.
 
   `safety_checks` sends nothing on any of: the kill switch
   (`portfolio/paper/STOP`), a coverage-degraded or systemic-day snapshot,

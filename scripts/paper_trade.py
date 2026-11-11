@@ -161,7 +161,6 @@ def cmd_rebalance(args, broker=None, now=None):
         _pm, prev_rows = split_snapshot(read_snapshot(prior[-1][1]))
         systemic = pg.universe_stats(by_tk, pg.rows_by_ticker(prev_rows))
     portfolio = _portfolio(args.portfolio, args.portfolios_file)
-    targets = pt.target_weights(portfolio, rows)
     closes = {t: pg.js_num(r.get('price')) for t, r in by_tk.items()
               if pg.js_num(r.get('price'))}
 
@@ -182,6 +181,10 @@ def cmd_rebalance(args, broker=None, now=None):
     positions = broker.positions()
     open_orders = broker.open_orders()
     assets = broker.assets()
+    keep_ratings = tuple(config.PAPER_KEEP_RATINGS)
+    targets = pt.target_weights(portfolio, rows, held=positions, keep_ratings=keep_ratings)
+    kept = pt.kept_holdings(positions, by_tk, keep_ratings,
+                            pg.resolve_members(portfolio, by_tk)['members'])
     targets, untradable = pt.tradable_only(targets, assets)
     wanted = sorted(set(targets) | set(positions))
     prices = broker.latest_prices(wanted, since=snap_date)
@@ -212,6 +215,10 @@ def cmd_rebalance(args, broker=None, now=None):
           f"buy scale {plan['buy_scale']:.2f}, {len(plan['skipped'])} skipped, "
           f"{len(at_close)} priced at the snapshot close, "
           f"{untradable:.1%} of the book untradable at the broker (spread over the rest)")
+    if kept:
+        print(f"  {len(kept)} held names kept though no longer members "
+              f"(rated {' / '.join(keep_ratings)}): {', '.join(kept[:20])}"
+              f"{' …' if len(kept) > 20 else ''}")
     sells = [o for o in plan['orders'] if o['side'] == 'sell']
     buys = [o for o in plan['orders'] if o['side'] == 'buy']
     print(f"  sells {len(sells)} (${sum(o['dollars'] for o in sells):,.2f}), "
@@ -231,7 +238,7 @@ def cmd_rebalance(args, broker=None, now=None):
               'snapshot': snap_date, 'portfolio': portfolio['id'],
               'execute': bool(args.execute), 'offline': offline,
               'equity': account['equity'], 'cash': account['cash'],
-              'targets': len(targets), 'halted': reasons,
+              'targets': len(targets), 'kept': kept, 'halted': reasons,
               'weights': {t: round(w, 6) for t, w in targets.items()},
               'orders': [dict(o, close=closes.get(o['ticker'])) for o in plan['orders']],
               'skipped': plan['skipped'], 'turnover': plan['turnover'],

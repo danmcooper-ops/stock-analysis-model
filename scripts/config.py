@@ -505,6 +505,10 @@ PAPER_LIMIT_SLIP = 0.005       # limit = quote ± 0.5%; exits go at market
 PAPER_QUOTE_MAX_GAP = 0.15     # a quote this far from the snapshot close is skipped
 PAPER_DAILY_LOSS_CAP = 0.03    # equity down this much since the prior close: no trading
 PAPER_MAX_SNAPSHOT_AGE = 3     # trading days
+# Hysteresis: a held name is kept while rated LEAN BUY and sold only on
+# HOLD or PASS, so a score crossing the BUY line back and forth (36% of
+# crossings reverse) is not a round trip. Empty = sell on leaving BUY.
+PAPER_KEEP_RATINGS = ('LEAN BUY',)
 # Orders go out only inside this ET window (launchd runs in local time).
 PAPER_WINDOW_ET = ((9, 35), (15, 30))
 
