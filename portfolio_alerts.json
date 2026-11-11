@@ -1,15 +1,15 @@
 {
  "version": 1,
- "date": "2026-11-09",
- "prev_date": "2026-11-06",
+ "date": "2026-11-10",
+ "prev_date": "2026-11-09",
  "systemic": {
-  "n": 3879,
-  "prev_n": 3860,
-  "changed": 56,
-  "changed_share": 0.0144,
+  "n": 3878,
+  "prev_n": 3879,
+  "changed": 27,
+  "changed_share": 0.007,
   "missing_data": 0,
   "missing_share": 0.0,
-  "shrink_share": 0.0,
+  "shrink_share": 0.0003,
   "flood": false,
   "cause": null,
   "message": null
@@ -29,9 +29,9 @@
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": -0.5012461738206055,
+    "median_mos": -0.540210476189633,
     "median_score": 49.55,
-    "median_spread": 0.22794419379689665,
+    "median_spread": 0.22668968639639753,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -43,7 +43,14 @@
     "upgrades": 0,
     "downgrades": 0
    },
-   "alerts": []
+   "alerts": [
+    {
+     "ticker": "NVDA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NVDA reports earnings on 2026-11-17"
+    }
+   ]
   },
   {
    "id": "flagged",
@@ -54,14 +61,14 @@
    "stats": {
     "n": 53,
     "ratings": {
-     "BUY": 12,
-     "LEAN BUY": 29,
+     "BUY": 11,
+     "LEAN BUY": 30,
      "HOLD": 7,
      "PASS": 5
     },
-    "median_mos": -0.2206854773654371,
-    "median_score": 48.4,
-    "median_spread": 0.2575687220043258,
+    "median_mos": -0.20641137705783053,
+    "median_score": 48.3,
+    "median_spread": 0.25636872200432576,
     "sector_weights": {
      "Technology": 0.2641509433962264,
      "Financial Services": 0.11320754716981131,
@@ -77,7 +84,7 @@
     "concentrated": false,
     "no_sector": 0,
     "upgrades": 0,
-    "downgrades": 0
+    "downgrades": 1
    },
    "alerts": [
     {
@@ -87,10 +94,14 @@
      "message": "AMAT reports earnings on 2026-11-12"
     },
     {
-     "ticker": "BRK-B",
-     "kind": "earnings_soon",
+     "ticker": "BKNG",
+     "kind": "buy_below",
+     "mos0": 0.1604,
+     "mos1": 0.1671,
      "level": "watch",
-     "message": "BRK-B reports earnings on 2026-11-09"
+     "into": true,
+     "confirmed": true,
+     "message": "BKNG has held below its buy-below price $162.52 for two runs (MoS 17% at $159.26)"
     },
     {
      "ticker": "DDS",
@@ -99,28 +110,43 @@
      "message": "DDS reports earnings on 2026-11-12"
     },
     {
+     "ticker": "HD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "HD reports earnings on 2026-11-17"
+    },
+    {
+     "ticker": "NVDA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NVDA reports earnings on 2026-11-17"
+    },
+    {
+     "ticker": "RYAAY",
+     "kind": "buy_below",
+     "mos0": 0.1602,
+     "mos1": 0.1558,
+     "level": "watch",
+     "into": true,
+     "confirmed": true,
+     "message": "RYAAY has held below its buy-below price $61.63 for two runs (MoS 16% at $61.21)"
+    },
+    {
      "ticker": "TDG",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "TDG reports earnings on 2026-11-10"
     },
     {
-     "ticker": "BKNG",
-     "kind": "buy_below",
-     "mos0": 0.1243,
-     "mos1": 0.1604,
+     "ticker": "KLAC",
+     "from": "BUY",
+     "to": "LEAN BUY",
+     "kind": "same_side",
      "level": "fyi",
-     "into": true,
-     "message": "BKNG crossed below its buy-below price $165.51 (MoS 16% at $163.49); a Watch follows if it holds"
-    },
-    {
-     "ticker": "RYAAY",
-     "kind": "buy_below",
-     "mos0": -0.0256,
-     "mos1": 0.1602,
-     "level": "fyi",
-     "into": true,
-     "message": "RYAAY crossed below its buy-below price $62.50 (MoS 16% at $61.75); a Watch follows if it holds"
+     "message": "KLAC BUY → LEAN BUY",
+     "why": [
+      "Composite score moved 57.0 → 56.9, crossing below the BUY (57) threshold."
+     ]
     }
    ]
   },
@@ -131,31 +157,31 @@
    "mode": "buy_line",
    "missing": [],
    "stats": {
-    "n": 134,
+    "n": 132,
     "ratings": {
-     "BUY": 134,
+     "BUY": 132,
      "LEAN BUY": 0,
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": 0.2761832442211447,
-    "median_score": 60.5,
-    "median_spread": 0.19746294499718836,
+    "median_mos": 0.27430868407613646,
+    "median_score": 60.6,
+    "median_spread": 0.19476921083186705,
     "sector_weights": {
-     "Technology": 0.27611940298507465,
-     "Consumer Defensive": 0.14925373134328357,
-     "Healthcare": 0.1417910447761194,
-     "Industrials": 0.17164179104477612,
-     "Consumer Cyclical": 0.15671641791044777,
-     "Communication Services": 0.05970149253731346,
-     "Basic Materials": 0.04477611940298509
+     "Technology": 0.26515151515151514,
+     "Consumer Defensive": 0.15151515151515152,
+     "Healthcare": 0.14393939393939395,
+     "Industrials": 0.17424242424242423,
+     "Consumer Cyclical": 0.1590909090909091,
+     "Communication Services": 0.06060606060606064,
+     "Basic Materials": 0.045454545454545484
     },
     "top_sector": "Technology",
-    "top_sector_weight": 0.27611940298507465,
-    "hhi": 0.17821341055914458,
+    "top_sector_weight": 0.26515151515151514,
+    "hhi": 0.1753902662993572,
     "concentrated": false,
     "no_sector": 0,
-    "upgrades": 2,
+    "upgrades": 0,
     "downgrades": 0
    },
    "alerts": [
@@ -164,13 +190,6 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "AFYA reports earnings on 2026-11-12"
-    },
-    {
-     "ticker": "CVCO",
-     "portfolio": "paper",
-     "kind": "left",
-     "level": "watch",
-     "message": "CVCO left Paper book (rating BUY → LEAN BUY)"
     },
     {
      "ticker": "ELMD",
@@ -185,59 +204,48 @@
      "message": "ELTP reports earnings on 2026-11-12"
     },
     {
-     "ticker": "FICO",
-     "portfolio": "paper",
-     "kind": "joined",
-     "level": "watch",
-     "message": "FICO joined Paper book (rating LEAN BUY → BUY)"
-    },
-    {
-     "ticker": "GMED",
-     "kind": "buy_below",
-     "mos0": 0.2562,
-     "mos1": 0.2465,
-     "level": "watch",
-     "into": true,
-     "confirmed": true,
-     "message": "GMED has held below its buy-below price $86.15 for two runs (MoS 25% at $76.37)"
-    },
-    {
-     "ticker": "GSL",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "GSL reports earnings on 2026-11-09"
-    },
-    {
-     "ticker": "HRB",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "HRB reports earnings on 2026-11-09"
-    },
-    {
-     "ticker": "NATR",
-     "portfolio": "paper",
-     "kind": "joined",
-     "level": "watch",
-     "message": "NATR joined Paper book (rating LEAN BUY → BUY)"
-    },
-    {
-     "ticker": "QLYS",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "QLYS reports earnings on 2026-11-09"
-    },
-    {
-     "ticker": "TTD",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "TTD reports earnings on 2026-11-09"
-    },
-    {
-     "ticker": "UI",
+     "ticker": "GCT",
      "portfolio": "paper",
      "kind": "left",
      "level": "watch",
-     "message": "UI left Paper book (rating BUY → LEAN BUY)"
+     "message": "GCT left Paper book (rating BUY → LEAN BUY)"
+    },
+    {
+     "ticker": "JKHY",
+     "kind": "buy_below",
+     "mos0": 0.2108,
+     "mos1": 0.3049,
+     "level": "watch",
+     "into": true,
+     "confirmed": true,
+     "message": "JKHY has held below its buy-below price $214.22 for two runs (MoS 30% at $175.19)"
+    },
+    {
+     "ticker": "KLAC",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "watch",
+     "message": "KLAC left Paper book (rating BUY → LEAN BUY)"
+    },
+    {
+     "ticker": "PAYX",
+     "kind": "buy_below",
+     "mos0": 0.1754,
+     "mos1": 0.1513,
+     "level": "watch",
+     "into": true,
+     "confirmed": true,
+     "message": "PAYX has held below its buy-below price $116.37 for two runs (MoS 15% at $116.20)"
+    },
+    {
+     "ticker": "XPEL",
+     "kind": "buy_below",
+     "mos0": 0.1653,
+     "mos1": 0.1573,
+     "level": "watch",
+     "into": true,
+     "confirmed": true,
+     "message": "XPEL has held below its buy-below price $40.38 for two runs (MoS 16% at $40.03)"
     },
     {
      "ticker": "YALA",
@@ -246,66 +254,19 @@
      "message": "YALA reports earnings on 2026-11-16"
     },
     {
-     "ticker": "FICO",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "FICO LEAN BUY → BUY",
-     "why": [
-      "Composite score moved 50 → 62, crossing above the BUY (57) threshold.",
-      "Biggest category moves: Growth 34 → 80 (+46), Valuation 41 → 56 (+15), Moat 73 → 68 (-4).",
-      "Largest metric swings: 5Y FCF CAGR N/A → 20.8% (score 0 → 100); MoS 21.3% → 38.9% (score 63 → 98); Fund Growth 0.0% → 6.9% (score 0 → 70)."
-     ]
-    },
-    {
-     "ticker": "JKHY",
-     "kind": "buy_below",
-     "mos0": 0.1148,
-     "mos1": 0.2108,
-     "level": "fyi",
-     "into": true,
-     "message": "JKHY crossed below its buy-below price $184.40 (MoS 21% at $171.20); a Watch follows if it holds"
-    },
-    {
-     "ticker": "NATR",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "NATR LEAN BUY → BUY",
-     "why": [
-      "Composite score moved 57 → 58, crossing above the BUY (57) threshold.",
-      "Biggest category moves: Valuation 93 → 98 (+6).",
-      "Largest metric swings: FV Dispersion 31.7% → 2.3% (score 55 → 97)."
-     ]
-    },
-    {
-     "ticker": "PAYX",
-     "kind": "buy_below",
-     "mos0": 0.086,
-     "mos1": 0.1754,
-     "level": "fyi",
-     "into": true,
-     "message": "PAYX crossed below its buy-below price $118.30 (MoS 18% at $114.76); a Watch follows if it holds"
+     "ticker": "ZTO",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ZTO reports earnings on 2026-11-17"
     },
     {
      "ticker": "RMD",
      "kind": "buy_below",
-     "mos0": 0.0982,
-     "mos1": 0.1514,
+     "mos0": 0.1514,
+     "mos1": 0.1474,
      "level": "fyi",
-     "into": true,
-     "message": "RMD crossed below its buy-below price $236.12 (MoS 15% at $235.74); a Watch follows if it holds"
-    },
-    {
-     "ticker": "XPEL",
-     "kind": "buy_below",
-     "mos0": 0.1003,
-     "mos1": 0.1653,
-     "level": "fyi",
-     "into": true,
-     "message": "XPEL crossed below its buy-below price $38.71 (MoS 17% at $38.01); a Watch follows if it holds"
+     "into": false,
+     "message": "RMD rose back above its buy-below price $233.40 (MoS 15% at $234.11)"
     }
    ]
   }
