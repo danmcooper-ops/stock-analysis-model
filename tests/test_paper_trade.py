@@ -123,6 +123,37 @@ def test_target_weights_equal_over_priced_members():
     assert pt.target_weights(PAPER, rows) == {'A': 0.5, 'B': 0.5}
 
 
+BUY_ONLY = dict(PAPER, rule=dict(PAPER['rule'], ratings=['BUY']))
+
+
+def test_held_lean_buy_is_kept_until_hold():
+    rows = [_row('A'), _row('B', 'LEAN BUY'), _row('C', 'HOLD'), _row('D', 'LEAN BUY')]
+    held = {'B': 3.0, 'C': 2.0}
+    w = pt.target_weights(BUY_ONLY, rows, held=held, keep_ratings=('LEAN BUY',))
+    # B (held, now LEAN BUY) stays; C (HOLD) goes; D (LEAN BUY, never held) is not bought.
+    assert w == {'A': 0.5, 'B': 0.5}
+    plan = _plan(w, positions=held)
+    sold = {o['ticker'] for o in plan['orders'] if o['side'] == 'sell'}
+    assert 'C' in sold and 'B' not in sold
+
+
+def test_no_keep_ratings_sells_on_leaving_buy():
+    rows = [_row('A'), _row('B', 'LEAN BUY')]
+    assert pt.target_weights(BUY_ONLY, rows, held={'B': 1.0}) == {'A': 1.0}
+
+
+def test_kept_holding_follows_its_folded_listing():
+    rows = [_row('A'), _row('B', 'LEAN BUY', listing_aliases=['BB'])]
+    assert pt.kept_holdings({'BB': 1.0}, {r['ticker']: r for r in rows},
+                            ('LEAN BUY',)) == ['B']
+
+
+def test_kept_holding_with_no_price_is_left_to_hold_set():
+    rows = [_row('A'), _row('B', 'LEAN BUY', price=None)]
+    assert pt.target_weights(BUY_ONLY, rows, held={'B': 1.0},
+                             keep_ratings=('LEAN BUY',)) == {'A': 1.0}
+
+
 # -- safety_checks ----------------------------------------------------------
 
 OK = dict(stop_file=False, coverage={'degraded': False}, systemic={'flood': False},
