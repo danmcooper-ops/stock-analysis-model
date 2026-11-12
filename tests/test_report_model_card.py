@@ -81,18 +81,31 @@ def _row():
 
 
 @node
-def test_failures_are_chips_and_na_is_not_a_failure(tmp_path):
+def test_folded_row_is_name_passes_and_score_and_na_is_not_a_failure(tmp_path):
     row, fail, na = _row()
     h = _render(tmp_path, row)['h']
-    chips = re.findall(r'<span class="gv-chip">(.*?)</span>', h)
-    assert len(chips) == 1 and fail['label'] in chips[0] and '226.0%' in chips[0]
-    assert fail['target'].replace('<', '&lt;') in chips[0]
-    assert '1 N/A' in h
-    assert "doesn't apply" in h
+    # Folded, a category is one line (the iOS app's): name, gates passed,
+    # score. The bar and the weight sit in the same header and show only
+    # once it is opened (CSS: .gv-shut hides them); no failing-gate chips.
+    assert 'gv-chip' not in h
+    moat = h.split('data-gvc="Moat"')[1].split('</div>')[0]
+    order = [moat.index(k) for k in ('gv-cat-t', 'gv-trk', 'gv-cat-w', 'gv-cat-p', 'gv-cat-s', 'ppf-chev')]
+    assert order == sorted(order)
     moat_n = sum(g['category'] == 'Moat' for g in gate_metadata()['gates'])
-    assert f'{moat_n - 2}/{moat_n - 1} pass' in h
+    assert f'{moat_n - 2}/{moat_n - 1} pass' in moat and 'gv-allpass' not in moat
+    assert '1 N/A, counted 0' in moat
+    # The failing gate is listed among the gates, with its value and target.
+    item = h.split('class="gv-item fail"')[1].split('</div>')[0]
+    assert fail['label'] in item and '226.0%' in item
+    assert "doesn't apply" in h
     assert '% of score' in h and '* 30% weight' not in h
     assert '\u26a0 Flag</span><ul><li>ADV &lt; $1M</li></ul>' in h
+
+
+def test_folded_row_hides_the_bar_and_weight():
+    src = _src()
+    assert '.gv-shut .gv-cat .gv-trk,.gv-shut .gv-cat-w{display:none;}' in src
+    assert '.gv-shut .gv-cat{grid-template-columns:minmax(0,1fr) auto auto 12px;}' in src
 
 
 @node

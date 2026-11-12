@@ -145,7 +145,9 @@ def test_the_ai_analyst_lives_in_the_search_bar():
     src = _src()
     assert 'id="ai-fab"' not in src and '#ai-fab' not in src
     bar = src[src.index('<div class="hdr-search'):src.index('id="hdr-qr"')]
-    assert 'id="hdr-ai"' in bar and 'aiToggle()' in bar
+    # One way in, as in the iOS app: the field itself, no sparkle button.
+    assert 'hdr-ai' not in src and 'aiToggle()' not in bar
+    assert 'placeholder="Search or ask AI"' in bar
     go = _fn('_qrGo', src)
     assert "k==='ai'" in go and 'window.aiAsk' in go
     assert 'window.aiAsk=function' in src and 'window.aiToggle=function' in src
@@ -265,3 +267,14 @@ def test_picks_and_ai_actions_are_wired():
     flt = _fn('aiApplyFilter', src)
     assert "if(fmt==='pct')v=+(v*100)" in flt and '_fqApply(fq)' in flt
     assert 'openDet(t)' in _fn('aiOpenTicker', src)
+
+
+def test_analyst_replays_unknown_blocks_whole():
+    """Opus 5.5 can return blocks the parser does not build up from deltas
+    (redacted_thinking carries its data in the start event); they go back
+    as received, so a tool loop's next turn is not rejected."""
+    src = _src()
+    assert "var AI_MODEL='claude-opus-5-5';" in src
+    stream = src[src.index('function aiStream('):src.index('/* ---------- minimal markdown')]
+    assert 'else blocks[ev.index]=JSON.parse(JSON.stringify(nb));' in stream
+    assert "if(b.type==='thinking')return {type:'thinking',thinking:b.thinking,signature:b.signature};" in stream
