@@ -1053,6 +1053,10 @@ td.ct{font-weight:700;}
 .dtcf-mv b{font-size:1.05em;font-variant-numeric:tabular-nums;color:var(--sac);}
 .dtcf-sub{font-size:0.82em;color:var(--chrome-muted,#6a7a90);}
 .dtcf-cap{font-size:0.74em;color:var(--chrome-muted,#6a7a90);}
+/* Inline fills are the light theme's; the dark one lifts the two that
+   read dim on a dark panel (!important beats the inline style). */
+[data-theme="dark"] .dtcf-tgt{fill:#79a8ff !important;}
+[data-theme="dark"] .dtcf-earn{fill:#c58af0 !important;}
 #d-pane-overview.active{display:flex;flex-direction:column;gap:14px;}
 /* Charts/data panes hold multiple stacked blocks (price chart + metric chart
    + track record; data dgroup + intrinsic dgroup) — space them like the
@@ -10613,14 +10617,14 @@ function _dtcFutureSVG(f,lead,W){
   if(f.earnings){
     var ex=n1(X(f.earnings));
     g+='<line x1="'+ex+'" x2="'+ex+'" y1="'+T+'" y2="'+(T+ph)+'" stroke="#8e44ad" stroke-opacity="0.7" stroke-dasharray="3 3"/>'
-      +'<text class="dtcf-t" style="fill:#8e44ad" x="'+(ex+3)+'" y="'+(T-8)+'">Earnings '+f.earnings.toLocaleDateString(undefined,{month:'short',day:'numeric'})+(f.earningsEst?' (est.)':'')+'</text>';
+      +'<text class="dtcf-t dtcf-earn" style="fill:#8e44ad" x="'+(ex+3)+'" y="'+(T-8)+'">Earnings '+f.earnings.toLocaleDateString(undefined,{month:'short',day:'numeric'})+(f.earningsEst?' (est.)':'')+'</text>';
   }
   [['Low',f.targets.low],['Avg',f.targets.mean],['High',f.targets.high]].forEach(function(t){
     if(t[1]==null)return;
     var cx=n1(X(f.horizon)),cy=n1(Y(t[1]));
     g+=(t[0]==='Avg'?'<rect x="'+(cx-4)+'" y="'+(cy-4)+'" width="8" height="8" transform="rotate(45 '+cx+' '+cy+')" fill="#2563eb"/>'
         :'<circle cx="'+cx+'" cy="'+cy+'" r="3.5" fill="#2563eb"/>')
-      +'<text class="dtcf-t" style="fill:#2563eb" text-anchor="end" x="'+(cx-7)+'" y="'+(cy+4)+'">'+t[0]+' '+Math.round(t[1])+'</text>';
+      +'<text class="dtcf-t dtcf-tgt" style="fill:#2563eb" text-anchor="end" x="'+(cx-7)+'" y="'+(cy+4)+'">'+t[0]+' '+Math.round(t[1])+'</text>';
   });
   return '<svg class="dtcf-svg" viewBox="0 0 '+W+' '+H+'" width="100%" height="'+H+'" role="img" aria-label="The year ahead: price range, the model\'s value band and analyst targets">'+g+'</svg>';
 }
@@ -20204,6 +20208,10 @@ function aiStream(msgs,cb){
         if(nb.type==='text'){blocks[ev.index].text='';}
         else if(nb.type==='thinking'){blocks[ev.index].thinking='';blocks[ev.index].signature='';if(cb.onThinking)cb.onThinking();}
         else if(nb.type==='tool_use'){blocks[ev.index].id=nb.id;blocks[ev.index].name=nb.name;blocks[ev.index]._json='';}
+        /* Any other block (redacted_thinking and the like) arrives whole in
+           its start event and must go back exactly as received, or the
+           next turn of a tool loop is rejected. */
+        else blocks[ev.index]=JSON.parse(JSON.stringify(nb));
       }else if(t==='content_block_delta'){
         var d=ev.delta,b=blocks[ev.index];
         if(!b)return;
