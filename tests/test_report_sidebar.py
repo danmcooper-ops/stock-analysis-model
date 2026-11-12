@@ -108,7 +108,7 @@ def test_statements_share_one_finances_tab_after_summary():
     there."""
     src = _tpl()
     assert "var DT_FIN={k:'fin',l:'Finances'};" in src
-    assert "return [{k:'overview',l:'Overview'},{k:'news',l:'News'},DT_FIN].concat(_detDataItems());" in src
+    assert "return [{k:'overview',l:'Overview'},{k:'charts',l:'Charts'},{k:'news',l:'News'},DT_FIN].concat(_detDataItems());" in src
     # News is no longer slotted after Growth with Peers.
     assert "t.push({k:'news',l:'News'})" not in _fn(src, '_detDataItems')
     assert '.concat(DT_STMTS)' not in src
@@ -427,9 +427,22 @@ def test_summary_tab_blocks_are_titled_cards_in_reading_order():
     pane = src.split('<div id="d-pane-overview" class="d-pane active">')[1].split('<!-- /d-pane-overview -->')[0]
     titles = re.findall(r'<span class="dg-icon"></span><span class="sec-label">([^<]+)</span></div>', pane)
     assert titles == ['The Snapshot', 'The Business', 'The Finances', 'The Model',
-                      'Charts', 'The Track Record', 'Headwinds &amp; Tailwinds']
+                      'The Track Record', 'Headwinds &amp; Tailwinds']
     assert 'id="d-kmetrics"' in pane.split('The Snapshot')[1].split('The Business')[0]
-    assert 'id="d-gate-values"' in pane.split('The Model')[1].split('Charts')[0]
+    assert 'id="d-gate-values"' in pane.split('The Model')[1].split('The Track Record')[0]
+
+
+def test_charts_is_its_own_tab_after_summary():
+    """The chart block left Summary for a Charts tab right after it, as in
+    the iOS app; the tab draws on arrival and late data only repaints it
+    while it is still the open tab."""
+    src = _tpl()
+    pane = src.split('<div id="d-pane-charts" class="d-pane">')[1].split('<!-- /d-pane-charts -->')[0]
+    assert 'id="dtc-chart"' in pane and 'id="dtc-future"' in pane
+    sw = _fn(src, 'swDetTab')
+    assert "k==='charts'?'d-pane-charts'" in sw and "if(k==='charts')_dtcRender();" in sw
+    assert "_detTab==='charts'" in _fn(src, '_dtcRender')
+    assert "if(k==='overview'||k==='charts')return null;" in _fn(src, '_detGroupOf')
 
 
 def test_wide_table_title_row_uses_the_page_inset():
@@ -510,7 +523,8 @@ def test_charts_is_its_own_entry_and_stocks_holds_the_data_tables():
 def test_sector_analysis_first_sub_tab_is_overview():
     src = _tpl()
     assert "var pool=[{k:'__performance__',l:'Overview'}];" in src
-    assert "l:'Charts'}" not in src
+    # The ticker page's own Charts tab is not a sector sub-tab.
+    assert "l:'Charts'}" not in src.replace("{k:'charts',l:'Charts'}", '')
 
 
 def test_tab_strips_do_not_rubber_band():

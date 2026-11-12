@@ -145,7 +145,9 @@ def test_the_ai_analyst_lives_in_the_search_bar():
     src = _src()
     assert 'id="ai-fab"' not in src and '#ai-fab' not in src
     bar = src[src.index('<div class="hdr-search'):src.index('id="hdr-qr"')]
-    assert 'id="hdr-ai"' in bar and 'aiToggle()' in bar
+    # One way in, as in the iOS app: the field itself, no sparkle button.
+    assert 'hdr-ai' not in src and 'aiToggle()' not in bar
+    assert 'placeholder="Search or ask AI"' in bar
     go = _fn('_qrGo', src)
     assert "k==='ai'" in go and 'window.aiAsk' in go
     assert 'window.aiAsk=function' in src and 'window.aiToggle=function' in src

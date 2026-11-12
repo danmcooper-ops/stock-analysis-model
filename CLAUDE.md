@@ -1200,10 +1200,12 @@ ruff check .
     Detail tab; a bond's sheet over the Bonds table, or "All N bonds" to that
     table. The non-stock jumps are drills, so ‹ Back returns. On a table view
     the list leaves out the table's own kind and preselects nothing, so Enter
-    still only filters. The same box is the AI Analyst's: a sparkle button
-    (`#hdr-ai`) opens the panel (the floating button is gone), every list
-    ends with an Ask row, and a question (a "?", a question word, four
-    words or more) leads it so Enter asks. A field query (`pe<15
+    still only filters. The same box is the AI Analyst's only way in, as
+    in the iOS app (the floating button and then the `#hdr-ai` sparkle
+    button were removed, the latter on 2026-11-12): every list ends with an
+    Ask row, and a question (a "?", a question word, four words or more)
+    leads it so Enter asks. The Analyst runs on `claude-opus-5-5`
+    (`AI_MODEL`). A field query (`pe<15
     sector:energy rating:buy+ mcap>10b`, `_fqParse`) leads instead: it is
     applied as the Filters panel's own state (`_fqApply`, replacing what
     was set; a drill off a stock table), with Save as portfolio beside it;
@@ -1230,7 +1232,17 @@ ruff check .
     a timer after any render. Tests: `tests/test_report_help.py`.
   - **Ticker page:** the `#det-modal` popup is now a page beside the sidebar,
     with section tabs (`#d-tabs`). It shows a one-day change taken from the
-    `px/` shard. The three filed statements share one Finances tab, right
+    `px/` shard. The tabs follow the iOS app: Summary, Charts, News,
+    Finances, then the data tabs. Charts (`#d-pane-charts`, 2026-11-12) is
+    the chart block that sat inside Summary (`_dtcRender`), and its range
+    row ends in **Future** for the price: the last three months into the
+    next twelve (`_dtcFutureModel`, the app's `FutureOutlook`): a no-drift
+    1σ/2σ cone at the stock's past-year volatility, the Monte Carlo
+    P10–P90 band and fair value, buy-below, the analysts' targets, the
+    next earnings date, and notes on implied vs model growth and the move
+    to bear/base/bull. Display only (`tests/test_report_future.py`). On
+    Summary, The Model's categories start folded to one line each — name,
+    gates passed, score — and open to the bar, weight and gates. The three filed statements share one Finances tab, right
     after Summary (`DT_FIN`; a `.d-stmt-tabs` switch in its pane, the pick
     kept in `_detStmt`). The header band is all in flow, top to bottom:
     `.d-toprow` (portfolio / reviewed / flag on the left, `‹ n / N ›` and

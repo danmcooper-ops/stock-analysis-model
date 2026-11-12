@@ -1039,6 +1039,20 @@ td.ct{font-weight:700;}
    14px gaps on desktop (mobile blocks override to display:block + margins). */
 .d-pane{display:none;}
 .d-pane.active{display:block;}
+/* Charts tab › Future (_dtcFutureSVG / _dtcFutureNotes). */
+.dtcf-svg{display:block;overflow:visible;}
+.dtcf-t{font-size:11px;fill:#8a96a8;}
+.dtcf-grid{stroke:#8a96a8;stroke-opacity:0.25;stroke-width:1;}
+.dtcf-today{stroke:#8a96a8;stroke-width:1;}
+.dtcf-notes{margin-top:10px;display:flex;flex-direction:column;gap:6px;}
+.dtcf-notes p{margin:0;}
+.dtcf-lead{font-size:0.95em;}
+.dtcf-mvs{display:flex;gap:18px;}
+.dtcf-mv{display:flex;flex-direction:column;}
+.dtcf-mv small{font-size:0.72em;color:var(--chrome-muted,#6a7a90);}
+.dtcf-mv b{font-size:1.05em;font-variant-numeric:tabular-nums;color:var(--sac);}
+.dtcf-sub{font-size:0.82em;color:var(--chrome-muted,#6a7a90);}
+.dtcf-cap{font-size:0.74em;color:var(--chrome-muted,#6a7a90);}
 #d-pane-overview.active{display:flex;flex-direction:column;gap:14px;}
 /* Charts/data panes hold multiple stacked blocks (price chart + metric chart
    + track record; data dgroup + intrinsic dgroup) — space them like the
@@ -1105,13 +1119,14 @@ td.ct{font-weight:700;}
 .km-conf-low{background:#de2d26;}
 .km-tag{display:inline-block;margin-left:4px;padding:1px 5px 2px;border-radius:7px;font-size:0.58em;font-weight:700;letter-spacing:0.03em;vertical-align:middle;background:rgba(255,255,255,0.18);color:rgba(255,255,255,0.85);}
 /* The Model card (_gvRender): the composite and its rating lines, then one
-   row per category (score bar, weight, gates passed) with its failing gates
-   as chips, then the gates themselves when a row is opened (_gvToggle). One
+   row per category. Folded, a row is one line: its name, gates passed and
+   score, as in the iOS app. Opened (_gvToggle), it adds the score bar, its
+   weight (and any N/A gates, counted 0) and the gates themselves. One
    column at every width: five columns left a gate ~140px at 1024px and its
    label wrapped a letter a line. Under 360px a row stacks its bar under the
    category's name. Targets are the short form (gate_metadata 'target'), so
    nothing is cut off; the full threshold stays in the label's tooltip. */
-.d-gate-values{--gv-pass:#1a9850;--gv-fail:#de2d26;--gv-txt:#1a252f;--gv-sub:#6a7a90;--gv-line:#e6e9f0;--gv-track:#e9edf3;--gv-chip:#fdecea;--gv-na:#f0f2f6;
+.d-gate-values{--gv-pass:#1a9850;--gv-fail:#de2d26;--gv-txt:#1a252f;--gv-sub:#6a7a90;--gv-line:#e6e9f0;--gv-track:#e9edf3;
   margin:6px 0 14px;display:grid;grid-template-columns:minmax(0,1fr);gap:8px;max-width:760px;}
 .gv-score{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;padding:2px 0 6px;}
 .gv-sc-n{font-size:1.35em;font-weight:800;color:var(--gv-txt);white-space:nowrap;}
@@ -1132,7 +1147,10 @@ td.ct{font-weight:700;}
 .gv-cat{display:grid;grid-template-columns:minmax(64px,auto) 1fr auto auto auto 12px;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;border-left:4px solid var(--gv-c);}
 .gv-cat-t{font-size:0.8em;font-weight:700;color:var(--gv-txt);white-space:nowrap;}
 .gv-cat .gv-trk{height:7px;}
-.gv-cat-s{font-size:0.9em;font-weight:800;color:var(--gv-txt);min-width:2ch;text-align:right;}
+.gv-cat-s{font-size:0.9em;font-weight:800;color:var(--gv-c,var(--gv-txt));min-width:2.5ch;text-align:right;}
+.gv-cat-p.gv-allpass{color:var(--gv-pass);}
+.gv-shut .gv-cat{grid-template-columns:minmax(0,1fr) auto auto 12px;}
+.gv-shut .gv-cat .gv-trk,.gv-shut .gv-cat-w{display:none;}
 .gv-cat-w,.gv-cat-p{font-size:0.72em;color:var(--gv-sub);white-space:nowrap;text-align:right;}
 .gv-cat .ppf-chev{flex:none;margin:0 0 1px;}
 .gv-shut .gv-cat .ppf-chev{transform:rotate(-90deg);}
@@ -1141,12 +1159,9 @@ td.ct{font-weight:700;}
   .gv-cat .gv-trk{grid-column:1/-1;grid-row:2;}
   .gv-cat-w,.gv-cat-p{grid-row:3;text-align:left;}
   .gv-cat-w{grid-column:1;}.gv-cat-p{grid-column:2/-1;}
+  .gv-shut .gv-cat{grid-template-columns:minmax(0,1fr) auto auto 12px;}
+  .gv-shut .gv-cat-p{grid-row:auto;grid-column:auto;}
 }
-.gv-chips{display:flex;flex-wrap:wrap;gap:4px;padding:0 10px 8px 14px;}
-.gv-chips:empty,.gv-col:not(.gv-shut) .gv-chips{display:none;}
-.gv-chip{font-size:0.7em;line-height:1.35;padding:2px 7px;border-radius:9px;background:var(--gv-chip);color:var(--gv-txt);}
-.gv-chip b{color:var(--gv-fail);}
-.gv-chip-na{background:var(--gv-na);color:var(--gv-sub);}
 .gv-items{border-top:1px solid var(--gv-line);}
 .gv-shut .gv-items{display:none;}
 .gv-item{display:grid;grid-template-columns:14px minmax(0,1fr) auto minmax(0,auto);align-items:baseline;gap:8px;padding:6px 10px 6px 14px;border-bottom:1px solid var(--gv-line);}
@@ -2265,7 +2280,7 @@ button.wind-h{cursor:pointer;}
 [data-theme="dark"] .ps-tk{color:#e6edf3;}
 [data-theme="dark"] .ps-nm,[data-theme="dark"] .ps-ext{color:#8b949e;}
 [data-theme="dark"] .pp-bar{background:#30363d;}
-[data-theme="dark"] .d-gate-values{--gv-pass:#7ee787;--gv-fail:#ff7b72;--gv-txt:#e6edf3;--gv-sub:#8b949e;--gv-line:#30363d;--gv-track:#30363d;--gv-chip:rgba(255,123,114,0.14);--gv-na:#262c36;}
+[data-theme="dark"] .d-gate-values{--gv-pass:#7ee787;--gv-fail:#ff7b72;--gv-txt:#e6edf3;--gv-sub:#8b949e;--gv-line:#30363d;--gv-track:#30363d;}
 [data-theme="dark"] .gv-col{background:#1c2128;}
 [data-theme="dark"] .gate-detail-card{background:#161b22;color:#e6edf3;}
 [data-theme="dark"] .gate-detail-threshold,[data-theme="dark"] .gate-pass-label{color:#8b949e;}
@@ -2350,9 +2365,9 @@ button.wind-h{cursor:pointer;}
 [data-theme="dark"] .ps-tbl td{border-color:#21262d;color:#c9d1d9;}
 /* The Model card: !important beats the blanket dark `body *` rule below. */
 [data-theme="dark"] .d-gate-values,[data-theme="dark"] .d-gate-values *{color:var(--gv-txt) !important;}
-[data-theme="dark"] .gv-sc-n small,[data-theme="dark"] .gv-sc-why,[data-theme="dark"] .gv-tick-l,[data-theme="dark"] .gv-cat-w,[data-theme="dark"] .gv-cat-p,[data-theme="dark"] .gv-ic,[data-theme="dark"] .gv-tg,[data-theme="dark"] .gv-chip-na{color:var(--gv-sub) !important;}
-[data-theme="dark"] .gv-item.pass .gv-ic,[data-theme="dark"] .gv-item.pass .gv-v{color:var(--gv-pass) !important;}
-[data-theme="dark"] .gv-item.fail .gv-ic,[data-theme="dark"] .gv-item.fail .gv-v,[data-theme="dark"] .gv-chip b{color:var(--gv-fail) !important;}
+[data-theme="dark"] .gv-sc-n small,[data-theme="dark"] .gv-sc-why,[data-theme="dark"] .gv-tick-l,[data-theme="dark"] .gv-cat-w,[data-theme="dark"] .gv-cat-p,[data-theme="dark"] .gv-ic,[data-theme="dark"] .gv-tg{color:var(--gv-sub) !important;}
+[data-theme="dark"] .gv-item.pass .gv-ic,[data-theme="dark"] .gv-item.pass .gv-v,[data-theme="dark"] .gv-cat-p.gv-allpass{color:var(--gv-pass) !important;}
+[data-theme="dark"] .gv-item.fail .gv-ic,[data-theme="dark"] .gv-item.fail .gv-v{color:var(--gv-fail) !important;}
 [data-theme="dark"] .gv-flag,[data-theme="dark"] .gv-flag *{color:#ffa657 !important;}
 [data-theme="dark"] .gv-sc-r{color:#fff !important;}
 [data-theme="dark"] .score-sep,[data-theme="dark"] .col-unit,[data-theme="dark"] .col-filters-and-label{color:#8b949e;}
@@ -2925,10 +2940,6 @@ html.sb-rail .sb-chev-l,html:not(.sb-rail) .sb-chev-r{display:none;}
 .hdr-search:focus-within .hdr-kbd{display:none;}
 /* The AI Analyst lives in the search bar: this button opens the panel, and
    the quick results end with "Ask AI Analyst" for whatever was typed. */
-.hdr-ai{--sac:#2ea043;flex:0 0 auto;width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:none;border:0;border-radius:6px;cursor:pointer;padding:0;-webkit-tap-highlight-color:transparent;}
-.hdr-ai svg{width:18px;height:18px;}
-.hdr-ai:hover,.hdr-ai[aria-expanded="true"]{background:color-mix(in srgb,#2ea043 18%,transparent);}
-.hdr-ai:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:-2px;}
 .hdr-qr .qr-ai .qr-tk{--sac:#2ea043;display:flex;align-items:center;gap:5px;}
 .hdr-qr .qr-ai .qr-tk svg{width:15px;height:15px;}
 .hdr-qr .qr-fq .qr-tk{--sac:var(--chrome-accent);min-width:0;}
@@ -3698,12 +3709,13 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
        Same ids (#f-search, #f-suggest), so applyFilters, the hash restore
        and the / hotkey are unchanged. #hdr-qr lists matches across
        stocks, ETFs, currencies and bonds (qrRender), each opening where it
-       lives. -->
+       lives. It is also the AI Analyst's one way in: a question asks it,
+       and every list ends with an Ask row (no separate button, as in the
+       iOS app). -->
   <div class="hdr-search sa-chrome" role="search">
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></g></svg>
     <span class="search-wrap"><input type="text" id="f-search" placeholder="Search or ask AI" aria-label="Search tickers or companies, or ask the AI Analyst" autocomplete="off" oninput="onSearchInput()" onkeydown="qrKey(event)" onfocus="qrRender()"><button type="button" class="search-clear" id="f-search-clear" onclick="clearSearch()" aria-label="Clear search">&times;</button></span>
     <kbd class="hdr-kbd">/</kbd>
-    <button type="button" class="hdr-ai sa-chrome" id="hdr-ai" onclick="aiToggle()" title="AI Analyst" aria-label="Open AI Analyst" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 14l.9 2.1 2.1.9-2.1.9L19 20l-.9-2.1-2.1-.9 2.1-.9z"/><path d="M5 15l.7 1.6 1.6.7-1.6.7L5 19.6l-.7-1.6-1.6-.7 1.6-.7z"/></svg></button>
     <span class="f-suggest" id="f-suggest"></span>
     <div class="hdr-qr" id="hdr-qr" role="listbox" aria-label="Search results"></div>
   </div>
@@ -3934,6 +3946,13 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
       <div id="d-section-overview" class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#3d4faa,#5b6abf)"><span class="dg-icon"></span><span class="sec-label">The Business</span></div><div style="padding:14px 16px;background:var(--surface)"><div class="ddesc" id="d-desc"></div></div></div>
       <div id="d-section-finsummary" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a6fa0,#2e86c1)"><span class="dg-icon"></span><span class="sec-label">The Finances</span></div><div style="padding:14px 16px;background:var(--surface)"><div id="d-fin-summary"></div></div></div>
       <div id="d-section-model" class="dgroup d-titled"><div class="dgroup-title" style="background:linear-gradient(90deg,#7a3e12,#b5622b)"><span class="dg-icon"></span><span class="sec-label">The Model</span></div><div style="padding:14px 16px;background:var(--surface)"><div id="d-gate-values" class="d-gate-values"></div></div></div>
+      <div id="d-section-track" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#0b5351,#12876f)"><span class="dg-icon"></span><span class="sec-label">The Track Record</span></div><div style="padding:14px 16px;background:var(--surface)"><div id="d-track"></div></div></div>
+      <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a7a45,#27ae60)"><span class="dg-icon"></span><span class="sec-label">Headwinds &amp; Tailwinds</span></div><div style="padding:14px 16px;background:var(--surface)"><div id="d-sector-signals"></div></div></div>
+      </div><!-- /d-pane-overview -->
+      <!-- Charts: the company's price (or a fundamental) over a range, and
+           Future, the year ahead (_dtcFuture*). Its own tab after Summary,
+           as in the iOS app. -->
+      <div id="d-pane-charts" class="d-pane">
         <div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span><span class="sec-label">Charts</span></div>
           <div style="padding:14px 16px;background:var(--surface)">
             <div class="cm-wrap">
@@ -3947,11 +3966,10 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
             </div>
             <div id="dtc-tip-bar" style="min-height:28px;font-size:0.86em"></div>
             <div id="dtc-chart"></div>
+            <div id="dtc-future"></div>
           </div>
         </div>
-      <div id="d-section-track" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#0b5351,#12876f)"><span class="dg-icon"></span><span class="sec-label">The Track Record</span></div><div style="padding:14px 16px;background:var(--surface)"><div id="d-track"></div></div></div>
-      <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a7a45,#27ae60)"><span class="dg-icon"></span><span class="sec-label">Headwinds &amp; Tailwinds</span></div><div style="padding:14px 16px;background:var(--surface)"><div id="d-sector-signals"></div></div></div>
-      </div><!-- /d-pane-overview -->
+      </div><!-- /d-pane-charts -->
       <div id="d-pane-peers" class="d-pane">
         <div id="d-section-network" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a3aaa,#6c5ce7)"><span class="dg-icon"></span><span class="sec-label">Peers &amp; Supply Chain</span></div><div style="padding:14px 16px;background:var(--surface)"><div id="d-peers-supply"></div></div></div>
         <div id="d-peers-empty" style="display:none;color:#888;padding:24px;text-align:center;font-size:0.88em">No peers or supply-chain data for this company.</div>
@@ -10186,7 +10204,7 @@ function _detCompactSync(){
 function _cmSum(k,txt){var s=document.getElementById(k+'-cm-sum');if(s)s.textContent=txt;}
 
 /* === DETAIL POPUP CHARTS BLOCK === */
-/* Single-company chart at the top of the popup's Overview tab, with the same
+/* Single-company chart on the ticker page's Charts tab, with the same
    metric set as the top-level Charts view (_PH_METRICS: price + annual
    fundamentals), rendered through the shared _phRenderSVG with ctx key '-dtc'
    so its SVG ids can't collide with the top-level instance. Metric and range
@@ -10213,7 +10231,7 @@ function _dtcSeedBench(){
   var have=ixs.filter(function(x){return x.ticker===_DTC_DEFAULT_BENCH;}).length>0;
   if(have&&_dtcBench.indexOf(_DTC_DEFAULT_BENCH)<0)_dtcBench.push(_DTC_DEFAULT_BENCH);
 }
-function _dtcBenchOn(){return _dtcMetric==='price'?_dtcBench.slice():[];}
+function _dtcBenchOn(){return _dtcMetric==='price'&&_dtcRange!=='FUTURE'?_dtcBench.slice():[];}
 function _dtcIndexLabel(tk){
   var ix=((PRICES&&PRICES.indices)||[]).filter(function(x){return x.ticker===tk;})[0];
   return ix?ix.label:tk;
@@ -10226,14 +10244,14 @@ function dtcToggleBench(tk){
 function _dtcCtx(){
   return{key:'-dtc',chartId:'dtc-chart',tipId:'dtc-tip-bar',
          stocks:[_dpTicker].concat(_dtcBenchOn().map(_dtcIndexLabel)),
-         metric:_dtcMetric,rangeCutoff:_phRangeCutoff(_dtcRange)};
+         metric:_dtcMetric,rangeCutoff:_phRangeCutoff(_dtcRange==='FUTURE'?'3M':_dtcRange)};
 }
 function dtcSetMetric(k){
   if(_dtcMetric===k)return;
   _dtcMetric=k;
   var def=_phMetricDef(k);
   /* Annual data is meaningful from 1YR up — same bump as phSetMetric. */
-  if(def.src==='hist'&&['1M','3M','6M'].indexOf(_dtcRange)>=0)_dtcRange='1YR';
+  if(def.src==='hist'&&['1M','3M','6M','FUTURE'].indexOf(_dtcRange)>=0)_dtcRange='1YR';
   _dtcRender();
 }
 function dtcSetRange(r){_dtcRange=r;_dtcRender();}
@@ -10248,8 +10266,10 @@ function _dtcButtons(){
     }).join('');
   }
   var rc=document.getElementById('dtc-ranges');
-  if(rc)rc.innerHTML=['1M','3M','6M','1YR','5YR','10YR','20YR','MAX'].map(function(r){
-    return '<button class="ph-range-btn'+(r===_dtcRange?' active':'')+'" onclick="dtcSetRange(\''+r+'\')">'+r+'</button>';
+  /* Future (the year ahead) follows Max, for the price only: fundamentals
+     are annual and have no forward band to draw. */
+  if(rc)rc.innerHTML=['1M','3M','6M','1YR','5YR','10YR','20YR','MAX'].concat(_dtcMetric==='price'?['FUTURE']:[]).map(function(r){
+    return '<button class="ph-range-btn'+(r===_dtcRange?' active':'')+'" onclick="dtcSetRange(\''+r+'\')">'+(r==='FUTURE'?'Future':r)+'</button>';
   }).join('');
   var bb=document.getElementById('dtc-bench-btns');
   if(bb){
@@ -10257,21 +10277,22 @@ function _dtcButtons(){
     if(!ixs.length){bb.parentNode.style.display='none';}
     else{
       bb.parentNode.style.display='';
-      var isPrice=_dtcMetric==='price';
+      var isPrice=_dtcMetric==='price'&&_dtcRange!=='FUTURE';
+      var why=_dtcMetric!=='price'?'Indices have no fundamentals — switch to Price':'Future draws the company alone';
       bb.innerHTML=ixs.map(function(ix,i){
         var on=isPrice&&_dtcBench.indexOf(ix.ticker)>=0;
         /* Benchmark colours continue the series palette after the company,
            which always holds slot 0 — so a chip's colour is the colour of
            the line it draws. */
         var col=on?_phPalette[(_dtcBenchOn().indexOf(ix.ticker)+1)%_phPalette.length]:'#555';
-        return '<button class="ph-index-btn'+(on?' active':'')+'"'+(isPrice?'':' disabled title="Indices have no fundamentals — switch to Price"')
+        return '<button class="ph-index-btn'+(on?' active':'')+'"'+(isPrice?'':' disabled title="'+why+'"')
           +' onclick="dtcToggleBench(\''+ix.ticker+'\')" style="--ix:'+col+'">'
           +esc(ix.label)+'</button>';
       }).join('');
     }
   }
   var bn=_dtcBenchOn();
-  _cmSum('dtc',_phMetricDef(_dtcMetric).lbl+' · '+_dtcRange
+  _cmSum('dtc',_phMetricDef(_dtcMetric).lbl+' · '+(_dtcRange==='FUTURE'?'Future':_dtcRange)
     +(bn.length?' · vs '+bn.map(_dtcIndexLabel).join(', '):''));
 }
 /* Finnhub + industry peers, de-duplicated, self excluded. */
@@ -10437,10 +10458,11 @@ function _dtcRender(){
   var def=_phMetricDef(_dtcMetric);
   var el=document.getElementById('dtc-chart');if(!el)return;
   var tb=document.getElementById('dtc-tip-bar');
-  /* Re-render only if the popup still shows this ticker on the Overview tab
+  /* Re-render only if the popup still shows this ticker on the Charts tab
      when a lazy sidecar lands, so a late arrival can't overwrite a newer
      company's chart or paint into a hidden pane. */
-  var live=function(){return _dpTicker===tk&&_detTab==='overview';};
+  var live=function(){return _dpTicker===tk&&_detTab==='charts';};
+  var fut=document.getElementById('dtc-future');if(fut)fut.innerHTML='';
   if(def.src==='price'){
     if(!PRICES){
       if(!_PRICES_AVAILABLE){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.88em">Price history not available for this report.</p>';if(tb)tb.innerHTML='';return;}
@@ -10468,8 +10490,9 @@ function _dtcRender(){
       return;
     }
   }
-  var pts=def.src==='price'?_phGetPricePts(tk,_dtcRange):_phGetHistPts(tk,_dtcMetric,_dtcRange);
   var d=DATA.find(function(x){return x.ticker===tk;});
+  if(def.src==='price'&&_dtcRange==='FUTURE'){_dtcFutureRender(tk,d,el,tb,fut);return;}
+  var pts=def.src==='price'?_phGetPricePts(tk,_dtcRange):_phGetHistPts(tk,_dtcMetric,_dtcRange);
   var refs=(def.src==='price'&&d)?{dcf:d.dcf_fv,hi:d.high_52w,lo:d.low_52w}:null;
   /* Benchmarks ride the same range/slicing as the company. Their rows are
      embedded in prices_meta.json (index_px), so no shard fetch is needed;
@@ -10484,6 +10507,140 @@ function _dtcRender(){
   if(def.src==='price'&&_VOL[tk]===undefined){
     _loadVolShard(tk,function(sh){if(sh&&live()&&_dtcMetric==='price')_dtcRender();});
   }
+}
+
+/* === CHARTS TAB: FUTURE (the year ahead) ===============================
+   The iOS app's FutureOutlook, drawn for the price metric: the last three
+   months lead into the next twelve. Nothing here forecasts the price:
+   - the cone is the stock's own past-year volatility (daily log returns,
+     annualised over 252 days) around today's price with no drift, 1σ and
+     2σ — ordinary noise, not a direction;
+   - the green band is the model's Monte Carlo bear–bull range (mc_p10_fv –
+     mc_p90_fv, else dcf_sens_range) with the fair value line;
+   - the analysts' 12-month targets, the next earnings date and the reverse
+     DCF's implied growth come from the row as published.
+   _dtcFutureModel is pure (tests run it under node). */
+function _dtcFutureModel(closes,d){
+  if(!closes||!closes.length)return null;
+  d=d||{};
+  function pos(v){var n=_num(v);return n!=null&&n>0?n:null;}
+  function addM(t,m){var x=new Date(t);x.setMonth(x.getMonth()+m);return x;}
+  var last=closes[closes.length-1],today=new Date(last.d+'T00:00:00');
+  var price=pos(d.price)||last.c;
+  if(!(price>0))return null;
+  var yearAgo=addM(today,-12),yr=closes.filter(function(p){return new Date(p.d+'T00:00:00')>=yearAgo&&p.c>0;});
+  var vol=null;
+  if(yr.length>=60){
+    var r=[];for(var i=1;i<yr.length;i++)r.push(Math.log(yr[i].c/yr[i-1].c));
+    var m=r.reduce(function(a,b){return a+b;},0)/r.length,sq=0;
+    r.forEach(function(x){sq+=(x-m)*(x-m);});
+    vol=Math.sqrt(sq/(r.length-1)*252);
+  }
+  var horizon=addM(today,12),cone=[];
+  if(vol!=null)for(var k=0;k<=12;k++){
+    var sd=vol*Math.sqrt(k/12);
+    cone.push({t:addM(today,k),l1:price*Math.exp(-sd),h1:price*Math.exp(sd),l2:price*Math.exp(-2*sd),h2:price*Math.exp(2*sd)});
+  }
+  var sens=Array.isArray(d.dcf_sens_range)?d.dcf_sens_range:[];
+  var fv=pos(d._fv_effective)||pos(d.dcf_fv);
+  var bear=pos(d.mc_p10_fv)||pos(sens[0]),bull=pos(d.mc_p90_fv)||pos(sens[1]);
+  var ed=null;
+  if(d.earnings_next_date){var e=new Date(String(d.earnings_next_date).slice(0,10)+'T00:00:00');if(!isNaN(e)&&e>=today&&e<=horizon)ed=e;}
+  var est=d.earnings_date_est;
+  est=est===true||(typeof est==='number'&&est!==0)||(typeof est==='string'&&/^(true|1|yes)$/i.test(est));
+  var o={today:today,horizon:horizon,price:price,vol:vol,cone:cone,fv:fv,bear:bear,bull:bull,
+    buyBelow:pos(d.profile&&d.profile.buy_below),
+    targets:{low:pos(d.target_low),mean:pos(d.target_mean),high:pos(d.target_high)},
+    earnings:ed,earningsEst:est,implied:_num(d.implied_growth),modelGrowth:_num(d.fcf_growth)};
+  o.change=function(v){return v!=null?v/price-1:null;};
+  /* Upside to fair value over downside to the bear value: only between the
+     two, where both exist. */
+  o.rewardToRisk=(fv!=null&&bear!=null&&price>bear&&fv>price)?(fv-price)/(price-bear):null;
+  return o;
+}
+function _dtcFutureRender(tk,d,el,tb,fut){
+  var hist=_phGetPricePts(tk,'MAX');
+  var f=_dtcFutureModel(hist,d);
+  if(!f){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.88em">No price history for this company.</p>';if(tb)tb.innerHTML='';return;}
+  var lead=hist.filter(function(p){return new Date(p.d+'T00:00:00')>=new Date(+f.today-92*864e5);});
+  if(tb)tb.innerHTML='<span style="color:var(--chrome-muted,#6a7a90)">The year ahead · prices to '+esc(hist[hist.length-1].d)+'</span>';
+  el.innerHTML=_dtcFutureSVG(f,lead,Math.max(280,Math.round(el.clientWidth||640)));
+  if(fut)fut.innerHTML=_dtcFutureNotes(f);
+}
+function _dtcFutureSVG(f,lead,W){
+  var H=270,L=6,R=46,T=24,B=24,pw=W-L-R,ph=H-T-B;
+  var t0=lead.length?+new Date(lead[0].d+'T00:00:00'):+f.today,t1=+f.horizon;
+  var lv=lead.map(function(p){return p.c;}).concat([f.price,f.fv,f.bear,f.bull,f.buyBelow,f.targets.low,f.targets.mean,f.targets.high]);
+  f.cone.forEach(function(c){lv.push(c.l1,c.h1);});
+  lv=lv.filter(function(v){return v!=null&&isFinite(v);});
+  var lo=Math.min.apply(null,lv),hi=Math.max.apply(null,lv),pad=Math.max((hi-lo)*0.06,hi*0.01);
+  lo=Math.max(0,lo-pad);hi=hi+pad;
+  function X(t){return L+(+t-t0)/(t1-t0)*pw;}
+  function Y(v){v=Math.max(lo,Math.min(hi,v));return T+(1-(v-lo)/(hi-lo))*ph;}
+  function n1(v){return Math.round(v*10)/10;}
+  var g='',tx='class="dtcf-t"';
+  /* Grid and the price axis. */
+  var step=Math.pow(10,Math.floor(Math.log10((hi-lo)/4))),m=[1,2,2.5,5,10].filter(function(k){return (hi-lo)/(k*step)<=5;})[0]*step;
+  for(var y=Math.ceil(lo/m)*m;y<=hi;y+=m){
+    g+='<line x1="'+L+'" x2="'+(L+pw)+'" y1="'+n1(Y(y))+'" y2="'+n1(Y(y))+'" class="dtcf-grid"/>'
+      +'<text '+tx+' x="'+(L+pw+5)+'" y="'+n1(Y(y)+4)+'">'+(y>=1000?Math.round(y).toLocaleString():+y.toFixed(m<1?2:0))+'</text>';
+  }
+  /* Quarter marks along the bottom. */
+  var q=new Date(t0);q.setDate(1);q.setMonth(q.getMonth()+1);
+  while(+q<=t1){
+    if(q.getMonth()%3===0){
+      g+='<line x1="'+n1(X(q))+'" x2="'+n1(X(q))+'" y1="'+T+'" y2="'+(T+ph)+'" class="dtcf-grid"/>';
+      if(X(q)<L+pw-56)g+='<text '+tx+' x="'+n1(X(q)+3)+'" y="'+(H-6)+'">'+q.toLocaleDateString(undefined,{month:'short',year:'numeric'})+'</text>';
+    }
+    q.setMonth(q.getMonth()+1);
+  }
+  if(f.bear!=null&&f.bull!=null)
+    g+='<rect x="'+n1(X(f.today))+'" y="'+n1(Y(f.bull))+'" width="'+n1(X(f.horizon)-X(f.today))+'" height="'+n1(Y(f.bear)-Y(f.bull))+'" fill="#1a9850" fill-opacity="0.12"/>';
+  if(f.cone.length){
+    var band=function(a,b,op){
+      var up=f.cone.map(function(c){return n1(X(c.t))+','+n1(Y(c[b]));}),dn=f.cone.slice().reverse().map(function(c){return n1(X(c.t))+','+n1(Y(c[a]));});
+      return '<polygon points="'+up.concat(dn).join(' ')+'" fill="#f28c28" fill-opacity="'+op+'"/>';
+    };
+    g+=band('l2','h2',0.10)+band('l1','h1',0.2);
+  }
+  if(lead.length>1)g+='<polyline fill="none" stroke="#f28c28" stroke-width="1.8" points="'+lead.map(function(p){return n1(X(new Date(p.d+'T00:00:00')))+','+n1(Y(p.c));}).join(' ')+'"/>';
+  if(f.fv!=null)g+='<line x1="'+n1(X(f.today))+'" x2="'+n1(X(f.horizon))+'" y1="'+n1(Y(f.fv))+'" y2="'+n1(Y(f.fv))+'" stroke="#1a9850" stroke-width="1.6"/>'
+    +'<text class="dtcf-t" style="fill:#1a9850" x="'+n1(X(f.today)+4)+'" y="'+n1(Y(f.fv)-4)+'">Fair value</text>';
+  if(f.buyBelow!=null&&f.buyBelow!==f.fv)g+='<line x1="'+n1(X(f.today))+'" x2="'+n1(X(f.horizon))+'" y1="'+n1(Y(f.buyBelow))+'" y2="'+n1(Y(f.buyBelow))+'" stroke="#e67e22" stroke-width="1" stroke-dasharray="2 3"/>'
+    +'<text class="dtcf-t" style="fill:#e67e22" x="'+n1(X(f.today)+4)+'" y="'+n1(Y(f.buyBelow)+12)+'">Buy below</text>';
+  g+='<line x1="'+n1(X(f.today))+'" x2="'+n1(X(f.today))+'" y1="'+T+'" y2="'+(T+ph)+'" class="dtcf-today"/>'
+    +'<text '+tx+' text-anchor="end" x="'+n1(X(f.today)-3)+'" y="'+(T-8)+'">Today</text>';
+  if(f.earnings){
+    var ex=n1(X(f.earnings));
+    g+='<line x1="'+ex+'" x2="'+ex+'" y1="'+T+'" y2="'+(T+ph)+'" stroke="#8e44ad" stroke-opacity="0.7" stroke-dasharray="3 3"/>'
+      +'<text class="dtcf-t" style="fill:#8e44ad" x="'+(ex+3)+'" y="'+(T-8)+'">Earnings '+f.earnings.toLocaleDateString(undefined,{month:'short',day:'numeric'})+(f.earningsEst?' (est.)':'')+'</text>';
+  }
+  [['Low',f.targets.low],['Avg',f.targets.mean],['High',f.targets.high]].forEach(function(t){
+    if(t[1]==null)return;
+    var cx=n1(X(f.horizon)),cy=n1(Y(t[1]));
+    g+=(t[0]==='Avg'?'<rect x="'+(cx-4)+'" y="'+(cy-4)+'" width="8" height="8" transform="rotate(45 '+cx+' '+cy+')" fill="#2563eb"/>'
+        :'<circle cx="'+cx+'" cy="'+cy+'" r="3.5" fill="#2563eb"/>')
+      +'<text class="dtcf-t" style="fill:#2563eb" text-anchor="end" x="'+(cx-7)+'" y="'+(cy+4)+'">'+t[0]+' '+Math.round(t[1])+'</text>';
+  });
+  return '<svg class="dtcf-svg" viewBox="0 0 '+W+' '+H+'" width="100%" height="'+H+'" role="img" aria-label="The year ahead: price range, the model\'s value band and analyst targets">'+g+'</svg>';
+}
+function _dtcFutureNotes(f){
+  function pc(v,signed){var a=Math.abs(v),s=(v*100).toFixed(a<0.1?1:0);return (signed&&v>0?'+':'')+s+'%';}
+  function mv(l,v){return '<span class="dtcf-mv"><small>'+l+'</small><b class="sa-chrome" style="--sac:'+(v==null?'var(--chrome-muted)':v>=0?'#1a9850':'#de2d26')+'">'+(v==null?'—':pc(v,true))+'</b></span>';}
+  var h='<div class="dtcf-notes">';
+  if(f.implied!=null)h+='<p class="dtcf-lead">Today\u2019s price implies <b>'+pc(f.implied,true)+'</b> a year growth'
+    +(f.modelGrowth!=null?'; the model expects <b>'+pc(f.modelGrowth,true)+'</b>':'')+'.</p>';
+  if(f.bear!=null||f.fv!=null||f.bull!=null){
+    h+='<div class="dtcf-mvs">'+mv('Bear',f.change(f.bear))+mv('Base',f.change(f.fv))+mv('Bull',f.change(f.bull))+'</div>';
+    if(f.rewardToRisk!=null)h+='<p class="dtcf-sub">Upside to fair value is '+f.rewardToRisk.toFixed(1)+'\u00d7 the downside to the bear value.</p>';
+    else if(f.bear!=null&&f.price<=f.bear)h+='<p class="dtcf-sub">The price is below even the model\u2019s bear value.</p>';
+    else if(f.fv!=null&&f.price>=f.fv)h+='<p class="dtcf-sub">The price is above the model\u2019s fair value: no modelled upside.</p>';
+  }
+  if(f.targets.mean!=null)h+='<p class="dtcf-sub">Analysts\u2019 average 12-month target: '+fd(f.targets.mean)+' ('+pc(f.change(f.targets.mean),true)+')</p>';
+  h+='<p class="dtcf-cap">Green band: the model\u2019s bear\u2013bull value range (Monte Carlo P10\u2013P90). '
+    +(f.vol!=null?'Orange cone: ordinary price swings at this stock\u2019s past-year volatility ('+pc(f.vol,false)+' a year), 1\u03c3 and 2\u03c3, with no drift: noise, not a forecast.'
+      :'Too little price history for a volatility cone.')+'</p></div>';
+  return h;
 }
 
 /* === TICKER HOVER TOOLTIP === */
@@ -11557,17 +11714,16 @@ function _detDataItems(){
    CURRENT selection ("Sections › Profitability") since there is no tab bar
    left to answer "where am I". */
 function _detGroupOf(k){
-  if(k==='overview')return null;
+  if(k==='overview'||k==='charts')return null;
   if(k===DT_FIN.k)return 'stmt';
   for(var i=0;i<DT_STMTS.length;i++)if(DT_STMTS[i].k===k)return 'stmt';
   return 'data';
 }
 function _detMenuItems(){
-  /* The Charts tab is retired — its Fundamental Charts block now sits at the
-     top of Overview (and the duplicate Price History chart it sat above is
-     gone; the price series is the block's default metric). */
-  /* News second, next to Summary; then Finances and the data tabs. */
-  return [{k:'overview',l:'Overview'},{k:'news',l:'News'},DT_FIN].concat(_detDataItems());
+  /* Charts second, right after Summary, as in the iOS app: the company's
+     chart block (price by default, and Future, the year ahead) on a tab of
+     its own. Then News, Finances and the data tabs. */
+  return [{k:'overview',l:'Overview'},{k:'charts',l:'Charts'},{k:'news',l:'News'},DT_FIN].concat(_detDataItems());
 }
 function _renderDetTabBar(){
   /* The underlined section tabs, plus the back link naming where the page
@@ -11661,11 +11817,11 @@ function swDetTab(k){
   if(_stmtFs&&k!==DT_FIN.k)stmtFsToggle(false);
   _renderDetTabBar();
   document.querySelectorAll('#det-modal .d-pane').forEach(function(p){p.classList.remove('active');});
-  var id=k==='overview'?'d-pane-overview':k==='peers'?'d-pane-peers':k==='news'?'d-pane-news':_detGroupOf(k)==='stmt'?'d-pane-stmt':'d-pane-data';
+  var id=k==='overview'?'d-pane-overview':k==='charts'?'d-pane-charts':k==='peers'?'d-pane-peers':k==='news'?'d-pane-news':_detGroupOf(k)==='stmt'?'d-pane-stmt':'d-pane-data';
   var pane=document.getElementById(id);if(pane)pane.classList.add('active');
-  /* Overview now carries the Charts block; re-render it on return to the tab
-     so a metric/range picked earlier still draws after switching away. */
-  if(k==='overview')_dtcRender();
+  /* The Charts tab draws on arrival, so a metric/range picked earlier still
+     draws after switching away (and at the pane's real width). */
+  if(k==='charts')_dtcRender();
   else if(k==='peers'||k==='news'){
     /* Content is rendered by openDet into the section div; just toggle the
        empty-state note when that section has nothing to show. */
@@ -11674,7 +11830,7 @@ function swDetTab(k){
     if(ne&&ns)ne.style.display=(ns.style.display==='none')?'':'none';
   }
   else if(_detGroupOf(k)==='stmt')_renderDetStmtTab(_detStmt);
-  else if(k!=='overview')_renderDetDataTab(k);
+  else if(k!=='overview'&&k!=='charts')_renderDetDataTab(k);
   var sc=_detScroller();if(sc)sc.scrollTop=0;
 }
 /* --- Blocks relocated off the Overview tab (declutter). Each returns an HTML
@@ -17509,24 +17665,19 @@ function _gvRender(d){
   GM.categories.forEach(function(c){
     var rows=_gvGates(d,c.name);
     if(!rows.length)return;
-    var cs=d[c.scoreKey],np=0,nf=0,nn=0,chips='';
-    rows.forEach(function(r){
-      if(r.st==='pass')np++;
-      else if(r.st==='fail'){nf++;chips+='<span class="gv-chip"><b>✗</b> '+esc(r.g.label)+' '+esc(r.val)+(r.tg?' · '+esc(r.tg):'')+'</span>';}
-      else nn++;
-    });
-    if(nn)chips+='<span class="gv-chip gv-chip-na">'+nn+' N/A · count 0</span>';
+    var cs=d[c.scoreKey],np=0,nf=0,nn=0;
+    rows.forEach(function(r){if(r.st==='pass')np++;else if(r.st==='fail')nf++;else nn++;});
     var st=shutAll[c.name],shut=st===undefined||st===true;
     h+='<div class="gv-col'+(shut?' gv-shut':'')+'" style="--gv-c:'+c.dark+'">'
       +'<div class="gv-cat" role="button" tabindex="0" aria-expanded="'+(shut?'false':'true')+'" data-gvc="'+_attr(c.name)+'"'
       +' onclick="_gvToggle(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_gvToggle(this);}">'
       +'<span class="gv-cat-t">'+esc(c.name)+'</span>'
       +'<span class="gv-trk"><i style="width:'+(cs!=null?Math.max(0,Math.min(100,cs)):0)+'%;background:'+c.dark+'"></i></span>'
+      +'<span class="gv-cat-w">'+Math.round(c.weight*100)+'% of score'+(nn?' · '+nn+' N/A, counted 0':'')+'</span>'
+      +'<span class="gv-cat-p'+(nf?'':' gv-allpass')+'">'+np+'/'+(np+nf)+' pass</span>'
       +'<span class="gv-cat-s">'+(cs!=null?Math.round(cs):'—')+'</span>'
-      +'<span class="gv-cat-w">'+Math.round(c.weight*100)+'% of score</span>'
-      +'<span class="gv-cat-p">'+np+'/'+(np+nf)+' pass</span>'
       +'<i class="ppf-chev" aria-hidden="true"></i></div>'
-      +'<div class="gv-chips">'+chips+'</div><div class="gv-items">';
+      +'<div class="gv-items">';
     rows.forEach(function(r){
       var g=r.g,ic=r.st==='pass'?'✓':r.st==='fail'?'✗':'–';
       var tg=r.st==='na'?"doesn't apply":r.st==='nodata'?'no data':r.tg;
@@ -19361,7 +19512,7 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 </style>
 <div id="ai-panel" role="dialog" aria-label="AI Analyst">
   <div class="ai-head">
-    <div class="ai-head-title">AI Analyst<small>Claude Opus 4.8 &middot; queries this report's data</small></div>
+    <div class="ai-head-title">AI Analyst<small>Claude Opus 5.5 &middot; queries this report's data</small></div>
     <button class="ai-hbtn" id="ai-clearbtn" title="Clear conversation">&#8635;</button>
     <button class="ai-hbtn" id="ai-gearbtn" title="API key settings">&#9881;</button>
     <button class="ai-hbtn" id="ai-closebtn" title="Close">&#10005;</button>
@@ -19751,7 +19902,7 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 (function(){
 'use strict';
 var AI_KEY_LS='stock_ai_key_v1';
-var AI_MODEL='claude-opus-4-8';
+var AI_MODEL='claude-opus-5-5';
 var AI_GEN='{{ generated_at }}';
 var AI_MSGS=[];
 var AI_BUSY=false;
@@ -20162,23 +20313,19 @@ function aiAdd(cls,html){
   return d;
 }
 function aiHasKey(){try{return !!localStorage.getItem(AI_KEY_LS);}catch(e){return false;}}
-function aiSyncBtn(){
-  var b=document.getElementById('hdr-ai');
-  if(b)b.setAttribute('aria-expanded',elPanel.classList.contains('open')?'true':'false');
-}
 function aiOpen(){
   var hd=document.querySelector('.header');
   if(hd)document.documentElement.style.setProperty('--hdr-h',hd.offsetHeight+'px');
-  elPanel.classList.add('open');aiSyncBtn();
+  elPanel.classList.add('open');
   if(!aiHasKey())elPanel.classList.add('settings');
   else if(window.innerWidth>768)setTimeout(function(){elInput.focus();},60);
   if(!elMsgs.childElementCount)aiAdd('ai-note','Ask anything about the '+DATA.length+' stocks in this report &mdash; screens, comparisons, sector stats, price history.');
 }
-function aiClose(){elPanel.classList.remove('open');elPanel.classList.remove('settings');aiSyncBtn();}
-/* Entry points for the search bar: its sparkle button toggles the panel,
-   and its "Ask AI Analyst" row opens it and sends the typed question. */
+function aiClose(){elPanel.classList.remove('open');elPanel.classList.remove('settings');}
+/* Entry points: the search bar's "Ask AI Analyst" row opens the panel and
+   sends the typed question (aiAsk); aiToggle backs the action notes' Show
+   button. There is no separate AI button. */
 /* Other code closes the panel by dropping its class (the shortcuts sheet). */
-new MutationObserver(aiSyncBtn).observe(elPanel,{attributes:true,attributeFilter:['class']});
 window.aiToggle=function(){if(elPanel.classList.contains('open'))aiClose();else aiOpen();};
 window.aiAsk=function(text){
   aiOpen();
