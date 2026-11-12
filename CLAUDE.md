@@ -1239,8 +1239,11 @@ ruff check .
     next twelve (`_dtcFutureModel`, the app's `FutureOutlook`): a no-drift
     1σ/2σ cone at the stock's past-year volatility, the Monte Carlo
     P10–P90 band and fair value, buy-below, the analysts' targets, the
-    next earnings date, and notes on implied vs model growth and the move
-    to bear/base/bull. Display only (`tests/test_report_future.py`). On
+    next earnings date. The plot carries no text: a legend above it
+    (`_dtcFutureLegend`) names each mark, and under it come bear/base/bull
+    tiles, one sentence, a short table (growth priced in, model's growth,
+    analyst range and average, next earnings, volatility) and a footnote,
+    as the app lays it out. Display only (`tests/test_report_future.py`). On
     Summary, The Model's categories start folded to one line each — name,
     gates passed, score — and open to the bar, weight and gates. The three filed statements share one Finances tab, right
     after Summary (`DT_FIN`; a `.d-stmt-tabs` switch in its pane, the pick

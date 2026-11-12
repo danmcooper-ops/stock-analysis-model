@@ -50,13 +50,14 @@ def _run(tmp_path, cases):
         'function esc(s){return String(s);}',
         'function fd(v){return "$"+v.toFixed(2);}',
         _fn(src, '_dtcFutureModel'), _fn(src, '_dtcFutureSVG'), _fn(src, '_dtcFutureNotes'),
+        _fn(src, '_dtcFutureLegend'),
         'var cases=' + json.dumps(cases) + ';',
         'console.log(JSON.stringify(cases.map(function(c){',
         '  var f=_dtcFutureModel(c[0],c[1]);if(!f)return null;',
         '  return {price:f.price,vol:f.vol,cone:f.cone.map(function(k){return [k.l1,k.h1,k.l2,k.h2];}),',
         '    fv:f.fv,bear:f.bear,bull:f.bull,buyBelow:f.buyBelow,targets:f.targets,earnings:!!f.earnings,',
         '    est:f.earningsEst,implied:f.implied,model:f.modelGrowth,rr:f.rewardToRisk,base:f.change(f.fv),',
-        '    svg:_dtcFutureSVG(f,c[0].slice(-90),640),notes:_dtcFutureNotes(f)};',
+        '    svg:_dtcFutureSVG(f,c[0].slice(-90),640),notes:_dtcFutureNotes(f),legend:_dtcFutureLegend(f)};',
         '})));',
     ])
     p = tmp_path / 'f.js'
@@ -86,11 +87,19 @@ def test_reads_the_rows_forward_fields(tmp_path):
     assert abs(f['base'] - 0.30) < 1e-9
     assert abs(f['rr'] - 1.5) < 1e-9                 # (130-100)/(100-80)
     n = f['notes']
-    assert 'implies <b>-2.0%</b> a year growth; the model expects <b>+3.0%</b>' in n
+    # Tiles: the move and the dollar value for bear, base and bull.
+    assert n.count('class="dtcf-tile"') == 3 and '+30%' in n and '$130' in n
     assert '1.5× the downside to the bear value' in n
-    assert 'Earnings ' in f['svg'] and '(est.)' in f['svg']
-    for lbl in ('Fair value', 'Buy below', 'Today', 'Low 70', 'Avg 110', 'High 160'):
-        assert lbl in f['svg'], lbl
+    # The table, as the iOS app's.
+    for k, v in (('Growth priced in', '-2.0% a year'), ('Model’s growth', '+3.0% a year'),
+                 ('Analyst range', '$70 – $160'), ('Analyst average', '$110 (+10%)'),
+                 ('Volatility', '16% a year')):
+        assert f'<dt>{k}</dt><dd>{v}</dd>' in n, k
+    assert '<dt>Next earnings</dt>' in n and '(est.)' in n
+    # No text on the plot; the legend names every mark.
+    assert '<text' not in f['svg'].split('<polygon')[1]
+    for lbl in ('Price', 'Value range', 'Fair value', 'Buy below', 'Likely range', 'Analyst targets', 'Earnings'):
+        assert lbl in f['legend'], lbl
 
 
 @node
@@ -111,6 +120,7 @@ def test_fallbacks_and_edges(tmp_path):
     assert below['rr'] is None and 'below even the model’s bear value' in below['notes']
     assert above['rr'] is None and 'above the model’s fair value' in above['notes']
     assert short['vol'] is None and short['cone'] == [] and 'Too little price history' in short['notes']
+    assert 'Likely range' not in short['legend'] and 'Earnings' not in short['legend']
     assert empty is None
 
 

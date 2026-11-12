@@ -1039,24 +1039,30 @@ td.ct{font-weight:700;}
    14px gaps on desktop (mobile blocks override to display:block + margins). */
 .d-pane{display:none;}
 .d-pane.active{display:block;}
-/* Charts tab › Future (_dtcFutureSVG / _dtcFutureNotes). */
-.dtcf-svg{display:block;overflow:visible;}
+/* Charts tab › Future (_dtcFutureLegend / _dtcFutureSVG / _dtcFutureNotes):
+   the iOS app's layout — a legend above a plot with no text on it, then
+   tiles, one sentence, a two-column table and a footnote. */
+.dtcf-svg{display:block;overflow:visible;margin-top:6px;}
 .dtcf-t{font-size:11px;fill:#8a96a8;}
 .dtcf-grid{stroke:#8a96a8;stroke-opacity:0.25;stroke-width:1;}
-.dtcf-today{stroke:#8a96a8;stroke-width:1;}
-.dtcf-notes{margin-top:10px;display:flex;flex-direction:column;gap:6px;}
+.dtcf-today{stroke:#8a96a8;stroke-width:1;stroke-opacity:0.7;}
+.dtcf-legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--chrome-muted,#6a7a90);}
+.dtcf-li{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
+.dtcf-notes{margin-top:16px;display:flex;flex-direction:column;gap:12px;max-width:640px;}
 .dtcf-notes p{margin:0;}
-.dtcf-lead{font-size:0.95em;}
-.dtcf-mvs{display:flex;gap:18px;}
-.dtcf-mv{display:flex;flex-direction:column;}
-.dtcf-mv small{font-size:0.72em;color:var(--chrome-muted,#6a7a90);}
-.dtcf-mv b{font-size:1.05em;font-variant-numeric:tabular-nums;color:var(--sac);}
+.dtcf-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
+.dtcf-tile{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:10px;background:color-mix(in srgb,#8a96a8 12%,transparent);}
+.dtcf-tile small{font-size:0.75em;color:var(--chrome-muted,#6a7a90);}
+.dtcf-tile b{font-size:1.25em;font-variant-numeric:tabular-nums;color:var(--sac);}
+.dtcf-tile span{font-size:0.78em;font-variant-numeric:tabular-nums;color:var(--chrome-muted,#6a7a90);}
 .dtcf-sub{font-size:0.82em;color:var(--chrome-muted,#6a7a90);}
+.dtcf-tbl{display:grid;grid-template-columns:auto 1fr;gap:7px 12px;margin:0;font-size:0.9em;}
+.dtcf-tbl dt{color:var(--chrome-muted,#6a7a90);}
+.dtcf-tbl dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;}
 .dtcf-cap{font-size:0.74em;color:var(--chrome-muted,#6a7a90);}
-/* Inline fills are the light theme's; the dark one lifts the two that
-   read dim on a dark panel (!important beats the inline style). */
+/* The light theme's blue and purple read dim on a dark panel. */
 [data-theme="dark"] .dtcf-tgt{fill:#79a8ff !important;}
-[data-theme="dark"] .dtcf-earn{fill:#c58af0 !important;}
+[data-theme="dark"] .dtcf-earn{stroke:#c58af0 !important;}
 #d-pane-overview.active{display:flex;flex-direction:column;gap:14px;}
 /* Charts/data panes hold multiple stacked blocks (price chart + metric chart
    + track record; data dgroup + intrinsic dgroup) — space them like the
@@ -10567,12 +10573,12 @@ function _dtcFutureRender(tk,d,el,tb,fut){
   var f=_dtcFutureModel(hist,d);
   if(!f){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.88em">No price history for this company.</p>';if(tb)tb.innerHTML='';return;}
   var lead=hist.filter(function(p){return new Date(p.d+'T00:00:00')>=new Date(+f.today-92*864e5);});
-  if(tb)tb.innerHTML='<span style="color:var(--chrome-muted,#6a7a90)">The year ahead · prices to '+esc(hist[hist.length-1].d)+'</span>';
+  if(tb)tb.innerHTML=_dtcFutureLegend(f);
   el.innerHTML=_dtcFutureSVG(f,lead,Math.max(280,Math.round(el.clientWidth||640)));
   if(fut)fut.innerHTML=_dtcFutureNotes(f);
 }
 function _dtcFutureSVG(f,lead,W){
-  var H=270,L=6,R=46,T=24,B=24,pw=W-L-R,ph=H-T-B;
+  var H=270,L=6,R=46,T=10,B=24,pw=W-L-R,ph=H-T-B;
   var t0=lead.length?+new Date(lead[0].d+'T00:00:00'):+f.today,t1=+f.horizon;
   var lv=lead.map(function(p){return p.c;}).concat([f.price,f.fv,f.bear,f.bull,f.buyBelow,f.targets.low,f.targets.mean,f.targets.high]);
   f.cone.forEach(function(c){lv.push(c.l1,c.h1);});
@@ -10608,42 +10614,65 @@ function _dtcFutureSVG(f,lead,W){
     g+=band('l2','h2',0.10)+band('l1','h1',0.2);
   }
   if(lead.length>1)g+='<polyline fill="none" stroke="#f28c28" stroke-width="1.8" points="'+lead.map(function(p){return n1(X(new Date(p.d+'T00:00:00')))+','+n1(Y(p.c));}).join(' ')+'"/>';
-  if(f.fv!=null)g+='<line x1="'+n1(X(f.today))+'" x2="'+n1(X(f.horizon))+'" y1="'+n1(Y(f.fv))+'" y2="'+n1(Y(f.fv))+'" stroke="#1a9850" stroke-width="1.6"/>'
-    +'<text class="dtcf-t" style="fill:#1a9850" x="'+n1(X(f.today)+4)+'" y="'+n1(Y(f.fv)-4)+'">Fair value</text>';
-  if(f.buyBelow!=null&&f.buyBelow!==f.fv)g+='<line x1="'+n1(X(f.today))+'" x2="'+n1(X(f.horizon))+'" y1="'+n1(Y(f.buyBelow))+'" y2="'+n1(Y(f.buyBelow))+'" stroke="#e67e22" stroke-width="1" stroke-dasharray="2 3"/>'
-    +'<text class="dtcf-t" style="fill:#e67e22" x="'+n1(X(f.today)+4)+'" y="'+n1(Y(f.buyBelow)+12)+'">Buy below</text>';
-  g+='<line x1="'+n1(X(f.today))+'" x2="'+n1(X(f.today))+'" y1="'+T+'" y2="'+(T+ph)+'" class="dtcf-today"/>'
-    +'<text '+tx+' text-anchor="end" x="'+n1(X(f.today)-3)+'" y="'+(T-8)+'">Today</text>';
+  /* No text on the plot: the legend above names every mark
+     (_dtcFutureLegend), so nothing crowds the lines or the picker. */
+  if(f.fv!=null)g+='<line x1="'+n1(X(f.today))+'" x2="'+n1(X(f.horizon))+'" y1="'+n1(Y(f.fv))+'" y2="'+n1(Y(f.fv))+'" stroke="#1a9850" stroke-width="1.6"/>';
+  if(f.buyBelow!=null&&f.buyBelow!==f.fv)g+='<line x1="'+n1(X(f.today))+'" x2="'+n1(X(f.horizon))+'" y1="'+n1(Y(f.buyBelow))+'" y2="'+n1(Y(f.buyBelow))+'" stroke="#e67e22" stroke-width="1" stroke-dasharray="2 3"/>';
+  g+='<line x1="'+n1(X(f.today))+'" x2="'+n1(X(f.today))+'" y1="'+T+'" y2="'+(T+ph)+'" class="dtcf-today"/>';
   if(f.earnings){
     var ex=n1(X(f.earnings));
-    g+='<line x1="'+ex+'" x2="'+ex+'" y1="'+T+'" y2="'+(T+ph)+'" stroke="#8e44ad" stroke-opacity="0.7" stroke-dasharray="3 3"/>'
-      +'<text class="dtcf-t dtcf-earn" style="fill:#8e44ad" x="'+(ex+3)+'" y="'+(T-8)+'">Earnings '+f.earnings.toLocaleDateString(undefined,{month:'short',day:'numeric'})+(f.earningsEst?' (est.)':'')+'</text>';
+    g+='<line x1="'+ex+'" x2="'+ex+'" y1="'+T+'" y2="'+(T+ph)+'" class="dtcf-earn" stroke="#8e44ad" stroke-opacity="0.7" stroke-dasharray="3 3"/>';
   }
   [['Low',f.targets.low],['Avg',f.targets.mean],['High',f.targets.high]].forEach(function(t){
     if(t[1]==null)return;
     var cx=n1(X(f.horizon)),cy=n1(Y(t[1]));
-    g+=(t[0]==='Avg'?'<rect x="'+(cx-4)+'" y="'+(cy-4)+'" width="8" height="8" transform="rotate(45 '+cx+' '+cy+')" fill="#2563eb"/>'
-        :'<circle cx="'+cx+'" cy="'+cy+'" r="3.5" fill="#2563eb"/>')
-      +'<text class="dtcf-t dtcf-tgt" style="fill:#2563eb" text-anchor="end" x="'+(cx-7)+'" y="'+(cy+4)+'">'+t[0]+' '+Math.round(t[1])+'</text>';
+    g+=(t[0]==='Avg'?'<rect class="dtcf-tgt" x="'+(cx-4)+'" y="'+(cy-4)+'" width="8" height="8" transform="rotate(45 '+cx+' '+cy+')" fill="#2563eb"><title>Analysts\u2019 average '+fd(t[1])+'</title></rect>'
+        :'<circle class="dtcf-tgt" cx="'+cx+'" cy="'+cy+'" r="3.5" fill="#2563eb"><title>Analysts\u2019 '+t[0].toLowerCase()+' '+fd(t[1])+'</title></circle>');
   });
   return '<svg class="dtcf-svg" viewBox="0 0 '+W+' '+H+'" width="100%" height="'+H+'" role="img" aria-label="The year ahead: price range, the model\'s value band and analyst targets">'+g+'</svg>';
 }
+function _dtcFutureLegend(f){
+  function it(sw,l){return '<span class="dtcf-li">'+sw+esc(l)+'</span>';}
+  function ln(c,dash){return '<svg width="14" height="8" aria-hidden="true"><line x1="0" y1="4" x2="14" y2="4" stroke="'+c+'" stroke-width="2"'+(dash?' stroke-dasharray="2 2"':'')+'/></svg>';}
+  function bd(c,o){return '<svg width="14" height="8" aria-hidden="true"><rect width="14" height="8" rx="2" fill="'+c+'" fill-opacity="'+o+'"/></svg>';}
+  var h='<div class="dtcf-legend">'+it(ln('#f28c28'),'Price');
+  if(f.bear!=null&&f.bull!=null)h+=it(bd('#1a9850',0.25),'Value range');
+  if(f.fv!=null)h+=it(ln('#1a9850'),'Fair value');
+  if(f.buyBelow!=null&&f.buyBelow!==f.fv)h+=it(ln('#e67e22',1),'Buy below');
+  if(f.cone.length)h+=it(bd('#f28c28',0.3),'Likely range');
+  if(f.targets.mean!=null||f.targets.low!=null)h+=it('<svg width="14" height="8" aria-hidden="true"><circle cx="7" cy="4" r="3.5" fill="#2563eb"/></svg>','Analyst targets');
+  if(f.earnings)h+=it(ln('#8e44ad',1),'Earnings');
+  return h+'</div>';
+}
+/* Under the chart: the move to the model's bear, base and bull values as
+   three tiles (with their dollar values), one sentence on where the price
+   sits, the year's other facts as a short table, then one footnote line —
+   the iOS app's layout. */
 function _dtcFutureNotes(f){
   function pc(v,signed){var a=Math.abs(v),s=(v*100).toFixed(a<0.1?1:0);return (signed&&v>0?'+':'')+s+'%';}
-  function mv(l,v){return '<span class="dtcf-mv"><small>'+l+'</small><b class="sa-chrome" style="--sac:'+(v==null?'var(--chrome-muted)':v>=0?'#1a9850':'#de2d26')+'">'+(v==null?'—':pc(v,true))+'</b></span>';}
-  var h='<div class="dtcf-notes">';
-  if(f.implied!=null)h+='<p class="dtcf-lead">Today\u2019s price implies <b>'+pc(f.implied,true)+'</b> a year growth'
-    +(f.modelGrowth!=null?'; the model expects <b>'+pc(f.modelGrowth,true)+'</b>':'')+'.</p>';
-  if(f.bear!=null||f.fv!=null||f.bull!=null){
-    h+='<div class="dtcf-mvs">'+mv('Bear',f.change(f.bear))+mv('Base',f.change(f.fv))+mv('Bull',f.change(f.bull))+'</div>';
-    if(f.rewardToRisk!=null)h+='<p class="dtcf-sub">Upside to fair value is '+f.rewardToRisk.toFixed(1)+'\u00d7 the downside to the bear value.</p>';
-    else if(f.bear!=null&&f.price<=f.bear)h+='<p class="dtcf-sub">The price is below even the model\u2019s bear value.</p>';
-    else if(f.fv!=null&&f.price>=f.fv)h+='<p class="dtcf-sub">The price is above the model\u2019s fair value: no modelled upside.</p>';
+  function usd(v){return '$'+(v<10?v.toFixed(2):Math.round(v).toLocaleString());}
+  function tile(l,v){
+    var c=f.change(v);
+    return '<div class="dtcf-tile"><small>'+l+'</small><b class="sa-chrome" style="--sac:'+(c==null?'var(--chrome-muted)':c>=0?'#1a9850':'#de2d26')+'">'+(c==null?'—':pc(c,true))+'</b><span>'+(v!=null?usd(v):'&nbsp;')+'</span></div>';
   }
-  if(f.targets.mean!=null)h+='<p class="dtcf-sub">Analysts\u2019 average 12-month target: '+fd(f.targets.mean)+' ('+pc(f.change(f.targets.mean),true)+')</p>';
-  h+='<p class="dtcf-cap">Green band: the model\u2019s bear\u2013bull value range (Monte Carlo P10\u2013P90). '
-    +(f.vol!=null?'Orange cone: ordinary price swings at this stock\u2019s past-year volatility ('+pc(f.vol,false)+' a year), 1\u03c3 and 2\u03c3, with no drift: noise, not a forecast.'
-      :'Too little price history for a volatility cone.')+'</p></div>';
+  var rows=[];
+  if(f.implied!=null)rows.push(['Growth priced in',pc(f.implied,true)+' a year']);
+  if(f.modelGrowth!=null)rows.push(['Model’s growth',pc(f.modelGrowth,true)+' a year']);
+  if(f.targets.low!=null&&f.targets.high!=null)rows.push(['Analyst range',usd(f.targets.low)+' – '+usd(f.targets.high)]);
+  if(f.targets.mean!=null)rows.push(['Analyst average',usd(f.targets.mean)+' ('+pc(f.change(f.targets.mean),true)+')']);
+  if(f.earnings)rows.push(['Next earnings',f.earnings.toLocaleDateString(undefined,{month:'short',day:'numeric'})+(f.earningsEst?' (est.)':'')]);
+  if(f.vol!=null)rows.push(['Volatility',pc(f.vol,false)+' a year']);
+  var h='<div class="dtcf-notes">';
+  if(f.bear!=null||f.fv!=null||f.bull!=null){
+    h+='<div class="dtcf-tiles">'+tile('Bear',f.bear)+tile('Base',f.fv)+tile('Bull',f.bull)+'</div>';
+    var v=f.rewardToRisk!=null?'Upside to fair value is '+f.rewardToRisk.toFixed(1)+'× the downside to the bear value.'
+      :(f.bear!=null&&f.price<=f.bear)?'The price is below even the model’s bear value.'
+      :(f.fv!=null&&f.price>=f.fv)?'The price is above the model’s fair value.':'';
+    if(v)h+='<p class="dtcf-sub">'+v+'</p>';
+  }
+  if(rows.length)h+='<dl class="dtcf-tbl">'+rows.map(function(r){return '<dt>'+r[0]+'</dt><dd>'+esc(r[1])+'</dd>';}).join('')+'</dl>';
+  h+='<p class="dtcf-cap">'+(f.vol!=null?'Value range: the model’s P10–P90. Likely range: 1σ and 2σ swings at past-year volatility, with no drift — noise, not a forecast.'
+    :'Value range: the model’s P10–P90. Too little price history for a likely range.')+'</p></div>';
   return h;
 }
 
