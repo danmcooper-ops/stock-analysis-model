@@ -48,6 +48,7 @@ from models.ic_decomposition import (MIN_GROUP_ROWS, decompose, snapshot_compone
                                      within_permutation_test)
 from models.inference import (DEFAULT_N_PERM, MIN_BLOCKS, block_length, bootstrap_mean,
                               ic_permutation_test, permutation_p)
+from models.montecarlo import QUANTILE_LEVELS, quantile_rank
 from models.utils import rank
 from scripts.param_set import (default_params, merge_params, scoring_params_hash,
                                validate_params)
@@ -69,6 +70,14 @@ SIGNAL_SPECS = [
     ('pp_multiple',     'PP Multiple (profit capture)'),
     ('pool_share_cagr', 'Pool-Share CAGR (5y trajectory)'),
     ('trap_score',      'Value-Trap Score (higher = worse expected)'),
+    # DCF Monte Carlo price position (engine #597). Higher = the price sits
+    # higher among the simulated fair values (pricier), so a working signal
+    # shows a NEGATIVE Q4-Q1 spread. Prices beyond the stored tails clamp to
+    # 0.01 / 0.99, so the end quartiles hold ties that rank arbitrarily.
+    ('mc_price_pctile', 'MC Price Percentile (higher = pricier)'),
+    # Growth the price implies minus the model's estimate, in growth sigmas.
+    # Higher = the market prices in more growth than the model expects.
+    ('implied_growth_z', 'Implied Growth Gap σ (higher = more priced in)'),
 ]
 
 # A snapshot needs at least this many stocks carrying the signal to form
@@ -1555,6 +1564,13 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None,
                 'mos': s.get('mos'),
                 'beneish_flag': s.get('beneish_flag'),
                 'altman_z_zone': s.get('altman_z_zone'),
+                # DCF Monte Carlo diagnostics (signals above + mc_band_coverage).
+                'mc_price_pctile': s.get('mc_price_pctile'),
+                'implied_growth_z': s.get('implied_growth_z'),
+                'mc_quantiles': s.get('mc_quantiles'),
+                'mc_drivers': s.get('mc_drivers'),
+                'mc_growth_sigma': s.get('mc_growth_sigma'),
+                'mc_growth_sigma_evidence': s.get('mc_growth_sigma_evidence'),
             }
 
     return {
@@ -2456,6 +2472,7 @@ def print_summary(all_metrics, perm=None, sector_ic=None):
     # --- Signal quartile spreads (does the signal predict excess return?) ---
     print_signal_tables(all_metrics,
                         'SIGNAL QUARTILE SPREADS  (forward alpha by signal quartile)')
+    print_mc_band_coverage(mc_band_coverage(all_metrics))
 
 
 def print_signal_tables(all_metrics, title,
@@ -2490,6 +2507,173 @@ def print_signal_tables(all_metrics, title,
             print(f"    Q4−Q1 spread: {sq['spread']:>+7.1%}"
                   f"   mean per-snapshot ρ: {sq['mean_rho']:+.3f}"
                   f"   ρ>0 in {sq['rho_pos_frac']:.0%} of snapshots")
+
+
+# ---------------------------------------------------------------------------
+# DCF Monte Carlo range check
+# ---------------------------------------------------------------------------
+
+# Index of each band edge in a row's mc_quantiles (QUANTILE_LEVELS).
+_MC_Q = {lvl: QUANTILE_LEVELS.index(lvl) for lvl in (0.05, 0.25, 0.5, 0.75, 0.95)}
+MC_BANDS = (('50', 0.25, 0.75), ('90', 0.05, 0.95))
+
+
+def _as_json(v):
+    """Snapshot-store rows can carry nested values as JSON text."""
+    if isinstance(v, str):
+        try:
+            return json.loads(v)
+        except ValueError:
+            return None
+    return v
+
+
+def _finite(x):
+    return (isinstance(x, (int, float)) and not isinstance(x, bool)
+            and math.isfinite(x))
+
+
+def evidence_width_factor(info):
+    """Approximate band-width multiplier had the evidence growth sigma been on.
+
+    The growth sigma moves only the growth input, so only growth's part of the
+    fair-value variance scales, by (evidence / current)**2. Growth's part is
+    its Sobol share (mc_drivers['growth'], total effects normalised to sum 1):
+    k = sqrt(1 - s + s * r**2). Interactions make this an approximation, good
+    enough to ask whether the wider band covers outcomes better. None when the
+    row lacks either sigma or the driver shares.
+    """
+    sig, ev = info.get('mc_growth_sigma'), info.get('mc_growth_sigma_evidence')
+    drv = _as_json(info.get('mc_drivers'))
+    share = drv.get('growth') if isinstance(drv, dict) else None
+    if not (_finite(sig) and _finite(ev) and _finite(share)) or sig <= 0:
+        return None
+    share = min(max(float(share), 0.0), 1.0)
+    return math.sqrt(max(0.0, 1.0 - share + share * (ev / sig) ** 2))
+
+
+def _widened(q, k):
+    """The quantile vector stretched about its median by k (floored at 0,
+    where the simulation clamps insolvent draws)."""
+    med = q[_MC_Q[0.5]]
+    return [max(0.0, med + k * (v - med)) for v in q]
+
+
+def mc_band_coverage(all_metrics):
+    """How the DCF Monte Carlo fair-value range lines up with later prices.
+
+    Per horizon, over every measured row carrying mc_quantiles:
+
+      start_in / end_in: share of start and end prices inside the middle 50%
+          and 90% of the simulated fair values. The band describes FAIR
+          value, not a price forecast, so end_in is only comparable to the
+          nominal 50% / 90% at long horizons (FV_ACCURACY_MIN_HORIZON and
+          up), where prices have had time to reach fair value. At short
+          horizons read the change from start_in to end_in.
+      toward_median: share of rows whose price percentile moved closer to
+          the median (a percentile pinned at a tail on both dates counts as
+          not moved); mean_pull is the mean drop in |percentile - 0.5|.
+      evidence: the same band shares with each row's band widened by
+          evidence_width_factor, i.e. as if MC_GROWTH_SIGMA_EVIDENCE were on
+          (rows recorded before that sigma existed are left out of it).
+
+    Consecutive daily snapshots overlap, so n_obs overstates the independent
+    sample (as for signal_quartile_accuracy).
+    """
+    acc = defaultdict(lambda: {'n': 0, 'snaps': set(), 'start': Counter(),
+                               'end': Counter(), 'toward': 0, 'pull': 0.0,
+                               'ev_n': 0, 'ev_start': Counter(),
+                               'ev_end': Counter(), 'ev_k': []})
+    for m in all_metrics:
+        stocks = m.get('_source_stocks', {})
+        for d in m['details']:
+            info = stocks.get(d['ticker'], {})
+            q = _as_json(info.get('mc_quantiles'))
+            p0, p1 = d.get('start_price'), d.get('end_price')
+            if (not isinstance(q, list) or len(q) != len(QUANTILE_LEVELS)
+                    or not all(_finite(v) for v in q)
+                    or not (_finite(p0) and _finite(p1)) or p0 <= 0 or p1 <= 0):
+                continue
+            a = acc[m['horizon']]
+            a['n'] += 1
+            a['snaps'].add(m['run_date'])
+            for name, lo, hi in MC_BANDS:
+                lo_v, hi_v = q[_MC_Q[lo]], q[_MC_Q[hi]]
+                a['start'][name] += lo_v <= p0 <= hi_v
+                a['end'][name] += lo_v <= p1 <= hi_v
+            r0, r1 = quantile_rank(q, p0), quantile_rank(q, p1)
+            dist0, dist1 = abs(r0 - 0.5), abs(r1 - 0.5)
+            a['toward'] += dist1 < dist0
+            a['pull'] += dist0 - dist1
+            k = evidence_width_factor(info)
+            if k is not None:
+                w = _widened(q, k)
+                a['ev_n'] += 1
+                a['ev_k'].append(k)
+                for name, lo, hi in MC_BANDS:
+                    lo_v, hi_v = w[_MC_Q[lo]], w[_MC_Q[hi]]
+                    a['ev_start'][name] += lo_v <= p0 <= hi_v
+                    a['ev_end'][name] += lo_v <= p1 <= hi_v
+
+    out = {}
+    for h in sorted(acc):
+        a = acc[h]
+        n, en = a['n'], a['ev_n']
+        out[h] = {
+            'n_obs': n,
+            'n_snapshots': len(a['snaps']),
+            'nominal': {name: hi - lo for name, lo, hi in MC_BANDS},
+            'comparable_to_nominal': h >= FV_ACCURACY_MIN_HORIZON,
+            'start_in': {b: a['start'][b] / n for b, _, _ in MC_BANDS},
+            'end_in': {b: a['end'][b] / n for b, _, _ in MC_BANDS},
+            'toward_median': a['toward'] / n,
+            'mean_pull': a['pull'] / n,
+            'evidence': ({
+                'n_obs': en,
+                'median_width_factor': float(np.median(a['ev_k'])),
+                'start_in': {b: a['ev_start'][b] / en for b, _, _ in MC_BANDS},
+                'end_in': {b: a['ev_end'][b] / en for b, _, _ in MC_BANDS},
+            } if en else None),
+        }
+    return out
+
+
+def print_mc_band_coverage(cov):
+    print(f"\n  {'-'*60}")
+    print("  DCF MONTE CARLO RANGE CHECK  (prices inside the fair-value bands)")
+    print(f"  {'-'*60}")
+    if not cov:
+        print("\n  Not enough data yet (no measured row carries mc_quantiles;"
+              " recorded from 2026-11-13)")
+        return
+    for h, c in cov.items():
+        note = '' if c['comparable_to_nominal'] else \
+            '  (short horizon: compare end with start, not with nominal)'
+        print(f"\n  +{h}d  ({c['n_snapshots']} snapshots, {c['n_obs']} obs — "
+              f"NOT independent){note}")
+        print(f"    {'Band':<16s} {'Nominal':>8s} {'Start in':>9s} {'End in':>8s}")
+        for b, _, _ in MC_BANDS:
+            print(f"    {'Middle ' + b + '%':<16s} {c['nominal'][b]:>8.0%}"
+                  f" {c['start_in'][b]:>9.0%} {c['end_in'][b]:>8.0%}")
+        ev = c['evidence']
+        if ev:
+            for b, _, _ in MC_BANDS:
+                print(f"    {'  evidence ' + b + '%':<16s} {'':>8s}"
+                      f" {ev['start_in'][b]:>9.0%} {ev['end_in'][b]:>8.0%}")
+            print(f"    evidence sigma: {ev['n_obs']} obs, median band "
+                  f"{ev['median_width_factor']:.2f}x wider (approximate)")
+        print(f"    Moved toward the median: {c['toward_median']:.0%}"
+              f"   mean pull {c['mean_pull']:+.3f}")
+
+
+def signal_summary(all_metrics):
+    """signal_quartile_accuracy per SIGNAL_SPECS entry, per horizon."""
+    out = {}
+    for h in sorted({m['horizon'] for m in all_metrics}):
+        hm = [m for m in all_metrics if m['horizon'] == h]
+        out[str(h)] = {key: signal_quartile_accuracy(hm, key)
+                       for key, _ in SIGNAL_SPECS}
+    return out
 
 
 # ===========================================================================
@@ -3619,6 +3803,8 @@ def build_measure_summary(all_metrics, horizons, since, stamp, readiness,
         'composite_ic_permutation': {str(h): v for h, v in
                                      (permutation or {}).items()},
         'sector_ic': {str(h): v for h, v in sector_ic.items()},
+        'signals': signal_summary(all_metrics),
+        'mc_band': {str(h): v for h, v in mc_band_coverage(all_metrics).items()},
         'regimes': model_regimes(all_metrics),
         'rescored_current': rescored,
     }
