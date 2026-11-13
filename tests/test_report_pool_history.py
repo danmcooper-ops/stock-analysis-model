@@ -632,10 +632,10 @@ def test_sector_primers_leave_the_forces_to_the_drivers_tab():
         assert edu['cycle'].count('. ') == 0, (sec, 'one-sentence cycle line')
 
 
-def test_brand_is_city2summit():
+def test_brand_is_citytosummit():
     src = TEMPLATE.read_text(encoding='utf-8')
-    assert '<span class="sb-brand">City2Summit</span>' in src and '<h1>City2Summit</h1>' in src
-    assert "+' — City2Summit';" in src and '<title>City2Summit</title>' in src
+    assert '<span class="sb-brand">CitytoSummit</span>' in src and '<h1>CitytoSummit</h1>' in src
+    assert "+' — CitytoSummit';" in src and '<title>CitytoSummit</title>' in src
     assert 'Securities Analysis' not in src and '&beta;' not in src
 
 
