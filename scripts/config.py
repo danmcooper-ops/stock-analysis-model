@@ -89,6 +89,22 @@ MC_GROWTH_SIGMA_RATIO = 0.30    # Growth sigma = 30% of point estimate ...
 # and jumped to a 2pp fallback at exactly 0%, so stagnant and declining
 # businesses read as the most predictable ones.
 MC_GROWTH_SIGMA_FLOOR = 0.02
+# Evidence-based growth sigma (models.montecarlo.evidence_growth_sigma): the
+# standard error of the blended growth signals' weighted mean, combined with
+# revenue-growth volatility over sqrt(MC_GROWTH_SIGMA_HISTORY_YEARS), floored
+# at MC_GROWTH_SIGMA_FLOOR and capped at MC_GROWTH_SIGMA_CAP. The ratio rule
+# makes mc_cv a restatement of growth (rank correlation 0.56 with |growth|
+# where it applies, -0.03 where the floor sets the sigma, 11-12 run); the
+# evidence sigma tracks revenue volatility instead and not growth.
+# OFF (2026-11-13): it is ~2.5x the ratio rule's sigma (median ~7.6pp vs 3pp),
+# which widens every P10-P90 band and, at _mc_confidence_label's 20%/40%
+# cut-offs, reads most stocks LOW (53 of 60 in a sample run). It is turned on
+# together with recalibrated label cut-offs. Every row records it anyway
+# (mc_growth_sigma_evidence, _basis, _parts) so that work needs no re-run.
+# Not in scoring_params_hash while off: it changes nothing.
+MC_GROWTH_SIGMA_EVIDENCE = False
+MC_GROWTH_SIGMA_CAP = 0.10
+MC_GROWTH_SIGMA_HISTORY_YEARS = 5
 MC_WACC_SIGMA = 0.01            # WACC sigma = 1 percentage point (floor; see below)
 # Per-ticker discount-rate sigma is the cost of equity's ESTIMATION error:
 # beta's posterior standard error x ERP, combined with the ERP's own
