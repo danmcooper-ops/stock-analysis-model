@@ -47,6 +47,15 @@ def test_report_data_carries_the_page():
     assert dict(zip(cols, d['rows'][1]))['_caps'] == 'stale mark (210d old)'
 
 
+def test_report_data_carries_each_classs_score_lines():
+    t = report_data(_rows(), META, TERM)['thresholds_by_class']
+    assert t['_base'] == {'buy': 57.0, 'lean': 39.0, 'pass': 25.0}
+    # Calibrated per class, so a Treasury's lines sit far above a corporate's.
+    assert t['TREASURY']['buy'] > t['CORP_IG']['buy'] > t['_base']['buy']
+    # A class with no calibration takes the base lines.
+    assert t['AGENCY'] == t['_base']
+
+
 def test_no_vintage_warning_while_marks_are_fresh():
     assert report_data(_rows(), dict(META, data_vintage_age_days=90), TERM)['vintage'] is None
 

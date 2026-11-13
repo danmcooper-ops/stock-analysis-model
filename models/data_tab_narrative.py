@@ -294,7 +294,8 @@ def _summ_market(row, stats):
     hot = (f', and interest is running hot at {vt:.1f}x its yearly average volume'
            if vt is not None and vt >= 1.5 else '')
     if adv is not None and adv < MIN_ADV_FOR_BUY:
-        floor = 'that held its rating below BUY' if _capped_by(row, 'liquidity') else 'flagged'
+        floor = ('that held its score below the top band' if _capped_by(row, 'liquidity')
+                 else 'flagged')
         out.append(f'Trading is thin (about {_money(adv)} a day), below the '
                    f'{_money(MIN_ADV_FOR_BUY)} liquidity floor {floor}; building a '
                    f'position would move the price.')
@@ -329,7 +330,7 @@ def _summ_valuation(row, stats):
             out.append(f'The stock trades only {_pct(mos)} below its {src} fair value{fv_txt}, '
                        f'a thin margin of safety.')
         else:
-            cap = (' That is deep enough to cap the rating at PASS.'
+            cap = (' That is deep enough to put its score in the bottom band.'
                    if mos <= MOS_PASS_CAP and _capped_by(row, 'margin of safety') else '')
             out.append(f'The price sits above its {src} fair value{fv_txt} (margin of safety '
                        f'{_pct(mos, signed=True)}), so there is no valuation cushion.{cap}')
@@ -607,8 +608,11 @@ def _summ_health(row, stats):
     if row.get('beneish_flag') is True:
         flags.append('a Beneish M-score that flags possible earnings manipulation')
     if flags:
-        cap = 'either one caps' if len(flags) > 1 else 'which caps'
-        warn.append(f'Warning signs: {_join(flags)}, {cap} the rating at HOLD.')
+        # Caps are flags since 2026-10-18; only a snapshot rated with them on
+        # had its band lowered (``_capped_by``).
+        held = _capped_by(row, 'Altman') or _capped_by(row, 'Beneish')
+        warn.append(f'Warning signs: {_join(flags)}'
+                    + (', which held its score below the 39 line.' if held else '.'))
     elif not fin and zone == 'safe' and z is not None and row.get('beneish_flag') is False:
         detail.insert(0, f'No distress or manipulation flags (Altman Z {z:.1f}, in the safe '
                          f'zone).')

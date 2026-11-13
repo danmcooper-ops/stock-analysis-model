@@ -722,7 +722,8 @@ def _load_portfolio_payload(rows, out_dir=None, run_date=None, prices_dir=None,
                                                      prev2_by_tk=pg.rows_by_ticker(prev2))
                 payload['changes'] = entries
                 payload['thresholds'] = {'score_drop': pg.SCORE_DROP_PTS, 'fv_jump': pg.FV_JUMP}
-                payload['systemic'] = dict(stats, message=pg.systemic_message(stats))
+                payload['systemic'] = dict(stats, message=pg.systemic_message(stats),
+                                             display=pg.systemic_display(stats))
                 payload['events'] = pg.membership_events(pfs, by_tk, prev_by_tk, day,
                                                          stopped, systemic=stats)
         except Exception as e:
@@ -815,9 +816,63 @@ def _summary_stats(rows):
     return avg_spread, qualifying_with_mos, buy_count, lean_buy_count
 
 
-def _row_context(r, gate_meta_obj, _r2000, _prev_ratings, _rating_hist):
+def _load_score_history(out_dir, run_date):
+    """The re-scored composite history (``scripts/score_history.py``) for the
+    render, or an empty series when its cache is missing.
+
+    ``stale`` is True when the cache was built by another scoring model than
+    the one this checkout scores with; ``score_prev`` then falls back to the
+    prior snapshot's stored composite (``_score_fields``).
+    """
+    from scripts import score_history as sh
+    empty = {'dates': [], 'hist': {}, 'prev_date': None, 'prev': {}, 'stale': True}
+    if run_date is None:
+        return empty
+    try:
+        from scripts.param_set import scoring_params_hash
+        cache = sh.load_cache(os.path.join(out_dir, sh.CACHE_NAME))
+        if not cache.get('scores'):
+            return empty
+        return sh.series(cache, run_date, scoring_params_hash())
+    except Exception as e:
+        logger.warning("score history unavailable (%s)", e)
+        return empty
+
+
+def _score_fields(r, prev_drivers, score_series):
+    """``score_prev`` / ``score_chg`` / ``score_prev_basis`` / ``score_hist``
+    for one row.
+
+    The prior score comes from the re-scored history (same model as tonight,
+    so a model change never reads as a move) unless that history is stale
+    or lacks the ticker; then from the prior snapshot's stored composite,
+    marked ``score_prev_basis: 'stored'`` so the page can say a move may be
+    the model's. ``score_hist`` is aligned to ``SCORE_HIST.dates``.
+    """
+    tk = r.get('ticker')
+    cur = r.get('_composite_score')
+    ss = score_series or {}
+    prev, basis = None, None
+    if not ss.get('stale') and tk in (ss.get('prev') or {}):
+        prev, basis = ss['prev'][tk], 'rescored'
+    else:
+        _p = (prev_drivers or {}).get('_composite_score')
+        if isinstance(_p, (int, float)) and _p == _p:
+            prev, basis = round(float(_p), 1), 'stored'
+    chg = None
+    if prev is not None and isinstance(cur, (int, float)) and cur == cur:
+        chg = round(float(cur) - prev, 1)
+    hist = None if ss.get('stale') else (ss.get('hist') or {}).get(tk)
+    return {'score_prev': prev, 'score_chg': chg,
+            'score_prev_basis': basis if prev is not None else None,
+            'score_hist': hist}
+
+
+def _row_context(r, gate_meta_obj, _r2000, _prev_ratings, _rating_hist,
+                 _score_series=None):
     """Per-row payload dict consumed by the template's inline DATA blob."""
     return {
+        **_score_fields(r, _prev_ratings.get(r.get('ticker')), _score_series),
         'ticker': r['ticker'],
         'roic': r.get('roic'), 'wacc': r.get('wacc'), 'spread': r.get('spread'),
         'dcf_fv': r.get('dcf_fv'), 'price': r.get('price'), 'mos': r.get('mos'),
@@ -1938,6 +1993,10 @@ _APP_LIST_FIELDS = (
     '_fv_effective', '_fv_source', 'mos', '_composite_score',
     '_score_valuation', '_score_quality', '_score_moat', '_score_growth',
     '_score_ownership', 'trap_score', 'price_data_stale',
+    # The prior run's composite (re-scored with tonight's model where the
+    # history allows) and the change, for "crossed above 57" and the
+    # Score moves screen; the app shows the score, never the rating.
+    'score_prev', 'score_chg', 'score_prev_basis',
 )
 
 
@@ -1952,7 +2011,7 @@ def _app_risk_free_rate(rows):
     return None
 
 
-def _build_app_list(chart_records, run_date, risk_free_rate):
+def _build_app_list(chart_records, run_date, risk_free_rate, score_hist_dates=None):
     """Build the slim list feed's payload.
 
     A field the row does not carry is left out rather than nulled: every
@@ -1978,6 +2037,8 @@ def _build_app_list(chart_records, run_date, risk_free_rate):
         'schema_version': _APP_SCHEMA_VERSION,
         'date': run_date,
         'risk_free_rate': risk_free_rate,
+        # Dates the detail shards' score_hist arrays are aligned to.
+        'score_hist_dates': list(score_hist_dates or []),
         'count': len(_rows),
         'results': _rows,
     }
@@ -2468,7 +2529,8 @@ def _build_app_portfolios(payload, index, run_date, chart_records=None, details_
 
 
 def _write_app_feed(app_dir, chart_records, details_payload, rows, run_date,
-                    sector_pool=None, portfolios=None, pf_index=None, etfs=None):
+                    sector_pool=None, portfolios=None, pf_index=None, etfs=None,
+                    score_hist_dates=None):
     """Write ``app/latest.json``, ``app/detail/<TICKER>.json``,
     ``app/sectors.json``, ``app/screener.json``, ``app/portfolios.json`` and
     ``app/manifest.json``;
@@ -2508,7 +2570,8 @@ def _write_app_feed(app_dir, chart_records, details_payload, rows, run_date,
 
         _write_app_json(_latest_path,
                         _build_app_list(chart_records, _date,
-                                        _app_risk_free_rate(rows)))
+                                        _app_risk_free_rate(rows),
+                                        score_hist_dates))
         # The one file the app fetches before it trusts the night.
         _files = {'app/latest.json': _sha256_file(_latest_path)}
 
@@ -2904,11 +2967,19 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         print("[report_html] rate-change baseline: none found (no rating changes shown)")
     # Long-horizon rating change-points for the popup's "BUY since ..." line.
     _rating_hist = _load_rating_history(_out_dir_early, run_date)
+    # Re-scored composite history: the score trend and the prior-run score.
+    _score_series = _load_score_history(_out_dir_early, run_date)
+    if _score_series.get('dates'):
+        print(f"[report_html] score history: {len(_score_series['dates'])} weekly "
+              f"points, prior {_score_series.get('prev_date')}"
+              + (" (stale: other model)" if _score_series.get('stale') else ""))
+    else:
+        print("[report_html] score history: none (prior scores from the stored snapshot)")
     avg_spread, qualifying_with_mos, buy_count, lean_buy_count = \
         _summary_stats(rows)
 
     chart_records = [_row_context(r, gate_meta_obj, _r2000, _prev_ratings,
-                                  _rating_hist) for r in rows]
+                                  _rating_hist, _score_series) for r in rows]
     portfolios_payload, _pf_index = _load_portfolio_payload(rows, _out_dir_early, run_date,
                                                             prices_dir, _rating_hist)
     for _rec in chart_records:
@@ -2997,7 +3068,9 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     # manifest is what tells the app the night is complete.
     _write_app_feed(app_dir, chart_records, details_payload, rows, run_date,
                     sector_pool=sector_pool_data, portfolios=portfolios_payload,
-                    pf_index=_pf_index, etfs=etf_payload)
+                    pf_index=_pf_index, etfs=etf_payload,
+                    score_hist_dates=([] if _score_series.get('stale')
+                                      else _score_series.get('dates')))
 
     # Render Jinja2 template
     template_dir = os.path.join(os.path.dirname(__file__), '..', 'templates')
@@ -3013,6 +3086,10 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         lean_buy_count=lean_buy_count,
         chart_data=chart_data,
         gate_meta=gate_meta,
+        score_hist_meta=dumps_for_script({
+            'dates': [] if _score_series.get('stale') else _score_series.get('dates', []),
+            'prev_date': _score_series.get('prev_date'),
+            'stale': bool(_score_series.get('stale'))}),
         portfolios_json=dumps_for_script(portfolios_payload, default=_json_default),
         sector_pool_json=sector_pool_json,
         etf_json=dumps_for_script(_sanitize(etf_payload), default=_json_default),

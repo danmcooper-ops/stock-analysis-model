@@ -47,7 +47,9 @@ def test_clean_buy_with_margin_of_safety_is_invest():
     assert v['flags'] == [] and v['need'] == []
     assert v['conv'] >= 80
     assert v['head'].startswith('Invest: ')
-    assert 'Model rating BUY (composite 64, gates 9/12)' in v['pros']
+    # The score and the line it clears, never the rating's name.
+    assert 'Composite 64, above the 57 line (gates 9/12)' in v['pros']
+    assert not any('BUY' in t for t in v['pros'])
     assert v['buy_below'] == round(130.0 * (1 - MIN_MOS), 2)
     assert v['med'] == {'pe': 28.0}
 
@@ -56,14 +58,17 @@ def test_good_business_without_margin_of_safety_is_watch_with_a_buy_price():
     v = profile_verdict(_good(price=125.0, mos=0.04))
     assert v['v'] == WATCH
     assert 'only 4% below fair value' in v['need']
-    assert v['head'] == ('Watch: BUY-rated, but only 4% below fair value; '
+    assert v['head'] == ('Watch: composite 64, above the 57 line, but only 4% below fair value; '
                          'it becomes a buy below $110.')
 
 
 def test_hold_rating_is_watch_and_names_the_rating():
     v = profile_verdict(_good(rating='HOLD'))
     assert v['v'] == WATCH
-    assert v['need'][0] == 'the model rates it HOLD'
+    # Composite 64 with a HOLD rating can only be an older, capped snapshot.
+    assert v['need'][0] == 'a flag holds it below the 39 line'
+    low = profile_verdict(_good(rating='HOLD', _composite_score=31.0))
+    assert low['need'][0] == 'its composite (31) is below 39'
 
 
 def test_low_confidence_fair_value_blocks_invest():
@@ -97,7 +102,8 @@ def test_each_red_flag_forces_avoid():
 
 def test_avoid_headline_prefers_the_specific_flag_over_the_label():
     v = profile_verdict(_good(rating='PASS', mos=-0.636, price=338.56, _fv_effective=206.91))
-    assert v['flags'] == ['Priced 64% above its fair value of $207', 'The model rates it PASS']
+    assert v['flags'] == ['Priced 64% above its fair value of $207',
+                          'A flag puts its score in the bottom band']
     assert v['head'] == 'Avoid: priced 64% above its fair value of $207.'
 
 
@@ -150,8 +156,8 @@ def test_missing_inputs_are_na_not_failures():
 def test_rating_cap_reasons_already_covered_are_not_repeated():
     v = profile_verdict(_good(rating='HOLD', rating_raw='BUY', _rating_cap_reasons=[
         'non-positive margin of safety', 'Altman Z distress zone', 'thin EDGAR history (3y)']))
-    caps = [t for t in v['cons'] if t.startswith('Rating capped')]
-    assert caps == ['Rating capped: thin EDGAR history (3y)']
+    caps = [t for t in v['cons'] if t.startswith('Flag (lowers its band)')]
+    assert caps == ['Flag (lowers its band): thin EDGAR history (3y)']
 
 
 def test_uncapped_rating_names_cap_reasons_as_flags():
@@ -160,7 +166,7 @@ def test_uncapped_rating_names_cap_reasons_as_flags():
     v = profile_verdict(_good(rating='BUY', rating_raw='BUY',
                               _rating_cap_reasons=['thin EDGAR history (3y)']))
     assert 'Flag: thin EDGAR history (3y)' in v['cons']
-    assert not any(t.startswith('Rating capped') for t in v['cons'])
+    assert not any(t.startswith('Flag (lowers') for t in v['cons'])
 
 
 def test_acronyms_keep_their_case_mid_sentence():
@@ -301,7 +307,7 @@ def test_low_confidence_value_inside_its_range_is_watch_not_avoid():
                          'is low-confidence and the price is inside its $131–$507 range.')
     # Still a con and still in the way of an INVEST.
     assert 'no margin of safety' in v['need']
-    assert 'the model rates it PASS' in v['need']
+    assert 'a flag holds it below the 39 line' in v['need']
 
 
 def test_price_above_the_bull_case_keeps_the_veto():
@@ -322,6 +328,6 @@ def test_a_pass_with_another_cap_reason_still_vetoes():
     v = profile_verdict(_googl(_rating_cap_reasons=['margin of safety <= -20%',
                                                     'Altman Z distress zone']))
     assert v['v'] == AVOID
-    assert v['flags'] == ['The model rates it PASS']
+    assert v['flags'] == ['A flag puts its score in the bottom band']
     # And a PASS the model gave on its own merits.
     assert profile_verdict(_googl(rating_raw='PASS'))['v'] == AVOID

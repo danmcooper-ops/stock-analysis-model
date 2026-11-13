@@ -662,6 +662,78 @@ def universe_stats(by_tk, prev_by_tk):
             'flood': flood, 'cause': cause}
 
 
+# ---- Score wording ---------------------------------------------------------
+# The report and the iOS app show the composite score, not the rating, so
+# every alert also carries ``display``: the same event in score terms
+# ("crossed above 39 (36.2 → 41.0)"). ``message`` is unchanged, because the
+# nightly email (scripts/email_summary.py) and the digest
+# (scripts/portfolio_digest.py) print it verbatim.
+
+def rating_lines(params=None):
+    """``{rating: minimum composite}`` from the scoring thresholds (PASS 0)."""
+    from scripts.param_set import default_params
+    p = params or default_params()
+    return {'BUY': float(p['rating_threshold_buy']),
+            'LEAN BUY': float(p['rating_threshold_lean']),
+            'HOLD': float(p['rating_threshold_pass']), 'PASS': 0.0}
+
+
+def _g(x):
+    return f"{x:g}"
+
+
+def score_move_phrase(a, b, s0=None, s1=None, lines=None):
+    """A rating move *a* → *b* as the score line it crossed: "crossed above
+    39" when the rating rose (the new band's floor), "fell below 57" when it
+    fell (the old band's floor), plus "(36.2 → 41.0)" when both scores are
+    known."""
+    lines = lines or rating_lines()
+    up = RATINGS.index(b) < RATINGS.index(a)
+    phrase = (f"crossed above {_g(lines[b])}" if up
+              else f"fell below {_g(lines[a])}")
+    if s0 is not None and s1 is not None:
+        phrase += f" ({s0:.1f} → {s1:.1f})"
+    return phrase
+
+
+def ratings_as_score_range(allowed, lines=None):
+    """A rule's ``ratings`` set as a score range ("score ≥ 39",
+    "score 25–38.9", "score < 39"), or None when the set is not contiguous
+    (e.g. BUY and PASS) or empty."""
+    lines = lines or rating_lines()
+    idx = sorted(RATINGS.index(r) for r in (allowed or ()) if r in RATINGS)
+    if not idx or idx != list(range(idx[0], idx[-1] + 1)):
+        return None
+    top, bottom = RATINGS[idx[0]], RATINGS[idx[-1]]
+    lo = lines[bottom]
+    hi = None if top == 'BUY' else lines[RATINGS[RATINGS.index(top) - 1]]
+    if lo <= 0 and hi is None:
+        return 'any score'
+    if lo <= 0:
+        return f"score < {_g(hi)}"
+    if hi is None:
+        return f"score ≥ {_g(lo)}"
+    return f"score {_g(lo)}–{_g(hi)}"
+
+
+def systemic_display(st):
+    """``systemic_message`` in score terms (see ``score_move_phrase``)."""
+    if not st or not st.get('flood'):
+        return None
+    if st['cause'] == 'data':
+        if st.get('shrink_share', 0) >= SHRINK_SHARE:
+            return (f"Data problem: today's universe has {st['n']:,} rows against "
+                    f"{st['prev_n']:,} on the prior run ({st['shrink_share']:.0%} missing), "
+                    f"and {st['changed_share']:.0%} of the rest crossed a score line. Moves "
+                    "and departures on affected rows are shown as data gaps, not signals.")
+        return (f"Data problem: {st['missing_data']:,} of {st['n']:,} rows are missing a price "
+                f"or identity, and {st['changed_share']:.0%} of the universe crossed a score "
+                "line. Moves on affected rows are shown as data gaps, not signals.")
+    return (f"Model-wide shift: {st['changed_share']:.0%} of the universe "
+            f"({st['changed']:,} stocks) crossed a score line in one run — usually a "
+            "scoring change rather than news about individual stocks.")
+
+
 def systemic_message(st):
     if not st or not st.get('flood'):
         return None
@@ -747,6 +819,7 @@ def classify_changes(by_tk, prev_by_tk, run_date=None, history=None, explain=Non
     """
     day = _day(run_date)
     stats = universe_stats(by_tk, prev_by_tk)
+    lines = rating_lines()
     out = []
     for t in sorted(by_tk):
         r, p = by_tk[t], prev_by_tk.get(t)
@@ -754,28 +827,36 @@ def classify_changes(by_tk, prev_by_tk, run_date=None, history=None, explain=Non
             continue
         a, b = p.get('rating'), r.get('rating')
         moved = a in RATINGS and b in RATINGS and a != b
+        sc0, sc1 = js_num(p.get('_composite_score')), js_num(r.get('_composite_score'))
         if data_missing(r) or data_missing(p):
             if moved:
                 which = 'today' if data_missing(r) else 'the prior run'
                 out.append({'ticker': t, 'kind': 'data_gap', 'level': 'fyi', 'from': a, 'to': b,
+                            'score_from': sc0, 'score_to': sc1,
                             'message': f"{t} {a} → {b}, but {which}'s row is missing its price or "
-                                       "identity (likely a data outage), so this is not a signal"})
+                                       "identity (likely a data outage), so this is not a signal",
+                            'display': f"{t} {score_move_phrase(a, b, sc0, sc1, lines)}, but "
+                                       f"{which}'s row is missing its price or identity (likely "
+                                       "a data outage), so this is not a signal"})
             continue
         if moved:
             into, was = b in BUY_SIDE, a in BUY_SIDE
-            e = {'ticker': t, 'from': a, 'to': b}
+            e = {'ticker': t, 'from': a, 'to': b, 'score_from': sc0, 'score_to': sc1}
+            shown = f"{t} {score_move_phrase(a, b, sc0, sc1, lines)}"
             if into != was:
                 rev = _recent_reversal((history or {}).get(t), into, day)
                 verb = f"moved into the buy zone: {a} → {b}" if into else \
                     f"fell out of the buy zone: {a} → {b}"
                 if rev:
                     e.update(kind='reversal', level='watch', reversal_of=rev,
-                             message=f"{t} {verb} (reverses the {rev} move)")
+                             message=f"{t} {verb} (reverses the {rev} move)",
+                             display=f"{shown} (reverses the {rev} move)")
                 else:
                     e.update(kind='entered_buy' if into else 'exited_buy', level='action',
-                             message=f"{t} {verb}")
+                             message=f"{t} {verb}", display=shown)
             else:
-                e.update(kind='same_side', level='fyi', message=f"{t} {a} → {b}")
+                e.update(kind='same_side', level='fyi', message=f"{t} {a} → {b}",
+                         display=shown)
             if stats['flood']:
                 e['flood'] = True
             if explain:
@@ -849,10 +930,12 @@ def _fmt_val(v):
     return f"{n:.3g}" if abs(n) < 1000 else f"{n:,.0f}"
 
 
-def explain_rule_change(rule, prev_row, row):
+def explain_rule_change(rule, prev_row, row, score_terms=False):
     """Why *rule* judges the two rows differently: one phrase per clause
     whose verdict flipped, e.g. ``rating BUY → LEAN BUY`` or
-    ``mos 0.289 → 0.311 (rule: ≥ 0.3)``."""
+    ``mos 0.289 → 0.311 (rule: ≥ 0.3)``. With *score_terms* the ratings
+    clause reads as the score instead: ``score 58.2 → 55.1 (rule: score ≥
+    57)``."""
     if not rule:
         return []
     out = []
@@ -863,7 +946,13 @@ def explain_rule_change(rule, prev_row, row):
             continue
         a, b = prev_row.get(field), row.get(field)
         if (a in allowed) != (b in allowed):
-            out.append(f"{field} {a or 'N/A'} → {b or 'N/A'}")
+            if score_terms and key == 'ratings':
+                rng = ratings_as_score_range(allowed)
+                out.append(f"score {_fmt_val(prev_row.get('_composite_score'))} → "
+                           f"{_fmt_val(row.get('_composite_score'))}"
+                           + (f" (rule: {rng})" if rng else ''))
+            else:
+                out.append(f"{field} {a or 'N/A'} → {b or 'N/A'}")
     for c in rule.get('cf') or ():
         one = {'ratings': None, 'sectors': None, 'countries': None, 'cf': [c]}
         if rule_matches(one, prev_row) == rule_matches(one, row):
@@ -911,13 +1000,21 @@ def membership_events(portfolios, by_tk, prev_by_tk, run_date=None, stopped=None
             else:
                 why = '; '.join(explain_rule_change(p.get('rule'), prev_by_tk[t], by_tk[t])) \
                     or 'now matches the rule'
+            shown = why if t not in prev_by_tk else (
+                '; '.join(explain_rule_change(p.get('rule'), prev_by_tk[t], by_tk[t],
+                                              score_terms=True)) or 'now matches the rule')
             gap = data_missing(by_tk[t]) or (t in prev_by_tk and data_missing(prev_by_tk[t]))
             out.append({'ticker': t, 'portfolio': p['id'], 'kind': 'joined',
                         'level': 'fyi' if gap else 'watch',
-                        'message': f"{t} joined {p['name']} ({why})"})
+                        'message': f"{t} joined {p['name']} ({why})",
+                        'display': f"{t} joined {p['name']} ({shown})"})
         for t in sorted(before - now):
+            shown = None
             if t in by_tk:
                 why = '; '.join(explain_rule_change(p.get('rule'), prev_by_tk[t], by_tk[t])) \
+                    or 'no longer matches the rule'
+                shown = '; '.join(explain_rule_change(p.get('rule'), prev_by_tk[t], by_tk[t],
+                                                      score_terms=True)) \
                     or 'no longer matches the rule'
                 kind = 'left'
                 gap = data_missing(by_tk[t]) or data_missing(prev_by_tk[t])
@@ -932,7 +1029,8 @@ def membership_events(portfolios, by_tk, prev_by_tk, run_date=None, stopped=None
                     why += ' (data outage: most of the universe is missing today)'
             out.append({'ticker': t, 'portfolio': p['id'], 'kind': kind,
                         'level': 'fyi' if gap else 'watch',
-                        'message': f"{t} left {p['name']} ({why})"})
+                        'message': f"{t} left {p['name']} ({why})",
+                        'display': f"{t} left {p['name']} ({shown or why})"})
     return out
 
 

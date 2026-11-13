@@ -1606,6 +1606,45 @@ ruff check .
   key `rating_caps_enabled` turns them back on (the backtest can measure both
   models); it is part of `scoring_params_hash`, so the change splits the
   backtest's regimes.
+- **Score, not rating, on every display (2026-11-12):** the report and the
+  iOS app show the composite score, never BUY / LEAN BUY / HOLD / PASS (nor
+  the bond and currency equivalents). The rating is still computed, stored,
+  published in every feed and backtested exactly as before; only what is
+  shown changes. Pieces:
+  - **`scripts/score_history.py`** (nightly step `score_history`, soft,
+    before `render`): each stock's composite over the last 26 weeks,
+    **re-scored with today's model** — stored scores from different dates
+    are not on one scale (the model changed on 07-04, 09-28, 10-08, 10-19,
+    10-20 and 10-23). It re-applies `compute_continuous_scores` to one
+    snapshot per ISO week plus the 7 newest, exactly as the backtest's
+    `rescored_current` does, reading the results dir, its store, then the
+    `data/snapshots` worktree (`--archive-dir`); never before 2026-07-04,
+    when today's gate list began. Cache `output/score_history.json`, keyed
+    by `scoring_params_hash`: an unchanged model re-scores only the new
+    night, a new one rebuilds (~10 s for 24 dates). The render
+    (`_load_score_history`, `_score_fields`) adds `score_prev` (the prior
+    run re-scored, so a model change is never a move), `score_chg`,
+    `score_prev_basis` (`stored` when the cache is from another model and
+    the stored prior composite is used instead) and `score_hist` (whole
+    numbers aligned to `SCORE_HIST.dates`, inlined; `score_hist_dates` in
+    `app/latest.json`).
+  - **Alerts** (`models/portfolio_groups.py`) keep `message` byte for byte —
+    the email and the digest print it — and add `display`, the same event as
+    the score line crossed ("crossed above 39 (36.2 → 41.0)",
+    `score_move_phrase`), plus `score_from`/`score_to`; joins and leaves name
+    a ratings clause as a score range (`ratings_as_score_range`), and the
+    systemic banner has `systemic_display`. The report and the app show
+    `display` when present.
+  - **Verdict and Data-tab text** (`profile_verdict`, `data_tab_narrative`)
+    name the score and its line ("Composite 64, above the 57 line"); the
+    INVEST / WATCH / AVOID logic still reads the rating, the score's band.
+  - **Bonds:** `bonds.json` carries `thresholds_by_class`
+    (`bonds/scripts/report_html.thresholds_by_class`), because a bond's
+    bands sit on its class's calibrated lines (Treasury 70.4 / 63.6 / 55.5,
+    Corp IG 64.9 / 44 / 30). Bonds and currencies still cap ratings, so a
+    capped row (`rating` below its score's band: 405 of 9,056 bonds on
+    2026-11-11) shows its score with a ⚠ and its reasons.
+  Tests: `tests/test_score_history.py`, `tests/test_alert_score_wording.py`.
 - **Gates that cannot apply score 0 (`NA_GATES_SCORE_ZERO`, 2026-10-20):** a
   gate whose `applicable` predicate fails (a bank's ROIC, FCF, EV, margin and
   leverage gates; P/TBV on negative tangible book; < 4 insider trades; short

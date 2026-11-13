@@ -100,7 +100,7 @@ def test_mos_wording_flips_at_thresholds():
     # Caps off by default: a deep negative MoS no longer claims a PASS cap,
     # but an older snapshot whose rating the cap did lower still says so.
     assert 'no valuation cushion' in deep and 'PASS' not in deep
-    assert 'cap the rating at PASS' in capped
+    assert 'put its score in the bottom band' in capped
 
 
 def test_fair_value_is_a_per_share_price():
@@ -134,8 +134,15 @@ def test_distress_flags_name_the_cap():
     one = _text(generate_data_tab_summaries(_row(altman_z=1.1, altman_z_zone='distress')), 'hlth')
     both = _text(generate_data_tab_summaries(_row(altman_z=1.1, altman_z_zone='distress',
                                                   beneish_flag=True)), 'hlth')
-    assert 'which caps the rating at HOLD' in one
-    assert 'either one caps the rating at HOLD' in both
+    # Caps are flags since 2026-10-18: the warning names the sign, not a cap.
+    assert 'Warning signs: an Altman Z of 1.10 in the distress zone.' in one
+    assert 'cap' not in one and 'rating' not in one
+    assert 'a Beneish M-score that flags possible earnings manipulation' in both
+    # An older snapshot whose band the cap did lower still says so.
+    capped = _text(generate_data_tab_summaries(_row(
+        altman_z=1.1, altman_z_zone='distress', rating='HOLD', rating_raw='BUY',
+        _rating_cap_reasons=['Altman Z distress zone'])), 'hlth')
+    assert 'which held its score below the 39 line' in capped
 
 
 def test_financials_skip_industrial_health_metrics():
@@ -186,7 +193,7 @@ def test_thin_liquidity_mentions_the_floor():
     capped = _text(generate_data_tab_summaries(_row(
         avg_dollar_volume_3m=400_000, rating='HOLD', rating_raw='BUY',
         _rating_cap_reasons=['insufficient liquidity ($0.40M avg daily volume)'])), 'mkt')
-    assert 'held its rating below BUY' in capped
+    assert 'held its score below the top band' in capped
 
 
 def test_market_reversal_and_drawdowns():
@@ -239,7 +246,7 @@ def test_health_warnings_survive_the_sentence_cap():
     hlth = generate_data_tab_summaries(row)['hlth']
     assert len(hlth) == MAX_SENTENCES
     txt = ' '.join(hlth)
-    assert 'caps the rating at HOLD' in txt and 'value-trap profile is high' in txt
+    assert 'Warning signs: an Altman Z' in txt and 'value-trap profile is high' in txt
     assert '2 reported figures differ' in txt
 
 

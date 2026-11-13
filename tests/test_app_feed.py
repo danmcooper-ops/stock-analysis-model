@@ -58,6 +58,20 @@ def test_list_feed_carries_only_its_fields_sorted_by_ticker():
     assert feed['results'][0]['mos'] == 0.44
 
 
+def test_list_feed_carries_the_prior_score_and_the_history_dates():
+    recs = _records()
+    recs[1].update(score_prev=85.5, score_chg=2.5, score_prev_basis='rescored',
+                   score_hist=[80, 85])
+    feed = _build_app_list(recs, '2026-11-05', 0.0484, ['2026-10-24', '2026-10-31'])
+    assert feed['score_hist_dates'] == ['2026-10-24', '2026-10-31']
+    aaa = feed['results'][0]
+    assert (aaa['score_prev'], aaa['score_chg'], aaa['score_prev_basis']) == \
+        (85.5, 2.5, 'rescored')
+    # The history is per company, so it rides the detail shard, not the list.
+    assert 'score_hist' not in aaa
+    assert _build_app_list(_records(), '2026-11-05', None)['score_hist_dates'] == []
+
+
 def test_list_feed_skips_rows_with_no_ticker():
     assert _build_app_list([{'price': 1.0}, {'ticker': ''}], '2026-11-05', None)['count'] == 0
 
