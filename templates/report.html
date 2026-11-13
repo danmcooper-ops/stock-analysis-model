@@ -1048,7 +1048,12 @@ td.ct{font-weight:700;}
 .dtcf-today{stroke:#8a96a8;stroke-width:1;stroke-opacity:0.7;}
 .dtcf-legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--chrome-muted,#6a7a90);}
 .dtcf-li{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
-.dtcf-notes{margin-top:16px;display:flex;flex-direction:column;gap:12px;max-width:640px;}
+.dtcf-notes{margin-top:16px;display:flex;flex-direction:column;gap:12px;}
+.dtcf-col{display:flex;flex-direction:column;gap:12px;min-width:0;}
+.dtcf-col:empty{display:none;}
+@media(min-width:900px){
+  .dtcf-notes{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px 32px;align-items:start;}
+}
 .dtcf-notes p{margin:0;}
 .dtcf-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
 .dtcf-tile{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:10px;background:color-mix(in srgb,#8a96a8 12%,transparent);}
@@ -10697,7 +10702,9 @@ function _dtcFutureNotes(f){
   if(f.vol!=null)rows.push(['Volatility',pc(f.vol,false)+' a year']);
   if(f.confidence)rows.unshift(['Model confidence',f.confidence+(f.confidenceScore!=null?' ('+f.confidenceScore+'%)':'')]);
   function callout(cls,title,text){return '<div class="dtcf-call '+cls+'"><b>'+title+'</b><span>'+text+'</span></div>';}
-  var h='<div class="dtcf-notes">';
+  /* Two columns on a wide screen (the notes and tiles, then the facts),
+     one on a phone. */
+  var h='<div class="dtcf-notes"><div class="dtcf-col">';
   if(f.earningsSoon){
     var dd=f.daysToEarnings;
     h+=callout('dtcf-call-earn','Earnings '+(dd===0?'today':dd===1?'tomorrow':'in '+dd+' days')+' ('
@@ -10718,9 +10725,10 @@ function _dtcFutureNotes(f){
       :(f.fv!=null&&f.price>=f.fv)?'The price is above the model’s fair value.':'';
     if(v)h+='<p class="dtcf-sub">'+v+'</p>';
   }
+  h+='</div><div class="dtcf-col">';
   if(rows.length)h+='<dl class="dtcf-tbl">'+rows.map(function(r){return '<dt>'+r[0]+'</dt><dd>'+esc(r[1])+'</dd>';}).join('')+'</dl>';
   h+='<p class="dtcf-cap">'+(f.vol!=null?'Value range: the model’s P10–P90. Likely range: 1σ and 2σ swings at past-year volatility, with no drift — noise, not a forecast.'
-    :'Value range: the model’s P10–P90. Too little price history for a likely range.')+'</p></div>';
+    :'Value range: the model’s P10–P90. Too little price history for a likely range.')+'</p></div></div>';
   return h;
 }
 
