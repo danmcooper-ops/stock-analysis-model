@@ -1733,8 +1733,16 @@ ruff check .
   (`MC_GROWTH_SIGMA_EVIDENCE`): it is ~2.5x the ratio rule (median ~7.6pp vs
   3pp) and at the 20%/40% label cut-offs reads most stocks LOW. Turn it on
   only with recalibrated cut-offs; `MC_GROWTH_SIGMA_CAP` /
-  `_HISTORY_YEARS` join `scoring_params_hash` then. Nothing displays the
-  new fields yet.
+  `_HISTORY_YEARS` join `scoring_params_hash` then. The ticker page's DCF
+  Monte Carlo panel shows them (engine #598, app #84). `backtest.py
+  measure` ranks `mc_price_pctile` and `implied_growth_z` as signals
+  (summary `signals`, per horizon) and checks the range (`mc_band_coverage`,
+  summary `mc_band`): the share of start and end prices inside the middle
+  50% / 90%, comparable to nominal only at 365d+ since the band is fair
+  value, not a price forecast; the share whose percentile moved toward the
+  median; and the same with each band widened as the evidence sigma would
+  (`evidence_width_factor`, sqrt(1 − s + s·r²) with s growth's Sobol share,
+  approximate). Recorded from 2026-11-13, so first 30d readings mid-December.
 - **Scripts layer (`scripts/`):** `analyze_stock._main()` orchestrates
   13 `_run_*` phase functions (screen → analyze → score → narrate →
   write outputs). A run is resumable: `scripts/run_checkpoint.py`
