@@ -1717,6 +1717,24 @@ ruff check .
   and model-dispersion alternatives did worse (−0.7 to −4.3pp). About six
   independent periods, so no rule is shown better; it is left as is. A band
   ships only beside a point DCF value (`run_forward_dcf` gates on `fv`).
+  **Diagnostics (2026-11-13):** each DCF row also carries `mc_quantiles` (the
+  fair value at 21 levels, 1%..99%, `models.montecarlo.QUANTILE_LEVELS`,
+  rescaled with the band by `_rescale_fv_band`), `mc_price_pctile` and
+  `mc_prob_above_price` (where the price sits among them, set after every
+  blend by `_set_mc_price_position`; 0.01/0.99 = at or beyond the outermost
+  quantile), `implied_growth_z` (`implied_vs_estimated` over the growth sigma
+  used) and `mc_drivers` / `mc_driver_top` (each input's share of the spread:
+  total-effect Sobol indices from `monte_carlo_dcf(attribution=True)`, on
+  their own Sobol sequence so the published draws are unchanged; the
+  discount rate's share includes terminal growth's correlated part). The
+  evidence-based growth sigma (`evidence_growth_sigma`: the blended growth
+  signals' standard error with revenue-growth volatility / sqrt(5)) is
+  recorded as `mc_growth_sigma_evidence` / `_basis` / `_parts` but is OFF
+  (`MC_GROWTH_SIGMA_EVIDENCE`): it is ~2.5x the ratio rule (median ~7.6pp vs
+  3pp) and at the 20%/40% label cut-offs reads most stocks LOW. Turn it on
+  only with recalibrated cut-offs; `MC_GROWTH_SIGMA_CAP` /
+  `_HISTORY_YEARS` join `scoring_params_hash` then. Nothing displays the
+  new fields yet.
 - **Scripts layer (`scripts/`):** `analyze_stock._main()` orchestrates
   13 `_run_*` phase functions (screen → analyze → score → narrate →
   write outputs). A run is resumable: `scripts/run_checkpoint.py`

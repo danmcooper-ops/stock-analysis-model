@@ -54,7 +54,7 @@ from models.quality import (calculate_earnings_quality, calculate_piotroski_f,
                             get_ev_to_equity_bridge,
                             calculate_altman_z, calculate_beneish_m)
 from models.market import compute_relative_multiples, compute_analyst_consensus, extract_next_earnings
-from models.montecarlo import growth_sigma, seed_from_ticker
+from models.montecarlo import evidence_growth_sigma, growth_sigma, quantile_rank, seed_from_ticker
 from models.ddm import (ddm_eligibility, estimate_ddm_growth, two_stage_ddm_valuation,
                          ddm_h_model_valuation, monte_carlo_ddm)
 from models.epv import earnings_power_value_valuation, epv_with_growth_premium
@@ -124,6 +124,8 @@ from scripts.config import (ERP, TERMINAL_GROWTH_RATE, PHASE2_IO_WORKERS,
                             EXIT_MULT_DEFAULT_EV_EBITDA,
                             EXIT_MULT_MIN, EXIT_MULT_MAX,
                             MC_ITERATIONS, MC_GROWTH_SIGMA_RATIO, MC_GROWTH_SIGMA_FLOOR,
+                            MC_GROWTH_SIGMA_CAP, MC_GROWTH_SIGMA_HISTORY_YEARS,
+                            MC_GROWTH_SIGMA_EVIDENCE,
                             MC_WACC_SIGMA, MC_ERP_SIGMA, MC_DISCOUNT_SIGMA_MAX,
                             MC_TERMINAL_GROWTH_SIGMA, MC_EXIT_MULT_SIGMA_RATIO,
                             MC_HIGH_DIVERGENCE_SIGMA_MULT, MC_WACC_TG_CORRELATION,
@@ -548,6 +550,26 @@ def _rescale_fv_band(row, ratio):
         v = row.get(key)
         if isinstance(v, (int, float)):
             row[key] = v * ratio
+    q = row.get('mc_quantiles')
+    if isinstance(q, (list, tuple)) and all(isinstance(x, (int, float)) for x in q):
+        row['mc_quantiles'] = [x * ratio for x in q]
+
+
+def _set_mc_price_position(row):
+    """Where the price sits in the simulated fair values, after any blend.
+
+    mc_price_pctile: the price's percentile among the simulated fair values
+    (0.01 / 0.99 = at or beyond the outermost stored quantile), so
+    mc_prob_above_price = 1 - pctile is the share of scenarios worth more than
+    the price. implied_growth_z: how many growth sigmas the growth the price
+    implies (reverse DCF) sits from the estimate.
+    """
+    pct = quantile_rank(row.get('mc_quantiles'), row.get('price'))
+    row['mc_price_pctile'] = pct
+    row['mc_prob_above_price'] = (1.0 - pct) if pct is not None else None
+    gap, sigma = row.get('implied_vs_estimated'), row.get('mc_growth_sigma')
+    row['implied_growth_z'] = (gap / sigma if isinstance(gap, (int, float))
+                               and isinstance(sigma, (int, float)) and sigma > 0 else None)
 
 
 def _load_founder_overrides():
@@ -2020,7 +2042,8 @@ def _ensure_fundamental_growth(growth_diag, yf_data, roic_data):
 
 def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=None,
                     terminal_growth_adj=0.0, wacc_sigma=None, tg_sigma=None,
-                    growth_sigma_mult=1.0, growth_weight_shift=0.0, seed=None):
+                    growth_sigma_mult=1.0, growth_weight_shift=0.0, seed=None,
+                    rev_growth_vol=None):
     """Run a two-stage 10-year DCF with sector-specific parameters.
 
     Includes: sector growth caps, averaged FCF for cyclicals,
@@ -2033,6 +2056,8 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
         wacc_sigma: Override for MC WACC sigma (defaults to MC_WACC_SIGMA).
         tg_sigma: Override for MC terminal growth sigma (defaults to MC_TERMINAL_GROWTH_SIGMA).
         growth_sigma_mult: Multiplicative adjustment to growth sigma (macro overlay).
+        rev_growth_vol: Revenue-growth volatility (derive_edgar_metrics), one of
+            the two sources of the simulation's growth sigma.
         growth_weight_shift: Shift from analyst LT weight to fundamental weight (macro overlay).
         seed: Monte Carlo seed (models.montecarlo.seed_from_ticker); None = fixed default.
 
@@ -2351,7 +2376,16 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     if fv is None:
         sens_range = None
     elif base_fcf > 0 and shares and shares > 0:
-        g_sigma = growth_sigma(fcf_growth, MC_GROWTH_SIGMA_RATIO, MC_GROWTH_SIGMA_FLOOR)
+        # How uncertain the growth ESTIMATE is from the evidence: the blended
+        # signals' standard error and the revenue history's volatility (see
+        # evidence_growth_sigma). Always computed and recorded; it sets the
+        # simulation's sigma only with MC_GROWTH_SIGMA_EVIDENCE on.
+        ev_sigma, g_sigma_basis, g_sigma_parts = evidence_growth_sigma(
+            fcf_growth, growth_signals, growth_weights, rev_growth_vol,
+            years=MC_GROWTH_SIGMA_HISTORY_YEARS, floor=MC_GROWTH_SIGMA_FLOOR,
+            cap=MC_GROWTH_SIGMA_CAP, ratio=MC_GROWTH_SIGMA_RATIO)
+        g_sigma = (ev_sigma if MC_GROWTH_SIGMA_EVIDENCE else
+                   growth_sigma(fcf_growth, MC_GROWTH_SIGMA_RATIO, MC_GROWTH_SIGMA_FLOOR))
         g_sigma *= growth_sigma_mult  # macro overlay: widen in stress
         em_sigma = exit_multiple * MC_EXIT_MULT_SIGMA_RATIO if exit_multiple else None
         # Widen sigma if TV methods diverge significantly
@@ -2369,7 +2403,11 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
             tg_sigma=tg_sigma, exit_mult_sigma=em_sigma,
             exit_mult_floor=EXIT_MULT_MIN,
             total_years=DCF_YEARS, stage1_years=DCF_STAGE1,
-            wacc_tg_corr=MC_WACC_TG_CORRELATION, seed=seed)
+            wacc_tg_corr=MC_WACC_TG_CORRELATION, seed=seed, attribution=True)
+        if mc_result:
+            mc_result['growth_sigma_evidence'] = ev_sigma
+            mc_result['growth_sigma_basis'] = g_sigma_basis
+            mc_result['growth_sigma_parts'] = g_sigma_parts
 
     # Use MC percentiles for bear/bull instead of sensitivity grid
     if mc_result:
@@ -4341,6 +4379,13 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             # Next scheduled earnings date (from the same cached info fetch)
             next_earn = extract_next_earnings(yf_data)
 
+            # Extended CAGRs and derived metrics from EDGAR history.
+            # Same logic also runs from rescore_and_render so a snapshot
+            # whose edgar_history was backfilled after the live run gets
+            # refreshed signals without re-running analyze_stock end-to-end.
+            # Derived before the DCF: its simulation reads rev_growth_vol.
+            _edgar_metrics = derive_edgar_metrics(edgar_history)
+
             # Step 5A: Forward DCF (sector-aware: Fixes C/D/E/F)
             dcf_fv, dcf_sens_range, fcf_growth, growth_diag, mc_result = run_forward_dcf(
                 yf_data, wacc, sector=sector,
@@ -4351,7 +4396,8 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 tg_sigma=MC_TERMINAL_GROWTH_SIGMA,
                 growth_sigma_mult=effective_growth_sigma_mult,
                 growth_weight_shift=effective_growth_weight_shift,
-                seed=seed_from_ticker(ticker))
+                seed=seed_from_ticker(ticker),
+                rev_growth_vol=_edgar_metrics.get('rev_growth_vol'))
             growth_diag = _ensure_fundamental_growth(growth_diag, yf_data, roic_data)
             mos = (dcf_fv - current_price) / dcf_fv if (dcf_fv and current_price and dcf_fv > 0) else None
 
@@ -4379,11 +4425,6 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             # Revenue CAGR (3Y from yfinance)
             rev_cagr = calculate_revenue_cagr(yf_data)
 
-            # Extended CAGRs and derived metrics from EDGAR history.
-            # Same logic also runs from rescore_and_render so a snapshot
-            # whose edgar_history was backfilled after the live run gets
-            # refreshed signals without re-running analyze_stock end-to-end.
-            _edgar_metrics = derive_edgar_metrics(edgar_history)
             rev_cagr_5y         = _edgar_metrics['rev_cagr_5y']
             rev_cagr_10y        = _edgar_metrics['rev_cagr_10y']
             fcf_cagr_5y         = _edgar_metrics['fcf_cagr_5y']
@@ -4811,6 +4852,20 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 'mc_confidence': (_mc_confidence_label(mc_result['cv'], mc_result.get('clip_rate'),
                                                        mc_result.get('invalid_rate'))
                                   if mc_result and mc_result.get('cv') is not None else None),
+                # Diagnostics (2026-11-13): the growth sigma used, the
+                # evidence-based one with its basis and parts (used only with
+                # MC_GROWTH_SIGMA_EVIDENCE on),
+                # the fair value at 21 quantiles (1%..99%, rescaled with any
+                # blend; mc_price_pctile is set from them after blending) and
+                # each input's share of the spread.
+                'mc_growth_sigma': mc_result.get('growth_sigma') if mc_result else None,
+                'mc_growth_sigma_evidence': mc_result.get('growth_sigma_evidence') if mc_result else None,
+                'mc_growth_sigma_basis': mc_result.get('growth_sigma_basis') if mc_result else None,
+                'mc_growth_sigma_parts': mc_result.get('growth_sigma_parts') if mc_result else None,
+                'mc_quantiles': mc_result.get('quantiles') if mc_result else None,
+                'mc_drivers': mc_result.get('drivers') if mc_result else None,
+                'mc_driver_top': (max(mc_result['drivers'], key=mc_result['drivers'].get)
+                                  if mc_result and mc_result.get('drivers') else None),
                 'ms_diff': ms_diff,
                 'ms_fv': ms_fv,
                 'ms_pfv': ms_pfv,
@@ -5139,6 +5194,10 @@ def _run_postprocess(results, ms_pfv_data, _carry_prior_rows,
                     if price and blended > 0:
                         r['mos'] = (blended - price) / blended
                     _rescale_fv_band(r, blend_ratio)
+
+    # Price position in the (now final) fair-value distribution.
+    for r in results:
+        _set_mc_price_position(r)
 
     # Rating is set downstream by score_and_rate from composite score plus critical caps
 

@@ -102,3 +102,128 @@ def lognormal_from_uniform(u, median, sigma):
     a collapsed sigma reproduces the point estimate exactly."""
     s = sigma / median
     return median * np.exp(s * norm.ppf(u))
+
+
+# ---------------------------------------------------------------------------
+# Growth uncertainty from evidence
+# ---------------------------------------------------------------------------
+
+GROWTH_SIGMA_CAP = 0.10
+HISTORY_YEARS = 5
+
+
+def evidence_growth_sigma(g, signals=None, weights=None, rev_growth_vol=None,
+                          years=HISTORY_YEARS, floor=GROWTH_SIGMA_FLOOR,
+                          cap=GROWTH_SIGMA_CAP, ratio=GROWTH_SIGMA_RATIO):
+    """Growth-rate sigma from the company's own evidence, not its growth level.
+
+    The simulation holds one growth draw for the explicit stage, so the sigma
+    is the uncertainty of a ~5-year average growth rate. Two independent
+    parts, combined in quadrature:
+
+    - disagreement: the standard error of the weighted mean of the growth
+      signals the point estimate blended (trailing FCF and revenue CAGRs,
+      analyst short and long term, earnings growth, fundamental growth): their
+      weighted standard deviation x sqrt(sum w^2) / sum w. The blend is an
+      average of the signals, and an average is less uncertain than the
+      signals' own spread (about 0.4x for six equal weights).
+    - history: the revenue-growth volatility (std of year-on-year growth)
+      divided by sqrt(years), the noise of a `years`-year average around its
+      mean. Capped at `cap` before combining: revenue jumps from acquisitions
+      or a first product sale put a few volatilities above 1,000%.
+
+    The result is floored at `floor` and capped at `cap`. Without either part
+    (fewer than two signals and no revenue history) it falls back to the old
+    rule, `ratio` x |g| floored at `floor`.
+
+    Returns (sigma, basis, parts): basis names the parts used, for the row
+    ('disagreement+history', 'disagreement', 'history' or 'ratio'), and parts
+    holds each part's value before combining.
+    """
+    parts = {}
+    pairs = [(float(s), float(w)) for s, w in zip(signals or [], weights or [], strict=False)
+             if s is not None and w is not None and np.isfinite(s) and np.isfinite(w) and w > 0]
+    if len(pairs) >= 2:
+        s = np.array([p[0] for p in pairs])
+        w = np.array([p[1] for p in pairs])
+        mean = float(np.sum(s * w) / np.sum(w))
+        spread = float(np.sqrt(np.sum(w * (s - mean) ** 2) / np.sum(w)))
+        parts['disagreement'] = spread * float(np.sqrt(np.sum(w ** 2)) / np.sum(w))
+    if rev_growth_vol is not None and np.isfinite(rev_growth_vol) and rev_growth_vol >= 0:
+        parts['history'] = min(float(rev_growth_vol) / np.sqrt(years), cap)
+    if not parts:
+        return growth_sigma(g, ratio, floor), 'ratio', {}
+    sigma = float(np.hypot(parts.get('disagreement', 0.0), parts.get('history', 0.0)))
+    return min(max(sigma, floor), max(cap, floor)), '+'.join(parts), parts
+
+
+# ---------------------------------------------------------------------------
+# Quantiles: where a price sits in the simulated fair values
+# ---------------------------------------------------------------------------
+
+QUANTILE_LEVELS = (0.01,) + tuple(round(0.05 * k, 2) for k in range(1, 20)) + (0.99,)
+
+
+def fv_quantiles(values):
+    """Fair values at QUANTILE_LEVELS (21 points, 1% to 99%)."""
+    return [float(q) for q in np.quantile(np.asarray(values, dtype=float), QUANTILE_LEVELS)]
+
+
+def quantile_rank(quantiles, x, levels=QUANTILE_LEVELS):
+    """Percentile of `x` within a distribution given by its `quantiles`.
+
+    Linear between stored quantiles. Beyond the outermost stored quantile
+    the answer is that quantile's level (0.01 or 0.99): the run cannot say
+    how far into the tail `x` sits. Flat stretches (a block of draws clamped
+    to zero) return the middle of the flat run. None if inputs are missing.
+    """
+    if x is None or not quantiles or len(quantiles) != len(levels):
+        return None
+    q = np.asarray(quantiles, dtype=float)
+    if not np.all(np.isfinite(q)) or not np.isfinite(x):
+        return None
+    lv = np.asarray(levels, dtype=float)
+    if x < q[0]:
+        return float(lv[0])
+    if x > q[-1]:
+        return float(lv[-1])
+    hit = q == x
+    if hit.any():
+        return float(lv[hit].mean())
+    hi = int(np.searchsorted(q, x, side='right'))   # q[hi - 1] < x < q[hi]
+    lo = hi - 1
+    return float(lv[lo] + (lv[hi] - lv[lo]) * (x - q[lo]) / (q[hi] - q[lo]))
+
+
+# ---------------------------------------------------------------------------
+# Attribution: which input drives the spread
+# ---------------------------------------------------------------------------
+
+def sobol_indices(f, n, dims, seed=None):
+    """First-order and total-effect Sobol indices of `f` over `dims`
+    independent uniform inputs.
+
+    `f` maps an (m, dims) array of uniforms in (0, 1) to m outputs. Uses the
+    pick-freeze design (two base matrices A and B and one A_B^(i) per input,
+    n x (dims + 2) evaluations) with Saltelli's first-order and Jansen's
+    total-effect estimators. Points come from one 2*dims Sobol sequence so
+    A and B are independent and balanced.
+
+    Returns (first, total) arrays, or (None, None) when the output does not
+    vary. Estimates can fall slightly outside [0, 1] from sampling error;
+    they are clipped.
+    """
+    u = sobol_uniforms(n, 2 * dims, seed)
+    a, b = u[:, :dims], u[:, dims:]
+    fa, fb = np.asarray(f(a), dtype=float), np.asarray(f(b), dtype=float)
+    var = float(np.var(np.concatenate([fa, fb])))
+    if not np.isfinite(var) or var <= 1e-18:
+        return None, None
+    first, total = np.empty(dims), np.empty(dims)
+    for i in range(dims):
+        abi = a.copy()
+        abi[:, i] = b[:, i]
+        fabi = np.asarray(f(abi), dtype=float)
+        first[i] = np.mean(fb * (fabi - fa)) / var
+        total[i] = 0.5 * np.mean((fa - fabi) ** 2) / var
+    return np.clip(first, 0.0, 1.0), np.clip(total, 0.0, 1.0)

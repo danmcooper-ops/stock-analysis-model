@@ -5,8 +5,8 @@ import numpy as np
 
 from models.montecarlo import (
     DEFAULT_SEED,
-    correlate, lognormal_from_uniform, normal_from_uniform, sobol_uniforms,
-    truncated_normal_from_uniform,
+    correlate, fv_quantiles, lognormal_from_uniform, normal_from_uniform,
+    sobol_indices, sobol_uniforms, truncated_normal_from_uniform,
     growth_sigma as _default_growth_sigma,
 )
 from models.valuation_types import Valuation, _validate_count, _validate_numeric
@@ -17,6 +17,15 @@ from models.valuation_types import Valuation, _validate_count, _validate_numeric
 # discount rate (the point estimate has no such floor).
 MC_WACC_FLOOR = 0.03
 MC_MIN_SPREAD = 0.025
+
+# The simulation's uncertain inputs, in Sobol-dimension order. The terminal
+# growth draw shares its correlated part with the discount rate, so in the
+# attribution "discount_rate" includes that shared component and
+# "terminal_growth" is terminal growth's own, independent part.
+MC_DCF_DRIVERS = ('growth', 'discount_rate', 'terminal_growth', 'exit_multiple')
+# Seed offset for the attribution's own Sobol sequence, so the main draws
+# (and every published percentile) are unchanged by turning it on.
+_ATTRIBUTION_SEED_XOR = 0x9E3779B9
 
 
 def _dcf_validate_core(base_fcf, growth_rate, discount_rate, terminal_growth):
@@ -254,6 +263,94 @@ def two_stage_ev_exit_multiple(base_fcf, growth_rate, discount_rate,
         stage1_years=stage1_years, min_spread=min_spread).value
 
 
+def _mc_dcf_eval(u, *, base_fcf, growth_rate, discount_rate, terminal_growth,
+                 net_debt, shares_outstanding, has_exit, base_ebitda, exit_multiple,
+                 g_sigma, w_sigma, t_sigma, e_sigma, exit_mult_floor,
+                 total_years, stage1_years, wacc_tg_corr):
+    """Fair value per share for each row of uniforms `u` (n x 4: growth,
+    discount rate, terminal growth's own part, exit multiple).
+
+    The scenario model behind monte_carlo_dcf, shared by its main run and its
+    attribution so both value scenarios identically. Returns (fair values,
+    wacc_floor_rate, number of terminal-growth draws clipped to the minimum
+    spread, number of exit multiples floored).
+    """
+    n = u.shape[0]
+    g_samples = normal_from_uniform(u[:, 0], growth_rate, g_sigma)
+
+    # Discount rate: exact truncated normal at the plausibility floor. The
+    # excluded mass is real signal of how hard the model is being forced.
+    w_samples, wacc_floor_rate = truncated_normal_from_uniform(
+        u[:, 1], discount_rate, w_sigma, lower=MC_WACC_FLOOR)
+
+    # Terminal growth: correlated with the discount rate, then clipped to the
+    # 2.5% minimum spread to MATCH the point estimate's min_spread
+    # (two_stage_ev). A looser wall let clipped draws compute terminal values
+    # on a tighter spread than the point estimate ever uses, biasing the MC
+    # median/p90 above the point FV in exactly the clip-heavy cases.
+    z_w = (w_samples - discount_rate) / w_sigma
+    z_tg = correlate(z_w, normal_from_uniform(u[:, 2], 0.0, 1.0), wacc_tg_corr)
+    tg_samples = terminal_growth + t_sigma * z_tg
+    tg_wall = w_samples - MC_MIN_SPREAD
+    n_tg_clipped = int(np.sum(tg_samples > tg_wall))
+    tg_samples = np.minimum(tg_samples, tg_wall)
+
+    # --- Vectorized FCF projection: shape (n, total_years) ---
+    projected = np.empty((n, total_years))
+    prev = np.full(n, base_fcf)
+    for yr in range(total_years):
+        yr1 = yr + 1  # 1-indexed
+        if yr1 <= stage1_years:
+            g = g_samples
+        else:
+            fade = (yr1 - stage1_years) / (total_years - stage1_years)
+            g = g_samples + (tg_samples - g_samples) * fade
+        prev = prev * (1 + g)
+        projected[:, yr] = prev
+
+    # Discount factors: shape (n, total_years)
+    years_arr = np.arange(1, total_years + 1)
+    disc_factors = (1 + w_samples[:, np.newaxis]) ** years_arr[np.newaxis, :]
+    pv_fcfs = np.sum(projected / disc_factors, axis=1)
+
+    # --- GGM terminal value ---
+    terminal_fcf = projected[:, -1] * (1 + tg_samples)
+    spreads = w_samples - tg_samples
+    tv_ggm = np.where(spreads > 0.005, terminal_fcf / spreads, 0)
+    pv_tv_ggm = tv_ggm / (1 + w_samples) ** total_years
+    ev_ggm = pv_fcfs + pv_tv_ggm
+
+    equity_ggm = ev_ggm - net_debt
+    fv_ggm = np.where(equity_ggm > 0, equity_ggm / shares_outstanding, 0)
+
+    # --- Exit multiple terminal value (if available) ---
+    n_em_floored = 0
+    if not has_exit:
+        return fv_ggm, wacc_floor_rate, n_tg_clipped, n_em_floored
+
+    # Log-normal around the point multiple: never negative, right-skewed
+    # like observed multiples. The floor stays as the pipeline's rule
+    # (EXIT_MULT_MIN) and now only binds for genuinely low multiples.
+    em_samples = lognormal_from_uniform(u[:, 3], exit_multiple, e_sigma)
+    n_em_floored = int(np.sum(em_samples < exit_mult_floor))
+    em_samples = np.maximum(em_samples, exit_mult_floor)
+
+    # EBITDA follows the same growth path as FCF, so terminal EBITDA is
+    # the base scaled by the FCF path's cumulative growth.
+    terminal_ebitda = base_ebitda * projected[:, -1] / base_fcf
+    tv_exit = terminal_ebitda * em_samples
+    pv_tv_exit = tv_exit / (1 + w_samples) ** total_years
+    ev_exit = pv_fcfs + pv_tv_exit
+    equity_exit = ev_exit - net_debt
+    fv_exit = np.where(equity_exit > 0, equity_exit / shares_outstanding, 0)
+
+    # --- Average methods ---
+    both_valid = (fv_ggm > 0) & (fv_exit > 0)
+    fv_combined = np.where(both_valid, (fv_ggm + fv_exit) / 2,
+                           np.where(fv_ggm > 0, fv_ggm, fv_exit))
+    return fv_combined, wacc_floor_rate, n_tg_clipped, n_em_floored
+
+
 def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
                     net_debt, shares_outstanding,
                     base_ebitda=None, exit_multiple=None,
@@ -261,7 +358,7 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
                     wacc_sigma=0.01, tg_sigma=0.005,
                     exit_mult_sigma=None, exit_mult_floor=3.0,
                     total_years=10, stage1_years=5,
-                    wacc_tg_corr=0.5, seed=None):
+                    wacc_tg_corr=0.5, seed=None, attribution=False):
     """Vectorized quasi-Monte Carlo simulation over DCF parameters.
 
     Scenarios come from a scrambled Sobol sequence (see models.montecarlo):
@@ -280,8 +377,17 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
     tg_wall_rate (share of draws clipped to the minimum spread),
     exit_floor_rate (share of exit multiples floored; None without the exit
     leg) and clip_rate = the largest of those, i.e. how hard the most
-    binding wall was forcing the model. Returns None on invalid inputs or
-    too few valid iterations.
+    binding wall was forcing the model. Also `quantiles`: the fair value at
+    models.montecarlo.QUANTILE_LEVELS (1% to 99%), so a price can be placed
+    in the distribution later, and `growth_sigma`, the sigma used. Returns
+    None on invalid inputs or too few valid iterations.
+
+    attribution=True adds `drivers` (each input's share of the spread: its
+    total-effect Sobol index over the sum of them), `drivers_first` and
+    `drivers_total` (the raw first-order and total-effect indices), keyed by
+    MC_DCF_DRIVERS (exit_multiple only with the exit leg), or None when the
+    fair value does not vary. It runs on its own Sobol sequence, so the
+    main draws and every other field are the same with it on or off.
 
     The exit-multiple leg runs only when BOTH base_ebitda (> 0) and
     exit_multiple (> 0) are supplied; a non-finite or non-positive
@@ -321,84 +427,24 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
     # Four Sobol dimensions regardless of the exit leg, so the GGM draws are
     # identical with and without it (a dropped exit leg = the GGM-only run).
     seed = DEFAULT_SEED if seed is None else int(seed)
-    u = sobol_uniforms(n, 4, seed)
-    g_samples = normal_from_uniform(u[:, 0], growth_rate, max(growth_sigma, 0.001))
-
-    # Discount rate: exact truncated normal at the plausibility floor. The
-    # excluded mass is real signal of how hard the model is being forced.
+    g_sigma = max(growth_sigma, 0.001)
     w_sigma = max(wacc_sigma, 0.001)
-    w_samples, wacc_floor_rate = truncated_normal_from_uniform(
-        u[:, 1], discount_rate, w_sigma, lower=MC_WACC_FLOOR)
+    t_sigma = max(tg_sigma, 0.001)
+    e_sigma = max(exit_mult_sigma, 1e-3) if has_exit else None
 
-    # Terminal growth: correlated with the discount rate, then clipped to the
-    # 2.5% minimum spread to MATCH the point estimate's min_spread
-    # (two_stage_ev). A looser wall let clipped draws compute terminal values
-    # on a tighter spread than the point estimate ever uses, biasing the MC
-    # median/p90 above the point FV in exactly the clip-heavy cases.
-    z_w = (w_samples - discount_rate) / w_sigma
-    z_tg = correlate(z_w, normal_from_uniform(u[:, 2], 0.0, 1.0), wacc_tg_corr)
-    tg_samples = terminal_growth + max(tg_sigma, 0.001) * z_tg
-    tg_wall = w_samples - MC_MIN_SPREAD
-    n_tg_clipped = int(np.sum(tg_samples > tg_wall))
-    tg_samples = np.minimum(tg_samples, tg_wall)
+    def evaluate(u):
+        return _mc_dcf_eval(
+            u, base_fcf=base_fcf, growth_rate=growth_rate, discount_rate=discount_rate,
+            terminal_growth=terminal_growth, net_debt=net_debt,
+            shares_outstanding=shares_outstanding, has_exit=has_exit,
+            base_ebitda=base_ebitda, exit_multiple=exit_multiple,
+            g_sigma=g_sigma, w_sigma=w_sigma, t_sigma=t_sigma, e_sigma=e_sigma,
+            exit_mult_floor=exit_mult_floor, total_years=total_years,
+            stage1_years=stage1_years, wacc_tg_corr=wacc_tg_corr)
 
-    # --- Vectorized FCF projection: shape (n, total_years) ---
-    projected = np.empty((n, total_years))
-    prev = np.full(n, base_fcf)
-    for yr in range(total_years):
-        yr1 = yr + 1  # 1-indexed
-        if yr1 <= stage1_years:
-            g = g_samples
-        else:
-            fade = (yr1 - stage1_years) / (total_years - stage1_years)
-            g = g_samples + (tg_samples - g_samples) * fade
-        prev = prev * (1 + g)
-        projected[:, yr] = prev
-
-    # Discount factors: shape (n, total_years)
-    years_arr = np.arange(1, total_years + 1)
-    disc_factors = (1 + w_samples[:, np.newaxis]) ** years_arr[np.newaxis, :]
-    pv_fcfs = np.sum(projected / disc_factors, axis=1)
-
-    # --- GGM terminal value ---
-    terminal_fcf = projected[:, -1] * (1 + tg_samples)
-    spreads = w_samples - tg_samples
-    tv_ggm = np.where(spreads > 0.005, terminal_fcf / spreads, 0)
-    pv_tv_ggm = tv_ggm / (1 + w_samples) ** total_years
-    ev_ggm = pv_fcfs + pv_tv_ggm
-
-    equity_ggm = ev_ggm - net_debt
-    fv_ggm = np.where(equity_ggm > 0, equity_ggm / shares_outstanding, 0)
-
-    # --- Exit multiple terminal value (if available) ---
-    fv_exit = np.zeros(n)
-    exit_floor_rate = None
-    if has_exit:
-        # Log-normal around the point multiple: never negative, right-skewed
-        # like observed multiples. The floor stays as the pipeline's rule
-        # (EXIT_MULT_MIN) and now only binds for genuinely low multiples.
-        em_samples = lognormal_from_uniform(u[:, 3], exit_multiple,
-                                            max(exit_mult_sigma, 1e-3))
-        n_em_floored = int(np.sum(em_samples < exit_mult_floor))
-        exit_floor_rate = n_em_floored / n
-        em_samples = np.maximum(em_samples, exit_mult_floor)
-
-        # EBITDA follows the same growth path as FCF, so terminal EBITDA is
-        # the base scaled by the FCF path's cumulative growth.
-        terminal_ebitda = base_ebitda * projected[:, -1] / base_fcf
-        tv_exit = terminal_ebitda * em_samples
-        pv_tv_exit = tv_exit / (1 + w_samples) ** total_years
-        ev_exit = pv_fcfs + pv_tv_exit
-        equity_exit = ev_exit - net_debt
-        fv_exit = np.where(equity_exit > 0, equity_exit / shares_outstanding, 0)
-
-    # --- Average methods ---
-    if has_exit:
-        both_valid = (fv_ggm > 0) & (fv_exit > 0)
-        fv_combined = np.where(both_valid, (fv_ggm + fv_exit) / 2,
-                               np.where(fv_ggm > 0, fv_ggm, fv_exit))
-    else:
-        fv_combined = fv_ggm
+    fv_combined, wacc_floor_rate, n_tg_clipped, n_em_floored = evaluate(
+        sobol_uniforms(n, 4, seed))
+    exit_floor_rate = n_em_floored / n if has_exit else None
 
     valid = fv_combined > 0
     n_valid = int(np.sum(valid))
@@ -407,6 +453,22 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
     clip_rate = max(wacc_floor_rate, tg_wall_rate, exit_floor_rate or 0.0)
     if n_valid < n * 0.10:
         return None
+
+    drivers = drivers_first = drivers_total = None
+    if attribution:
+        names = MC_DCF_DRIVERS if has_exit else MC_DCF_DRIVERS[:3]
+
+        def f(x):
+            # The exit dimension is unused without the exit leg; pad it.
+            if x.shape[1] < 4:
+                x = np.column_stack([x, np.full(x.shape[0], 0.5)])
+            return evaluate(x)[0]
+
+        first, total = sobol_indices(f, n, len(names), seed ^ _ATTRIBUTION_SEED_XOR)
+        if total is not None and total.sum() > 0:
+            drivers = {k: float(v) for k, v in zip(names, total / total.sum(), strict=True)}
+            drivers_first = {k: float(v) for k, v in zip(names, first, strict=True)}
+            drivers_total = {k: float(v) for k, v in zip(names, total, strict=True)}
 
     # Percentiles over ALL draws — insolvent outcomes are clamped to 0 above,
     # so p10 reflects genuine wipeout risk instead of conditioning on survival
@@ -430,6 +492,11 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
         'wacc_floor_rate': wacc_floor_rate,
         'tg_wall_rate': tg_wall_rate,
         'exit_floor_rate': exit_floor_rate,
+        'quantiles': fv_quantiles(fv_combined),
+        'growth_sigma': g_sigma,
+        'drivers': drivers,
+        'drivers_first': drivers_first,
+        'drivers_total': drivers_total,
     }
 
 
