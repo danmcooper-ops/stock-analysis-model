@@ -50,7 +50,7 @@ def _run(tmp_path, cases):
         'function esc(s){return String(s);}',
         'function fd(v){return "$"+v.toFixed(2);}',
         _fn(src, '_dtcFutureModel'), _fn(src, '_dtcFutureSVG'), _fn(src, '_dtcFutureNotes'),
-        _fn(src, '_dtcFutureLegend'),
+        _fn(src, '_dtcFutureLegend'), _fn(src, '_dtcFutureTicks'),
         'var cases=' + json.dumps(cases) + ';',
         'console.log(JSON.stringify(cases.map(function(c){',
         '  var f=_dtcFutureModel(c[0],c[1]);if(!f)return null;',
@@ -140,3 +140,31 @@ def test_future_is_a_price_range_after_max():
     assert "['1M','3M','6M','FUTURE'].indexOf(_dtcRange)>=0" in _fn(src, 'dtcSetMetric')
     # Future draws the company alone.
     assert "_dtcRange!=='FUTURE'" in _fn(src, '_dtcBenchOn')
+
+
+@node
+def test_confidence_earnings_soon_and_thin_trading(tmp_path):
+    import datetime as dt
+    pts = _closes(400)
+    last = dt.date.fromisoformat(pts[-1]['d'])
+    soon = dict(ROW, price=0.24, mc_p10_fv=0.45, mc_p90_fv=1.37, dcf_fv=0.77, mc_confidence='LOW (45%)',
+                avg_dollar_volume_3m=160300, earnings_next_date=(last + dt.timedelta(days=1)).isoformat(),
+                earnings_date_est=False, _now=pts[-1]['d'] + 'T12:00:00', target_low=None,
+                target_mean=None, target_high=None, profile=None)
+    later = dict(ROW, mc_confidence='HIGH (80%)', avg_dollar_volume_3m=5e7,
+                 earnings_next_date=(last + dt.timedelta(days=40)).isoformat(), _now=pts[-1]['d'] + 'T12:00:00')
+    a, b = _run(tmp_path, [[pts, soon], [pts, later]])
+    n = a['notes']
+    assert 'Earnings tomorrow (' in n and 'Thinly traded' in n and '$0.24 a share' in n and '$160K a day' in n
+    assert 'dtcf-tiles dtcf-dim' in n and '<dt>Model confidence</dt><dd>Low (45%)</dd>' in n
+    assert 'bull 3.0\u00d7 bear' in n
+    # The axis reads in cents for a $0.24 stock.
+    assert '$0.20' in a['svg'] and '$0.50' in a['svg']
+    m = b['notes']
+    assert 'Earnings in' not in m and 'Earnings tomorrow' not in m and 'Thinly traded' not in m
+    assert 'dtcf-dim' not in m and '<dt>Model confidence</dt><dd>High (80%)</dd>' in m
+
+
+def test_log_ticks():
+    src = _src()
+    assert 'function _dtcFutureTicks(lo,hi){' in src

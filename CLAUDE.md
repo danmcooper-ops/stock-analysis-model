@@ -1243,7 +1243,11 @@ ruff check .
     (`_dtcFutureLegend`) names each mark, and under it come bear/base/bull
     tiles, one sentence, a short table (growth priced in, model's growth,
     analyst range and average, next earnings, volatility) and a footnote,
-    as the app lays it out. Display only (`tests/test_report_future.py`). On
+    as the app lays it out. The price axis is log-scaled with 1-2-5 marks
+    (cents for a sub-dollar stock); earnings within 7 days of today and
+    thin trading (under $1 a share or $1M a day, the ADV flag's line) get
+    their own callouts, and a LOW `mc_confidence` dims the tiles and adds a
+    Model confidence row. Display only (`tests/test_report_future.py`). On
     Summary, The Model's categories start folded to one line each — name,
     gates passed, score — and open to the bar, weight and gates. The three filed statements share one Finances tab, right
     after Summary (`DT_FIN`; a `.d-stmt-tabs` switch in its pane, the pick
