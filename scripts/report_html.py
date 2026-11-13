@@ -1113,6 +1113,15 @@ def _row_context(r, gate_meta_obj, _r2000, _prev_ratings, _rating_hist,
         'mc_p90_fv': r.get('mc_p90_fv'),
         'mc_clip_rate': r.get('mc_clip_rate'),
         'mc_invalid_rate': r.get('mc_invalid_rate'),
+        # MC diagnostics (engine #597): where the price sits in the simulated
+        # fair values and what drives their spread. mc_quantiles and
+        # mc_drivers are detail-only (_extract_details_payload lifts them).
+        'mc_price_pctile': r.get('mc_price_pctile'),
+        'mc_prob_above_price': r.get('mc_prob_above_price'),
+        'implied_growth_z': r.get('implied_growth_z'),
+        'mc_driver_top': r.get('mc_driver_top'),
+        'mc_drivers': _round_map(r.get('mc_drivers'), 3),
+        'mc_quantiles': _round_list(r.get('mc_quantiles'), 2),
         # Macro
         'macro_regime': r.get('macro_regime'),
         'macro_composite': r.get('macro_composite'),
@@ -1306,6 +1315,28 @@ def _attach_profiles(chart_records):
                            exc_info=True)
 
 
+def _round_list(values, ndigits):
+    """A list of numbers rounded for the page, or None unless every entry
+    is a finite number (a partial list would misplace the rest)."""
+    if not isinstance(values, (list, tuple)) or not values:
+        return None
+    out = []
+    for v in values:
+        if not isinstance(v, (int, float)) or isinstance(v, bool) or not math.isfinite(v):
+            return None
+        out.append(round(float(v), ndigits))
+    return out
+
+
+def _round_map(values, ndigits):
+    """A {name: number} map rounded for the page; non-numbers dropped."""
+    if not isinstance(values, dict):
+        return None
+    out = {str(k): round(float(v), ndigits) for k, v in values.items()
+           if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)}
+    return out or None
+
+
 def _extract_details_payload(chart_records):
     # Heavy text fields only consumed inside the detail panel. Strip them
     # from the inline DATA blob into the details/ parts the template
@@ -1318,6 +1349,8 @@ def _extract_details_payload(chart_records):
         '_trap_components',  # per-axis trap sub-scores; popup-only detail
         'data_summaries',    # Data sub-tab narratives (_attach_data_summaries)
         'profile',           # Profile tab verdict (_attach_profiles)
+        'mc_quantiles',      # DCF Monte Carlo distribution strip (21 values)
+        'mc_drivers',        # DCF Monte Carlo spread drivers
     )
     details_payload = {}
     for _rec in chart_records:
