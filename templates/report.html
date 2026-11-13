@@ -1385,6 +1385,24 @@ td.ct{font-weight:700;}
 [data-theme="dark"] #d-track .dtr-tbl tr:last-child td:first-child{box-shadow:none;}
 .dsec h3{font-size:0.73em;text-transform:uppercase;letter-spacing:0.06em;color:#1a3a6b;font-weight:700;margin-bottom:9px;padding-bottom:5px;border-bottom:2px solid #c8d6f0;}
 .dkvg{display:grid;grid-template-columns:1fr 1fr;gap:1px 10px;}
+.mc-diag{margin-top:10px;padding:0 6px;}
+.mc-diag-h{font-size:0.74em;font-weight:700;color:#37474f;margin-bottom:3px;cursor:help;}
+.mc-diag-h span{font-weight:400;color:#78909c;margin-left:4px;}
+.mc-dist{display:block;width:100%;max-width:480px;height:auto;}
+.mc-dist-outer{fill:#c8d6f0;}
+.mc-dist-inner{fill:#7f9fd6;}
+.mc-dist-med{stroke:#1a3a6b;stroke-width:2;}
+.mc-dist-mark{stroke:#e67e22;stroke-width:2.5;}
+.mc-dist-price{font-size:10px;font-weight:700;fill:#b35900;}
+.mc-dist-ax{font-size:9px;fill:#607d8b;}
+.mc-drv-bar{display:flex;height:12px;border-radius:3px;overflow:hidden;max-width:480px;gap:1px;background:#fff;}
+.mc-drv-seg{display:block;height:100%;}
+.mc-drv-growth{background:#2f5496;}
+.mc-drv-discount_rate{background:#e67e22;}
+.mc-drv-terminal_growth{background:#8e6bbf;}
+.mc-drv-exit_multiple{background:#1a9850;}
+.mc-drv-leg{display:flex;flex-wrap:wrap;gap:2px 12px;margin-top:5px;font-size:0.74em;color:#37474f;}
+.mc-drv-key i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px;}
 .dkv{display:flex;justify-content:space-between;padding:4px 6px;font-size:0.82em;line-height:1.55;border-radius:4px;color:#37474f;}
 .dkv:nth-child(odd){background:rgba(59,111,212,0.04);}
 .dkv .kl{color:#6a7a90;}.dkv .kv{font-weight:600;color:#1a252f;}
@@ -2322,6 +2340,18 @@ button.wind-h{cursor:pointer;}
 [data-theme="dark"] .dgroup-asm > span:not(:first-child){color:#8b949e!important;}
 [data-theme="dark"] .dgroup-asm > span > strong{color:#e6edf3!important;}
 [data-theme="dark"] .dsec{background:#1c2128;border-color:#30363d;}
+[data-theme="dark"] .mc-diag-h,[data-theme="dark"] .mc-drv-leg{color:#c9d1d9;}
+[data-theme="dark"] .mc-diag-h span,[data-theme="dark"] .mc-dist-ax{color:#8b949e;fill:#8b949e;}
+[data-theme="dark"] .mc-dist-outer{fill:#24375a;}
+[data-theme="dark"] .mc-dist-inner{fill:#3f6db0;}
+[data-theme="dark"] .mc-dist-med{stroke:#cfe0ff;}
+[data-theme="dark"] .mc-dist-price{fill:#ffa657;}
+[data-theme="dark"] .mc-dist-mark{stroke:#ffa657;}
+[data-theme="dark"] .mc-drv-bar{background:#1c2128;}
+[data-theme="dark"] .mc-drv-growth{background:#5b8bd6;}
+[data-theme="dark"] .mc-drv-discount_rate{background:#f0883e;}
+[data-theme="dark"] .mc-drv-terminal_growth{background:#a98ad6;}
+[data-theme="dark"] .mc-drv-exit_multiple{background:#3fb950;}
 [data-theme="dark"] .dsummary{background:#1c2128;border-color:#30363d;border-left-color:#58a6ff;}
 [data-theme="dark"] .dsummary-h{color:#58a6ff;}
 [data-theme="dark"] .dsummary p{color:#c9d1d9;}
@@ -7224,6 +7254,8 @@ var DKV_TIPS={
   'Current Price':'price','DCF Fair Value':'dcf_fv','DCF MoS':'mos','Cost of Equity':'er',
   'Blend Method':'blend_method','MC Confidence':'mc_confidence','MC CV':'mc_confidence',
   'MC P10 Fair Value':'mc_p10_fv','MC P90 Fair Value':'mc_p90_fv',
+  'Price Percentile':'mc_price_pctile','Scenarios Above Price':'mc_prob_above_price',
+  'Implied Growth Gap':'implied_growth_z','Main Driver':'mc_drivers',
   'DDM Fair Value':'ddm_fv','H-Model FV':'ddm_h_fv',
   'Div CAGR':'ddm_div_cagr','Sustainable Growth':'ddm_sustainable_growth',
   'EPV Fair Value':'epv_fv','EPV MoS':'epv_mos','EPV Growth-Adj':'epv_growth_fv',
@@ -7359,6 +7391,11 @@ mc_p10_fv:'The 10th-percentile Monte Carlo fair value: 90% of simulations came o
 mc_p90_fv:'The 90th-percentile Monte Carlo fair value: only 10% of simulations exceeded it. A wide P10–P90 band is irreducible uncertainty — demand proportionally more margin of safety.',
 mc_confidence:'MC Confidence = the coefficient of variation (σ / μ) of simulated fair values. Below 20% is reliable; 20–40%, moderate; above 40%, treat the point estimate with real caution. "constrained" means the band was downgraded a notch because too many scenarios hit a constraint wall or wiped out equity.',
 mc_clip_rate:'Share of Monte Carlo scenarios the most binding constraint had to force: the discount-rate floor, the minimum terminal spread, or the exit-multiple floor. Above ~20% the median and P10–P90 are shaped by the guard-rails, not just by the inputs.',
+mc_price_pctile:'Where today’s price sits among the simulated fair values. The 92nd percentile means the price is above 92% of scenarios: the market needs an outcome better than nine in ten the model drew. Below the 10th, the price is below nearly every scenario. Read with MC Confidence: a percentile in a wide band says less.',
+mc_prob_above_price:'Share of Monte Carlo scenarios in which fair value comes out above today’s price, i.e. 100% minus the price percentile. It is the share of the model’s own scenarios that support buying at this price, not a probability the stock rises.',
+implied_growth_z:'How far the growth the price implies (reverse DCF) sits from the model’s growth estimate, in units of the simulation’s growth uncertainty (σ). +2σ: the market expects growth the model treats as a stretch; −2σ: it is pricing in a slowdown the model does not see. Within ±1σ the price and the model roughly agree on growth.',
+mc_drivers:'Which inputs drive the spread of simulated fair values: each input’s share of the variance (total-effect Sobol indices, interactions included). Growth leading means the range is mostly a question of how fast the business grows; discount rate leading, of what return to demand. The discount rate’s share includes the part of terminal growth that moves with it.',
+mc_dist:'The simulated fair values: the light band spans the 5th to 95th percentile, the dark band the 25th to 75th, and the line is the median. The marker is today’s price. Most of the band above the price means most scenarios see upside.',
 mc_invalid_rate:'Share of Monte Carlo scenarios in which enterprise value fell below net debt — equity wiped out. These count as $0 in the percentiles, so a high wipeout rate is what pulls P10 to zero for levered names.',
 ddm_mc_clip_rate:'Share of DDM Monte Carlo scenarios forced by a constraint wall (cost-of-equity floor or minimum terminal spread). High values mean the dividend band is shaped by the guard-rails rather than the inputs.',
 shares_out:'Total shares outstanding. A shrinking share count is among the most valuable management signals — buying back stock below intrinsic value is capital allocation at its best.',
@@ -11980,12 +12017,69 @@ function swDetTab(k){
    dgrid-inner as extra dsec cells) or `after` hook (appended after the tab's
    dgroup as its own block). Function declarations hoist, so DT_TABS can
    reference them although it appears earlier in the file. --- */
+/* DCF Monte Carlo diagnostics (engine #597). mc_quantiles holds the fair
+   value at MC_Q_LEVELS; mc_price_pctile is 0.01 / 0.99 when the price sits
+   at or beyond the outermost quantile. */
+var MC_Q_LEVELS=[0.01,0.05,0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.55,0.6,0.65,0.7,0.75,0.8,0.85,0.9,0.95,0.99];
+var MC_DRIVER_NAMES={growth:'Growth',discount_rate:'Discount rate',terminal_growth:'Terminal growth',exit_multiple:'Exit multiple'};
+var MC_DRIVER_ORDER=['growth','discount_rate','terminal_growth','exit_multiple'];
+function _mcPctTxt(p){p=_num(p);if(p==null)return 'N/A';
+  if(p<=0.01)return 'Below 1st';if(p>=0.99)return 'Above 99th';
+  var n=Math.round(p*100),t=n%100,s=(t>=11&&t<=13)?'th':({1:'st',2:'nd',3:'rd'}[n%10]||'th');return n+s;}
+function _mcZTxt(z){z=_num(z);if(z==null)return 'N/A';var r=Math.abs(z).toFixed(1);return (r==='0.0'?'':z>0?'+':'−')+r+'σ';}
+function _mcShareTxt(v){return v<0.005?'<1%':fp(v,0);}
+function _mcDriverShares(d){var m=d.mc_drivers;if(!m||typeof m!=='object')return [];
+  return MC_DRIVER_ORDER.filter(function(k){return _num(m[k])!=null;}).map(function(k){return {k:k,v:_num(m[k])};});}
+function _mcDiagPairs(d){
+  var top=_mcDriverShares(d).sort(function(a,b){return b.v-a.v;})[0];
+  var p=_num(d.mc_prob_above_price);
+  return [['Price Percentile',_mcPctTxt(d.mc_price_pctile)],
+    ['Scenarios Above Price',p==null?'N/A':(p<=0.01?'Under 1%':p>=0.99?'Over 99%':fp(p,0))],
+    ['Implied Growth Gap',_mcZTxt(d.implied_growth_z)],
+    ['Main Driver',top?MC_DRIVER_NAMES[top.k]+' '+fp(top.v,0):'N/A']];
+}
+function _mcDistHtml(d){
+  var q=d.mc_quantiles,price=_num(d.price);
+  if(!q||q.length!==MC_Q_LEVELS.length||price==null)return '';
+  var p5=_num(q[1]),p25=_num(q[5]),p50=_num(q[10]),p75=_num(q[15]),p95=_num(q[19]);
+  if([p5,p25,p50,p75,p95].some(function(v){return v==null;})||!(p95>p5))return '';
+  /* Domain: the 5th-95th band plus the price, unless the price sits far
+     beyond it; then the marker pins to the edge with an arrow. */
+  var span=p95-p5,lo=Math.min(p5,price),hi=Math.max(p95,price),clipL=false,clipR=false;
+  if(price<p5-1.5*span){lo=p5-0.25*span;clipL=true;}
+  if(price>p95+1.5*span){hi=p95+0.25*span;clipR=true;}
+  var pad=(hi-lo)*0.04;lo-=pad;hi+=pad;
+  var W=320,x=function(v){return 8+(W-16)*(v-lo)/(hi-lo);};
+  var px=clipL?8:clipR?W-8:x(price);
+  var lbl='Price '+fd(price)+' · '+_mcPctTxt(d.mc_price_pctile)+(/^Below|^Above/.test(_mcPctTxt(d.mc_price_pctile))?'':' pct.');
+  var anchor=px<W*0.25?'start':px>W*0.75?'end':'middle';
+  var svg='<svg class="mc-dist" viewBox="0 0 '+W+' 58" role="img" aria-label="Simulated fair values: 5th to 95th percentile '+fd(p5)+' to '+fd(p95)+', median '+fd(p50)+'; '+lbl+'">'
+    +'<text class="mc-dist-price" x="'+px.toFixed(1)+'" y="10" text-anchor="'+anchor+'">'+(clipL?'◀ ':'')+lbl+(clipR?' ▶':'')+'</text>'
+    +'<rect class="mc-dist-outer" x="'+x(p5).toFixed(1)+'" y="18" width="'+(x(p95)-x(p5)).toFixed(1)+'" height="16" rx="3"/>'
+    +'<rect class="mc-dist-inner" x="'+x(p25).toFixed(1)+'" y="18" width="'+(x(p75)-x(p25)).toFixed(1)+'" height="16"/>'
+    +'<line class="mc-dist-med" x1="'+x(p50).toFixed(1)+'" x2="'+x(p50).toFixed(1)+'" y1="16" y2="36"/>'
+    +'<line class="mc-dist-mark" x1="'+px.toFixed(1)+'" x2="'+px.toFixed(1)+'" y1="13" y2="39"/>'
+    +'<text class="mc-dist-ax" x="'+x(p5).toFixed(1)+'" y="50" text-anchor="'+(x(p5)<40?'start':'middle')+'">'+fd(p5)+'</text>'
+    +'<text class="mc-dist-ax" x="'+x(p50).toFixed(1)+'" y="50" text-anchor="middle">'+fd(p50)+'</text>'
+    +'<text class="mc-dist-ax" x="'+x(p95).toFixed(1)+'" y="50" text-anchor="'+(x(p95)>W-40?'end':'middle')+'">'+fd(p95)+'</text>'
+    +'</svg>';
+  return '<div class="mc-diag"><div class="mc-diag-h kl" data-dkv-tip="mc_dist">Simulated fair value <span>5th · median · 95th</span></div>'+svg+'</div>';
+}
+function _mcDriversHtml(d){
+  var sh=_mcDriverShares(d);if(!sh.length)return '';
+  var tot=sh.reduce(function(a,b){return a+b.v;},0);if(!(tot>0))return '';
+  var bar=sh.map(function(o){return '<span class="mc-drv-seg mc-drv-'+o.k+'" style="width:'+(100*o.v/tot).toFixed(1)+'%"></span>';}).join('');
+  var leg=sh.slice().sort(function(a,b){return b.v-a.v;}).map(function(o){
+    return '<span class="mc-drv-key"><i class="mc-drv-'+o.k+'"></i>'+MC_DRIVER_NAMES[o.k]+' '+_mcShareTxt(o.v/tot)+'</span>';}).join('');
+  return '<div class="mc-diag"><div class="mc-diag-h kl" data-dkv-tip="mc_drivers">What drives the range</div><div class="mc-drv-bar" role="img" aria-label="'
+    +sh.map(function(o){return MC_DRIVER_NAMES[o.k]+' '+_mcShareTxt(o.v/tot);}).join(', ')+'">'+bar+'</div><div class="mc-drv-leg">'+leg+'</div></div>';
+}
 function _detIntrinsicHtml(d){
   var ms=d.mos!=null?(d.mos>0.15?'color:#1a9850;font-weight:700':(d.mos<0?'color:#de2d26':'')):'';
   var sr=d.dcf_sens_range?fd(d.dcf_sens_range[0])+' – '+fd(d.dcf_sens_range[1]):'N/A';
   var ivH='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a2f5e,#2f5496)"><span class="dg-icon"></span><span class="sec-label">Intrinsic Value</span></div><div class="dgrid-inner">';
   ivH+='<div class="dsec"><h3>DCF Model</h3><div class="dkvg">'+bkv([['Current Price',fd(d.price)],['DCF Fair Value',fd(d.dcf_fv)],['DCF MoS',fp(d.mos),ms],['Cost of Equity',fp(d.er)],['Blend Method',d._blended_method||'DCF']])+'</div></div>';
-  ivH+='<div class="dsec"><h3>DCF Monte Carlo</h3><div class="dkvg">'+bkv([['MC Confidence',d.mc_confidence!=null?d.mc_confidence:'N/A'],['MC CV',fp(d.mc_cv)],['MC P10 Fair Value',fd(d.mc_p10_fv)],['MC P90 Fair Value',fd(d.mc_p90_fv)],['MC Clip Rate',fp(d.mc_clip_rate)],['MC Wipeout Rate',fp(d.mc_invalid_rate)]])+'</div></div>';
+  ivH+='<div class="dsec"><h3>DCF Monte Carlo</h3><div class="dkvg">'+bkv([['MC Confidence',d.mc_confidence!=null?d.mc_confidence:'N/A'],['MC CV',fp(d.mc_cv)],['MC P10 Fair Value',fd(d.mc_p10_fv)],['MC P90 Fair Value',fd(d.mc_p90_fv)],['MC Clip Rate',fp(d.mc_clip_rate)],['MC Wipeout Rate',fp(d.mc_invalid_rate)]].concat(_mcDiagPairs(d)))+'</div>'+_mcDistHtml(d)+_mcDriversHtml(d)+'</div>';
   if(d.ddm_eligible){var ddmFlag=d.ddm_payout_flag?'color:#de2d26;font-weight:700':'';var ddmLcFlag=d._ddm_low_confidence?'color:#e67e22;font-weight:700':'';ivH+='<div class="dsec"><h3>Dividend Discount Model</h3><div class="dkvg">'+bkv([['DDM Fair Value',fd(d.ddm_fv)],['H-Model FV',fd(d.ddm_h_fv)],['DDM Growth',fp(d.ddm_growth)],['Div CAGR',fp(d.ddm_div_cagr)],['Sustainable Growth',fp(d.ddm_sustainable_growth)],['Consec. Years',d.ddm_consecutive_years!=null?d.ddm_consecutive_years+'':'N/A'],['Payout Flag',d.ddm_payout_flag?'Yes':'No',ddmFlag],['Low Confidence',d._ddm_low_confidence?'Yes':'No',ddmLcFlag]])+'</div></div>';ivH+='<div class="dsec"><h3>DDM Monte Carlo</h3><div class="dkvg">'+bkv([['MC Median',fd(d.ddm_mc_median)],['MC P10',fd(d.ddm_mc_p10)],['MC P90',fd(d.ddm_mc_p90)],['MC CV',fp(d.ddm_mc_cv)],['MC Clip Rate',fp(d.ddm_mc_clip_rate)]])+'</div></div>';}
   var navMosStyle=d.nav_mos!=null?(d.nav_mos>0.15?'color:#1a9850':(d.nav_mos<0?'color:#de2d26':'')):'';
   ivH+='<div class="dsec"><h3>EPV, RIM &amp; NAV</h3><div class="dkvg">'+bkv([['EPV Fair Value',fd(d.epv_fv)],['EPV MoS',fp(d.epv_mos)],['EPV Growth-Adj',fd(d.epv_growth_fv)],['RIM Fair Value',fd(d.rim_fv)],['RIM MoS',fp(d.rim_mos)],['NAV (Tangible Book)',fd(d.nav_fv)],['NAV MoS',fp(d.nav_mos),navMosStyle]])+'</div></div>';
