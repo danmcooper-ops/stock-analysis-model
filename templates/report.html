@@ -1060,6 +1060,12 @@ td.ct{font-weight:700;}
 .dtcf-tbl dt{color:var(--chrome-muted,#6a7a90);}
 .dtcf-tbl dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;}
 .dtcf-cap{font-size:0.74em;color:var(--chrome-muted,#6a7a90);}
+.dtcf-dim{opacity:0.55;}
+.dtcf-call{display:flex;flex-direction:column;gap:2px;padding:9px 12px;border-radius:10px;font-size:0.82em;}
+.dtcf-call b{font-size:1.05em;}
+.dtcf-call span{color:var(--chrome-muted,#6a7a90);}
+.dtcf-call-earn{background:color-mix(in srgb,#8e44ad 11%,transparent);}
+.dtcf-call-thin{background:color-mix(in srgb,#e67e22 12%,transparent);}
 /* The light theme's blue and purple read dim on a dark panel. */
 [data-theme="dark"] .dtcf-tgt{fill:#79a8ff !important;}
 [data-theme="dark"] .dtcf-earn{stroke:#c58af0 !important;}
@@ -10562,6 +10568,18 @@ function _dtcFutureModel(closes,d){
     buyBelow:pos(d.profile&&d.profile.buy_below),
     targets:{low:pos(d.target_low),mean:pos(d.target_mean),high:pos(d.target_high)},
     earnings:ed,earningsEst:est,implied:_num(d.implied_growth),modelGrowth:_num(d.fcf_growth)};
+  var mc=String(d.mc_confidence||'').toUpperCase(),lvl=/^LOW/.test(mc)?'Low':/^MED/.test(mc)?'Medium':/^HIGH/.test(mc)?'High':null;
+  o.confidence=lvl;o.confidenceScore=lvl&&/(\d+)/.test(mc)?+RegExp.$1:null;
+  /* Counted from today, not the last close (a night's prices can be days
+     old); a date already past has no count. */
+  var now=d._now?new Date(d._now):new Date();now.setHours(0,0,0,0);
+  var from=now>today?now:today;
+  o.daysToEarnings=ed?Math.round((ed-from)/864e5):null;
+  if(o.daysToEarnings!=null&&o.daysToEarnings<0)o.daysToEarnings=null;
+  o.earningsSoon=o.daysToEarnings!=null&&o.daysToEarnings<=7;
+  o.dollarVolume=pos(d.avg_dollar_volume_3m);
+  /* Under $1 a share or $1M a day traded (the scoring's ADV flag). */
+  o.thin=price<1||(o.dollarVolume!=null&&o.dollarVolume<1e6);
   o.change=function(v){return v!=null?v/price-1:null;};
   /* Upside to fair value over downside to the bear value: only between the
      two, where both exist. */
@@ -10583,18 +10601,19 @@ function _dtcFutureSVG(f,lead,W){
   var lv=lead.map(function(p){return p.c;}).concat([f.price,f.fv,f.bear,f.bull,f.buyBelow,f.targets.low,f.targets.mean,f.targets.high]);
   f.cone.forEach(function(c){lv.push(c.l1,c.h1);});
   lv=lv.filter(function(v){return v!=null&&isFinite(v);});
-  var lo=Math.min.apply(null,lv),hi=Math.max.apply(null,lv),pad=Math.max((hi-lo)*0.06,hi*0.01);
-  lo=Math.max(0,lo-pad);hi=hi+pad;
+  lv=lv.filter(function(v){return v>0;});
+  /* Log scale: the cone is even in percentage terms, and a low-priced
+     stock keeps room beside a far-off value band. */
+  var lo=Math.min.apply(null,lv)/1.08,hi=Math.max.apply(null,lv)*1.08,llo=Math.log(lo),lhi=Math.log(hi);
   function X(t){return L+(+t-t0)/(t1-t0)*pw;}
-  function Y(v){v=Math.max(lo,Math.min(hi,v));return T+(1-(v-lo)/(hi-lo))*ph;}
+  function Y(v){v=Math.max(lo,Math.min(hi,v));return T+(1-(Math.log(v)-llo)/(lhi-llo))*ph;}
   function n1(v){return Math.round(v*10)/10;}
   var g='',tx='class="dtcf-t"';
   /* Grid and the price axis. */
-  var step=Math.pow(10,Math.floor(Math.log10((hi-lo)/4))),m=[1,2,2.5,5,10].filter(function(k){return (hi-lo)/(k*step)<=5;})[0]*step;
-  for(var y=Math.ceil(lo/m)*m;y<=hi;y+=m){
+  _dtcFutureTicks(lo,hi).forEach(function(y){
     g+='<line x1="'+L+'" x2="'+(L+pw)+'" y1="'+n1(Y(y))+'" y2="'+n1(Y(y))+'" class="dtcf-grid"/>'
-      +'<text '+tx+' x="'+(L+pw+5)+'" y="'+n1(Y(y)+4)+'">'+(y>=1000?Math.round(y).toLocaleString():+y.toFixed(m<1?2:0))+'</text>';
-  }
+      +'<text '+tx+' x="'+(L+pw+5)+'" y="'+n1(Y(y)+4)+'">$'+(y<10?y.toFixed(2):Math.round(y).toLocaleString())+'</text>';
+  });
   /* Quarter marks along the bottom. */
   var q=new Date(t0);q.setDate(1);q.setMonth(q.getMonth()+1);
   while(+q<=t1){
@@ -10631,6 +10650,15 @@ function _dtcFutureSVG(f,lead,W){
   });
   return '<svg class="dtcf-svg" viewBox="0 0 '+W+' '+H+'" width="100%" height="'+H+'" role="img" aria-label="The year ahead: price range, the model\'s value band and analyst targets">'+g+'</svg>';
 }
+/* Log-axis marks: 1-2-5 steps inside the domain (a $0.24 stock reads in
+   cents, a $250 one in dollars); a narrow domain gets five even steps. */
+function _dtcFutureTicks(lo,hi){
+  if(!(lo>0)||!(hi>lo))return [];
+  var out=[],dec=Math.pow(10,Math.floor(Math.log10(lo)));
+  for(;dec<=hi;dec*=10)[1,2,5].forEach(function(m){var v=+(m*dec).toPrecision(6);if(v>=lo&&v<=hi)out.push(v);});
+  if(out.length<3){out=[];for(var i=0;i<=4;i++)out.push(lo+i*(hi-lo)/4);}
+  return out;
+}
 function _dtcFutureLegend(f){
   function it(sw,l){return '<span class="dtcf-li">'+sw+esc(l)+'</span>';}
   function ln(c,dash){return '<svg width="14" height="8" aria-hidden="true"><line x1="0" y1="4" x2="14" y2="4" stroke="'+c+'" stroke-width="2"'+(dash?' stroke-dasharray="2 2"':'')+'/></svg>';}
@@ -10662,10 +10690,25 @@ function _dtcFutureNotes(f){
   if(f.targets.mean!=null)rows.push(['Analyst average',usd(f.targets.mean)+' ('+pc(f.change(f.targets.mean),true)+')']);
   if(f.earnings)rows.push(['Next earnings',f.earnings.toLocaleDateString(undefined,{month:'short',day:'numeric'})+(f.earningsEst?' (est.)':'')]);
   if(f.vol!=null)rows.push(['Volatility',pc(f.vol,false)+' a year']);
+  if(f.confidence)rows.unshift(['Model confidence',f.confidence+(f.confidenceScore!=null?' ('+f.confidenceScore+'%)':'')]);
+  function callout(cls,title,text){return '<div class="dtcf-call '+cls+'"><b>'+title+'</b><span>'+text+'</span></div>';}
   var h='<div class="dtcf-notes">';
+  if(f.earningsSoon){
+    var dd=f.daysToEarnings;
+    h+=callout('dtcf-call-earn','Earnings '+(dd===0?'today':dd===1?'tomorrow':'in '+dd+' days')+' ('
+      +f.earnings.toLocaleDateString(undefined,{month:'short',day:'numeric'})+(f.earningsEst?', est.':'')+')','Results can move the price and the model\u2019s values.');
+  }
+  if(f.thin){
+    var bits=[];
+    if(f.price<1)bits.push(usd(f.price)+' a share');
+    if(f.dollarVolume!=null&&f.dollarVolume<1e6)bits.push('about $'+(f.dollarVolume>=1e3?Math.round(f.dollarVolume/1e3)+'K':Math.round(f.dollarVolume))+' a day traded');
+    h+=callout('dtcf-call-thin','Thinly traded',bits.join(' and ')+'. Real swings can be wider than the likely range.');
+  }
   if(f.bear!=null||f.fv!=null||f.bull!=null){
-    h+='<div class="dtcf-tiles">'+tile('Bear',f.bear)+tile('Base',f.fv)+tile('Bull',f.bull)+'</div>';
-    var v=f.rewardToRisk!=null?'Upside to fair value is '+f.rewardToRisk.toFixed(1)+'× the downside to the bear value.'
+    /* A low-confidence range is shown, but dimmed. */
+    h+='<div class="dtcf-tiles'+(f.confidence==='Low'?' dtcf-dim':'')+'">'+tile('Bear',f.bear)+tile('Base',f.fv)+tile('Bull',f.bull)+'</div>';
+    var v=(f.confidence==='Low'&&f.bear!=null&&f.bull!=null)?'Low confidence: the model\u2019s range is wide (bull '+(f.bull/f.bear).toFixed(1)+'\u00d7 bear), so treat these as rough.'
+      :f.rewardToRisk!=null?'Upside to fair value is '+f.rewardToRisk.toFixed(1)+'× the downside to the bear value.'
       :(f.bear!=null&&f.price<=f.bear)?'The price is below even the model’s bear value.'
       :(f.fv!=null&&f.price>=f.fv)?'The price is above the model’s fair value.':'';
     if(v)h+='<p class="dtcf-sub">'+v+'</p>';
