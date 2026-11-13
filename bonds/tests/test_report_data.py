@@ -34,7 +34,7 @@ def test_report_data_carries_the_page():
     assert d['capped_pct'] == 50 and d['mark_age'] == 180
     assert d['vintage'] == {'date': '2098-07-01', 'age_days': 185}
     assert [c['k'] for c in d['cards']][:2] == ['Instruments', 'BUY']
-    assert d['caveats'][2]['lead'] == '50% of rows carry a rating cap'
+    assert d['caveats'][2]['lead'] == '50% of rows carry a cap flag'
     assert d['ratings'] == [['BUY', 1], ['HOLD', 1]]
     assert d['curve'] == [[0.25, 0.042], [10.0, 0.05]]
     assert [s['name'] for s in d['term']] == ['mid', 'FRED slices']

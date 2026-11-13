@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pytest
 
+from score_band_js import band_js
+
 from scripts.report_html import build_html
 
 TEMPLATE = Path(__file__).resolve().parents[1] / 'templates' / 'report.html'
@@ -187,7 +189,7 @@ def test_renderer_handles_a_full_row_and_an_empty_one(tmp_path):
             "dcf_sens_range:'bad',trap_reasons:[null,{text:'t'}]});\n"
           + 'console.log(JSON.stringify([a,b,c]));\n')
     script = tmp_path / 'profile.js'
-    script.write_text(js, encoding='utf-8')
+    script.write_text(band_js(_tpl()) + js, encoding='utf-8')
     r = subprocess.run(['node', str(script)], capture_output=True, text=True, check=False)
     assert r.returncode == 0, r.stderr
     a, b, c = json.loads(r.stdout)

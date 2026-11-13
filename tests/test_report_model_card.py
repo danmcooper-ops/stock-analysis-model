@@ -9,6 +9,8 @@ import subprocess
 
 import pytest
 
+from score_band_js import band_js
+
 from scripts import param_set
 from scripts.scoring import gate_metadata
 
@@ -59,7 +61,7 @@ def _render(tmp_path, row):
         'l:[24,40,72].map(function(c){return _gvLines(c,GM.ratings);})}));',
     ])
     script = tmp_path / 't.js'
-    script.write_text(js, encoding='utf-8')
+    script.write_text(band_js(_src()) + js, encoding='utf-8')
     r = subprocess.run(['node', str(script)], capture_output=True, text=True, check=False)
     assert r.returncode == 0, r.stdout + r.stderr
     return json.loads(r.stdout)
@@ -113,11 +115,15 @@ def test_score_line_names_the_nearest_lines(tmp_path):
     row, _, _ = _row()
     out = _render(tmp_path, row)
     l24, l40, l72 = out['l']
-    assert l24 == [{'k': 'short', 'r': 'HOLD', 'n': '1'}]
-    assert l40 == [{'k': 'above', 'r': 'LEAN BUY', 'n': '1'},
-                   {'k': 'short', 'r': 'BUY', 'n': '17'}]
-    assert l72 == [{'k': 'above', 'r': 'BUY', 'n': '15'}]
+    assert l24 == [{'k': 'short', 'r': 'HOLD', 'm': 25, 'n': '1'}]
+    assert l40 == [{'k': 'above', 'r': 'LEAN BUY', 'm': 39, 'n': '1'},
+                   {'k': 'short', 'r': 'BUY', 'm': 57, 'n': '17'}]
+    assert l72 == [{'k': 'above', 'r': 'BUY', 'm': 57, 'n': '15'}]
     assert '72<small> / 100' in out['h']
+    # The card names the line's score, never the rating.
+    assert 'above the 57 line' in out['h']
+    for word in ('>BUY<', 'LEAN BUY', 'gv-sc-r'):
+        assert word not in out['h']
 
 
 @node

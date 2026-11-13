@@ -752,17 +752,18 @@ def _caveats(mark_age, capped_pct):
          "They come from SEC Form N-PORT fund holdings, the only free per-CUSIP "
          "source. Every price shown is that mark aged onto today's curve — an "
          "estimate, never a quote."),
-        ('The ratings themselves do not yet predict returns.',
-         'In a point-in-time backtest over 11 months (run 2026-09-14), BUY and '
-         'LEAN BUY did not beat HOLD and PASS (positive in only 5 of 11 '
-         'months). What did hold up is relative value: the cheapest fifth by '
-         'spread mispricing beat the richest by ~26bp of monthly excess return '
-         'in 10 of 11 months. Sort by the Mispr column, and read the rating as '
-         'a data-quality-aware summary, not a forecast.'),
-        (f'{capped_pct}% of rows carry a rating cap',
-         '— mostly because the issuer could not be identified. A capped row '
-         'still shows its uncapped rating; the cap says the data does not '
-         'support acting on it.'),
+        ('The scores themselves do not yet predict returns.',
+         'In a point-in-time backtest over 11 months (run 2026-09-14), bonds in '
+         'the top two score bands of their class did not beat the bottom two '
+         '(positive in only 5 of 11 months). What did hold up is relative '
+         'value: the cheapest fifth by spread mispricing beat the richest by '
+         '~26bp of monthly excess return in 10 of 11 months. Sort by the Mispr '
+         'column, and read the score as a data-quality-aware summary, not a '
+         'forecast.'),
+        (f'{capped_pct}% of rows carry a cap flag',
+         '— mostly because the issuer could not be identified. A flag can hold '
+         "a bond below the band its score alone gives; it says the data does "
+         'not support acting on it.'),
         ('No agency ratings, no true OAS, no covenants.',
          'Z-spread stands in for OAS, so callable bonds priced above par are '
          'systematically overstated and are capped.'),

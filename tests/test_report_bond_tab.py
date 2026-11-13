@@ -11,6 +11,8 @@ from pathlib import Path
 
 import pytest
 
+from score_band_js import band_js
+
 from scripts import report_html
 
 TEMPLATE = Path(__file__).resolve().parents[1] / 'templates' / 'report.html'
@@ -37,6 +39,10 @@ REPORT = {
     'term': [{'name': 'mid', 'points': [[2.0, 0.7], [10.0, 1.1]]},
              {'name': 'FRED slices', 'points': [[2.0, 0.59]]}],
     'cap_reasons': [['stale mark', 1]],
+    # Each class's own band lines (bonds/scripts/report_html.thresholds_by_class).
+    'thresholds_by_class': {'_base': {'buy': 57.0, 'lean': 39.0, 'pass': 25.0},
+                            'TREASURY': {'buy': 70.4, 'lean': 63.6, 'pass': 55.5},
+                            'CORP_IG': {'buy': 64.9, 'lean': 44.0, 'pass': 30.0}},
     'categories': [{'label': 'Valuation', 'n': 2, 'mean': 34.4}],
     'tips': {'ratings': 'r', 'buckets': 'b', 'curve': 'c', 'term': 't', 'caps': 'k',
              'categories': 'g'},
@@ -51,7 +57,7 @@ REPORT = {
                 {'k': 'rating', 'l': 'Rating', 'f': 'rating', 'w': 88, 't': 'r'},
                 {'k': '_caps', 'l': 'Caps', 'f': 'caps', 'w': 200, 't': 'Why.'}],
     'rows': [['A1', 'ALPHA CORP', 'CORP_IG', 'A', 0.0212, 86.7, 'BUY', ''],
-             ['T1', None, 'TREASURY', None, -0.0003, 40.1, 'HOLD', 'stale mark (210d old)']],
+             ['T1', None, 'TREASURY', None, -0.0003, 66.0, 'HOLD', 'stale mark (210d old)']],
 }
 
 
@@ -131,12 +137,13 @@ def _render(report, after=''):
     fm = src[src.index('var _FM_SUB='):src.index('function _fmBar(')]
     # The dashboard's shared builders (_fdCards ... _fdList) and its ratings.
     fd = src[src.index('var _FD_RC='):src.index('function _fdJump(')]
-    rt = re.search(r'^var _BV_RATINGS=.*?;$', src, re.M).group(0)
+    # The band keys and the per-class band helpers that follow them.
+    rt = src[src.index('var _BV_RATINGS='):src.index('function _bvDash(')]
     js = '\n'.join([
         # The table's search is the header's #f-search; Q stands in for it.
         "var Q='';var document={getElementById:function(id){return id==='f-search'?{value:Q}:null;},"
         "documentElement:{classList:{contains:function(){return false;}}}};",
-        'function isCapped(){return false;}', attr, rb, rc, fm, fd, rt, block, *fns,
+        band_js(src), 'function isCapped(){return false;}', attr, rb, rc, fm, fd, rt, block, *fns,
         f'_BV={json.dumps(report)};',
         after or 'process.stdout.write(_bvHtml(_BV));'])
     return subprocess.run(['node', '-e', js], capture_output=True, text=True, check=True).stdout
@@ -149,7 +156,7 @@ def test_render_draws_every_section_from_the_report():
     assert 'Marks are 179 days old' in html and '2026-04-30' in html
     assert '<b>Prices are monthly.</b> Marks are &lt;old&gt;.' in html
     for t in ('Implied credit bucket', 'Treasury par curve', 'By Category',
-              'Spread term structure, fitted vs FRED', 'Why rows are capped',
+              'Spread term structure, fitted vs FRED', 'Why rows carry a cap flag',
               'Composite Score Distribution'):
         assert t in html
     assert 'title="Solid investment grade."' in html
@@ -160,8 +167,9 @@ def test_render_draws_every_section_from_the_report():
 
 
 def test_filters_are_in_the_top_bar_panel():
-    """On this tab the funnel's panel holds the bond filters: rating,
-    asset class (by its label), implied bucket and Uncapped only."""
+    """On this tab the funnel's panel holds the bond filters: score band
+    (within class, or capped), asset class (by its label), implied bucket and
+    Without cap flags."""
     out = _render(REPORT, after='''
 var box={hidden:true,innerHTML:''},el={};
 document.getElementById=function(id){if(id==='alt-filt')return box;if(id==='f-search')return {value:''};return el[id]||(el[id]={style:{},classList:{toggle:function(){}}});};
@@ -174,7 +182,7 @@ process.stdout.write(JSON.stringify({h:box.innerHTML,hidden:box.hidden,stock:el[
     d = json.loads(out)
     assert d['hidden'] is False and d['stock'] == 'none'
     assert '<option value="CORP_IG" selected>IG</option>' in d['h']
-    for t in ('All ratings', 'All classes', 'All buckets', 'Uncapped only'):
+    for t in ('All bands', 'All classes', 'All buckets', 'Without cap flags', '⚠ Capped'):
         assert t in d['h']
 
 
@@ -213,16 +221,40 @@ def test_rows_filter_and_sort_like_the_bond_page():
     assert 'bv-mut' in r[7] and r[8] == 'T-BILL'
 
 
+def test_bands_are_per_class_and_capped_rows_filter():
+    out = _render(REPORT, after=(
+        "var r=_BV.rows.map(function(x){return [_bvBand(x),_bvCapped(x)];});"
+        "_bvF.r='CAPPED';r.push(_bvRows().map(function(x){return x[0];}));"
+        "_bvF.r='BUY';r.push(_bvRows().map(function(x){return x[0];}));"
+        "process.stdout.write(JSON.stringify(r));"))
+    r = json.loads(out)
+    assert r[0] == ['BUY', False] and r[1] == ['LEAN BUY', True]
+    assert r[2] == ['T1'] and r[3] == ['A1']
+
+
+def test_no_bands_without_the_class_lines():
+    report = {k: v for k, v in REPORT.items() if k != 'thresholds_by_class'}
+    html = _render(report)
+    assert 'class="fd-box"' not in html and 'Score band' not in html
+
+
 def test_dashboard_cards_boxes_and_either_end():
-    """The Dashboard reads the bond model's categories as cards, its ratings
-    as boxes that open the Table on one rating (the rating tiles are not
-    repeated), the score histogram, and the cheapest and richest bonds."""
+    """The Dashboard reads the bond model's categories as cards, the score
+    bands (each bond against its own class's lines) and the capped count as
+    boxes that open the Table filtered to them (the model's rating tiles are
+    not shown), the score histogram, and the cheapest and richest bonds."""
     html = _render(REPORT)
     dash = html.split('<div data-pane="dash">')[1].split('<div data-pane="table">')[0]
     assert '<div class="fd-k">Valuation</div><div class="fd-v">34%</div>' in dash
-    assert dash.count('class="fd-box"') == 2
+    # A1 (Corp IG 86.7) is in its top band, T1 (Treasury 66) in its 2nd,
+    # and T1's cap holds it below that band.
+    assert dash.count('class="fd-box"') == 3
+    assert '<span>Top band</span>' in dash and '<span>2nd band</span>' in dash
+    assert '<b>1</b><span>⚠ Capped</span>' in dash
     assert '_bvDashGo(&quot;r&quot;,&quot;BUY&quot;)' in dash
-    assert '<span>BUY</span><b>1</b>' not in dash       # a box, not a tile too
+    assert '_bvDashGo(&quot;r&quot;,&quot;CAPPED&quot;)' in dash
+    for word in ('BUY<', 'HOLD<', 'PASS<', '>BUY', 'Rating'):
+        assert word not in dash                           # no rating anywhere
     assert 'title="Every bond priced."><span>Instruments</span><b>2</b>' in dash
     assert 'class="fd-hist"' in dash
     assert '_bvDashGo(&quot;b&quot;,&quot;A&quot;)' in dash

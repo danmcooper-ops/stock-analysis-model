@@ -415,8 +415,13 @@ def _fmt_gate_value(v, fmt):
         return str(v)
 
 
-def _explain_rating_change(prev, cur, gate_meta):
+def _explain_rating_change(prev, cur, gate_meta, score_terms=False):
     """Build the popup's "why the rating changed" bullet list.
+
+    With *score_terms* the bullets name score lines and bands instead of
+    ratings ("crossing above the 57 line"): what the report and the app show
+    (``rating_chg_why``). The default wording is the portfolio digest's,
+    which prints these bullets verbatim and stays as it was.
 
     ``prev`` is the driver dict captured by _load_prev_ratings for the same
     ticker (None for new tickers); ``cur`` is the full current record. Returns
@@ -435,6 +440,20 @@ def _explain_rating_change(prev, cur, gate_meta):
         return None
     up = delta > 0
     why = []
+    st = score_terms
+
+    def band(r):
+        """A rating as its score band, for the score-terms wording."""
+        th = {3: _RATING_THRESHOLD_BY_RANK.get(3), 2: _RATING_THRESHOLD_BY_RANK.get(2),
+              1: _RATING_THRESHOLD_BY_RANK.get(1)}
+        rk = _RATING_VAL.get(r)
+        if rk is None:
+            return 'no'
+        if rk == 3:
+            return f'the {th[3]}+'
+        if rk == 0:
+            return f'the below-{th[1]}'
+        return f'the {th[rk]}–{th[rk + 1]}'
 
     # --- Rating caps: a cap firing (downgrade) or releasing (upgrade) can
     #     change the rating with no composite move at all, so it leads. ---
@@ -446,16 +465,21 @@ def _explain_rating_change(prev, cur, gate_meta):
     if not up and c_capped:
         new_r = [x for x in c_reasons if x not in p_reasons]
         if new_r:
-            why.append('A rating cap fired this run: '
+            why.append(('A flag lowered its band this run: ' if st else
+                        'A rating cap fired this run: ')
                        + '; '.join(new_r)
-                       + f'. On the composite alone it would rate {c_raw}.')
+                       + (f'. On the score alone it would sit in {band(c_raw)} band.' if st
+                          else f'. On the composite alone it would rate {c_raw}.'))
         elif not p_capped:
-            why.append('The rating is being held down by a cap: '
-                       + ('; '.join(c_reasons) or 'see rating cap')
-                       + f'. On the composite alone it would rate {c_raw}.')
+            why.append(('A flag is holding its band down: ' if st else
+                        'The rating is being held down by a cap: ')
+                       + ('; '.join(c_reasons) or ('see the flags' if st else 'see rating cap'))
+                       + (f'. On the score alone it would sit in {band(c_raw)} band.' if st
+                          else f'. On the composite alone it would rate {c_raw}.'))
     if up and p_capped and not c_capped:
         gone = [x for x in p_reasons if x not in c_reasons]
-        why.append("The prior run's rating cap no longer applies"
+        why.append(("The prior run's band-lowering flag no longer applies" if st
+                    else "The prior run's rating cap no longer applies")
                    + (f" ({'; '.join(gone)})" if gone else '')
                    + '.')
 
@@ -469,21 +493,29 @@ def _explain_rating_change(prev, cur, gate_meta):
         if (p_raw in _RATING_VAL and c_raw in _RATING_VAL and p_raw != c_raw):
             lo = min(_RATING_VAL[p_raw], _RATING_VAL[c_raw])
             hi = max(_RATING_VAL[p_raw], _RATING_VAL[c_raw])
-            crossed = [f'{_RATING_BY_RANK[rk]} ({_RATING_THRESHOLD_BY_RANK[rk]})'
-                       for rk in range(hi, lo, -1)]
-            s += (', crossing ' + ('above' if up else 'below') + ' the '
-                  + ' and '.join(crossed)
-                  + (' thresholds' if len(crossed) > 1 else ' threshold'))
+            if st:
+                crossed = [f'{_RATING_THRESHOLD_BY_RANK[rk]}' for rk in range(hi, lo, -1)]
+                s += (', crossing ' + ('above' if up else 'below') + ' the '
+                      + ' and '.join(crossed)
+                      + (' lines' if len(crossed) > 1 else ' line'))
+            else:
+                crossed = [f'{_RATING_BY_RANK[rk]} ({_RATING_THRESHOLD_BY_RANK[rk]})'
+                           for rk in range(hi, lo, -1)]
+                s += (', crossing ' + ('above' if up else 'below') + ' the '
+                      + ' and '.join(crossed)
+                      + (' thresholds' if len(crossed) > 1 else ' threshold'))
         elif p_raw == c_raw and p_raw is not None:
-            s += ' (the composite-only rating band did not change)'
+            s += (' (its band on the score alone did not change)' if st
+                  else ' (the composite-only rating band did not change)')
         why.append(s + '.')
     elif p_cs is None and c_cs is not None:
         why.append('The prior run had no composite score (insufficient scoring '
                    'data); this run scored it '
-                   f'{c_cs:.0f}, rating {c_rt}.')
+                   + (f'{c_cs:.0f}.' if st else f'{c_cs:.0f}, rating {c_rt}.'))
     elif p_cs is not None and c_cs is None:
         why.append('This run produced no composite score (insufficient scoring '
-                   'data), so the rating fell back to the cap/default path.')
+                   + ('data), so it has no band this run.' if st else
+                      'data), so the rating fell back to the cap/default path.'))
 
     # --- Category-level attribution: which score groups moved the composite. ---
     cat_moves = []
@@ -522,7 +554,8 @@ def _explain_rating_change(prev, cur, gate_meta):
     if not why:
         why.append('Underlying inputs shifted between runs, but no single '
                    'score driver moved enough to attribute the change '
-                   '(likely small moves straddling a rating threshold).')
+                   + ('(likely small moves straddling a band line).' if st else
+                      '(likely small moves straddling a rating threshold).'))
     return why
 
 
@@ -894,7 +927,7 @@ def _row_context(r, gate_meta_obj, _r2000, _prev_ratings, _rating_hist,
             (_prev_ratings.get(r.get('ticker')) or {}).get('rating'),
             r.get('rating')),
         'rating_chg_why': _explain_rating_change(
-            _prev_ratings.get(r.get('ticker')), r, gate_meta_obj),
+            _prev_ratings.get(r.get('ticker')), r, gate_meta_obj, score_terms=True),
         # Rating change-points (last 12) for "BUY since ..." in the popup.
         'rating_hist': (_rating_hist.get(r.get('ticker')) or [])[-12:],
         '_rating_cap': r.get('_rating_cap'),

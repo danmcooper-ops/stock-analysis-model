@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from score_band_js import band_js
+
 TEMPLATE = Path(__file__).resolve().parents[1] / 'templates' / 'report.html'
 node = pytest.mark.skipif(shutil.which('node') is None, reason='node not installed')
 
@@ -99,7 +101,7 @@ var out={{}};
 console.log(JSON.stringify(out));
 """
     script = tmp_path / 't.js'
-    script.write_text(body, encoding='utf-8')
+    script.write_text(band_js(_src()) + body, encoding='utf-8')
     r = subprocess.run(['node', str(script)], capture_output=True, text=True, check=False)
     assert r.returncode == 0, r.stdout + r.stderr
     return json.loads(r.stdout)
@@ -189,7 +191,7 @@ function _navGroups(){{return {json.dumps(NAV)};}}
 console.log(JSON.stringify((function(){{{js}}})()));
 """
     script = tmp_path / 'q.js'
-    script.write_text(body, encoding='utf-8')
+    script.write_text(band_js(_src()) + body, encoding='utf-8')
     r = subprocess.run(['node', str(script)], capture_output=True, text=True, check=False)
     assert r.returncode == 0, r.stdout + r.stderr
     return json.loads(r.stdout)
@@ -236,7 +238,8 @@ return {p:_qrPages(['BONDS']).map(function(x){return x[3];}),
         x:_qrStockX(DATA[2])};""")
     assert out['p'] == ['matrix|bond']
     assert out['t'] == [['P/E', 'P/E = Price / EPS.']]
-    assert '$230.50' in out['x'] and 'LEAN BUY' in out['x'] and '-20%' in out['x']
+    assert '$230.50' in out['x'] and '-20%' in out['x']
+    assert 'LEAN BUY' not in out['x']          # a stock row shows its score, not a rating
 
 
 @node

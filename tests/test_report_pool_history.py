@@ -13,6 +13,8 @@ import pytest
 from models.sector_pool import (economic_pool, industry_pools, pool_structure,
                                  sector_pool_history, universe_totals)
 
+from score_band_js import band_js  # noqa: E402
+
 TEMPLATE = Path(__file__).resolve().parents[1] / 'templates' / 'report.html'
 YEARS = list(range(2016, 2026))
 
@@ -43,7 +45,7 @@ def _render(history, call, tmp_path, entry=None):
              '_ppStructureStats', '_qHelp', '_noteQ']
     sp = dict(entry or {}, history=history)
     js = '\n'.join(
-        ["var RC={'BUY':'#1a9850','PASS':'#de2d26'};",
+        [band_js(src), "var RC={'BUY':'#1a9850','PASS':'#de2d26'};",
          'function _esc(s){return String(s);}function _attr(s){return String(s);}']
         + [_fn(src, n) for n in names]
         + ['var SECTOR_POOL=' + json.dumps({'Tech': sp}) + ';',
@@ -199,7 +201,7 @@ def _render_signals(entry, tmp_path, stored=None, data=None, macro=None):
                        for v in ('_PPF_ST', '_PPF_ORDER', '_PPF_TYPE'))
     store = ('var localStorage={getItem:function(){return %s;}};' % json.dumps(json.dumps(stored))
              if stored is not None else '')
-    js = '\n'.join([store + "var RC={'BUY':'#1a9850','PASS':'#de2d26'};var DATA=" + json.dumps(data or []) + ";"
+    js = '\n'.join([band_js(src) + store + "var RC={'BUY':'#1a9850','PASS':'#de2d26'};var DATA=" + json.dumps(data or []) + ";"
                     + 'var MACRO_SUM=' + json.dumps(macro) + ';var MACRO=null;',
                     'function _esc(s){return String(s);}function _attr(s){return String(s);}'
                     'function _linkifyTickers(s){return s;}',
@@ -332,7 +334,7 @@ def _render_co_table(shown, tail, tmp_path):
     src = TEMPLATE.read_text(encoding='utf-8')
     names = ['_ppPct', '_ppSgnPct', '_ppiV', '_ppiTh', '_ppSkewTd', '_qHelp', '_noteQ',
              'renderPoolCompanyTable']
-    js = '\n'.join(["var RC={'BUY':'#1a9850','PASS':'#de2d26'};",
+    js = '\n'.join([band_js(src), "var RC={'BUY':'#1a9850','PASS':'#de2d26'};",
                     'function _esc(s){return String(s);}function _attr(s){return String(s);}',
                     re.search(r'^var _PP_BS_INDUSTRIES=.*$', src, re.M).group(0),
                     re.search(r'^var _PPI_RANK=.*$', src, re.M).group(0)]
@@ -444,9 +446,9 @@ def _sort_rows(html, col, desc=True, numeric=True):
 
 
 def test_company_table_headers_sort_and_pin_others(tmp_path):
-    shown = [_co('A', 0.10, 0.20, rating='PASS', _gate_pool_share=None),
-             _co('B', 0.20, 0.10, rating='BUY', _gate_pool_share=0.05),
-             _co('C', 0.05, 0.05, rating='HOLD', _gate_pool_share=-0.02)]
+    shown = [_co('A', 0.10, 0.20, rating='PASS', _composite_score=12.0, _gate_pool_share=None),
+             _co('B', 0.20, 0.10, rating='BUY', _composite_score=61.0, _gate_pool_share=0.05),
+             _co('C', 0.05, 0.05, rating='HOLD', _composite_score=30.0, _gate_pool_share=-0.02)]
     html = _render_co_table(shown, [_co('T', 0.01, 0.01)], tmp_path)
     assert html.count('onclick="_ppiSort(this)"') == 8
     assert '<th data-t="n" aria-sort="descending" onclick' in html            # Pool, as rendered
@@ -455,7 +457,7 @@ def test_company_table_headers_sort_and_pin_others(tmp_path):
     rows = _sort_rows(html, 6)                                                 # trend, high to low
     order = [re.search(r'data-tk="(\w+)"', r).group(1) if 'data-tk' in r else 'Others' for r in rows]
     assert order == ['B', 'C', 'A', 'Others']                                  # blank last, Others pinned
-    rows = _sort_rows(html, 1)                                                 # rating rank
+    rows = _sort_rows(html, 1)                                                 # composite score
     assert [re.search(r'data-tk="(\w+)"', r).group(1) for r in rows[:3]] == ['B', 'C', 'A']
 
 

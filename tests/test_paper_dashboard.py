@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from score_band_js import band_js
+
 from models import paper_dashboard as pd
 from scripts import report_html
 
@@ -171,7 +173,8 @@ def test_render_in_node():
         "var _pfRow={A:{rating:'BUY'},B:{rating:'LEAN BUY'}};",
         f'_PPA={json.dumps(_build())};',
         'process.stdout.write(_ppaHtml());'])
-    html = subprocess.run(['node', '-e', js], capture_output=True, text=True, check=True).stdout
+    html = subprocess.run(['node', '-e', band_js(src) + js], capture_output=True, text=True,
+                          check=True).stdout
     for needle in ('Paper − model', '-1.00pp', 'Book bought', '1 of 2 names held',
                    'not yet bought', 'to sell', 'Held vs target', 'Activity',
                    'not tradable at Alpaca', 'quote moved since the snapshot', '+0.20%'):

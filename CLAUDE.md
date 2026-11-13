@@ -1644,7 +1644,25 @@ ruff check .
     Corp IG 64.9 / 44 / 30). Bonds and currencies still cap ratings, so a
     capped row (`rating` below its score's band: 405 of 9,056 bonds on
     2026-11-11) shows its score with a ⚠ and its reasons.
-  Tests: `tests/test_score_history.py`, `tests/test_alert_score_wording.py`.
+  - **The report** (`templates/report.html`, "SCORE, NOT RATING"): BUY /
+    LEAN BUY / HOLD / PASS stay as internal keys — the Score filter's
+    values, saved filters and share links (`r`), portfolio rules
+    (`_pfRuleMatch`, which mirrors `rule_matches`) and `rating:buy+` queries
+    keep working — but a key is only ever shown as its band's score range
+    (`bandLabel`: 57+, 39–56, 25–38, <25, lines from `GM.ratings`). Rows are
+    filtered and counted by their score's band (`bandOf`), crossings come
+    from `score_prev` (`scoreCross`, `crossText`), pills are the score
+    (`sb`/`sbv`), and the score trend is `scoreSeries`. The Stocks table's
+    and the Gate Matrix's frozen fifth column is the Score (so no sticky
+    offsets moved). Bonds band each row on its class's lines with ordinal
+    labels (`_bvBand`, "Top band"), currencies on `gate_meta.thresholds`
+    (`_cxBand`); a capped row (`rating` below its score's band) gets ⚠.
+    The AI analyst's prompt and tool results carry no rating
+    (`_aiNoRating`). The app's Summary PDF bundle needs the band helpers too
+    (`tools/gen_summary_pdf.py` in the app repo).
+  Tests: `tests/test_score_history.py`, `tests/test_alert_score_wording.py`,
+  `tests/test_report_score_only.py`; node tests load the band helpers from
+  `tests/score_band_js.py`.
 - **Gates that cannot apply score 0 (`NA_GATES_SCORE_ZERO`, 2026-10-20):** a
   gate whose `applicable` predicate fails (a bank's ROIC, FCF, EV, margin and
   leverage gates; P/TBV on negative tangible book; < 4 insider trades; short
