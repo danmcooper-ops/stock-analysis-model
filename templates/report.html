@@ -1068,6 +1068,11 @@ td.ct{font-weight:700;}
 .dtcf-call-thin{background:color-mix(in srgb,#e67e22 12%,transparent);}
 /* The light theme's blue and purple read dim on a dark panel. */
 [data-theme="dark"] .dtcf-tgt{fill:#79a8ff !important;}
+/* The tiles' green and red are the light theme's; lifted on a dark panel,
+   and a dimmed (low-confidence) row stays readable. */
+[data-theme="dark"] .dtcf-tile b.dtcf-up{--sac:#56d364 !important;}
+[data-theme="dark"] .dtcf-tile b.dtcf-dn{--sac:#ff7b72 !important;}
+[data-theme="dark"] .dtcf-dim{opacity:0.7;}
 [data-theme="dark"] .dtcf-earn{stroke:#c58af0 !important;}
 #d-pane-overview.active{display:flex;flex-direction:column;gap:14px;}
 /* Charts/data panes hold multiple stacked blocks (price chart + metric chart
@@ -10681,7 +10686,7 @@ function _dtcFutureNotes(f){
   function usd(v){return '$'+(v<10?v.toFixed(2):Math.round(v).toLocaleString());}
   function tile(l,v){
     var c=f.change(v);
-    return '<div class="dtcf-tile"><small>'+l+'</small><b class="sa-chrome" style="--sac:'+(c==null?'var(--chrome-muted)':c>=0?'#1a9850':'#de2d26')+'">'+(c==null?'—':pc(c,true))+'</b><span>'+(v!=null?usd(v):'&nbsp;')+'</span></div>';
+    return '<div class="dtcf-tile"><small>'+l+'</small><b class="sa-chrome'+(c==null?'':c>=0?' dtcf-up':' dtcf-dn')+'" style="--sac:'+(c==null?'var(--chrome-muted)':c>=0?'#1a9850':'#de2d26')+'">'+(c==null?'—':pc(c,true))+'</b><span>'+(v!=null?usd(v):'&nbsp;')+'</span></div>';
   }
   var rows=[];
   if(f.implied!=null)rows.push(['Growth priced in',pc(f.implied,true)+' a year']);
