@@ -11,6 +11,8 @@ from pathlib import Path
 
 import pytest
 
+from score_band_js import band_js
+
 from scripts import report_html
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -134,7 +136,7 @@ def _render(after):
     stub = ("var Q='';var document={getElementById:function(id){return id==='f-search'?{value:Q}:null;},"
             "documentElement:{classList:{contains:function(){return false;}}}};")
     fd = src[src.index('var _FD_RC='):src.index('function _fdJump(')]
-    js = '\n'.join([stub, _fn_src('_esc', src), _fn_src('_qHelp', src), *pick, fm, fd, block,
+    js = '\n'.join([band_js(src), stub, _fn_src('_esc', src), _fn_src('_qHelp', src), *pick, fm, fd, block,
                     f'_CX=_cxPrep({json.dumps(REPORT)});', after])
     return subprocess.run(['node', '-e', js], capture_output=True, text=True, check=True).stdout
 
@@ -142,10 +144,14 @@ def _render(after):
 def test_render_draws_the_header_tiles_and_views():
     html = _render('process.stdout.write(_cxHtml(_CX));')
     assert 'Run 2026-10-27 · 2 currencies ranked rich to cheap on 2 gates in 2 weighted pillars' in html
-    assert '<b>1</b><span>LONG</span>' in html and '<b>1</b><span>NEUTRAL</span>' in html
+    # Boxes count by score band on the screener's own lines (57 / 45 / 30):
+    # JPY 59 and HKD 65.5 are both 57+, though a cap holds HKD's rating down.
+    assert '<b>2</b><span>Score 57+</span>' in html and '<b>0</b><span>Score 45–56</span>' in html
+    for word in ('>LONG<', '>NEUTRAL<', 'LEAN LONG<', '>AVOID<'):
+        assert word not in html
     assert '_cxDashGo(&quot;r&quot;,&quot;LONG&quot;)' in html
     assert '<span>Top ranked</span><b>HKD · 66</b>' in html
-    assert '<span>Capped</span><b>1</b>' in html
+    assert '<span>⚠ Capped</span><b>1</b>' in html
     for v in ('Dashboard', 'Screener', 'Gate Matrix', 'Map', 'Detail'):
         assert '>' + v + '</button>' in html
     assert '>Summary</button>' not in html
@@ -175,11 +181,12 @@ def test_table_matrix_and_detail():
     r = json.loads(out)
     assert r['order'] == ['HKD', 'JPY']        # composite, high to low
     assert r['q'] == ['JPY']                     # the header search matches the name
-    assert r['long'] == ['JPY']                  # the rating dropdown
+    assert r['long'] == ['HKD', 'JPY']          # the score-band dropdown (57+)
     assert r['nulls'] == ['JPY', 'HKD']        # missing sorts last either way
     t = r['table']
     assert 'class="fixed-header"' in t and 'data-col-tip-body="Cheapness."' in t
-    assert 'background:' in t and '>LONG</span>' in t
+    assert 'background:' in t and '>59</span>' in t and '>66</span>' in t
+    assert '>LONG<' not in t and '>NEUTRAL<' not in t
     assert 'Pegged &lt;regime&gt;' in t        # cap reason escaped into the ⚠ title
     m = r['matrix']
     assert 'class="cat-header" colspan="2" style="background:#123"' in m

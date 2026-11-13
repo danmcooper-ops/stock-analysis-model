@@ -338,7 +338,12 @@ def _template_table_columns():
 def test_screener_fields_track_the_reports_table():
     # The app builds its screener columns from the template; a column added
     # there must be published here, or it would show N/A for every company.
-    assert set(_APP_SCREENER_FIELDS) == _template_table_columns()
+    # The template's tabs lead with the composite score where they once led
+    # with the rating: the score rides latest.json (the app's list feed), and
+    # 'rating' stays in this feed (every rating field is still published).
+    assert set(_APP_SCREENER_FIELDS) - {'rating'} | {'_composite_score'} == \
+        _template_table_columns()
+    assert 'rating' in _APP_SCREENER_FIELDS and '_composite_score' in _APP_LIST_FIELDS
 
 
 def test_screener_packs_rows_in_ticker_order(tmp_path):

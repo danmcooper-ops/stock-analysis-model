@@ -193,24 +193,27 @@ def test_review_feature_is_back():
     assert '#mtx thead tr:first-child th:nth-child(5),#mtx tbody td:nth-child(5){left:calc(var(--sb-cur) + 160px);}' in src
 
 
-def test_no_prior_rating_column_and_rating_stays_frozen_on_touch():
+def test_no_prior_rating_column_and_score_stays_frozen_on_touch():
     """Yesterday's Rating is gone from every table (Stocks, Gate Matrix, the
     column picker, the portfolio overview's Prior), so nothing pins column 6
-    any more; the change itself still shows on the ticker page. On touch
-    devices Today's Rating stays frozen right after the ticker."""
+    any more; a crossing of a band line shows on the ticker page. The frozen
+    fifth column is the composite score, never a rating; on touch devices it
+    stays frozen right after the ticker."""
     src = _tpl()
     assert 'Yesterday' not in src
     assert "{k:'rating_prev'" not in src and "x:'prior'" not in src
     assert 'rb(d.rating_prev)' not in src
     assert 'nth-child(6)' not in src
-    # The popup keeps the change line, and the filters still select on it.
-    assert "'▲ Rating upgraded':'▼ Rating downgraded'" in src
-    assert 'id="f-upgrades"' in src and "_CF_FMT.rating_prev='text';" in src
-    touch = src[src.index('/* Touch devices freeze only the ticker and Today'):]
+    # The popup states a band crossing, and the filters select on it.
+    assert "esc(crossText(d))" in src and 'Rating upgraded' not in src
+    assert 'id="f-upgrades"' in src and '>Crossed up</button>' in src
+    assert "if(_rcFilter===1&&!(scoreCross(d)>0))return false;" in src
+    assert "{k:'rating',l:'Rating'" not in src and "{k:'_composite_score',l:'Score',f:'score'}" in src
+    touch = src[src.index('/* Touch devices freeze only the ticker and the Score'):]
     touch = touch[:touch.index('}\n}') + 3]
     assert '#dtbl th:nth-child(5),#dtbl tbody td:nth-child(5){left:calc(var(--sb-cur) + 68px);}' in touch
     assert '#mtx thead tr:first-child th:nth-child(5),#mtx tbody td:nth-child(5){left:calc(var(--sb-cur) + 60px);}' in touch
-    # Only the three utility columns scroll away on touch, never the rating.
+    # Only the three utility columns scroll away on touch, never the score.
     assert '#dtbl tbody td:nth-child(3){position:static;box-shadow:none;}' in src
     assert '#dtbl tbody td:nth-child(5){position:static' not in src
     assert '.matrix-table tbody td:nth-child(5){position:static' not in src

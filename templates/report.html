@@ -618,7 +618,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 #filt-panel .fsec:not(.open) .fsec-b{display:none !important;}
 .fsec.open .fsec-b{display:block;padding:0 12px 10px;}
 .fsec.open .qf-menu.fsec-b,.fsec.open #ms-rating .ms-drop{display:flex;}
-/* Rating and Quick filters: small neutral toggles. The checkbox stays (it
+/* Score-band and Quick filters: small neutral toggles. The checkbox stays (it
    is the state); the label is the control. A rating keeps its colour only
    as a dot, and reads as selected only when the set is partial — all four
    ticked is "All", which shows nothing selected. */
@@ -737,7 +737,7 @@ td.ct{font-weight:700;}
 /* Uniform metric-column widths for the main financial-data table. Under the
    base .dt `table-layout:auto`, each metric column sized to its widest cell,
    so widths were ragged and differed per tab. Fixed layout makes the browser
-   honor declared widths instead. Ticker (col 4) and Rating (col 5) keep their
+   honor declared widths instead. Ticker (col 4) and Score (col 5) keep their
    own label-sized widths; every metric column (6th onward) shares ONE uniform
    width so the data grid lines up. Scoped to #dtbl so the matrix / heatmap /
    summary tables (also .dt) are untouched. Cols 1-3 keep the locked widths
@@ -760,7 +760,7 @@ td.ct{font-weight:700;}
 .dt td.tk2{position:-webkit-sticky;position:sticky;left:100px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
 .dt tr:nth-child(even) td:nth-child(1),.dt tr:nth-child(even) td:nth-child(2),.dt tr:nth-child(even) td:nth-child(3),.dt tr:nth-child(even) td.tk2{background:#f8f9fa;}
 .dt tr:hover td:nth-child(1),.dt tr:hover td:nth-child(2),.dt tr:hover td:nth-child(3),.dt tr:hover td.tk2{background:#eaf4fd!important;}
-/* Extend the frozen zone through Rating (col 5) so it stays pinned when the
+/* Extend the frozen zone through Score (col 5) so it stays pinned when the
    metric grid scrolls horizontally — on every Financial Data sub-tab, since
    all of them lead with ticker/rating. The offset follows the locked #dtbl
    widths (ticker 68px → rating at 168px). Scoped to #dtbl so the matrix /
@@ -772,10 +772,10 @@ td.ct{font-weight:700;}
 #dtbl tbody td:nth-child(5){position:-webkit-sticky;position:sticky;left:168px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
 #dtbl tr:nth-child(even) td:nth-child(5){background:#f8f9fa;}
 #dtbl tr:hover td:nth-child(5){background:#eaf4fd!important;}
-/* Frozen-zone shadow belongs on Rating (the right edge), not Ticker. */
+/* Frozen-zone shadow belongs on Score (the right edge), not Ticker. */
 #dtbl th:nth-child(4){box-shadow:none;}
 #dtbl td.tk2{box-shadow:none;}
-/* Dark-mode opaque background for the frozen Rating column (mirrors the
+/* Dark-mode opaque background for the frozen Score column (mirrors the
    col 1-3 / tk2 dark rules). */
 [data-theme="dark"] #dtbl tbody td:nth-child(5){background:#161b22;}
 [data-theme="dark"] #dtbl tr:nth-child(even) td:nth-child(5){background:#1c2128;}
@@ -791,12 +791,12 @@ td.ct{font-weight:700;}
 .matrix-table tbody td:nth-child(3){position:sticky;left:68px;z-index:3;background:#fff;}
 .matrix-table td.tk{position:sticky;left:100px;z-index:3;background:#fff;}
 /* Lock ticker width so the rating column's sticky `left` stays exact, then
-   freeze Today's Rating (5th col), fixed-width (ticker 60px → Today at
+   freeze the Score (5th col), fixed-width (ticker 60px → Today at
    160px). Everything from Sector rightward scrolls past it; the frozen-zone
    shadow sits on it, the right edge. */
 .matrix-table thead tr:first-child th:nth-child(4),.matrix-table tbody td.tk{width:60px;min-width:60px;max-width:60px;}
 .matrix-table thead tr:first-child th:nth-child(5),.matrix-table tbody td:nth-child(5){width:72px;min-width:72px;max-width:72px;}
-/* The header may wrap ("Today's Rating" on two lines); body cells keep the
+/* The header may wrap (a long label on two lines); body cells keep the
    table's nowrap so the rating pills render single-line, identical to
    Financial Data. */
 .matrix-table thead tr:first-child th:nth-child(5){white-space:normal;}
@@ -805,7 +805,7 @@ td.ct{font-weight:700;}
 .matrix-table tr:nth-child(even) td:nth-child(1),.matrix-table tr:nth-child(even) td:nth-child(2),.matrix-table tr:nth-child(even) td.tk,.matrix-table tr:nth-child(even) td:nth-child(5){background:rgba(255,255,255,0.97);}
 .matrix-table tr:hover td:nth-child(1),.matrix-table tr:hover td:nth-child(2),.matrix-table tr:hover td.tk,.matrix-table tr:hover td:nth-child(5){background:#eaf4fd!important;}
 /* Touch devices (iPhone and iPad, both orientations): the full frozen
-   zone — # · flag · reviewed · ticker · Today's Rating — is ~232-240px,
+   zone — # · flag · reviewed · ticker · Score — is ~232-240px,
    a large share of a 390px phone and still a quarter of an iPad
    portrait. So the leading utility columns scroll away and only the
    TICKER and TODAY'S RATING stay sticky: the ticker pins at the left
@@ -2883,7 +2883,7 @@ body{padding-left:var(--sb-cur);}
 #mtx thead tr:first-child th:nth-child(4),#mtx td.tk{left:calc(var(--sb-cur) + 100px);}
 #mtx thead tr:first-child th:nth-child(5),#mtx tbody td:nth-child(5){left:calc(var(--sb-cur) + 160px);}
 .header,.secondary-nav,#subnav{left:var(--sb-cur);width:calc(var(--vvw,100vw) - var(--sb-cur));}
-/* Touch devices freeze only the ticker and Today's Rating, from the left
+/* Touch devices freeze only the ticker and the Score, from the left
    edge (see the (hover:none) block by the column widths) — which is now
    --sb-cur. */
 @media (hover:none) and (pointer:coarse){
@@ -3804,14 +3804,14 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
               </div>
             </div>
             <div class="filt-col fsec" data-fsec="rating">
-              <button type="button" class="fsec-h" onclick="_fsecToggle('rating')" aria-expanded="false"><span class="fsec-t">Rating</span><span class="fsec-s" id="fsum-rating"></span><span class="fsec-c" aria-hidden="true"></span></button>
+              <button type="button" class="fsec-h" onclick="_fsecToggle('rating')" aria-expanded="false"><span class="fsec-t">Score</span><span class="fsec-s" id="fsum-rating"></span><span class="fsec-c" aria-hidden="true"></span></button>
               <div class="ms-wrap fsec-b" id="ms-rating">
                 <div class="ms-drop">
-                  <label class="ms-all"><input type="checkbox" checked onchange="msToggleAll('ms-rating',this.checked)"> All Ratings</label>
-                  <label><input type="checkbox" value="BUY" checked onchange="msChanged('ms-rating')"> BUY</label>
-                  <label><input type="checkbox" value="LEAN BUY" checked onchange="msChanged('ms-rating')"> LEAN BUY</label>
-                  <label><input type="checkbox" value="HOLD" checked onchange="msChanged('ms-rating')"> HOLD</label>
-                  <label><input type="checkbox" value="PASS" checked onchange="msChanged('ms-rating')"> PASS</label>
+                  <label class="ms-all"><input type="checkbox" checked onchange="msToggleAll('ms-rating',this.checked)"> All scores</label>
+                  <label><input type="checkbox" value="BUY" checked onchange="msChanged('ms-rating')" title="Composite score 57 or more"> 57+</label>
+                  <label><input type="checkbox" value="LEAN BUY" checked onchange="msChanged('ms-rating')" title="Composite score 39 to under 57"> 39–56</label>
+                  <label><input type="checkbox" value="HOLD" checked onchange="msChanged('ms-rating')" title="Composite score 25 to under 39"> 25–38</label>
+                  <label><input type="checkbox" value="PASS" checked onchange="msChanged('ms-rating')" title="Composite score below 25"> &lt;25</label>
                 </div>
               </div>
             </div>
@@ -3832,8 +3832,8 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
                 <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()"><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Founder-Led</button>
                 <button class="fpop-toggle-btn" id="f-bluechip" onclick="toggleBlueChipFilter()" title="Large, established market leaders: market cap &ge; $50B, positive operating income, ROE &ge; 10%, and a sound balance sheet (Net Debt/EBITDA &le; 4, interest coverage &ge; 6x, or Altman Z &ge; 3)."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Blue Chip</button>
                 <button class="fpop-toggle-btn" id="f-r2000" onclick="toggleR2000Filter()" title="Only stocks that are current Russell 2000 constituents (small-cap index membership, sourced from Vanguard VTWO holdings at report build time)."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Russell 2000</button>
-                <button class="fpop-toggle-btn" id="f-upgrades" onclick="setRcFilter(1)" title="Only stocks whose rating improved vs the prior run's snapshot. Stocks new since the prior run don't count."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Upgrades</button>
-                <button class="fpop-toggle-btn" id="f-downgrades" onclick="setRcFilter(2)" title="Only stocks whose rating declined vs the prior run's snapshot. Stocks new since the prior run don't count."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Downgrades</button>
+                <button class="fpop-toggle-btn" id="f-upgrades" onclick="setRcFilter(1)" title="Only stocks whose composite score crossed up into a higher band (57, 39 or 25) since the prior run, both scored with today's model. Stocks new since the prior run don't count."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Crossed up</button>
+                <button class="fpop-toggle-btn" id="f-downgrades" onclick="setRcFilter(2)" title="Only stocks whose composite score fell into a lower band (below 57, 39 or 25) since the prior run, both scored with today's model. Stocks new since the prior run don't count."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Crossed down</button>
               </div>
             </div>
             <div class="filt-col fsec" data-fsec="sector">
@@ -4110,6 +4110,9 @@ function _unpackRows(p){
 }
 var DATA=_unpackRows({{ chart_data }});
 var GM={{ gate_meta }};
+/* Re-scored composite history (scripts/score_history.py): the weekly dates
+   each row's score_hist is aligned to; stale = built by another model. */
+var SCORE_HIST={{ score_hist_meta }}||{dates:[],stale:true};
 /* FD (the filtered dataset every table/matrix render reads) must exist from
    the first script tick. It was previously created only by applyFilters(),
    so the hash-restore path — which calls showView() BEFORE applyFilters —
@@ -4122,8 +4125,9 @@ var FD=DATA.slice();
    boxes: gate rows (pass → fail → clear, in place), histogram bars (score
    bracket, toggle, in place), and category cards (jump to the Gate Matrix
    with the stocks scoring strictly above the average shown on the card).
-   Rating boxes route through the existing ms-rating multiselect instead so
-   the Filters panel stays the single source of truth for ratings.
+   Score-band boxes route through the existing ms-rating multiselect (its
+   values are band keys) so the Filters panel stays the single source of
+   truth for bands.
    Participates in passOther, the filter badge, and the shareable hash
    (compact key: df). */
 var _dashFilter=null;
@@ -4393,7 +4397,7 @@ function toggleDashScore(idx){
 }
 function dashRatingJump(r){
   var wrap=document.getElementById('ms-rating');if(!wrap)return;
-  _drillPush('Dashboard \u00b7 '+r);
+  _drillPush('Dashboard \u00b7 score '+bandLabel(r));
   wrap.querySelectorAll('.ms-drop input[type="checkbox"][value]').forEach(function(cb){cb.checked=cb.value===r;});
   var allBox=wrap.querySelector('.ms-all input');
   if(allBox){allBox.checked=false;allBox.indeterminate=true;}
@@ -4713,9 +4717,9 @@ function toggleFlagDet(){var tk=document.getElementById('d-tk').textContent;if(!
 function toggleFlagFilter(){_flagOnly=!_flagOnly;document.getElementById('f-flagged').classList.toggle('active',_flagOnly);applyFilters();}
 var _founderOnly=false;
 function toggleFounderFilter(){_founderOnly=!_founderOnly;document.getElementById('f-founder').classList.toggle('active',_founderOnly);applyFilters();}
-/* Rating-change quick filter vs the prior run (rating_chg: + upgrade,
-   - downgrade, null new/missing). 0=all, 1=upgrades only, 2=downgrades
-   only. The two buttons are mutually exclusive; clicking the active one
+/* Band-crossing quick filter vs the prior run (scoreCross: +1 crossed up,
+   -1 crossed down, null new/missing). 0=all, 1=crossed up only, 2=crossed
+   down only. The two buttons are mutually exclusive; clicking the active one
    turns the filter off. */
 var _rcFilter=0;
 function setRcFilter(v){
@@ -4911,7 +4915,7 @@ function _pfLabel(k){var o=window._CF_OPTS||[];for(var i=0;i<o.length;i++)if(o[i
 function _pfRuleSummary(r){
   if(!r)return'';
   var parts=[];
-  if(r.ratings!=null)parts.push(r.ratings.length?r.ratings.join(' / '):'no ratings');
+  if(r.ratings!=null)parts.push(r.ratings.length?(bandsAsRange(r.ratings)||r.ratings.map(bandLabel).join(' / ')):'no scores');
   if(r.sectors!=null)parts.push(r.sectors.length?r.sectors.join(' / '):'no sectors');
   if(r.countries!=null)parts.push(r.countries.length?r.countries.join(' / '):'no countries');
   (r.cf||[]).forEach(function(c){
@@ -5067,7 +5071,7 @@ function pfSaveFilterOpen(){
     +'<label class="pf-fl">Name<input type="text" id="pf-sf-name" value="'+_pfEsc(ed?ed.name:'')+'" placeholder="e.g. Energy BUYs"></label>'
     +'<label class="pf-radio"><input type="radio" name="pf-sf-mode" value="rule"'+(info.rule?' checked':' disabled')+'>'
     +'<span><b>Rule</b> — re-evaluated every run; '+nRule+' stock'+(nRule===1?'':'s')+' match today'
-    +(info.rule?'<br><span class="pf-muted">'+_pfEsc(_pfRuleSummary(info.rule))+'</span>':'<br><span class="pf-muted">Set a rating, sector, country or column filter to save a rule.</span>')+'</span></label>'
+    +(info.rule?'<br><span class="pf-muted">'+_pfEsc(_pfRuleSummary(info.rule))+'</span>':'<br><span class="pf-muted">Set a score band, sector, country or column filter to save a rule.</span>')+'</span></label>'
     +'<label class="pf-radio"><input type="radio" name="pf-sf-mode" value="list"'+(info.rule?'':' checked')+'>'
     +'<span><b>Fixed list</b> — the '+shown+' stock'+(shown===1?'':'s')+' shown now</span></label>'
     +(info.ignored.length?'<div class="pf-note">Not part of a rule: '+_pfEsc(info.ignored.join(', '))+'. They still narrow the fixed list.</div>':'')
@@ -5337,7 +5341,7 @@ function _pfSystemicHtml(){
   var s=PF_PUB.systemic;
   if(!s||!s.flood||!s.message)return'';
   return'<div class="pfv-banner pfv-banner-'+_pfEsc(s.cause||'model')+'"><b>'+(s.cause==='data'?'Data problem':'Model-wide shift')+'.</b> '
-    +_pfEsc(String(s.message).replace(/^[^:]*:\s*/,''))+'</div>';
+    +_pfEsc(String(s.display||s.message).replace(/^[^:]*:\s*/,''))+'</div>';
 }
 /* Alerts grouped Action, Watch, then FYI collapsed. With `cap`, Watch rows
    past the first `cap` alerts sit behind an expander (Action rows never do). */
@@ -5357,24 +5361,26 @@ function _pfAlertsHtml(al,showPf,emptyMsg,cap){
     +fyi.map(function(a){return _pfAlertRow(a,showPf);}).join('')+'</div></details>';
   return h;
 }
-/* Rating change-points from DATA.rating_hist (dates before this run) plus
-   today's move, over the last three weeks. */
+/* Band crossings over the last three weeks, from each member's re-scored
+   weekly score history (scoreSeries: every point scored with today's model,
+   so a model change never shows as a move) plus tonight. */
 function _pfRecentHtml(id){
   var d0=_pfRunDate(),cut=d0?_pfAddDays(d0,-21):'',ev=[];
   _pfMembers(id).forEach(function(t){
     var d=_pfRow[t];if(!d)return;
-    var pts=(d.rating_hist||[]).slice();
-    if(d0&&d.rating&&(!pts.length||pts[pts.length-1][1]!==d.rating))pts.push([d0,d.rating]);
-    for(var i=1;i<pts.length;i++){if(pts[i][0]>=cut)ev.push({d:pts[i][0],t:t,a:pts[i-1][1],b:pts[i][1]});}
+    var pts=scoreSeries(d);
+    for(var i=1;i<pts.length;i++){if(pts[i][0]>=cut&&bandKey(pts[i-1][1])!==bandKey(pts[i][1]))ev.push({d:pts[i][0],t:t,a:pts[i-1][1],b:pts[i][1]});}
   });
-  if(!ev.length)return'<div class="pf-empty">No rating changes among these stocks in the last three weeks.</div>';
+  if(!ev.length)return'<div class="pf-empty">No member crossed a score line (57, 39, 25) in the last three weeks.</div>';
   ev.sort(function(x,y){return x.d<y.d?1:x.d>y.d?-1:(x.t<y.t?-1:1);});
-  var BUY={'BUY':1,'LEAN BUY':1};
+  var m=_bandMins();
   function row(e){
-    var cross=!!BUY[e.a]!==!!BUY[e.b],mark=cross?(BUY[e.b]?'<span class="pos">▲</span>':'<span class="neg">▼</span>'):'<span class="pf-muted">·</span>';
+    var up=_BAND_KEYS.indexOf(bandKey(e.b))<_BAND_KEYS.indexOf(bandKey(e.a));
+    var line=up?m[bandKey(e.b)]:m[bandKey(e.a)];
+    var mark=up?'<span class="pos">▲</span>':'<span class="neg">▼</span>';
     return'<div class="pfv-alert"><span class="pfv-date">'+_pfEsc(e.d)+'</span>'+mark
       +_pfTkLink(e.t)
-      +'<span class="pfv-alert-msg">'+_pfEsc(e.a)+' → '+_pfEsc(e.b)+'</span></div>';
+      +'<span class="pfv-alert-msg">'+(up?'crossed above ':'fell below ')+_bandFmt(line)+' ('+e.a+' → '+e.b+')</span></div>';
   }
   var h='<div class="pfv-alerts pfv-recent">'+ev.slice(0,15).map(row).join('')+'</div>';
   if(ev.length>15)h+='<details class="pfv-fyi" data-pfk="recent"><summary>'+(ev.length-15)+' earlier change'+(ev.length===16?'':'s')+'</summary>'
@@ -5391,7 +5397,7 @@ function _pfRowStats(rows){
   var mix={'BUY':0,'LEAN BUY':0,'HOLD':0,'PASS':0},sec={},up=0,down=0,bins=_PF_MOS_BINS.map(function(){return 0;}),nMos=0;
   var d0=_pfRunDate(),until=d0?_pfAddDays(d0,7):'',earn=0;
   rows.forEach(function(d){
-    if(d.rating in mix)mix[d.rating]++;
+    var bk=bandOf(d);if(bk)mix[bk]++;
     /* A row with no sector is a data gap (the 2026-09-25 throttle left 61%
        of the universe without one), not a sector: counting it as "Unknown"
        skewed every weight and flagged portfolios as concentrated. */
@@ -5399,7 +5405,7 @@ function _pfRowStats(rows){
     /* A move on a row with no price or identity is a data gap, not an
        up/downgrade (models/portfolio_groups.data_missing). */
     var gap=_num(d.price)==null||!(d.company_name||d.sector);
-    if(!gap){if(d.rating_chg>0)up++;else if(d.rating_chg<0)down++;}
+    if(!gap){var cx=scoreCross(d);if(cx>0)up++;else if(cx<0)down++;}
     var m=_num(d.mos);if(m!=null){bins[_pfMosBin(m)]++;nMos++;}
     var e=String(d.earnings_next_date||'').slice(0,10);if(d0&&e&&e>=d0&&e<=until)earn++;
   });
@@ -5432,7 +5438,7 @@ function _pfUni(){
 function _pfPct(v,sign){if(v==null)return'—';var r=Math.round(v*100);if(r===0)return'0%';return(sign&&r>0?'+':'')+r+'%';}
 function _pfMixBar(st){
   if(!st.n)return'<div class="pfv-mix pfv-mix-empty"></div>';
-  var h='<div class="pfv-mix" role="img" aria-label="Rating mix: '+_pfEsc(Object.keys(st.mix).map(function(r){return r+' '+st.mix[r];}).join(', '))+'" title="'+_pfEsc(Object.keys(st.mix).map(function(r){return r+' '+st.mix[r];}).join(' · '))+'">';
+  var h='<div class="pfv-mix" role="img" aria-label="Score mix: '+_pfEsc(Object.keys(st.mix).map(function(r){return 'score '+bandLabel(r)+' '+st.mix[r];}).join(', '))+'" title="'+_pfEsc(Object.keys(st.mix).map(function(r){return bandLabel(r)+' '+st.mix[r];}).join(' · '))+'">';
   Object.keys(st.mix).forEach(function(r){if(st.mix[r])h+='<span style="width:'+(100*st.mix[r]/st.n)+'%;background:'+RC[r]+'"></span>';});
   var other=st.n-Object.keys(st.mix).reduce(function(s,r){return s+st.mix[r];},0);
   if(other)h+='<span style="width:'+(100*other/st.n)+'%;background:var(--pf-chip-muted)"></span>';
@@ -5454,7 +5460,7 @@ function _pfKpis(st,full){
     +k('Median score',st.score==null?'—':Math.round(st.score),'',u&&(u.score==null?'—':Math.round(u.score)))
     +k('ROIC−WACC',_pfPct(st.spread,true),tone(st.spread),u&&_pfPct(u.spread,true),'Median ROIC minus WACC');
   if(full){
-    h+=k('BUY / LEAN BUY',_pfPct(st.buy),'',_pfPct(u.buy),'Share of members rated BUY or LEAN BUY')
+    h+=k('Scoring '+_bandFmt(_bandMins()['LEAN BUY'])+'+',_pfPct(st.buy),'',_pfPct(u.buy),'Share of members with a composite score of '+_bandFmt(_bandMins()['LEAN BUY'])+' or more')
       +k('Median P/E',n1(st.pe),'',n1(u.pe))
       +k('Median div yield',pct1(st.dy),'',pct1(u.dy),'Median over members that report a yield')
       +k('Earnings ≤ 7 days',st.earn,st.earn?'warn':'',null,'Members reporting within a week of this run');
@@ -5500,14 +5506,16 @@ function _pfSectorsHtml(st){
 function _pfAlertRow(a,showPf){
   var pfs='';
   if(showPf){(a.portfolio?[a.portfolio]:(_pfMem[a.ticker]||[])).forEach(function(id){var p=_pfById[id];if(p)pfs+='<span class="pf-dot" title="'+_pfEsc(p.name)+'" style="background:'+_pfEsc(_pfCol(p.color))+'"></span>';});}
-  var dir=a.kind==='entered_buy'?'<span class="pos" title="Into the buy zone">▲</span>':a.kind==='exited_buy'?'<span class="neg" title="Out of the buy zone">▼</span>':'';
+  var dir=a.kind==='entered_buy'?'<span class="pos" title="Crossed above the 39 line">▲</span>':a.kind==='exited_buy'?'<span class="neg" title="Fell below the 39 line">▼</span>':'';
   var msg=String(a.message||'');if(msg.indexOf(a.ticker+' ')===0)msg=msg.slice(a.ticker.length+1);
+  /* display: the alert in score terms; message is the email's wording. */
+  if(a.display&&a.display.indexOf(a.ticker+' ')===0)msg=a.display.slice(a.ticker.length+1);else if(a.display)msg=a.display;
   var why=_PF_RATING_KINDS[a.kind]&&_pfRow[a.ticker]&&_pfRow[a.ticker].rating_chg_why;
   var row='<span class="pfv-lv pfv-lv-'+_pfEsc(a.level)+'">'+_pfEsc(_PF_LVN[a.level]||a.level)+'</span>'
     +(_pfIsNew()&&a.level!=='fyi'?'<span class="pfv-new">NEW</span>':'')+dir
     +_pfTkLink(a.ticker)
     +'<span class="pfv-alert-msg">'+_pfEsc(msg)+'</span>'+(pfs?'<span class="pfv-alert-pf">'+pfs+'</span>':'');
-  if(why&&why.length)return'<details class="pfv-alert-x" data-pfk="why|'+_pfEsc(a.kind+'|'+a.ticker+'|'+(a.portfolio||''))+'"><summary class="pfv-alert">'+row+'<span class="pfv-why-tog" title="Why the rating changed">why</span></summary>'
+  if(why&&why.length)return'<details class="pfv-alert-x" data-pfk="why|'+_pfEsc(a.kind+'|'+a.ticker+'|'+(a.portfolio||''))+'"><summary class="pfv-alert">'+row+'<span class="pfv-why-tog" title="Why the score moved">why</span></summary>'
     +'<ul class="pfv-why">'+why.map(function(w){return'<li>'+_pfEsc(w)+'</li>';}).join('')+'</ul></details>';
   return'<div class="pfv-alert">'+row+'</div>';
 }
@@ -5574,7 +5582,7 @@ function _pfOnResize(){
 /* Overview layout (cards | table) and sort, remembered per browser. */
 var _PF_OV_KEY='stock_pf_overview_v1';
 var _PF_OV_COLS=[
-  {k:'name',l:'Portfolio',card:'Name',asc:1},{k:'n',l:'Stocks',card:'Size'},{k:'mix',l:'Rating mix'},
+  {k:'name',l:'Portfolio',card:'Name',asc:1},{k:'n',l:'Stocks',card:'Size'},{k:'mix',l:'Score mix'},
   {k:'mos',l:'Med. MoS',card:'Median MoS',pct:1},{k:'score',l:'Med. score'},{k:'spread',l:'ROIC−WACC',pct:1},
   {k:'rel',l:'Upside',pct:1,card:'Upside vs universe',tip:'Look-through fair value per $1 against the equal-weighted universe (published definitions)'},
   {k:'beta',l:'Beta',tip:'Two years of weekly returns against SPY, today’s weights'},
@@ -5792,7 +5800,7 @@ function _pfDetailHtml(id){
      the wrapper's data-tab (.pf-tabbed CSS). */
   var panes=[['summary','Summary','<h3 class="pfv-h3"><span class="sec-label">Summary</span></h3>'
       +'<div class="pfv-detail-grid"><div class="pfv-panel">'+_pfMixBar(st)
-      +'<div class="pfv-legend">'+Object.keys(st.mix).map(function(r){return'<span><i style="background:'+RC[r]+'"></i>'+r+' '+st.mix[r]+'</span>';}).join('')+'</div>'
+      +'<div class="pfv-legend">'+Object.keys(st.mix).map(function(r){return'<span><i style="background:'+RC[r]+'"></i>'+bandLabel(r)+' '+st.mix[r]+'</span>';}).join('')+'</div>'
       +_pfKpis(st,true)+_pfMosDist(st)+'</div>'+_pfBrkPanel(id,st)+'</div>'],
     ['news','News','<h3 class="pfv-h3"><span class="sec-label">News</span></h3><div id="pf-news" data-pf="'+_pfEsc(id)+'">'+_pfNewsHtml(id)+'</div>'],
     PAPER_META&&PAPER_META.portfolio===id&&['paper','Paper account','<h3 class="pfv-h3"><span class="sec-label">Paper account</span> <span class="pf-muted pfv-h3-sub">Alpaca paper, as of '+_pfEsc(PAPER_META.as_of||'')+'</span></h3><div id="pfp-view">'+_ppaHtml()+'</div>'],
@@ -5804,7 +5812,7 @@ function _pfDetailHtml(id){
       +(mode!=='buy_line'?' <span class="pf-tag">'+(mode==='off'?'muted':'all changes')+'</span>':'')+'</h3>'
       +_pfAlertsHtml(al,false,mode==='off'?'Alerts are muted for this portfolio (Manage → Alerts).':
         (PF_PUB.prev_date?'Nothing crossed the buy line, reversed, or needs watching since '+_pfEsc(PF_PUB.prev_date)+'.':'No prior run to compare against.'))],
-    ['recent','Rating changes','<h3 class="pfv-h3"><span class="sec-label">Recent rating changes</span> <span class="pf-muted pfv-h3-sub">last 3 weeks</span></h3>'+_pfRecentHtml(id)]
+    ['recent','Score moves','<h3 class="pfv-h3"><span class="sec-label">Recent score moves</span> <span class="pf-muted pfv-h3-sub">band lines crossed, last 3 weeks</span></h3>'+_pfRecentHtml(id)]
   ].filter(Boolean);
   var cur=_pfSubTabCur();
   if(!panes.some(function(x){return x[0]===cur;}))cur='summary';
@@ -5866,9 +5874,9 @@ function _ppaHtml(){
   if(sk.length)h+='<div class="pfc-notes">Last rebalance skipped: '+sk.map(function(k){return D.skipped[k]+' '+_pfEsc(k);}).join(', ')+'.</div>';
   return h;
 }
-var _PPA_COLS=[['t','Stock'],['rating','Rating'],['status','Status'],['target','Target',1],['actual','Held',1],['absdelta','Held − target',1],['value','Value',1],['pl','P&L',1]];
+var _PPA_COLS=[['t','Stock'],['score','Score'],['status','Status'],['target','Target',1],['actual','Held',1],['absdelta','Held − target',1],['value','Value',1],['pl','P&L',1]];
 function _ppaHoldHtml(D){
-  var rows=(D.holdings||[]).map(function(x){var o=Object.assign({},x);o.absdelta=Math.abs(x.delta);o.rating=(_pfRow[x.t]||{}).rating||'';return o;});
+  var rows=(D.holdings||[]).map(function(x){var o=Object.assign({},x);o.absdelta=Math.abs(x.delta);o.score=_num((_pfRow[x.t]||{})._composite_score);return o;});
   if(!rows.length)return'<h3 class="pfv-h3"><span class="sec-label">Held vs target</span></h3><div class="pf-empty">No positions recorded yet: the first reconcile after a rebalance fills this in.</div>';
   var k=_ppaSortK,asc=_ppaAsc;
   rows.sort(function(a,b){var va=a[k],vb=b[k];if(va==null||vb==null)return va==null&&vb==null?0:va==null?1:-1;var c=va<vb?-1:va>vb?1:0;return(asc?c:-c)||(a.t<b.t?-1:1);});
@@ -5880,7 +5888,7 @@ function _ppaHoldHtml(D){
     }).join('')+'</tr></thead><tbody>';
   shown.forEach(function(x){
     var d=_pfRow[x.t];
-    h+='<tr><td class="pfm-stk">'+(d?_pfTkLink(x.t):_pfEsc(x.t))+'</td><td>'+(x.rating?rb(x.rating):'<span class="pf-muted">—</span>')+'</td>'
+    h+='<tr><td class="pfm-stk">'+(d?_pfTkLink(x.t):_pfEsc(x.t))+'</td><td>'+(x.score!=null?sbv(x.score):'<span class="pf-muted">—</span>')+'</td>'
       +'<td class="ppa-st ppa-'+x.status.replace(/ /g,'-')+'">'+_pfEsc(x.status)+'</td>'
       +'<td class="r">'+_ppaW(x.target)+'</td><td class="r">'+_ppaW(x.actual)+'</td>'
       +'<td class="r'+_ppaTone(x.delta)+'">'+_ppaPp(x.delta)+'</td>'
@@ -5892,7 +5900,7 @@ function _ppaHoldHtml(D){
   return h;
 }
 function _ppaSort(k){
-  if(_ppaSortK===k)_ppaAsc=!_ppaAsc;else{_ppaSortK=k;_ppaAsc=k==='t'||k==='status'||k==='rating';}
+  if(_ppaSortK===k)_ppaAsc=!_ppaAsc;else{_ppaSortK=k;_ppaAsc=k==='t'||k==='status';}
   _ppaRefresh();
 }
 function _ppaActHtml(D){
@@ -5989,10 +5997,13 @@ function _pfPxRet(t,days){
    either direction, and preset + sort persist per portfolio for the tab's
    session. Over _PFM_CAP members the rest wait behind "Show all". --- */
 var _PF_RANK={'BUY':0,'LEAN BUY':1,'HOLD':2,'PASS':3};
-var _PFM_R={k:'rating',l:'Rating',x:'rating'},_PFM_PX={k:'price',l:'Price',f:'dollar'},_PFM_MOS={k:'mos',l:'MoS',x:'mos'};
+/* The members' score column: the composite pill, ▲/▼ when it crossed a band
+   line since the prior run. (x:'rating' names the cell type, kept so saved
+   column sets still resolve.) */
+var _PFM_R={k:'_composite_score',l:'Score',x:'rating'},_PFM_PX={k:'price',l:'Price',f:'dollar'},_PFM_MOS={k:'mos',l:'MoS',x:'mos'};
 var _PFM_PRESETS=[
   {id:'overview',l:'Overview',sort:'_composite_score',cols:[_PFM_R,_PFM_PX,{k:'dcf_fv',l:'DCF FV',f:'dollar'},_PFM_MOS,
-    {k:'_composite_score',l:'Score',f:'int'},{k:'spread',l:'ROIC−WACC',f:'pct',tone:1},{k:'sector',l:'Sector',f:'text'},{k:'_via',l:'Via',x:'via'}]},
+    {k:'spread',l:'ROIC−WACC',f:'pct',tone:1},{k:'sector',l:'Sector',f:'text'},{k:'_via',l:'Via',x:'via'}]},
   {id:'valuation',l:'Valuation',sort:'mos',cols:[_PFM_R,_PFM_PX,_PFM_MOS,{k:'pe',l:'P/E',f:'n1'},{k:'ev_ebitda',l:'EV/EBITDA',f:'n1'},
     {k:'pfcf',l:'P/FCF',f:'n1'},{k:'pb',l:'P/B',f:'n2'},{k:'pct_from_52w_high',l:'From 52w high',f:'pct',tone:1}]},
   {id:'income',l:'Income',sort:'div_yield',cols:[_PFM_R,_PFM_PX,{k:'div_yield',l:'Div yield',f:'pct'},{k:'payout_ratio',l:'Payout',f:'pct'},
@@ -6029,7 +6040,7 @@ function _pfmSave(){try{var s=_pfmStore();s[_pfm.id]={preset:_pfm.preset,k:_pfm.
 function _pfmCol(pr,k){for(var i=0;i<pr.cols.length;i++)if(pr.cols[i].k===k)return pr.cols[i];return null;}
 /* Text-like columns first sort ascending (A→Z, BUY first, soonest date);
    numbers first sort descending. */
-function _pfmAscFirst(c){return !c||c.f==='text'||c.x==='rating'||c.x==='via'||c.x==='earn';}
+function _pfmAscFirst(c){return !c||c.f==='text'||c.x==='via'||c.x==='earn';}
 function _pfmSortState(pr){
   var k=_pfm.k&&(_pfm.k==='ticker'||_pfmCol(pr,_pfm.k))?_pfm.k:null;
   if(k)return{k:k,asc:_pfm.asc};
@@ -6045,7 +6056,7 @@ function _pfmCtx(id){
 function _pfmVal(c,d,ctx){
   if(!c)return d.ticker;
   if(c.x==='ret')return _pfPxRet(d.ticker,c.days);
-  if(c.x==='rating'){var r=d[c.k];return r in _PF_RANK?_PF_RANK[r]:null;}
+  if(c.x==='rating')return _num(d._composite_score);
   if(c.x==='via')return ctx.via(d);
   if(c.x==='hold'){var h=ctx.hold[d.ticker];return h&&h[c.hk]!=null?h[c.hk]:null;}
   if(c.x==='tgt')return ctx.tgt[d.ticker]!=null?ctx.tgt[d.ticker]:null;
@@ -6064,8 +6075,8 @@ function _pfmCellBase(c,d,v,ctx){
   var tone=function(x){return x==null?'':x>0?' pos':x<0?' neg':'';};
   if(c.x==='rating'){
     var ch='';
-    if(!ctx.gap(d)){if(d.rating_chg>0)ch='<span class="pos pfm-chg" title="Upgraded from '+_pfEsc(d.rating_prev||'')+'">▲</span>';else if(d.rating_chg<0)ch='<span class="neg pfm-chg" title="Downgraded from '+_pfEsc(d.rating_prev||'')+'">▼</span>';}
-    return'<td>'+rb(d.rating,d)+ch+'</td>';
+    if(!ctx.gap(d)){var cx=scoreCross(d);if(cx)ch='<span class="'+(cx>0?'pos':'neg')+' pfm-chg" title="'+_pfEsc(crossText(d))+'">'+(cx>0?'▲':'▼')+'</span>';}
+    return'<td>'+sb(d)+ch+'</td>';
   }
   if(c.x==='via')return'<td><span class="pf-tag">'+v+'</span></td>';
   if(v==null){
@@ -6116,7 +6127,7 @@ function _pfmTable(id){
       +l+'<span class="pfm-ar">'+arrow+'</span></th>';
   }
   var h='<thead><tr>'+th('ticker','Stock',false)
-    +pr.cols.map(function(c){return th(c.k,_pfEsc(c.l),!(c.f==='text'||c.x==='rating'||c.x==='via'),c.tip);}).join('')+'</tr></thead><tbody>';
+    +pr.cols.map(function(c){return th(c.k,_pfEsc(c.l),!(c.f==='text'||c.x==='via'),c.tip);}).join('')+'</tr></thead><tbody>';
   var cap=_pfm.all||q?vs.length:Math.min(vs.length,_PFM_CAP);
   for(var i=0;i<cap;i++){
     var d=vs[i].d;
@@ -6583,7 +6594,7 @@ function _pfHoldHtml(id){
   var al=_pfHoldAlerts(_pfById[id],hs);
   if(al.length)h+='<div class="pfv-alerts pfv-hold-al">'+al.map(function(a){
     return'<div class="pfv-alert"><span class="pfv-lv pfv-lv-watch">Watch</span>'+_pfTkLink(a.ticker)
-      +'<span class="pfv-alert-msg">'+_pfEsc(a.message.slice(a.ticker.length+1))+'</span></div>';}).join('')+'</div>';
+      +'<span class="pfv-alert-msg">'+_pfEsc((a.display||a.message).slice(a.ticker.length+1))+'</span></div>';}).join('')+'</div>';
   h=_pfNoteQ('From '+_pfEsc(_pfBooks.file||'positions.json')+' loaded '+_pfEsc(_pfBooks.loaded||'')+', kept only in this browser and never published. Prices are this run’s closes.',true)+h;
   if(t.unpriced.length)h+='<div class="pfc-notes">No price today for '+_pfEsc(t.unpriced.join(', '))+': left out of value, P&amp;L and weights.</div>';
   return h;
@@ -6797,7 +6808,7 @@ function pfmCsv(){
   m.vs.forEach(function(x){
     var d=x.d;
     lines.push([d.ticker,d.company_name||''].concat(pr.cols.map(function(c){
-      if(c.x==='rating')return d[c.k]||'';
+      if(c.x==='rating'){var sc=_num(d._composite_score);return sc==null?'':sc.toFixed(1);}
       if(c.x==='via')return ctx.via(d);
       return _pfmVal(c,d,ctx);
     })).map(_pfCsvCell).join(','));
@@ -7120,12 +7131,70 @@ function fds(v){var n=_num(v);if(n==null)return'N/A';var s=n<0?'-':'',a=Math.abs
 function fg(v,f){var n=_num(v);if(n==null)return'N/A';if(f==='pct1')return(n*100).toFixed(1)+'%';if(f==='ratio')return n.toFixed(2);if(f==='int')return Math.round(n)+'';return String(n);}
 function sc(v){if(v==null)return'';return v>=60?'sg':v>=30?'sm':'sp';}
 function gc(g){return g===true?'gp':g===false?'gf':'gn';}
+/* === SCORE, NOT RATING ===
+   Pages show the composite score, never BUY / LEAN BUY / HOLD / PASS. A
+   rating is its score's band (BUY ≥ 57, LEAN BUY ≥ 39, HOLD ≥ 25, read from
+   GM.ratings), so those four stay as internal keys — filters, saved links,
+   portfolio rules and rating: queries keep working unchanged — and every
+   label a reader sees is the band's score range (bandLabel). The rating is
+   still computed, stored and backtested by the engine. */
+var _BAND_KEYS=['BUY','LEAN BUY','HOLD','PASS'];
+function _bandMins(){var m={'BUY':57,'LEAN BUY':39,'HOLD':25,'PASS':0};((typeof GM!=='undefined'&&GM&&GM.ratings)||[]).forEach(function(x){if(x&&(x.rating in m)&&_num(x.min)!=null)m[x.rating]=+x.min;});return m;}
+function bandKey(s){s=_num(s);if(s==null)return null;var m=_bandMins();return s>=m.BUY?'BUY':s>=m['LEAN BUY']?'LEAN BUY':s>=m.HOLD?'HOLD':'PASS';}
+function bandOf(d){return bandKey(d&&d._composite_score);}
+function _bandFmt(v){return Math.round(v)===v?String(v):v.toFixed(1);}
+/* "57+", "39–56", "25–38", "<25" */
+function bandLabel(k){
+  var m=_bandMins(),i=_BAND_KEYS.indexOf(k);if(i<0)return k||'—';
+  if(i===0)return _bandFmt(m.BUY)+'+';
+  var hi=m[_BAND_KEYS[i-1]];if(k==='PASS')return '<'+_bandFmt(hi);
+  var lo=m[k];return _bandFmt(lo)+'–'+(Math.round(hi)===hi&&Math.round(lo)===lo?String(hi-1):_bandFmt(hi));
+}
+function bandTitle(k){var m=_bandMins(),i=_BAND_KEYS.indexOf(k);if(i<0)return '';if(i===0)return 'Composite score '+_bandFmt(m.BUY)+' or more';if(k==='PASS')return 'Composite score below '+_bandFmt(m.HOLD);return 'Composite score '+_bandFmt(m[k])+' to under '+_bandFmt(m[_BAND_KEYS[i-1]]);}
+/* +1 the score crossed up into a higher band since the prior run, -1 down,
+   0 same band, null when there is no prior score. */
+function scoreCross(d){var a=bandKey(d&&d.score_prev),b=bandOf(d);if(!a||!b)return null;if(a===b)return 0;return _BAND_KEYS.indexOf(b)<_BAND_KEYS.indexOf(a)?1:-1;}
+/* "Crossed above 39 (36.2 → 41.0)" */
+function crossText(d){
+  var c=scoreCross(d);if(!c)return '';
+  var m=_bandMins(),line=c>0?m[bandOf(d)]:m[bandKey(d.score_prev)];
+  return (c>0?'Crossed above ':'Fell below ')+_bandFmt(line)+' ('+_num(d.score_prev).toFixed(1)+' → '+_num(d._composite_score).toFixed(1)+')'
+    +(d.score_prev_basis==='stored'?' — the scoring model changed since the prior run':'');
+}
+/* A set of band keys as a score range ("score ≥ 39"), or null when it is
+   not contiguous (mirrors models/portfolio_groups.ratings_as_score_range). */
+function bandsAsRange(keys){
+  var m=_bandMins(),ix=(keys||[]).map(function(k){return _BAND_KEYS.indexOf(k);}).filter(function(i){return i>=0;}).sort();
+  if(!ix.length)return null;
+  for(var i=1;i<ix.length;i++)if(ix[i]!==ix[i-1]+1)return null;
+  var top=_BAND_KEYS[ix[0]],bot=_BAND_KEYS[ix[ix.length-1]],lo=m[bot],hi=top==='BUY'?null:m[_BAND_KEYS[ix[0]-1]];
+  if(lo<=0&&hi==null)return 'any score';
+  if(lo<=0)return 'score < '+_bandFmt(hi);
+  if(hi==null)return 'score ≥ '+_bandFmt(lo);
+  return 'score '+_bandFmt(lo)+'–'+_bandFmt(hi);
+}
+/* "crossed above 39 since the prior run" — short form for notes. */
+function crossShort(d){var c=scoreCross(d);if(!c)return '';var m=_bandMins();return (c>0?'crossed above ':'fell below ')+_bandFmt(c>0?m[bandOf(d)]:m[bandKey(d.score_prev)])+' since the prior run';}
+/* Score pill: the composite, coloured by its band; ⚠ when a flag lowered
+   the band (older snapshots, and bonds/currencies). */
+function sbv(s){s=_num(s);var k=bandKey(s);return '<span class="rb" style="background:'+(RC[k]||'#888')+'" title="'+(k?bandTitle(k):'No composite score')+'">'+(s==null?'N/A':Math.round(s))+'</span>';}
+function sb(d){var h=sbv(d&&d._composite_score);if(d&&isCapped(d))h+='<span class="rb-cap" title="'+capTipAttr(d)+'">⚠</span>';return h;}
+/* A band's own pill (legends, filters): its score range. */
+function bandPill(k){return '<span class="rb" style="background:'+(RC[k]||'#888')+'" title="'+bandTitle(k)+'">'+bandLabel(k)+'</span>';}
+/* [[date, score]] from the re-scored weekly history, then tonight. */
+function scoreSeries(d){
+  var SH=typeof SCORE_HIST!=='undefined'?SCORE_HIST:null;
+  var out=[],ds=(SH&&!SH.stale&&SH.dates)||[],h=(d&&d.score_hist)||[];
+  for(var i=0;i<ds.length;i++){if(h[i]!=null)out.push([ds[i],h[i]]);}
+  var s=_num(d&&d._composite_score);if(s!=null&&typeof RUN_DATE!=='undefined'&&RUN_DATE)out.push([RUN_DATE,Math.round(s)]);
+  return out;
+}
 function rb(r,d){var h='<span class="rb" style="background:'+(RC[r]||'#888')+'">'+(r||'N/A')+'</span>';if(d&&isCapped(d))h+='<span class="rb-cap" title="'+capTipAttr(d)+'">⚠</span>';return h;}
 /* Rating-cap helpers: a cap fired iff the final rating differs from the
    uncapped composite-derived one (rating_raw). Caps are off by default
    (config.RATING_CAPS_ENABLED), so this fires only on older snapshots. */
 function isCapped(d){return!!(d&&d.rating_raw&&d.rating&&d.rating!==d.rating_raw);}
-function capTip(d){var rs=d._rating_cap_reasons||[];return'Capped from '+d.rating_raw+(rs.length?': '+rs.join('; '):'');}
+function capTip(d){var rs=d._rating_cap_reasons||[];return'A flag lowered its band below the score\u2019s own ('+bandLabel(d.rating_raw)+')'+(rs.length?': '+rs.join('; '):'');}
 function capTipAttr(d){return esc(capTip(d)).replace(/"/g,'&quot;');}
 function cc(v){if(v==null)return'#888';return v>=65?'#1a9850':v>=40?'#fd8d3c':'#de2d26';}
 /* RGB-channel interpolator: blend hex `a` toward hex `b` by fraction t∈[0,1]. */
@@ -7207,10 +7276,10 @@ function bkv(pairs){return pairs.map(function(p){
 }).join('');}
 var TT={
 ticker:'The symbol stands for a business, not a lottery ticket. The rule: invest only in what you understand well enough to own for a decade.',
-rating:'The composite score’s bucket: BUY at 57 or more, LEAN BUY 39–56, HOLD 25–38, PASS below 25. The score comes from 26 gates across Moat, Valuation, Quality, Growth and Ownership; fair value counts through the margin-of-safety gate. Flags, like a negative margin of safety, are warnings and don’t change the rating. A starting point for research, not a substitute.',
-rating_prev:'The stock’s rating in the most recent earlier run that rated it — same colour pill as today’s, so upgrades and downgrades read side by side. Falls back through up to seven earlier snapshots; N/A means it was in none of them.',
-_composite_score:'Score = 0.30·Moat + 0.20·Valuation + 0.20·Quality + 0.20·Growth + 0.10·Ownership — five pillars, each scored 0–100 and weighted by how much it matters to long-run returns. Ratings: ≥57 BUY; 39–56 LEAN BUY; 25–38 HOLD; below 25 PASS. The thresholds were set to match a target rating mix and have not yet been tested against returns.',
-_gates_passed:'Gates passed, out of those that apply. Gates that cannot describe the business — free-cash-flow tests for a bank, say — are excluded from the denominator, not failed. Diagnostic only: the composite score, not this count, drives the rating; but every failure deserves an explanation.',
+rating:'The composite score, coloured by its band: 57 or more, 39–56, 25–38, below 25. The score comes from 26 gates across Moat, Valuation, Quality, Growth and Ownership; fair value counts through the margin-of-safety gate. Flags, like a negative margin of safety, are warnings and don’t change the score. A starting point for research, not a substitute.',
+rating_prev:'The stock’s composite score on the prior run, re-scored with today’s model so a change in the model never reads as a move. Crossing a band line (57, 39, 25) is what the Crossed up / Crossed down filters select.',
+_composite_score:'Score = 0.30·Moat + 0.20·Valuation + 0.20·Quality + 0.20·Growth + 0.10·Ownership — five pillars, each scored 0–100 and weighted by how much it matters to long-run returns. Its bands: 57 or more, 39–56, 25–38, below 25. The lines were set to match a target mix and have not yet been tested against returns.',
+_gates_passed:'Gates passed, out of those that apply. Gates that cannot describe the business — free-cash-flow tests for a bank, say — are excluded from the denominator, not failed. Diagnostic only: the composite score is what counts, not this tally; but every failure deserves an explanation.',
 sector:'Sector as Yahoo Finance classifies it (close to GICS, not the same). Benchmark a business only against peers with genuinely similar economics.',
 industry:'Industry as Yahoo Finance classifies it — the peer set for margin and ROIC comparisons. Compare within the industry, never across it.',
 mcap:'Market Cap = Price × Shares Outstanding — what the whole company sells for today. The gap between this figure and intrinsic value is where returns are made.',
@@ -7357,7 +7426,7 @@ momentum_6_1:'Price return from 6 months ago to 1 month ago. A shorter-horizon r
 momentum_3m:'Simple trailing 3-month price return, most recent month included. The most reactive of the three momentum columns and the noisiest; useful mainly for spotting a name that just broke down or just re-rated.',
 vol_adj_momentum:'12-1 month momentum divided by realized volatility — momentum per unit of risk taken to get it. A quiet 20% grind scores higher than a violent 20% round trip.',
 realized_vol:'Annualized standard deviation of daily returns over the past year. Shown for context and used in Vol-Adjusted Momentum. The Monte Carlo band is set by how precisely beta is estimated, not by this figure, and it does not change the composite score.',
-avg_dollar_volume_3m:'Median daily dollar volume (price × shares) over the last three months — the median, not the mean, so one earnings-day spike does not flatter the number. This is the tradeability check: below $1M the stock carries a warning flag, though its rating does not change, because a rating you cannot fill is not a recommendation.',
+avg_dollar_volume_3m:'Median daily dollar volume (price × shares) over the last three months — the median, not the mean, so one earnings-day spike does not flatter the number. This is the tradeability check: below $1M the stock carries a warning flag, though its score does not change: a stock you cannot trade in size is flagged, not marked down.',
 volume_trend:'Average volume over the last month divided by the average over the last year. Above 1.0 means trading interest is running hotter than this stock’s own norm — read it next to momentum, never alone.',
 amihud_illiquidity:'Amihud price impact, in basis points of price move per $1M traded. Near zero for mega-caps by construction; it earns its keep at the illiquid end, where it tells you what building a position would cost you in slippage.',
 drawdown_2020:'Worst peak-to-trough fall during the COVID crash (Jan–Sep 2020). A stress test you did not have to design — how far did this business fall when the world stopped?',
@@ -7410,7 +7479,7 @@ surprise_avg:'Average earnings surprise versus consensus over recent quarters. C
 book_to_bill_proxy:'Orders booked ÷ revenue billed, proxied from the change in backlog. Above 1× the order book is growing faster than the company can ship.',
 brand_spend_trend:'Annualised change in advertising ÷ revenue. Rising brand investment is a moat being fed; a quiet cut often precedes share loss.',
 fda_pipeline_count:'Active sponsored interventional trials on ClinicalTrials.gov — a crude read on how much future revenue is still in the lab.',
-position_weight:'The model’s suggested position size for a BUY or LEAN BUY with a positive margin of safety: larger with more margin and a tighter Monte Carlo band. Blank when the size falls below the 1% minimum.',
+position_weight:'The model’s suggested position size for a stock scoring 39 or more with a positive margin of safety: larger with more margin and a tighter Monte Carlo band. Blank when the size falls below the 1% minimum.',
 _via:'How the name got into this portfolio: a manual pick, a match on the portfolio’s rule, or both.',
 earnings_next_date:'The next scheduled earnings date. Results inside a few days are the usual reason a screen’s numbers move under you.',
 /* Sector-context and Street-view popup rows. */
@@ -7538,12 +7607,13 @@ function applyFilters(){
     if(!_pfPass(d))return false;
     if(_revFilter===1&&isReviewed(d.ticker))return false;
     if(_revFilter===2&&!isReviewed(d.ticker))return false;
-    /* Rating-change filter: null rating_chg (new ticker or no prior
+    /* Band-crossing filter: no prior score (new ticker or no prior
        snapshot) matches neither direction. */
-    if(_rcFilter===1&&!(d.rating_chg>0))return false;
-    if(_rcFilter===2&&!(d.rating_chg<0))return false;
+    if(_rcFilter===1&&!(scoreCross(d)>0))return false;
+    if(_rcFilter===2&&!(scoreCross(d)<0))return false;
     if(!_dashPass(d))return false;
-    if(!allRatings&&ratings.indexOf(d.rating)<0)return false;
+    /* The Score list's values are band keys; a row's band is its score's. */
+    if(!allRatings&&ratings.indexOf(bandOf(d))<0)return false;
     if(!allSectors&&sectors.indexOf(d.sector)<0)return false;
     if(!allCountries&&countries.indexOf(d.country)<0)return false;
     for(var i=0;i<colFilters.length;i++){
@@ -7662,14 +7732,14 @@ function _relScore(d,toks){
   }
   return s;
 }
-/* Comparator while relevance ordering is active: score desc, then the
-   familiar rating order, then ticker — deterministic. */
-var _REL_RO={'BUY':1,'LEAN BUY':2,'HOLD':3,'PASS':4};
+/* Comparator while relevance ordering is active: match score desc, then the
+   composite score desc, then ticker — deterministic. */
+function _relCs(d){var s=_num(d&&d._composite_score);return s==null?-1:s;}
 function _relCmp(a,b){
   var ra=a._rel||0,rb2=b._rel||0;
   if(ra!==rb2)return rb2-ra;
-  var oa=_REL_RO[a.rating]||99,ob=_REL_RO[b.rating]||99;
-  if(oa!==ob)return oa-ob;
+  var oa=_relCs(a),ob=_relCs(b);
+  if(oa!==ob)return ob-oa;
   return (a.ticker||'').localeCompare(b.ticker||'');
 }
 /* "N of M · best match" — the suffix reflects whether relevance ordering
@@ -7765,8 +7835,8 @@ function _buildSuggestions(toks,passOther){
   }
   cands.sort(function(x,y){
     if(x.s!==y.s)return x.s-y.s;
-    var oa=_REL_RO[x.d.rating]||99,ob=_REL_RO[y.d.rating]||99;
-    if(oa!==ob)return oa-ob;
+    var oa=_relCs(x.d),ob=_relCs(y.d);
+    if(oa!==ob)return ob-oa;
     return (x.d.ticker||'').localeCompare(y.d.ticker||'');
   });
   return cands.slice(0,3).map(function(c){return c.d;});
@@ -7873,12 +7943,12 @@ function _altFiltSync(){
   if(k==='bond'){
     var D=_BV||{},cls={},I=_BV?_bvIdx():{};
     (D.rows||[]).forEach(function(r){var v=r[I.asset_class];if(v)cls[v]=1;});
-    box.innerHTML=lab('Rating')+'<select onchange="_bvSet(\'r\',this.value)" aria-label="Rating">'+opt('','All ratings',_bvF.r)+['BUY','LEAN BUY','HOLD','PASS'].map(function(r){return opt(r,r,_bvF.r);}).join('')+'</select>'
+    box.innerHTML=(D.thresholds_by_class?lab('Score band (within class)')+'<select onchange="_bvSet(\'r\',this.value)" aria-label="Score band">'+opt('','All bands',_bvF.r)+['BUY','LEAN BUY','HOLD','PASS'].map(function(r){return opt(r,_BV_BAND_LBL[r],_bvF.r);}).join('')+opt('CAPPED','⚠ Capped',_bvF.r)+'</select>':'')
       +lab('Asset class')+'<select onchange="_bvSet(\'c\',this.value)" aria-label="Asset class">'+opt('','All classes',_bvF.c)+Object.keys(cls).sort().map(function(c){return opt(c,_bvCls(c),_bvF.c);}).join('')+'</select>'
       +lab('Implied credit bucket')+'<select onchange="_bvSet(\'b\',this.value)" aria-label="Implied credit bucket">'+opt('','All buckets',_bvF.b)+(D.buckets||[]).map(function(b){return opt(b[0],b[0],_bvF.b);}).join('')+'</select>'
-      +'<label class="alt-chk"><input type="checkbox"'+(_bvF.u?' checked':'')+' onchange="_bvSet(\'u\',this.checked)"> Uncapped only</label>';
+      +'<label class="alt-chk"><input type="checkbox"'+(_bvF.u?' checked':'')+' onchange="_bvSet(\'u\',this.checked)"> Without cap flags</label>';
   }else if(k==='ccy'){
-    box.innerHTML=lab('Rating')+'<select onchange="_cxSet(\'r\',this.value)" aria-label="Rating">'+opt('','All ratings',_cxF.r)+_CX_RATINGS.map(function(r){return opt(r,r,_cxF.r);}).join('')+'</select>';
+    box.innerHTML=lab('Score band')+'<select onchange="_cxSet(\'r\',this.value)" aria-label="Score band">'+opt('','All scores',_cxF.r)+_CX_RATINGS.map(function(r){return opt(r,_cxBandLabel(r),_cxF.r);}).join('')+'</select>';
   }else if(k==='etf'){
     var ec={};
     Object.keys((ETF_LT&&ETF_LT.funds)||{}).forEach(function(t){ec[_etfCat(ETF_LT.funds[t])]=1;});
@@ -7923,7 +7993,7 @@ function _altFiltSync(){
 var _filtStockN=0;
 /* The Filters panel is one column of sections, each a header line saying
    what it holds now ("All", "BUY, LEAN BUY", "3 of 11") that opens its
-   controls. Rating and Quick filters are short chip rows and start open;
+   controls. Score-band and Quick filters are short chip rows and start open;
    the long lists (Sectors, Countries, Portfolios) and Column filters start
    shut unless they hold a filter. A section the reader opened or shut keeps
    that state for the visit. The checkbox lists underneath are unchanged:
@@ -7933,18 +8003,18 @@ function _fsecChecked(id){
   var b=[].slice.call(document.querySelectorAll('#'+id+' .ms-drop input[type="checkbox"][value]'));
   return {n:b.length,on:b.filter(function(x){return x.checked;}).map(function(x){return x.value;})};
 }
-function _fsecListSum(id){
+function _fsecListSum(id,lbl){
   var c=_fsecChecked(id);
   if(!c.n||c.on.length===c.n)return '';
   if(!c.on.length)return 'None';
-  return c.on.length<=2?c.on.join(', '):c.on.length+' of '+c.n;
+  return c.on.length<=2?c.on.map(lbl||String).join(', '):c.on.length+' of '+c.n;
 }
 function _fsecSums(){
   var q=[];
-  [['f-reviewed','Reviewed'],['f-unreviewed','Unreviewed'],['f-flagged','Flagged'],['f-founder','Founder-led'],['f-bluechip','Blue chip'],['f-r2000','Russell 2000'],['f-upgrades','Upgrades'],['f-downgrades','Downgrades']]
+  [['f-reviewed','Reviewed'],['f-unreviewed','Unreviewed'],['f-flagged','Flagged'],['f-founder','Founder-led'],['f-bluechip','Blue chip'],['f-r2000','Russell 2000'],['f-upgrades','Crossed up'],['f-downgrades','Crossed down']]
     .forEach(function(x){var c=document.querySelector('#'+x[0]+' .qf-chk');if(c&&c.checked)q.push(x[1]);});
   var st=_getCurrentFilterState(),cf=((st&&st.colFilters)||[]).length+(_dashFilter?1:0);
-  return {rating:_fsecListSum('ms-rating'),sector:_fsecListSum('ms-sector'),country:_fsecListSum('ms-country'),
+  return {rating:_fsecListSum('ms-rating',bandLabel),sector:_fsecListSum('ms-sector'),country:_fsecListSum('ms-country'),
     quick:q.length?(q.length<=2?q.join(', '):q.length+' on'):'',
     pf:_pfSel.length?(_pfSel.length===1?(function(){var d=_pfDefs().filter(function(p){return p.id===_pfSel[0];})[0];return d?d.name:'1 portfolio';})():_pfSel.length+' portfolios'):'',
     cols:cf?cf+' active':'',saved:(_sfCurrent()||{}).name||''};
@@ -8255,7 +8325,7 @@ window.addEventListener('scroll',function(e){
 },true);
 
 /* === MATRIX === */
-var mSC='rating',mSA=true;
+var mSC='_composite_score',mSA=false;
 /* True once the user clicks a column header on this view; while false
    and a search query is active, results order by relevance instead of
    the default sort. Reset when the sub-tab switch resets the sort. */
@@ -8281,11 +8351,10 @@ function renderMatrix(){
   h1+='<th class="fixed-header" rowspan="2" style="width:28px;cursor:pointer;font-size:1.3em" onclick="mSort(\'_flagged\')" title="Flagged">\u2691'+(mSC==='_flagged'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header" rowspan="2" style="width:28px;cursor:pointer;color:white" onclick="mSort(\'_reviewed\')" title="Reviewed"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'+(mSC==='_reviewed'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'ticker\')" data-col-tip="ticker" data-col-label="Ticker">Ticker'+(mSC==='ticker'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
-  h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'rating\')" data-col-tip="rating" data-col-label="Today\u2019s Rating">Today\u2019s Rating'+(mSC==='rating'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
+  h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'_composite_score\')" data-col-tip="_composite_score" data-col-label="Composite Score">Score'+(mSC==='_composite_score'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'sector\')" data-col-tip="sector" data-col-label="Sector">Sector'+(mSC==='sector'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'industry\')" data-col-tip="industry" data-col-label="Industry">Industry'+(mSC==='industry'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   GM.categories.forEach(function(cat){var n=cg2[cat.name].length+1;var _cw=Math.round(cat.weight*100);var _cb=CAT_TIPS[cat.name];h1+='<th class="cat-header" colspan="'+n+'" style="background:'+cat.dark+'"'+(_cb?' data-col-tip="_cat_'+cat.name+'" data-col-label="'+cat.name+' ('+_cw+'%)" data-col-tip-body="'+_cb+' Weighted '+_cw+'% of the composite score."':'')+'>'+cat.name+' ('+_cw+'%)</th>';});
-  h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'_composite_score\')" data-col-tip="_composite_score" data-col-label="Composite Score">Score'+(mSC==='_composite_score'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='</tr>';
   var h2='<tr>';
   GM.categories.forEach(function(cat){cg2[cat.name].forEach(function(g){var tipKey=g.key.replace(/^_gate_/,'');h2+='<th class="col-header sortable" style="background:'+cat.light+';color:#333;cursor:pointer" onclick="mSort(\''+g.key+'\')" data-col-tip="'+tipKey+'" data-col-label="'+g.label+'" data-col-threshold="'+(g.threshold||'')+'">'+g.label+(mSC===g.key?(mSA?' \u25B2':' \u25BC'):'')+'</th>';});h2+='<th class="col-header sortable" style="background:'+cat.dark+';color:white;cursor:pointer" onclick="mSort(\''+cat.scoreKey+'\')" data-col-tip="'+cat.scoreKey+'" data-col-label="'+cat.name+' Total">Total'+(mSC===cat.scoreKey?(mSA?' \u25B2':' \u25BC'):'')+'</th>';});
@@ -8326,7 +8395,7 @@ function _mtxBuildRow(d,_i){
   html+='<td style="text-align:center">'+_starHtml(d.ticker)+'</td>';
   html+='<td style="text-align:center">'+_revHtml(d.ticker)+'</td>';
   html+='<td class="tk" onclick="openDet(\''+t+'\')">'+d.ticker+_pfDots(d.ticker)+'</td>';
-  html+='<td>'+rb(d.rating,d)+'</td>';
+  html+='<td>'+sb(d)+'</td>';
   html+='<td style="font-size:0.75em">'+(d.sector||'N/A')+'</td>';
   html+='<td style="font-size:0.75em">'+esc(d.industry||'N/A')+'</td>';
   GM.categories.forEach(function(cat){
@@ -8337,8 +8406,6 @@ function _mtxBuildRow(d,_i){
     var tv=d[cat.scoreKey];
     html+='<td class="ct" style="color:'+cat.dark+'">'+(tv!=null?Math.round(tv)+'%':'N/A')+'</td>';
   });
-  var sc=_num(d._composite_score);
-  html+='<td class="mtx-sc">'+(sc!=null?Math.round(sc):'N/A')+'</td>';
   html+='</tr>';
   return html;
 }
@@ -8399,7 +8466,7 @@ function _mtxOnScroll(){
   _mtxRafPending=true;
   requestAnimationFrame(function(){_mtxRafPending=false;_renderMtxWindow();});
 }
-function mSort(col){_mUserSorted=true;if(mSC===col)mSA=!mSA;else{mSC=col;mSA=col==='ticker'||col==='sector'||col==='industry'||col==='rating'||col==='rating_prev';}renderMatrix();}
+function mSort(col){_mUserSorted=true;if(mSC===col)mSA=!mSA;else{mSC=col;mSA=col==='ticker'||col==='sector'||col==='industry';}renderMatrix();}
 
 /* === MATRIX SUB-TABS === */
 var curMSub=null;
@@ -8410,7 +8477,7 @@ function renderMSubs(){
   renderNavMenu();
 }
 function swMSub(key){
-  curMSub=key;mSC='rating';mSA=true;_mUserSorted=false;_syncWideTable();renderMSubs();
+  curMSub=key;mSC='_composite_score';mSA=false;_mUserSorted=false;_syncWideTable();renderMSubs();
   _mShow();
   _syncHash();
   setTimeout(_setTableH,0);
@@ -8445,7 +8512,7 @@ function renderOverview(){
   var ov=document.getElementById('m-overview-view');if(!ov)return;
   /* Build subtitle from live data */
   var _rcounts={BUY:0,'LEAN BUY':0,HOLD:0,PASS:0};
-  FD.forEach(function(d){if(_rcounts[d.rating]!=null)_rcounts[d.rating]++;});
+  FD.forEach(function(d){var k=bandOf(d);if(k)_rcounts[k]++;});
   var _actionable=_rcounts.BUY+_rcounts['LEAN BUY'];
   var _actionPct=FD.length?Math.round(_actionable/FD.length*100):0;
   /* find worst gate pass rate */
@@ -8455,7 +8522,7 @@ function renderOverview(){
   var _weakCat=null,_weakAvg=101;
   GM.categories.forEach(function(cat){var sc=FD.map(function(d){return d[cat.scoreKey];}).filter(function(v){return v!=null;});var avg=sc.length?Math.round(sc.reduce(function(a,b){return a+b;},0)/sc.length):0;if(avg<_weakAvg){_weakAvg=avg;_weakCat=cat;}});
   var _subtitle=FD.length+' stocks scored across 26 gates &mdash; '
-    +_actionable+' actionable ('+_actionPct+'% BUY or LEAN BUY)'
+    +_actionable+' scoring '+_bandFmt(_bandMins()['LEAN BUY'])+' or more ('+_actionPct+'%)'
     +(_worstGate?' &middot; biggest bottleneck: <strong>'+_worstGate.label+'</strong> ('+_worstPct+'% pass rate)':'')
     +(_weakCat?' &middot; weakest category: <strong>'+_weakCat.name+'</strong> ('+_weakAvg+'% avg)':'');
   /* World MoS Map sits above the Gates Summary — the geographic read on the
@@ -8464,7 +8531,7 @@ function renderOverview(){
   var html=renderWorldMosMap();
   html+='<div class="sx"><div class="qh-card qh-flush" style="margin-bottom:14px">'
     /* The run summary sits behind the ? with the how-to, so the cards lead. */
-    +_qHelp('<span class="note-q-t">'+_subtitle+'.</span><span class="note-q-t" style="display:block;margin-top:6px">Tap a category card, rating box or map country to open those stocks in Stocks. Gate rows and histogram bars filter in place.</span>','About the Gates Summary','corner')
+    +_qHelp('<span class="note-q-t">'+_subtitle+'.</span><span class="note-q-t" style="display:block;margin-top:6px">Tap a category card, score box or map country to open those stocks in Stocks. Gate rows and histogram bars filter in place.</span>','About the Gates Summary','corner')
     +'<div class="sec-label" style="margin-bottom:0">Gates Summary</div>';
   html+='</div>';
   /* Category score cards */
@@ -8486,32 +8553,32 @@ function renderOverview(){
     html+='</div>';
   });
   html+='</div>';
-  /* Rating distribution */
+  /* Score-band distribution */
   var rcounts={'BUY':0,'LEAN BUY':0,'HOLD':0,'PASS':0};
-  FD.forEach(function(d){if(rcounts[d.rating]!=null)rcounts[d.rating]++;});
+  FD.forEach(function(d){var k=bandOf(d);if(k)rcounts[k]++;});
   var rcols={'BUY':'#276221','LEAN BUY':'#5d8a26','HOLD':'#b07d00','PASS':'#9c1d1d'};
   html+='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">';
   var _rSel=msGetSelected('ms-rating');
   ['BUY','LEAN BUY','HOLD','PASS'].forEach(function(r){
     var n=rcounts[r],pct=FD.length?Math.round(n/FD.length*100):0;
     var rAct=_rSel.length===1&&_rSel[0]===r;
-    html+='<div onclick="dashRatingJump(\''+r+'\')" title="Open Stocks with only '+r+'-rated stocks" '
+    html+='<div onclick="dashRatingJump(\''+r+'\')" title="Open Stocks with only the stocks scoring '+bandLabel(r)+'" '
       +'style="flex:1;min-width:90px;background:#fff;border-radius:8px;padding:11px 14px;cursor:pointer;border-left:4px solid '+rcols[r]+';'
       +(rAct?'box-shadow:0 0 0 2px '+rcols[r]+',0 1px 4px rgba(0,0,0,0.07)':'box-shadow:0 1px 4px rgba(0,0,0,0.07)')+'">';
     html+='<div style="font-size:1.45em;font-weight:700;color:'+rcols[r]+'">'+n+'</div>';
-    html+='<div style="font-size:0.78em;font-weight:600;color:'+rcols[r]+'">'+r+(rAct?' <span style="font-weight:700">&#10003;</span>':'')+'</div>';
+    html+='<div style="font-size:0.78em;font-weight:600;color:'+rcols[r]+'">Score '+bandLabel(r)+(rAct?' <span style="font-weight:700">&#10003;</span>':'')+'</div>';
     html+='<div style="font-size:0.7em;color:#aaa">'+pct+'% of '+FD.length+'</div>';
     html+='</div>';
   });
   html+='</div>';
-  /* Score distribution histogram — stacked by actual rating */
+  /* Score distribution histogram — stacked by score band */
   var buckets=Array.from({length:10},function(){return{BUY:0,'LEAN BUY':0,HOLD:0,PASS:0,total:0};});
-  FD.forEach(function(d){var s=d._composite_score;if(s==null)return;var i=Math.min(9,Math.floor(s/10));buckets[i].total++;if(buckets[i][d.rating]!=null)buckets[i][d.rating]++;});
+  FD.forEach(function(d){var s=_num(d._composite_score);if(s==null)return;var i=Math.max(0,Math.min(9,Math.floor(s/10)));buckets[i].total++;buckets[i][bandKey(s)]++;});
   var maxB=Math.max.apply(null,buckets.map(function(b){return b.total;}))||1;
   /* Closes the Gates Summary section (its cards and rating boxes). */
   html+='</div><div class="sx">';
   html+='<div class="sec-label">Composite Score Distribution</div>';
-  html+='<div class="sec-sub">Stocks per 10-point bracket, colored by actual rating</div>';
+  html+='<div class="sec-sub">Stocks per 10-point bracket, colored by score band</div>';
   html+='<div style="display:flex;align-items:flex-end;gap:3px;height:68px">';
   buckets.forEach(function(b,i){
     var n=b.total,totalH=Math.round(n/maxB*56);
@@ -8521,10 +8588,7 @@ function renderOverview(){
     var buyH=n?totalH-passH-holdH-leanH:0;/* absorb rounding in BUY */
     var label=(i*10)+'\u2013'+((i+1)*10);
     var tip='Score '+label+': '+n+' stock'+(n!==1?'s':'')+
-      (b.BUY?' | BUY: '+b.BUY:'')+
-      (b['LEAN BUY']?' | LEAN BUY: '+b['LEAN BUY']:'')+
-      (b.HOLD?' | HOLD: '+b.HOLD:'')+
-      (b.PASS?' | PASS: '+b.PASS:'');
+      _BAND_KEYS.map(function(k){return b[k]?' | '+bandLabel(k)+': '+b[k]:'';}).join('');
     var _sc=_cfGet('_composite_score'),sAct=!!(_sc&&_sc.min===i*10&&_sc.max===(i>=9?100:i*10+9.9));
     html+='<div onclick="toggleDashScore('+i+')" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer'
       +(sAct?';background:rgba(59,111,212,0.14);border-radius:4px 4px 0 0':'')+'" title="'+tip+' — click to filter to this bracket">';
@@ -8547,7 +8611,7 @@ function renderOverview(){
   html+='<div style="font-size:0.63em;color:#bbb;letter-spacing:0.03em">Composite Score \u2192</div>';
   html+='<div style="display:flex;gap:8px;align-items:center">';
   [['#9c1d1d','PASS'],['#b07d00','HOLD'],['#5d8a26','LEAN BUY'],['#276221','BUY']].forEach(function(z){
-    html+='<div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:'+z[0]+'"></div><div style="font-size:0.62em;color:#888">'+z[1]+'</div></div>';
+    html+='<div style="display:flex;align-items:center;gap:3px"><div style="width:8px;height:8px;border-radius:2px;background:'+z[0]+'"></div><div style="font-size:0.62em;color:#888">'+bandLabel(z[1])+'</div></div>';
   });
   html+='</div></div>';
   html+='</div>';
@@ -8601,30 +8665,30 @@ var TC={
   /* Valuation — price as the anchor, then the DCF fair value and the margin of
      safety it implies, the DCF drivers (WACC, implied growth), 52-week price
      context, trading multiples, and finally the alternative intrinsic models. */
-  val:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'price',l:'Price',f:'dollar',g:'gv'},{k:'dcf_fv',l:'DCF/Shr',f:'dollar',g:'gv'},{k:'mos',l:'MoS%',f:'pct',g:'gv'},{k:'wacc',l:'WACC',f:'pct',g:'gv'},{k:'implied_growth',l:'Impl. Growth',f:'pct',g:'gv'},{k:'pct_from_52w_high',l:'% from High',f:'pct',g:'gv'},{k:'range_52w_position',l:'Range Pos',f:'int',g:'gv'},{k:'pe',l:'P/E',f:'n1',g:'gv'},{k:'ev_ebitda',l:'EV/EBITDA',f:'n1',g:'gv'},{k:'pfcf',l:'P/FCF',f:'n1',g:'gv'},{k:'pb',l:'P/B',f:'n2',g:'gv'},{k:'p_tbv',l:'P/TBV',f:'n2',g:'gv'},{k:'epv_fv',l:'EPV FV',f:'dollar',g:'gv'},{k:'rim_fv',l:'RIM FV',f:'dollar',g:'gv'},{k:'nav_fv',l:'NAV FV',f:'dollar',g:'gv'},{k:'nav_mos',l:'NAV MoS%',f:'pct',g:'gv'}],
+  val:[{k:'ticker',l:'Ticker',f:'text'},{k:'_composite_score',l:'Score',f:'score'},{k:'price',l:'Price',f:'dollar',g:'gv'},{k:'dcf_fv',l:'DCF/Shr',f:'dollar',g:'gv'},{k:'mos',l:'MoS%',f:'pct',g:'gv'},{k:'wacc',l:'WACC',f:'pct',g:'gv'},{k:'implied_growth',l:'Impl. Growth',f:'pct',g:'gv'},{k:'pct_from_52w_high',l:'% from High',f:'pct',g:'gv'},{k:'range_52w_position',l:'Range Pos',f:'int',g:'gv'},{k:'pe',l:'P/E',f:'n1',g:'gv'},{k:'ev_ebitda',l:'EV/EBITDA',f:'n1',g:'gv'},{k:'pfcf',l:'P/FCF',f:'n1',g:'gv'},{k:'pb',l:'P/B',f:'n2',g:'gv'},{k:'p_tbv',l:'P/TBV',f:'n2',g:'gv'},{k:'epv_fv',l:'EPV FV',f:'dollar',g:'gv'},{k:'rim_fv',l:'RIM FV',f:'dollar',g:'gv'},{k:'nav_fv',l:'NAV FV',f:'dollar',g:'gv'},{k:'nav_mos',l:'NAV MoS%',f:'pct',g:'gv'}],
   /* Profitability — returns on capital first (ROIC/ROE) with the DuPont
      decomposition of ROE, then margins, earnings quality, cost/reinvestment
      intensity, and finally the sector-specific metrics (bank NIM/efficiency,
      REIT AFFO) pushed right where they are blank for most names. */
-  prof:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'roic',l:'ROIC',f:'pct',g:'gp2'},{k:'roic_cv',l:'ROIC CV',f:'n2',g:'gp2'},{k:'spread',l:'Spread',f:'pct',g:'gp2'},{k:'roe',l:'ROE',f:'pct',g:'gp2'},{k:'dupont_margin',l:'DuPont Mrgn',f:'pct',g:'gp2'},{k:'dupont_turnover',l:'DuPont Turn',f:'n2',g:'gp2'},{k:'dupont_leverage',l:'DuPont Lev',f:'n2',g:'gp2'},{k:'gross_margin',l:'Gross Mgn',f:'pct',g:'gp2'},{k:'fcf_margin',l:'FCF Margin',f:'pct',g:'gp2'},{k:'fcf_margin_ex_sbc',l:'FCF ex-SBC',f:'pct',g:'gp2'},{k:'cash_conv',l:'CashConv',f:'n2',g:'gp2'},{k:'accruals',l:'Accruals',f:'n3',g:'gp2'},{k:'rd_intensity_xbrl',l:'R&D/Rev',f:'pct',g:'gp2'},{k:'sbc_pct_rev_xbrl',l:'SBC/Rev',f:'pct',g:'gp2'},{k:'brand_spend_pct_rev',l:'Brand/Rev',f:'pct',g:'gp2'},{k:'nim',l:'NIM',f:'pct',g:'gp2'},{k:'efficiency_ratio',l:'Eff Ratio',f:'pct',g:'gp2'},{k:'affo_margin',l:'AFFO Margin',f:'pct',g:'gp2'}],
+  prof:[{k:'ticker',l:'Ticker',f:'text'},{k:'_composite_score',l:'Score',f:'score'},{k:'roic',l:'ROIC',f:'pct',g:'gp2'},{k:'roic_cv',l:'ROIC CV',f:'n2',g:'gp2'},{k:'spread',l:'Spread',f:'pct',g:'gp2'},{k:'roe',l:'ROE',f:'pct',g:'gp2'},{k:'dupont_margin',l:'DuPont Mrgn',f:'pct',g:'gp2'},{k:'dupont_turnover',l:'DuPont Turn',f:'n2',g:'gp2'},{k:'dupont_leverage',l:'DuPont Lev',f:'n2',g:'gp2'},{k:'gross_margin',l:'Gross Mgn',f:'pct',g:'gp2'},{k:'fcf_margin',l:'FCF Margin',f:'pct',g:'gp2'},{k:'fcf_margin_ex_sbc',l:'FCF ex-SBC',f:'pct',g:'gp2'},{k:'cash_conv',l:'CashConv',f:'n2',g:'gp2'},{k:'accruals',l:'Accruals',f:'n3',g:'gp2'},{k:'rd_intensity_xbrl',l:'R&D/Rev',f:'pct',g:'gp2'},{k:'sbc_pct_rev_xbrl',l:'SBC/Rev',f:'pct',g:'gp2'},{k:'brand_spend_pct_rev',l:'Brand/Rev',f:'pct',g:'gp2'},{k:'nim',l:'NIM',f:'pct',g:'gp2'},{k:'efficiency_ratio',l:'Eff Ratio',f:'pct',g:'gp2'},{k:'affo_margin',l:'AFFO Margin',f:'pct',g:'gp2'}],
   /* Financial Health — leverage & solvency first (coverage, net debt, net
      cash), then liquidity and its working-capital drivers, earnings quality,
      the composite distress/manipulation scores (Altman Z, Beneish M), and the
      bank-specific ratios (CET1, NPL) at the end. */
-  hlth:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'int_cov',l:'Int Cov',f:'n1',g:'gh'},{k:'nd_ebitda',l:'ND/EBITDA',f:'n2',g:'gh'},{k:'altman_z',l:'Altman Z',f:'n2',g:'gh'},{k:'net_cash_to_mcap',l:'Net Cash/Mcap',f:'pct',g:'gh'},{k:'cr',l:'Curr R',f:'n2',g:'gh'},{k:'inventory_days',l:'Inv Days',f:'n1',g:'gh'},{k:'working_capital_days',l:'Work Cap Days',f:'n1',g:'gh'},{k:'cash_conv',l:'CashConv',f:'n2',g:'gh'},{k:'accruals',l:'Accruals',f:'n3',g:'gh'},{k:'beneish_m',l:'Beneish M',f:'n2',g:'gh'},{k:'trap_score',l:'Trap',f:'trap'},{k:'cet1_ratio',l:'CET1',f:'pct',g:'gh'},{k:'npl_ratio',l:'NPL Ratio',f:'pct',g:'gh'}],
+  hlth:[{k:'ticker',l:'Ticker',f:'text'},{k:'_composite_score',l:'Score',f:'score'},{k:'int_cov',l:'Int Cov',f:'n1',g:'gh'},{k:'nd_ebitda',l:'ND/EBITDA',f:'n2',g:'gh'},{k:'altman_z',l:'Altman Z',f:'n2',g:'gh'},{k:'net_cash_to_mcap',l:'Net Cash/Mcap',f:'pct',g:'gh'},{k:'cr',l:'Curr R',f:'n2',g:'gh'},{k:'inventory_days',l:'Inv Days',f:'n1',g:'gh'},{k:'working_capital_days',l:'Work Cap Days',f:'n1',g:'gh'},{k:'cash_conv',l:'CashConv',f:'n2',g:'gh'},{k:'accruals',l:'Accruals',f:'n3',g:'gh'},{k:'beneish_m',l:'Beneish M',f:'n2',g:'gh'},{k:'trap_score',l:'Trap',f:'trap'},{k:'cet1_ratio',l:'CET1',f:'pct',g:'gh'},{k:'npl_ratio',l:'NPL Ratio',f:'pct',g:'gh'}],
   /* Growth — the growth engine first (reinvestment rate, fundamental growth,
      margin trend), then the historical revenue CAGR ladder (3/5/10Y) and FCF
      growth, capex/reinvestment intensity, and the sector-specific growth
      signals (REIT FFO, SaaS deferred revenue, backlog) at the end. */
-  growth:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'reinvestment_rate',l:'Reinvest Rate',f:'pct',g:'gg'},{k:'fundamental_growth',l:'Fund. Growth',f:'pct',g:'gg'},{k:'margin_trend',l:'Margin Trend',f:'pct',g:'gg'},{k:'rev_cagr',l:'Rev CAGR 3Y',f:'pct',g:'gg'},{k:'rev_cagr_5y',l:'Rev CAGR 5Y',f:'pct',g:'gg'},{k:'rev_cagr_10y',l:'Rev CAGR 10Y',f:'pct',g:'gg'},{k:'fcf_growth',l:'FCF Growth',f:'pct'},{k:'capex_intensity',l:'Capex/Sales',f:'pct',g:'gg'},{k:'capex_to_dd_ratio',l:'Capex/D&A',f:'n2',g:'gg'},{k:'ffo_growth_5y',l:'FFO Growth',f:'pct',g:'gg'},{k:'deferred_rev_growth',l:'Def Rev Growth',f:'pct',g:'gg'},{k:'backlog_to_revenue',l:'Backlog/Rev',f:'n2',g:'gg'}],
+  growth:[{k:'ticker',l:'Ticker',f:'text'},{k:'_composite_score',l:'Score',f:'score'},{k:'reinvestment_rate',l:'Reinvest Rate',f:'pct',g:'gg'},{k:'fundamental_growth',l:'Fund. Growth',f:'pct',g:'gg'},{k:'margin_trend',l:'Margin Trend',f:'pct',g:'gg'},{k:'rev_cagr',l:'Rev CAGR 3Y',f:'pct',g:'gg'},{k:'rev_cagr_5y',l:'Rev CAGR 5Y',f:'pct',g:'gg'},{k:'rev_cagr_10y',l:'Rev CAGR 10Y',f:'pct',g:'gg'},{k:'fcf_growth',l:'FCF Growth',f:'pct'},{k:'capex_intensity',l:'Capex/Sales',f:'pct',g:'gg'},{k:'capex_to_dd_ratio',l:'Capex/D&A',f:'n2',g:'gg'},{k:'ffo_growth_5y',l:'FFO Growth',f:'pct',g:'gg'},{k:'deferred_rev_growth',l:'Def Rev Growth',f:'pct',g:'gg'},{k:'backlog_to_revenue',l:'Backlog/Rev',f:'n2',g:'gg'}],
   /* Projections — price and the base-case DCF with its cost of equity, then
      the sensitivity band and Monte Carlo band (fair-value dollars grouped for
      comparison), with the growth assumptions that drive them at the end. */
-  proj:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'price',l:'Price',f:'dollar'},{k:'dcf_fv',l:'DCF Base',f:'dollar',g:'gj'},{k:'er',l:'Cost of Eq',f:'pct',g:'gj'},{k:'_sens_low',l:'Sens Low',f:'dollar',g:'gj'},{k:'_sens_high',l:'Sens High',f:'dollar',g:'gj'},{k:'mc_p10_fv',l:'MC P10',f:'dollar',g:'gj'},{k:'mc_p90_fv',l:'MC P90',f:'dollar',g:'gj'},{k:'mc_confidence',l:'MC Conf',f:'text',g:'gj'},{k:'fundamental_growth',l:'Fund. Growth',f:'pct',g:'gj'},{k:'terminal_growth',l:'Term. Growth',f:'pct',g:'gj'}],
+  proj:[{k:'ticker',l:'Ticker',f:'text'},{k:'_composite_score',l:'Score',f:'score'},{k:'price',l:'Price',f:'dollar'},{k:'dcf_fv',l:'DCF Base',f:'dollar',g:'gj'},{k:'er',l:'Cost of Eq',f:'pct',g:'gj'},{k:'_sens_low',l:'Sens Low',f:'dollar',g:'gj'},{k:'_sens_high',l:'Sens High',f:'dollar',g:'gj'},{k:'mc_p10_fv',l:'MC P10',f:'dollar',g:'gj'},{k:'mc_p90_fv',l:'MC P90',f:'dollar',g:'gj'},{k:'mc_confidence',l:'MC Conf',f:'text',g:'gj'},{k:'fundamental_growth',l:'Fund. Growth',f:'pct',g:'gj'},{k:'terminal_growth',l:'Term. Growth',f:'pct',g:'gj'}],
   /* Ownership — share structure first (shares outstanding, float), then the
      buyback rate that shrinks it, ownership composition (insider, institutional),
      and short interest last. */
-  own:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'shares_out',l:'Shares Out',f:'ds'},{k:'float_shares',l:'Float',f:'ds'},{k:'share_buyback_rate',l:'Buyback Rate',f:'pct',g:'gow'},{k:'insider_pct',l:'Insider %',f:'pct',g:'gow'},{k:'inst_pct',l:'Inst %',f:'pct'},{k:'short_ratio',l:'Short Ratio',f:'n2'},{k:'short_pct_float',l:'Short/Float',f:'pct'}],
+  own:[{k:'ticker',l:'Ticker',f:'text'},{k:'_composite_score',l:'Score',f:'score'},{k:'shares_out',l:'Shares Out',f:'ds'},{k:'float_shares',l:'Float',f:'ds'},{k:'share_buyback_rate',l:'Buyback Rate',f:'pct',g:'gow'},{k:'insider_pct',l:'Insider %',f:'pct',g:'gow'},{k:'inst_pct',l:'Inst %',f:'pct'},{k:'short_ratio',l:'Short Ratio',f:'n2'},{k:'short_pct_float',l:'Short/Float',f:'pct'}],
   /* Dividends tab — everything the dataset knows about dividend payments in
      one place, ordered as an analyst reads it: identity, then income today
      (yield / payout / total shareholder yield), then the track record
@@ -8633,7 +8697,7 @@ var TC={
      uncertainty band, and finally the eligibility flag + note. Shareholder
      yield moved from Ownership; DDM base FV moved from Valuation; the H-model
      and Monte Carlo band were previously unexposed. */
-  div:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'div_yield',l:'Div Yield',f:'pct'},{k:'payout_ratio',l:'Payout Ratio',f:'pct'},{k:'shareholder_yield',l:'Shrhldr Yld',f:'pct',g:'gow'},{k:'ddm_consecutive_years',l:'Consec Yrs Paid',f:'int'},{k:'dividend_cagr_5y',l:'Div CAGR 5Y',f:'pct'},{k:'ddm_div_cagr',l:'Div CAGR (Hist)',f:'pct'},{k:'ddm_sustainable_growth',l:'Sust. Growth',f:'pct'},{k:'ddm_growth',l:'DDM Growth',f:'pct'},{k:'price',l:'Price',f:'dollar'},{k:'ddm_fv',l:'DDM FV',f:'dollar',g:'gv'},{k:'ddm_h_fv',l:'DDM H-Model',f:'dollar'},{k:'ddm_mc_p10',l:'DDM MC P10',f:'dollar'},{k:'ddm_mc_median',l:'DDM MC Median',f:'dollar'},{k:'ddm_mc_p90',l:'DDM MC P90',f:'dollar'},{k:'ddm_mc_cv',l:'DDM MC CV',f:'n2'},{k:'ddm_eligible',l:'DDM Eligible',f:'bool'},{k:'ddm_reason',l:'DDM Note',f:'text'}]
+  div:[{k:'ticker',l:'Ticker',f:'text'},{k:'_composite_score',l:'Score',f:'score'},{k:'div_yield',l:'Div Yield',f:'pct'},{k:'payout_ratio',l:'Payout Ratio',f:'pct'},{k:'shareholder_yield',l:'Shrhldr Yld',f:'pct',g:'gow'},{k:'ddm_consecutive_years',l:'Consec Yrs Paid',f:'int'},{k:'dividend_cagr_5y',l:'Div CAGR 5Y',f:'pct'},{k:'ddm_div_cagr',l:'Div CAGR (Hist)',f:'pct'},{k:'ddm_sustainable_growth',l:'Sust. Growth',f:'pct'},{k:'ddm_growth',l:'DDM Growth',f:'pct'},{k:'price',l:'Price',f:'dollar'},{k:'ddm_fv',l:'DDM FV',f:'dollar',g:'gv'},{k:'ddm_h_fv',l:'DDM H-Model',f:'dollar'},{k:'ddm_mc_p10',l:'DDM MC P10',f:'dollar'},{k:'ddm_mc_median',l:'DDM MC Median',f:'dollar'},{k:'ddm_mc_p90',l:'DDM MC P90',f:'dollar'},{k:'ddm_mc_cv',l:'DDM MC CV',f:'n2'},{k:'ddm_eligible',l:'DDM Eligible',f:'bool'},{k:'ddm_reason',l:'DDM Note',f:'text'}]
 };
 TC.prices=[];
 /* Market tab — the only market-data (as opposed to financial-statement)
@@ -8645,21 +8709,22 @@ TC.prices=[];
    trailing-return check the daily routine relies on. Only avg_dollar_volume_3m
    touches ratings, and only as a HOLD cap when the rating caps are enabled
    (config.RATING_CAPS_ENABLED, off by default; otherwise a flag). */
-TC.mkt=[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'momentum_12_1',l:'Mom 12-1M',f:'pct'},{k:'momentum_6_1',l:'Mom 6-1M',f:'pct'},{k:'momentum_3m',l:'Mom 3M',f:'pct'},{k:'vol_adj_momentum',l:'Vol-Adj Mom',f:'n2'},{k:'realized_vol',l:'Realized Vol',f:'pct'},{k:'avg_dollar_volume_3m',l:'Avg $ Vol (3M)',f:'ds'},{k:'volume_trend',l:'Vol Trend',f:'n2'},{k:'amihud_illiquidity',l:'Price Impact',f:'n2'},{k:'share_turnover_rate',l:'Turnover',f:'pct'},{k:'range_52w_position',l:'52W Range Pos',f:'int'},{k:'pct_from_52w_high',l:'% from High',f:'pct'},{k:'drawdown_2020',l:'2020 COVID DD',f:'pct'},{k:'drawdown_2022',l:'2022 Bear DD',f:'pct'},{k:'drawdown_2008',l:'2008 GFC DD',f:'pct'},{k:'beta_adjusted',l:'Beta (adj)',f:'n2'}];
+TC.mkt=[{k:'ticker',l:'Ticker',f:'text'},{k:'_composite_score',l:'Score',f:'score'},{k:'momentum_12_1',l:'Mom 12-1M',f:'pct'},{k:'momentum_6_1',l:'Mom 6-1M',f:'pct'},{k:'momentum_3m',l:'Mom 3M',f:'pct'},{k:'vol_adj_momentum',l:'Vol-Adj Mom',f:'n2'},{k:'realized_vol',l:'Realized Vol',f:'pct'},{k:'avg_dollar_volume_3m',l:'Avg $ Vol (3M)',f:'ds'},{k:'volume_trend',l:'Vol Trend',f:'n2'},{k:'amihud_illiquidity',l:'Price Impact',f:'n2'},{k:'share_turnover_rate',l:'Turnover',f:'pct'},{k:'range_52w_position',l:'52W Range Pos',f:'int'},{k:'pct_from_52w_high',l:'% from High',f:'pct'},{k:'drawdown_2020',l:'2020 COVID DD',f:'pct'},{k:'drawdown_2022',l:'2022 Bear DD',f:'pct'},{k:'drawdown_2008',l:'2008 GFC DD',f:'pct'},{k:'beta_adjusted',l:'Beta (adj)',f:'n2'}];
 /* Key order here IS the display order — renderTSubs and the column-filter
    optgroup builder both iterate Object.keys(TL) and label from TL[key], so a
    tab is moved or renamed in this one place. `mkt` sits between Charts and
    Valuation: both are market-price views, so they read together before the
    financial-statement tabs begin. */
 var TL={prices:'Charts',mkt:'Market',val:'Valuation',prof:'Profitability',hlth:'Health',growth:'Growth',proj:'Projections',own:'Ownership',div:'Dividends'};
-var tSC='rating',tSA=true;
+var tSC='_composite_score',tSA=false;
 /* Same as _mUserSorted, for the Financial Data table. */
 var _tUserSorted=false;
 
 function ftc(v,f){
   if(v==null)return{t:'N/A',v:''};
   if(f==='text')return{t:String(v),v:String(v)};
-  if(f==='rating')return{t:rb(v),v:v};
+  if(f==='score')return{t:sbv(v),v:v};
+  if(f==='rating')return{t:bandPill(v),v:v};
   if(f==='pct')return{t:(v*100).toFixed(1)+'%',v:v};
   if(f==='dollar')return{t:'$'+v.toLocaleString(undefined,{maximumFractionDigits:2}),v:v};
   if(f==='ds')return{t:fds(v),v:v};
@@ -8683,19 +8748,13 @@ function ftc(v,f){
 /* The Financial Data sub-tab buttons moved into the nav dropdown (TL still
    drives their labels there, and the column-filter optgroups below). */
 function renderTSubs(){renderNavMenu();}
-function swTSub(s){_hideFloatTips();curTSub=s;tSC='rating';tSA=true;_tUserSorted=false;_syncWideTable();renderTSubs();moveFilterBar('table');var tw=document.querySelector('#view-table .table-wrap'),phv=document.getElementById('ph-view');if(s==='prices'){if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else if(_phSeedStale){_phResync();}else{_buildPHSearch();_buildPHIndexBtns();renderPHChart();}}else{if(tw)tw.style.display='';if(phv)phv.style.display='none';renderTable();setTimeout(_setTableH,0);}_syncHash();}
+function swTSub(s){_hideFloatTips();curTSub=s;tSC='_composite_score';tSA=false;_tUserSorted=false;_syncWideTable();renderTSubs();moveFilterBar('table');var tw=document.querySelector('#view-table .table-wrap'),phv=document.getElementById('ph-view');if(s==='prices'){if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else if(_phSeedStale){_phResync();}else{_buildPHSearch();_buildPHIndexBtns();renderPHChart();}}else{if(tw)tw.style.display='';if(phv)phv.style.display='none';renderTable();setTimeout(_setTableH,0);}_syncHash();}
 function renderTable(){
-  /* Copy the tab's column list (never mutate the shared TC array) and relabel
-     Rating as "Today's Rating". The prior run's rating has no column: the
-     ticker page states a change ("Rating upgraded: X → Y"), and the
-     Upgrades/Downgrades filters select on it. */
+  /* Copy the tab's column list (never mutate the shared TC array). The
+     frozen fifth column is the composite score (the pages show the score,
+     never the rating); a move across a band line since the prior run is on
+     the ticker page and behind the Crossed up / Crossed down filters. */
   var cols=(TC[curTSub]||TC.prices).slice();
-  for(var _ci=0;_ci<cols.length;_ci++){
-    if(cols[_ci].k==='rating'){
-      cols[_ci]=Object.assign({},cols[_ci],{l:'Today’s Rating'});
-      break;
-    }
-  }
   var _dtbl=document.getElementById('dtbl');
   if(_dtbl)_dtbl.className='dt hdr-'+curTSub; /* paints the whole header row one per-tab hue */
   var th=document.getElementById('dt-h');
@@ -8892,8 +8951,8 @@ function _phFmtAxis(v,fmt){
   if(fmt==='n2')return v.toFixed(Math.abs(v)<10?1:0)+'x';
   return v.toFixed(0);
 }
-/* The five names actually on the FILTERED table for purchase: BUY then LEAN
-   BUY, ranked by composite score (desc), capped at five. If fewer than five
+/* The five names actually on the FILTERED table for purchase: those scoring
+   39 or more, ranked by composite score (desc), capped at five. If fewer than five
    actionable names have price data, top up from the next-highest composite so
    the chart is never sparse. This tracks the buy list rather than raw composite
    — a high-composite stock capped to HOLD shouldn't seed ahead of an actual
@@ -8902,7 +8961,7 @@ function _phTopFive(){
   if(!PRICES)return[];
   var scored=FD.filter(function(d){return d._composite_score!=null&&_pxHas(d.ticker);})
     .sort(function(a,b){return (b._composite_score||0)-(a._composite_score||0);});
-  var seed=scored.filter(function(d){return d.rating==='BUY'||d.rating==='LEAN BUY';}).slice(0,5);
+  var seed=scored.filter(function(d){var k=bandOf(d);return k==='BUY'||k==='LEAN BUY';}).slice(0,5);
   if(seed.length<5){
     var have={};seed.forEach(function(d){have[d.ticker]=1;});
     for(var i=0;i<scored.length&&seed.length<5;i++){if(!have[scored[i].ticker])seed.push(scored[i]);}
@@ -8994,7 +9053,7 @@ function _renderPHMetricSel(){
     }else{
       TC[cat].forEach(function(c){
         var f=c.f||'text';
-        if(c.k==='ticker'||f==='text'||f==='rating'||f==='bool'||f==='ar')return;
+        if(c.k==='ticker'||c.k==='_composite_score'||f==='text'||f==='rating'||f==='bool'||f==='ar')return;
         var mk=_PH_TC2H[c.k]||'s:'+c.k;
         if(seen[mk])return;seen[mk]=1;
         o+=opt(mk,c.l||c.k,!!_PH_TC2H[c.k]&&mk!=='price'&&!hasHist);
@@ -9096,11 +9155,11 @@ function _phSDrop(q){
   }).slice(0,10);
   if(!res.length){drop.classList.remove('open');return;}
   drop.innerHTML=res.map(function(d){
-    var col=rcols[d.rating]||'#888';var tk=d.ticker.replace(/'/g,"\\'");
+    var col=rcols[bandOf(d)]||'#888';var tk=d.ticker.replace(/'/g,"\\'");
     return '<div class="ph-sitem" onmousedown="phAddTicker(\''+tk+'\')">'
       +'<span class="ph-stk">'+d.ticker+'</span>'
       +'<span class="ph-snm">'+(d.company_name||'')+'</span>'
-      +'<span style="font-size:0.73em;font-weight:700;color:'+col+';flex-shrink:0">'+d.rating+'</span>'
+      +'<span style="font-size:0.73em;font-weight:700;color:'+col+';flex-shrink:0" title="Composite score">'+(_num(d._composite_score)!=null?Math.round(d._composite_score):'')+'</span>'
       +'</div>';
   }).join('');
   drop.classList.add('open');
@@ -10379,7 +10438,7 @@ function _lqTip(d,k){
   var q=_lqGet(d.ticker);if(!q)return'';
   var c=k==='mos'?(d.mos!=null?(d.mos*100).toFixed(1)+'%':'N/A'):(d.price!=null?'$'+d.price:'N/A');
   return(q.stale?'Last trade ':'Live \u00b7 last trade ')+_lqTime(q.t)+'. Close: '+c
-    +'. The rating, filters and sorting use the close.';
+    +'. The score, filters and sorting use the close.';
 }
 /* Record what a view shows. A change kicks a fetch; so does a view coming
    back with the same rows while polling has gone idle (nothing pending). */
@@ -10812,12 +10871,9 @@ var chartTip={
 };
 function _showTip(tk,rectOrX,y){
   var d=DATA.find(function(r){return r.ticker===tk;});if(!d)return;
-  var rtBg=RC[d.rating]||'#888';
-  var csVal=d._composite_score;var csCol=cc(csVal);
-  var csText=csVal!=null?Math.round(csVal)+'%':'N/A';
+  var csVal=_num(d._composite_score),rtBg=RC[bandKey(csVal)]||'#888';
   var h='<div class="tip-hdr"><span class="tip-tk">'+esc(d.ticker)+'</span>'
-    +'<span class="tip-rt" style="background:'+rtBg+'"'+(isCapped(d)?' title="'+capTipAttr(d)+'"':'')+'>'+(d.rating||'N/A')+(isCapped(d)?' ⚠':'')+'</span>'
-    +'<span class="tip-cs" style="color:'+csCol+'">'+csText+'</span></div>';
+    +'<span class="tip-rt" style="background:'+rtBg+'"'+(isCapped(d)?' title="'+capTipAttr(d)+'"':'')+'>'+(csVal!=null?'Score '+Math.round(csVal):'N/A')+(isCapped(d)?' ⚠':'')+'</span></div>';
   if(d.company_name)h+='<div style="color:#555;font-size:0.88em;margin:-4px 0 5px 0;font-weight:500">'+esc(d.company_name)+'</div>';
   var sec=[];if(d.sector)sec.push(d.sector);if(d.industry)sec.push(d.industry);
   if(sec.length)h+='<div class="tip-sec">'+esc(sec.join(' \u00b7 '))+'</div>';
@@ -11387,10 +11443,10 @@ function _proPeers(d){
   out=out.slice(0,7);
   if(!out.length)return'';
   var cell=function(v,f,tone){var s=_proFmt(v,f);return '<td'+(tone>0?' class="pos"':tone<0?' class="neg"':'')+'>'+(s==null?'—':esc(s))+'</td>';};
-  var h='<table class="pro-tbl"><tr><th>Ticker</th><th style="text-align:left">Company</th><th>Rating</th><th>Verdict</th><th>Mkt cap</th><th>P/E</th><th>EV/EBITDA</th><th>P/FCF</th><th>ROIC</th><th>Op margin</th><th>FCF margin</th><th>Rev 5y</th><th>Div yld</th><th>MoS</th></tr>';
+  var h='<table class="pro-tbl"><tr><th>Ticker</th><th style="text-align:left">Company</th><th>Score</th><th>Verdict</th><th>Mkt cap</th><th>P/E</th><th>EV/EBITDA</th><th>P/FCF</th><th>ROIC</th><th>Op margin</th><th>FCF margin</th><th>Rev 5y</th><th>Div yld</th><th>MoS</th></tr>';
   [d].concat(out).forEach(function(r,i){
     var v=r.profile&&r.profile.v;
-    h+='<tr'+(i===0?' class="pro-self"':'')+'><td>'+esc(r.ticker)+'</td><td class="pro-name">'+esc(String(r.company_name||'').slice(0,26))+'</td><td>'+esc(r.rating||'—')+'</td><td>'+esc(v?(v==='INSUFFICIENT DATA'?'n/a':v):'—')+'</td>'
+    h+='<tr'+(i===0?' class="pro-self"':'')+'><td>'+esc(r.ticker)+'</td><td class="pro-name">'+esc(String(r.company_name||'').slice(0,26))+'</td><td>'+(_num(r._composite_score)!=null?Math.round(r._composite_score):'—')+'</td><td>'+esc(v?(v==='INSUFFICIENT DATA'?'n/a':v):'—')+'</td>'
       +cell(r.mcap,'big')+cell(_num(r.pe)>0?r.pe:null,'x')+cell(_num(r.ev_ebitda)>0?r.ev_ebitda:null,'x')+cell(_num(r.pfcf)>0?r.pfcf:null,'x')
       +cell(r.roic,'pct',_proT(r.spread,0.07,0))+cell(r.operating_margin,'pct')+cell(r.fcf_margin,'pct',_proT(r.fcf_margin,0.10,0))
       +cell(r.rev_cagr_5y!=null?r.rev_cagr_5y:r.rev_cagr,'pct')+cell(r.div_yield,'pct')+cell(r.mos,'pct0',_proT(r.mos,0.15,0))+'</tr>';
@@ -11419,7 +11475,7 @@ function _proRisks(d,p){
   var li=[];
   var txt=function(x){return typeof x==='string'?x:(x&&x.text)||'';};
   (d.trap_reasons||[]).forEach(function(r){if(r)li.push('Value trap: '+txt(r));});
-  var capLbl=isCapped(d)?'Rating cap: ':'Flag: ';
+  var capLbl=isCapped(d)?'Flag (lowers its band): ':'Flag: ';
   (d._rating_cap_reasons||[]).forEach(function(r){if(r)li.push(capLbl+txt(r));});
   var ef=d.edgar_fields_flagged;
   if(Array.isArray(ef)&&ef.length)li.push('EDGAR data flagged: '+ef.slice(0,4).map(txt).join(', '));
@@ -11482,7 +11538,7 @@ function _proHtml(d){
     var conv=_num(p.conv);
     h+='<div class="pro-verdict '+(_PRO_VCLS[p.v]||'pro-v-na')+'"><div class="pro-vcol"><span class="pro-vlabel">'+esc(p.v)+'</span>'
       +(conv!=null?'<span class="pro-conv">Conviction '+Math.round(conv)+'/100</span><span class="pro-meter"><i style="width:'+Math.max(0,Math.min(100,conv))+'%"></i></span>':'')
-      +'<span class="pro-vsub">Model: <b>'+esc(d.rating||'—')+'</b>'+(isCapped(d)?' (capped from '+esc(d.rating_raw)+')':'')+'<br>Composite '+(_num(d._composite_score)!=null?Math.round(d._composite_score):'—')+' · gates '+esc(d._gates_passed||'—')+'</span>'
+      +'<span class="pro-vsub">Composite <b>'+(_num(d._composite_score)!=null?Math.round(d._composite_score):'—')+'</b> / 100'+(isCapped(d)?' (a flag lowered its band)':'')+'<br>gates '+esc(d._gates_passed||'—')+'</span>'
       +'</div><div class="pro-headline">'+esc(p.head||'')+'</div>';
     h+=_proRangeLine(p.vc);
     if(p.need&&p.need.length)h+='<div class="pro-need">Not an INVEST because '+esc(p.need.join('; '))+'.</div>';
@@ -11620,16 +11676,13 @@ function _proHtml(d){
     +_proKv('Drawdown 2022 / 2020',_num(d.drawdown_2022)!=null?_proFmt(d.drawdown_2022,'pct0'):null,'raw',0,_num(d.drawdown_2020)!=null?'2020 '+_proFmt(d.drawdown_2020,'pct0'):'')
     +_proKv('Avg $ volume (3m)',d.avg_dollar_volume_3m,'big',_num(d.avg_dollar_volume_3m)!=null&&d.avg_dollar_volume_3m<1e6?-1:0)));
   var tgtU=_num(d.target_mean)&&px?d.target_mean/px-1:null;
-  var hist=Array.isArray(d.rating_hist)?d.rating_hist:[],since='';
-  if(hist.length){var lastH=hist[hist.length-1];if(Array.isArray(lastH)&&lastH[1]===d.rating)since='since '+lastH[0];}
   blocks.push(_proBlock('Street & model',
     _proKv('Analyst consensus',d.analyst_rec?String(d.analyst_rec).replace(/_/g,' ').toLowerCase():null,'raw',0,_num(d.num_analysts)!=null?d.num_analysts+' analysts':'')
     +_proKv('Mean target',d.target_mean,'usd',_proT(tgtU,0.15,-0.05),tgtU!=null?_proFmt(tgtU,'spct0')+' vs price':'')
     +_proKv('Target range',_num(d.target_low)!=null&&_num(d.target_high)!=null?_proFmt(d.target_low,'usd')+' – '+_proFmt(d.target_high,'usd'):null,'raw')
     +_proKv('Analyst long-term growth',d.analyst_ltg,'pct')
     +_proKv('Earnings surprise (avg)',d.surprise_avg,'spct',_proT(d.surprise_avg,0.02,-0.02))
-    +_proKv('Model rating',d.rating?d.rating+(isCapped(d)?' (capped)':''):null,'raw',0,since)
-    +_proKv('Composite score',d._composite_score,'int',0,_num(d.rating_chg)?(d.rating_chg>0?'upgraded from ':'downgraded from ')+(d.rating_prev||'?'):'')
+    +_proKv('Composite score',d._composite_score,'int',0,crossShort(d)||(_num(d.score_prev)!=null?'was '+Math.round(d.score_prev)+' on the prior run':''))
     +_proKv('Valuation · quality · moat',[d._score_valuation,d._score_quality,d._score_moat].every(function(v){return _num(v)!=null;})?Math.round(d._score_valuation)+' · '+Math.round(d._score_quality)+' · '+Math.round(d._score_moat):null,'raw')
     +_proKv('Growth · ownership',[d._score_growth,d._score_ownership].every(function(v){return _num(v)!=null;})?Math.round(d._score_growth)+' · '+Math.round(d._score_ownership):null,'raw')
     +_proKv('Value-trap score',d.trap_score,'int',_proT(d.trap_score,30,50,true),'of 100')));
@@ -11639,7 +11692,7 @@ function _proHtml(d){
   h+=_proBlock('Peers',_proPeers(d));
   var sc=_proBlock('Gate scorecard',_proScorecard(d)),rk=_proBlock('Risks & context',_proRisks(d,p));
   if(sc||rk)h+='<div class="pro-duo">'+(sc||'<div></div>')+(rk||'<div></div>')+'</div>';
-  h+='<div class="pro-foot">Report of '+esc(RUN_DATE)+' · fundamentals from SEC EDGAR XBRL and Yahoo Finance · prices to the report date · verdict rules: models/profile_verdict.py (rating, margin of safety, red flags, weighted checks) · not investment advice.</div>';
+  h+='<div class="pro-foot">Report of '+esc(RUN_DATE)+' · fundamentals from SEC EDGAR XBRL and Yahoo Finance · prices to the report date · verdict rules: models/profile_verdict.py (score, margin of safety, red flags, weighted checks) · not investment advice.</div>';
   return h+'</div>';
 }
 /* The print document. The page is a fixed 7.5in column (it fits letter and
@@ -11978,7 +12031,7 @@ function _detTrapHtml(d){
   if(d.trap_score==null)return '';
   var ti=Math.round(d.trap_score);
   var col=ti>=70?'#c0392b':ti>=50?'#e67e22':'#27ae60';
-  var h='<div class="dsec" style="grid-column:1/-1"><h3'+(tt('trap_score')?' data-dkv-tip="trap_score"':'')+'>Value-Trap Profile <span style="font-weight:400;color:#9aa5b1;font-size:0.85em">(experimental — does not affect rating)</span></h3>';
+  var h='<div class="dsec" style="grid-column:1/-1"><h3'+(tt('trap_score')?' data-dkv-tip="trap_score"':'')+'>Value-Trap Profile <span style="font-weight:400;color:#9aa5b1;font-size:0.85em">(experimental — does not affect the score)</span></h3>';
   h+='<div style="display:flex;align-items:baseline;gap:10px;margin:2px 0 6px"><span style="font-size:1.5em;font-weight:700;color:'+col+'">'+ti+'</span><span style="color:#7f8c9a;font-size:0.82em">/ 100 — higher = more trap-like</span></div>';
   if(d.trap_reasons&&d.trap_reasons.length){
     h+='<ul style="margin:0 0 4px;padding-left:18px;font-size:0.86em">';
@@ -13230,69 +13283,42 @@ function openDet(tk){
   _syncRevDet();
   pfPopClose();_pfSyncDet();
   var pxEl=document.getElementById('d-px');if(pxEl)pxEl.textContent=d.price!=null?'$'+(d.price<1?d.price.toFixed(4):d.price.toFixed(2)):'N/A';
-  var rEl=document.getElementById('d-rt');rEl.textContent=(d.rating||'N/A')+(isCapped(d)?' ⚠':'');rEl.title=isCapped(d)?capTip(d):'';rEl.style.background=RC[d.rating]||'#888';
-  var cEl=document.getElementById('d-cs');var cs=d._composite_score;cEl.textContent=cs!=null?Math.round(cs)+'%':'N/A';cEl.style.background=cc(cs);
-  var gpEl=document.getElementById('d-gp');if(gpEl){gpEl.textContent=d._gates_passed!=null?'Gates '+d._gates_passed:'';gpEl.title='applicable gates passed — diagnostic; the composite drives the rating';}
-  /* --- "BUY since ..." — rating stability context from snapshot history.
-       rating_hist = ascending [[date, rating]] change-points up to (not
-       including) this report's run date; a fresh upgrade reads very
-       differently from a rating that has held for months. --- */
+  /* The page shows the composite score, not the rating: #d-rt stays empty
+     (and hidden); #d-cs carries the score in its band's colour. */
+  var rEl=document.getElementById('d-rt');rEl.textContent='';rEl.title='';rEl.style.background='';rEl.style.display='none';
+  var cEl=document.getElementById('d-cs');var cs=_num(d._composite_score);cEl.textContent=cs!=null?'Score '+Math.round(cs)+(isCapped(d)?' ⚠':''):'N/A';cEl.title=cs!=null?bandTitle(bandKey(cs))+(isCapped(d)?'. '+capTip(d):''):'';cEl.style.background=RC[bandKey(cs)]||'#888';
+  var gpEl=document.getElementById('d-gp');if(gpEl){gpEl.textContent=d._gates_passed!=null?'Gates '+d._gates_passed:'';gpEl.title='applicable gates passed — diagnostic; the composite score is what counts';}
+  /* --- Score history: the composite over the last 26 weeks, every point
+       re-scored with today's model (scripts/score_history.py), so a model
+       change never reads as a move. Text: how long the score has held its
+       band ("57+ since Oct 3 · 40d · was 39–56"), or today's crossing. The
+       bar: one segment per weekly point, coloured by band. --- */
   (function(){
     var rsEl=document.getElementById('d-rsince');if(!rsEl)return;
     rsEl.innerHTML='';rsEl.title='';
-    var rh=d.rating_hist||[],cur=d.rating;
-    if(!rh.length||!cur){return;}
-    var RVAL={'BUY':3,'LEAN BUY':2,'HOLD':1,'PASS':0};
+    var pts=scoreSeries(d);
+    var cx=scoreCross(d);
     var _fmtD=function(iso){var p=(iso||'').split('-');if(p.length<3)return iso||'';return['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+p[1]-1]+' '+(+p[2])+(p[0]!==RUN_DATE.slice(0,4)?' ’'+p[0].slice(2):'');};
-    var last=rh[rh.length-1],txt='',prevR=null;
-    if(last[1]!==cur){
-      /* Transition happened on this run. */
-      prevR=last[1];
-      var dir=(RVAL[cur]!=null&&RVAL[prevR]!=null)?RVAL[cur]-RVAL[prevR]:0;
-      txt='<span class="'+(dir>0?'rs-up':dir<0?'rs-dn':'')+'">'+(dir>0?'▲ Upgraded':dir<0?'▼ Downgraded':'Changed')+' today</span> · was '+esc(prevR);
-    }else{
-      var sinceIso=last[0];
-      prevR=rh.length>1?rh[rh.length-2][1]:null;
-      var days=null;
+    var txt='';
+    if(cx){
+      txt='<span class="'+(cx>0?'rs-up':'rs-dn')+'">'+(cx>0?'▲ ':'▼ ')+esc(crossShort(d).replace(' since the prior run',''))+' today</span> · was '+_num(d.score_prev).toFixed(0);
+    }else if(pts.length>1){
+      var cur=bandKey(pts[pts.length-1][1]),i=pts.length-1;
+      while(i>0&&bandKey(pts[i-1][1])===cur)i--;
+      var sinceIso=pts[i][0],prevB=i>0?bandKey(pts[i-1][1]):null,days=null;
       var t0=Date.parse(sinceIso),t1=Date.parse(RUN_DATE);
       if(isFinite(t0)&&isFinite(t1))days=Math.round((t1-t0)/864e5);
-      if(rh.length===1){
-        /* Single change-point = rating unchanged for as far back as we track. */
-        txt=esc(cur)+' ≥ '+(days!=null?days+'d':'')+' (full history)';
-      }else{
-        txt=esc(cur)+' since '+_fmtD(sinceIso)+(days!=null?' · '+days+'d':'')+(prevR?' · was '+esc(prevR):'');
-      }
+      txt=(i===0?esc(bandLabel(cur))+' for '+(days!=null?days+'d':'the whole history')+' (full history)'
+          :esc(bandLabel(cur))+' since '+_fmtD(sinceIso)+(days!=null?' · '+days+'d':'')+(prevB?' · was '+esc(bandLabel(prevB)):''));
     }
-    /* Timeline bar: colored segments proportional to how long each rating
-       held, across the tracked span ending at the run date. */
+    if(!txt)return;
     var bar='';
-    var spanStart=Date.parse(rh[0][0]),spanEnd=Date.parse(RUN_DATE);
-    if(isFinite(spanStart)&&isFinite(spanEnd)&&spanEnd>spanStart){
-      var segs=[];
-      for(var i=0;i<rh.length;i++){
-        var s=Date.parse(rh[i][0]);
-        var e=i+1<rh.length?Date.parse(rh[i+1][0]):spanEnd;
-        segs.push({r:rh[i][1],ms:Math.max(0,e-s)});
-      }
-      /* A same-day change means rh's last segment is the SUPERSEDED rating
-         running right up to today; a sliver of the current color closes the
-         bar so it agrees with the rating badge beside it. */
-      if(last[1]!==cur)segs.push({r:cur,ms:0});
-      /* 2px visibility floor per segment, remaining pixels split by
-         duration. Flooring after proportioning overflowed the 84px flexbox,
-         which then shrank every segment — long holds lost width and the
-         floor wasn't honored anyway. */
-      var rest=Math.max(0,84-2*segs.length),totMs=0;
-      segs.forEach(function(g){totMs+=g.ms;});
-      bar='<span class="d-rhist-bar">';
-      segs.forEach(function(g){
-        var w=2+(totMs>0?g.ms/totMs*rest:rest/segs.length);
-        bar+='<span style="width:'+w.toFixed(1)+'px;background:'+(RC[g.r]||'#888')+'"></span>';
-      });
-      bar+='</span>';
+    if(pts.length>1){
+      var w=Math.max(2,(84-pts.length)/pts.length);
+      bar='<span class="d-rhist-bar">'+pts.map(function(p){return '<span style="width:'+w.toFixed(1)+'px;background:'+(RC[bandKey(p[1])]||'#888')+'"></span>';}).join('')+'</span>';
     }
     rsEl.innerHTML=bar+'<span>'+txt+'</span>';
-    rsEl.title='Rating history: '+rh.map(function(cp){return cp[0]+' '+cp[1];}).join(' → ')+' → '+RUN_DATE+' '+cur;
+    rsEl.title='Composite score, re-scored with today’s model: '+pts.map(function(p){return p[0]+' '+p[1];}).join(' → ');
   })();
   var meta=[];if(d.sector)meta.push(d.sector);if(d.industry)meta.push(d.industry);if(d.country)meta.push(d.country);if(d.ceo)meta.push('CEO: '+d.ceo+(d.founder_led?' \u2605 Founder':''));
   document.getElementById('d-meta').textContent=meta.join('  \u00B7  ');
@@ -13414,15 +13440,16 @@ function openDet(tk){
   var fsEl=document.getElementById('d-fin-summary'),fsSec=document.getElementById('d-section-finsummary');var _fs=d.financial_summary;var _fsItems=Array.isArray(_fs)?_fs:(_fs?[_fs]:[]);
   /* Phones: the first two bullets, the rest behind Read more (_dsToggle). */
   var _fsHtml=_fsItems.length?'<div class="'+(_fsItems.length>2?'ds-clip':'')+'"><ul class="fin-list">'+_fsItems.map(function(s,i){return '<li'+(i>=2?' class="ds-more"':'')+'>'+esc(s)+'</li>';}).join('')+'</ul>'+(_fsItems.length>2?_DS_TOG:'')+'</div>':'';
-  /* --- "Why the rating changed" — rendered after the financial summary
-       whenever this run's rating differs from the prior run's (rating_chg
-       nonzero). Bullets are computed server-side from the prior snapshot's
+  /* --- "Why the score moved" — rendered after the financial summary
+       whenever the score crossed a band line since the prior run
+       (scoreCross nonzero). Bullets are computed server-side from the prior snapshot's
        score drivers (caps, composite vs thresholds, category/gate moves);
        see _explain_rating_change in scripts/report_html.py. --- */
   var _rcw=d.rating_chg_why,_rcwItems=Array.isArray(_rcw)?_rcw:(_rcw?[_rcw]:[]);
-  if(d.rating_chg&&_rcwItems.length){
-    var _rcUp=d.rating_chg>0;
-    var _rcHdr=(_rcUp?'▲ Rating upgraded':'▼ Rating downgraded')+': '+esc(d.rating_prev||'?')+' → '+esc(d.rating||'?')+(PREV_DATE?' <span style="font-weight:400;opacity:0.75">(vs '+esc(PREV_DATE)+' run)</span>':'');
+  var _rcx=scoreCross(d);
+  if(_rcx&&_rcwItems.length){
+    var _rcUp=_rcx>0;
+    var _rcHdr=(_rcUp?'▲ ':'▼ ')+esc(crossText(d))+(PREV_DATE?' <span style="font-weight:400;opacity:0.75">(vs '+esc(PREV_DATE)+' run)</span>':'');
     _fsHtml+='<div class="rcw '+(_rcUp?'rcw-up':'rcw-dn')+'"><div class="rcw-hdr">'+_rcHdr+'</div><ul>'+_rcwItems.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ul></div>';
   }
   if(_fsHtml){fsEl.innerHTML=_fsHtml;_dsPlaceIn(fsEl);fsSec.style.display='';}else{fsEl.innerHTML='';fsSec.style.display='none';}
@@ -13518,7 +13545,7 @@ function openDet(tk){
   var psH='';
   /* Helper: render a snapshot table for a list of tickers/supplier objects */
   function _snapTbl(items, isSup){
-    var h='<table class="ps-tbl"><thead><tr><th>Ticker</th><th>Name</th><th>Rating</th><th>Comp</th><th>P/E</th><th>ROIC</th><th>MoS</th></tr></thead><tbody>';
+    var h='<table class="ps-tbl"><thead><tr><th>Ticker</th><th>Name</th><th>Score</th><th>P/E</th><th>ROIC</th><th>MoS</th></tr></thead><tbody>';
     var hasRows=false;
     items.forEach(function(item){
       var tk=isSup?(item.symbol||'').trim():item.trim();
@@ -13528,8 +13555,7 @@ function openDet(tk){
         hasRows=true;
         h+='<tr><td><span class="ps-tk" onclick="openDet(\''+tk+'\')">'+tk+'</span></td>';
         h+='<td><span class="ps-nm">'+esc(pd.company_name||nm)+'</span></td>';
-        h+='<td>'+rb(pd.rating,pd)+'</td>';
-        h+='<td style="color:'+cc(pd._composite_score)+';font-weight:700">'+(pd._composite_score!=null?Math.round(pd._composite_score)+'%':'—')+'</td>';
+        h+='<td>'+sb(pd)+'</td>';
         h+='<td>'+fn(pd.pe,1)+'</td>';
         h+='<td>'+fp(pd.roic)+'</td>';
         h+='<td>'+fp(pd.mos)+'</td></tr>';
@@ -14577,6 +14603,7 @@ function _fqFmtVal(c,v){
   return String(+v.toFixed(4));
 }
 function _fqLabel(c){
+  if(c.ms==='ms-rating')return bandsAsRange(c.vals)||('Score '+c.vals.map(bandLabel).join(', '));
   if(c.ms)return c.l+': '+c.vals.join(', ');
   if(c.txt!=null)return c.l+' contains “'+c.txt+'”';
   if(c.min!=null&&c.max!=null)return c.min===c.max?c.l+' = '+_fqFmtVal(c,c.min):c.l+' '+_fqFmtVal(c,c.min)+'–'+_fqFmtVal(c,c.max);
@@ -14682,7 +14709,7 @@ function _qrTermCard(k){
 function _qrStockX(d){
   var p=_num(d.price),m=_num(d.mos),h='';
   if(p!=null)h+='<span class="qr-px">$'+p.toFixed(2)+'</span>';
-  if(d.rating&&typeof rb==='function')h+=rb(d.rating);
+  if(_num(d._composite_score)!=null&&typeof sbv==='function')h+=sbv(d._composite_score);
   if(m!=null)h+='<span class="qr-mos '+(m>=0?'pos':'neg')+'" title="Margin of safety">'+(m>=0?'+':'')+(m*100).toFixed(0)+'%</span>';
   return h;
 }
@@ -16184,7 +16211,7 @@ function renderPoolHistory(sec){
 function _ppShiftRows(list,cls,maxD){
   return list.map(function(m){
     var col=RC[m.rating]||'#aaa',wd=maxD>0?Math.abs(m.delta)/maxD*100:0;
-    return '<div class="pps-row '+cls+'" data-tk="'+_attr(m.ticker)+'" onclick="openDet(this.dataset.tk)" title="'+_attr((m.company_name||m.ticker)+(m.rating?' · '+m.rating:''))+'">'
+    return '<div class="pps-row '+cls+'" data-tk="'+_attr(m.ticker)+'" onclick="openDet(this.dataset.tk)" title="'+_attr((m.company_name||m.ticker)+(m.rating?' · score '+bandLabel(m.rating):''))+'">'
       +'<span class="pps-tk" style="border-left-color:'+col+'">'+_esc(m.ticker)+'</span>'
       +'<span class="pps-track"><span class="pps-fill" style="width:'+wd.toFixed(1)+'%"></span></span>'
       +'<span class="pps-num">'+(m.delta>=0?'+':'−')+Math.abs(m.delta*100).toFixed(1)+' pp</span>'
@@ -16329,14 +16356,14 @@ function renderPoolCompanyTable(shown,tail){
   shown.concat(tail||[]).forEach(function(d){if(d.mcap>0)secMcap+=d.mcap;});
   function vp(mc,ps){return (ps>0&&mc>0&&secMcap>0)?(mc/secMcap)/ps:null;}
   function vpTd(v){return '<td data-v="'+_ppiV(v)+'">'+(v==null?'\u2014':v.toFixed(2)+'\u00d7')+'</td>';}
-  var out='<div class="ppi-wrap"><table class="ppi-tbl ppi-sort"><thead><tr>'+_ppiTh('Company','s')+_ppiTh('Rating')+_ppiTh('Revenue')+_ppiTh('Pool')+_ppiTh('Margin','n',1)+_ppiTh('Spread')+_ppiTh('Pool share trend')+_ppiTh('Value/pool')+'</tr></thead><tbody>';
+  var out='<div class="ppi-wrap"><table class="ppi-tbl ppi-sort"><thead><tr>'+_ppiTh('Company','s')+_ppiTh('Score')+_ppiTh('Revenue')+_ppiTh('Pool')+_ppiTh('Margin','n',1)+_ppiTh('Spread')+_ppiTh('Pool share trend')+_ppiTh('Value/pool')+'</tr></thead><tbody>';
   rows.forEach(function(d){
     var bs=d.sector==='Financial Services'&&_PP_BS_INDUSTRIES[d.industry];
     var tr=d._gate_pool_share;
     /* Ticker only; the company's name is the row's tooltip. */
     out+='<tr class="ppi-co" data-tk="'+_attr(d.ticker)+'" onclick="openDet(this.dataset.tk)"'+(d.company_name?' title="'+_attr(d.company_name)+'"':'')+'>'
       +'<td data-v="'+_attr(d.ticker)+'">'+_esc(d.ticker)+'</td>'
-      +'<td data-v="'+(_PPI_RANK[d.rating]||'')+'"><span class="ppi-rt" style="background:'+(RC[d.rating]||'#90a4ae')+'"></span>'+_esc(d.rating||'—')+'</td>'
+      +'<td data-v="'+_ppiV(_num(d._composite_score))+'"><span class="ppi-rt" style="background:'+(RC[bandOf(d)]||'#90a4ae')+'"></span>'+(_num(d._composite_score)!=null?Math.round(d._composite_score):'—')+'</td>'
       +'<td data-v="'+_ppiV(d.pp_revenue_share)+'">'+_ppPct(d.pp_revenue_share)+'</td>'
       +_ppSkewTd(d.pp_profit_share,d.pp_revenue_share)
       +'<td data-v="'+_ppiV(d.operating_margin)+'">'+_ppPct(d.operating_margin)+'</td>'
@@ -16351,7 +16378,7 @@ function renderPoolCompanyTable(shown,tail){
     out+='<tr class="ppi-pin" data-k="__others"><td>Others <span class="ppi-dim">('+tail.length+' companies)</span></td><td>—</td><td>'+_ppPct(rev)+'</td>'
       +_ppSkewTd(pool,rev)+'<td>'+(rev>0?_ppPct(wm/rev):'—')+'</td><td>—</td><td>—</td><td>'+(vo==null?'\u2014':vo.toFixed(2)+'\u00d7')+'</td></tr>';
   }
-  out+='</tbody></table></div>'+_noteQ('Bars run in the table’s order and follow it when you sort a column. Bar width ∝ √revenue share, height = operating margin, colour = rating'+(tail&&tail.length?'; the '+shown.length+' largest companies by revenue are drawn, the rest pooled as Others':'')+'. Pool share in green or red where it is at least 1.25× or at most 0.75× the company’s revenue share. Spread is ROIC − WACC (— for lenders and broker-dealers, whose capital is funding). Pool share trend is the 5-year growth of the company’s share of the sector’s profit pool; — where its history is too short. Value/pool is the company’s share of the sector’s market value over its share of the pool: above 1× the market pays more than its slice of today’s profit (the Price of the pool tile compares the whole sector with the universe). Click a company to open it.');
+  out+='</tbody></table></div>'+_noteQ('Bars run in the table’s order and follow it when you sort a column. Bar width ∝ √revenue share, height = operating margin, colour = score band'+(tail&&tail.length?'; the '+shown.length+' largest companies by revenue are drawn, the rest pooled as Others':'')+'. Pool share in green or red where it is at least 1.25× or at most 0.75× the company’s revenue share. Spread is ROIC − WACC (— for lenders and broker-dealers, whose capital is funding). Pool share trend is the 5-year growth of the company’s share of the sector’s profit pool; — where its history is too short. Value/pool is the company’s share of the sector’s market value over its share of the pool: above 1× the market pays more than its slice of today’s profit (the Price of the pool tile compares the whole sector with the universe). Click a company to open it.');
   return out;
 }
 function _ppChartView(btn,v){
@@ -16369,7 +16396,7 @@ function _ppChartView(btn,v){
 function _ppEpRows(list,cls,maxV){
   return list.map(function(m){
     var col=RC[m.rating]||'#aaa',wd=maxV>0?Math.abs(m.ep)/maxV*100:0;
-    return '<div class="pps-row '+cls+'" data-tk="'+_attr(m.ticker)+'" onclick="openDet(this.dataset.tk)" title="'+_attr((m.company_name||m.ticker)+(m.rating?' · '+m.rating:''))+'">'
+    return '<div class="pps-row '+cls+'" data-tk="'+_attr(m.ticker)+'" onclick="openDet(this.dataset.tk)" title="'+_attr((m.company_name||m.ticker)+(m.rating?' · score '+bandLabel(m.rating):''))+'">'
       +'<span class="pps-tk" style="border-left-color:'+col+'">'+_esc(m.ticker)+'</span>'
       +'<span class="pps-track"><span class="pps-fill" style="width:'+wd.toFixed(1)+'%"></span></span>'
       +'<span class="pps-num">'+(m.ep>=0?'+':'−')+_ppBn(Math.abs(m.ep))+'/yr</span>'
@@ -16459,9 +16486,11 @@ function _fdBoxes(items){
       +'<b>'+b.n.toLocaleString()+'</b><span>'+_esc(b.label)+(b.on?' ✓':'')+'</span><em>'+pct+'% of '+b.total.toLocaleString()+'</em></div>';
   }).join('')+'</div>';
 }
-/* Composite scores in 10-point brackets, stacked by rating (order: the
-   ratings bottom-up, colors: rating -> colour). */
-function _fdHist(vals,order,colors,unit){
+/* Composite scores in 10-point brackets, stacked by score band (order: the
+   band keys bottom-up, colors: key -> colour, lbl: key -> the label a reader
+   sees; the keys themselves are never shown). */
+function _fdHist(vals,order,colors,unit,lbl){
+  lbl=lbl||String;
   var B=Array.from({length:10},function(){return{n:0,by:{}};});
   vals.forEach(function(v){
     if(typeof v[0]!=='number'||!isFinite(v[0]))return;
@@ -16471,12 +16500,12 @@ function _fdHist(vals,order,colors,unit){
   var h='<div class="fd-hist">'+B.map(function(b,i){
     var H=Math.round(b.n/top*56),tip=(i*10)+'–'+((i+1)*10)+': '+b.n.toLocaleString()+' '+unit;
     var seg='';
-    order.forEach(function(r){var n=b.by[r]||0;if(!n)return;tip+=' | '+r+': '+n.toLocaleString();
+    order.forEach(function(r){var n=b.by[r]||0;if(!n)return;tip+=' | '+lbl(r)+': '+n.toLocaleString();
       seg+='<i style="height:'+Math.max(1,Math.round(n/b.n*H))+'px;background:'+colors[r]+'"></i>';});
     return '<div class="fd-hc" title="'+_attr(tip)+'"><div class="fd-hn">'+(b.n?b.n.toLocaleString():'')+'</div><div class="fd-hb" style="height:'+H+'px">'+seg+'</div></div>';
   }).join('')+'</div>';
   h+='<div class="fd-ax">'+B.map(function(b,i){return '<span>'+(i*10)+'</span>';}).join('')+'</div>';
-  h+='<div class="fd-lg"><span>Composite score →</span><span>'+order.map(function(r){return '<i style="background:'+colors[r]+'"></i>'+_esc(r);}).join(' ')+'</span></div>';
+  h+='<div class="fd-lg"><span>Composite score →</span><span>'+order.map(function(r){return '<i style="background:'+colors[r]+'"></i>'+_esc(lbl(r));}).join(' ')+'</span></div>';
   return h;
 }
 /* Pass-rate bars, grouped: [{name, color, rows:[{label, pct, title}]}]. */
@@ -16810,32 +16839,56 @@ function _bvCard(title,tip,body,note){
    signal the bond model's own backtest supports). Reads every bond, not
    the filtered set. */
 var _BV_RATINGS=['BUY','LEAN BUY','HOLD','PASS'];
+/* Bonds show their score, never their rating. A bond's bands sit on its
+   asset class's own calibrated lines (bonds.json thresholds_by_class:
+   Treasury 70.4 / 63.6 / 55.5, Corp IG 64.9 / 44 / 30, ...), so the same
+   score can be top band for one class and third for another; the labels are
+   ordinal ("Top band"), with the class's line in the tooltip. Without the
+   lines (an older bonds.json) there are no bands, only scores. Caps are on in
+   the bond model: a row whose rating sits below its score's band is capped,
+   shown with ⚠ and its reasons. */
+var _BV_BAND_LBL={'BUY':'Top band','LEAN BUY':'2nd band','HOLD':'3rd band','PASS':'Bottom band'};
+function _bvLines(cls){var t=_BV&&_BV.thresholds_by_class;if(!t)return null;return t[cls]||t._base||null;}
+function _bvBand(r){
+  var I=_bvIdx(),s=r[I._composite_score],t=_bvLines(r[I.asset_class]);
+  if(!t||typeof s!=='number'||!isFinite(s))return null;
+  return s>=t.buy?'BUY':s>=t.lean?'LEAN BUY':s>=t.pass?'HOLD':'PASS';
+}
+function _bvCapped(r){
+  var I=_bvIdx(),b=_bvBand(r),rt=r[I.rating];
+  return !!(b&&rt&&_BV_RATINGS.indexOf(rt)>_BV_RATINGS.indexOf(b));
+}
+function _bvBandTip(cls,k){var t=_bvLines(cls);if(!t)return '';var c=_bvCls(cls);
+  return k==='BUY'?c+': score '+t.buy+' or more':k==='LEAN BUY'?c+': '+t.lean+' to under '+t.buy:k==='HOLD'?c+': '+t.pass+' to under '+t.lean:c+': below '+t.pass;}
 function _bvDash(D){
   var T=D.tips||{},N=D.notes||{},bt=D.bucket_tips||{},total=(D.total||0).toLocaleString();
-  var rn={};(D.ratings||[]).forEach(function(r){rn[r[0]]=r[1];});
+  var rn={},nCap=0,hasBands=!!D.thresholds_by_class,I0=_bvIdx();
+  if(hasBands)(D.rows||[]).forEach(function(r){var b=_bvBand(r);if(b)rn[b]=(rn[b]||0)+1;if(_bvCapped(r))nCap++;});
+  var _bvHideCard={'BUY':1,'LEAN BUY':1,'HOLD':1,'PASS':1,'Capped':1};
   var h='<div class="sx"><div class="qh-card qh-flush">'
-    +_qHelp('<span class="note-q-t">'+_esc(N.categories||'Category scores are 0–100 means over the bonds each category can describe.')+'</span><span class="note-q-t" style="display:block;margin-top:6px">Tap a rating box or credit bucket to open those bonds in the Table, or a bond for its details.</span>','About the Bond Dashboard','corner')
+    +_qHelp('<span class="note-q-t">'+_esc(N.categories||'Category scores are 0–100 means over the bonds each category can describe.')+'</span><span class="note-q-t" style="display:block;margin-top:6px">Each bond is banded against its own asset class\u2019s score lines. Tap a score box or credit bucket to open those bonds in the Table, or a bond for its details.</span>','About the Bond Dashboard','corner')
     +'<div class="sec-label">Bond Summary</div></div>'
     +'<div class="xsect-sub">Run '+_esc(D.run_date)+' · curve '+_esc(D.curve_date)+' · '+total+' instruments · US Treasuries and corporate bonds · free data only</div>'
-    +'<div class="pp-tiles bv-tiles">'+(D.cards||[]).filter(function(c){return !(c.k in rn);}).map(function(c){return '<div class="pp-tile" title="'+_attr(c.t)+'"><span>'+_esc(c.k)+'</span><b>'+_esc(c.v)+'</b></div>';}).join('')+'</div>'
+    +'<div class="pp-tiles bv-tiles">'+(D.cards||[]).filter(function(c){return !_bvHideCard[c.k];}).map(function(c){return '<div class="pp-tile" title="'+_attr(c.t)+'"><span>'+_esc(c.k)+'</span><b>'+_esc(c.v)+'</b></div>';}).join('')+'</div>'
     +'<div class="sec-label" style="margin-top:14px"'+(T.categories?' title="'+_attr(T.categories)+'"':'')+'>By Category</div>'
     +_fdCards((D.categories||[]).map(function(c,i){
       return {name:c.label,color:_FD_PAL[i%_FD_PAL.length],val:Math.round(c.mean)+'%',pct:c.mean,
         sub:'mean score'+(c.n!=null?' · '+c.n.toLocaleString()+' bonds':''),title:T.categories||''};
     }))
-    +_fdBoxes(_BV_RATINGS.filter(function(r){return r in rn;}).map(function(r){
-      var tip=((D.cards||[]).filter(function(c){return c.k===r;})[0]||{}).t||'';
-      return {label:r,n:rn[r],total:D.total||0,color:_FD_RC[r],on:_bvF.r===r,
-        title:tip+(tip?' ':'')+'Open the Table with only '+r+' bonds.',click:_fdCall('_bvDashGo','r',r)};
-    }))
+    +(hasBands?_fdBoxes(_BV_RATINGS.filter(function(r){return r in rn;}).map(function(r){
+      return {label:_BV_BAND_LBL[r],n:rn[r],total:D.total||0,color:_FD_RC[r],on:_bvF.r===r,
+        title:'Bonds in the '+_BV_BAND_LBL[r].toLowerCase()+' of their class ('+['TREASURY','CORP_IG','CORP_HY'].map(function(c){return _bvBandTip(c,r);}).join('; ')+'). Open the Table with only them.',click:_fdCall('_bvDashGo','r',r)};
+    }).concat([{label:'⚠ Capped',n:nCap,total:D.total||0,color:'#a16207',on:_bvF.r==='CAPPED',
+      title:'Bonds a flag holds below the band their score alone gives (an unidentified issuer, a call schedule, ...). Open the Table with only them.',click:_fdCall('_bvDashGo','r','CAPPED')}])):'')
     +'</div>';
   var I=_bvIdx(),rows=D.rows||[];
-  if(I._composite_score!=null&&I.rating!=null)
-    h+='<div class="sx"><div class="sec-label">Composite Score Distribution</div><div class="sec-sub">Bonds per 10-point bracket, colored by rating</div>'
-      +_fdHist(rows.map(function(r){return [r[I._composite_score],r[I.rating]];}),_BV_RATINGS.slice().reverse(),_FD_RC,'bonds')+'</div>';
+  if(I._composite_score!=null)
+    h+='<div class="sx"><div class="sec-label">Composite Score Distribution</div><div class="sec-sub">Bonds per 10-point bracket'+(hasBands?', colored by band within their class':'')+'</div>'
+      +_fdHist(rows.map(function(r){return [r[I._composite_score],hasBands?(_bvBand(r)||'—'):'Bonds'];}),hasBands?_BV_RATINGS.slice().reverse():['Bonds'],
+        hasBands?_FD_RC:{'Bonds':'#5d7290'},'bonds',function(k){return _BV_BAND_LBL[k]||k;})+'</div>';
   h+='<div class="sx"><div class="sec-label">Credit and Caps</div><div class="bv-grid">'
     +_bvCard('Implied credit bucket',T.buckets,_bvDist(D.buckets,{tip:function(b){return bt[b];},click:function(b){return _fdCall('_bvDashGo','b',b);}}))
-    +_bvCard('Why rows are capped',T.caps,_bvDist(D.cap_reasons,{col:function(){return 'var(--bv-warn)';},val:function(v){return v.toLocaleString();}}))
+    +_bvCard('Why rows carry a cap flag',T.caps,_bvDist(D.cap_reasons,{col:function(){return 'var(--bv-warn)';},val:function(v){return v.toLocaleString();}}))
     +'</div></div>';
   if(I.spread_mispricing!=null){
     var ix=[];rows.forEach(function(r,i){if(typeof r[I.spread_mispricing]==='number')ix.push(i);});
@@ -16865,7 +16918,7 @@ function _bvHtml(D){
   if(D.vintage)h+='<div class="bv-warn"><h4>Marks are '+D.vintage.age_days+' days old</h4><p>The newest fund mark in this dataset is dated '+_esc(D.vintage.date)+'. A newer quarterly N-PORT release is due or already published but not yet loaded; until it is, every price here leans harder on the curve overlay.</p></div>';
   h+='<div class="bv-warn"><h4>What this is, and what it is not</h4><ul>'+(D.caveats||[]).map(function(c){return '<li><b>'+_esc(c.lead)+'</b> '+_esc(c.text)+'</li>';}).join('')+'</ul></div>'
     +'<div class="bv-note">In the Table, click a header to sort; hover one for what it means. It shows the first '+_BV_LIMIT.toLocaleString()+' matching rows; narrow the filters to see the rest.</div>'
-    +'<div class="etf-note">Sources: '+_esc(D.sources||'')+' Generated '+_esc(D.generated||'')+' by the bond analysis model. Not investment advice. Display only: nothing here changes a stock rating.</div>'
+    +'<div class="etf-note">Sources: '+_esc(D.sources||'')+' Generated '+_esc(D.generated||'')+' by the bond analysis model. Not investment advice. Display only: nothing here changes a stock\u2019s score.</div>'
     +'</div></div>';
   return h+'</div>';
 }
@@ -16878,7 +16931,7 @@ function _bvRows(){
   var I=_bvIdx(),f=_bvF,c=I[_bvSortK],asc=_bvAsc;
   var toks=_bvQ().toUpperCase().split(/\s+/).filter(function(t){return t;}),hay=toks.length?_bvHay():null;
   var out=_BV.rows.filter(function(r,ri){
-    if(f.r&&r[I.rating]!==f.r)return false;
+    if(f.r&&(f.r==='CAPPED'?!_bvCapped(r):_bvBand(r)!==f.r))return false;
     if(f.c&&r[I.asset_class]!==f.c)return false;
     if(f.b&&r[I.implied_bucket]!==f.b)return false;
     if(f.u&&r[I._caps])return false;
@@ -16897,8 +16950,10 @@ function _bvRows(){
 function _bvDraw(){
   var head=document.getElementById('bv-head'),body=document.getElementById('bv-body');
   if(!head||!body)return;
-  var C=_BV.columns;
-  head.innerHTML=C.map(function(c){
+  var C=_BV.columns,_ri=C.map(function(c){return c.k;}).indexOf('rating');
+  /* The rating column is never shown: the score is (⚠ when capped). */
+  var _show=function(c,i){return i!==_ri;};
+  head.innerHTML=C.filter(_show).map(function(c){
     var on=c.k===_bvSortK;
     return '<th class="'+(_BV_LEFT[c.f]?'bv-l':'')+'" style="min-width:'+c.w+'px" onclick="_bvSortBy(\''+c.k+'\')" data-col-tip="bv_'+_attr(c.k)+'" data-col-label="'+_attr(c.l)+'" data-col-tip-body="'+_attr(c.t)+'"'+(on?' aria-sort="'+(_bvAsc?'ascending':'descending')+'"':'')+'>'+_esc(c.l)+(on?' <span class="arrow">'+(_bvAsc?'▲':'▼')+'</span>':'')+'</th>';
   }).join('');
@@ -16906,8 +16961,10 @@ function _bvDraw(){
   _bvShown=shown;
   body.innerHTML=shown.map(function(r,ri){
     return '<tr data-bi="'+ri+'" onclick="_bvOpen(+this.dataset.bi)" title="Bond details">'+C.map(function(c,i){
+      if(i===_ri)return '';
       var v=r[i],long=(c.f==='caps'||c.f==='text')&&v;
-      return '<td'+(_BV_LEFT[c.f]?' class="bv-l"':'')+(long?' title="'+_attr(v)+'"':'')+'>'+_bvFmt(v,c.f)+'</td>';
+      var cap=c.k==='_composite_score'&&_bvCapped(r)?' <span class="rb-cap" title="'+_attr('Capped: a flag holds it below the '+(_BV_BAND_LBL[_bvBand(r)]||'').toLowerCase()+' its score gives'+(r[_bvIdx()._caps]?' ('+r[_bvIdx()._caps]+')':''))+'">⚠</span>':'';
+      return '<td'+(_BV_LEFT[c.f]?' class="bv-l"':'')+(long?' title="'+_attr(v)+'"':'')+'>'+_bvFmt(v,c.f)+cap+'</td>';
     }).join('')+'</tr>';
   }).join('');
   _altN.bond=[rows.length,(_BV.rows||[]).length,rows.length>_BV_LIMIT?_BV_LIMIT:0];
@@ -16924,7 +16981,7 @@ var _bvShown=[],_bvPopRow=null,_bvSkipPop=false,_BV_GROUPS=[
   ['Spread',['z_spread','fair_spread','spread_mispricing']],
   ['Credit',['implied_bucket','market_bucket','bucket_divergence_notches','issuer_credit_score']],
   ['Liquidity & data',['n_funds','total_held_usd','mark_age_days']],
-  ['Rating',['_composite_score','rating','_caps']]];
+  ['Score',['_composite_score','_caps']]];
 /* The table's headers are abbreviations sized for columns; the sheet has
    room to say them in full. */
 var _BV_LONG={years_to_maturity:'Years to maturity',clean_price_est:'Price (per 100 face)',
@@ -16933,7 +16990,7 @@ var _BV_LONG={years_to_maturity:'Years to maturity',clean_price_est:'Price (per 
   spread_mispricing:'Mispricing (bp)',implied_bucket:'Model credit bucket',
   market_bucket:'Market credit bucket',bucket_divergence_notches:'Divergence (notches)',
   issuer_credit_score:'Issuer credit score',n_funds:'Funds holding it',total_held_usd:'Held by funds',
-  mark_age_days:'Mark age',_composite_score:'Composite score',_caps:'Rating caps'};
+  mark_age_days:'Mark age',_composite_score:'Composite score',_caps:'Cap flags'};
 /* The issuer's row in DATA, by name with the legal suffixes dropped
    (N-PORT spellings vary, so no match is the honest answer, not a guess). */
 var _bvNameIdx=null;
@@ -16960,15 +17017,15 @@ function _bvOpenRow(r){
   var h='<div class="bvp-card"><div class="bvp-top"><div><div class="bvp-id">'+_esc(v('cusip'))+'</div>'
     +'<div class="bvp-nm">'+_esc(v('issuer_name')||'')+'</div></div>'
     +'<button type="button" class="bvp-x" onclick="_bvClose()" aria-label="Close">\u00d7</button></div>'
-    +'<div class="bvp-sum">'+f('rating')+' <b>'+f('_composite_score')+'</b> · '+f('asset_class')+' · '+f('coupon_rate')+' due '+f('maturity_date')+'</div>'
-    +(stock?'<button type="button" class="bvp-stk" onclick="_bvClose();openDet(\''+_attr(stock.ticker)+'\')">Issuer\u2019s stock: <b>'+_esc(stock.ticker)+'</b> '+(stock.rating?rb(stock.rating):'')+' \u203a</button>':'')
+    +'<div class="bvp-sum">Score <b>'+f('_composite_score')+'</b>'+(_bvBand(r)?' ('+_BV_BAND_LBL[_bvBand(r)].toLowerCase()+' for its class'+(_bvCapped(r)?'; ⚠ capped':'')+')':'')+' · '+f('asset_class')+' · '+f('coupon_rate')+' due '+f('maturity_date')+'</div>'
+    +(stock?'<button type="button" class="bvp-stk" onclick="_bvClose();openDet(\''+_attr(stock.ticker)+'\')">Issuer\u2019s stock: <b>'+_esc(stock.ticker)+'</b> '+sb(stock)+' \u203a</button>':'')
     +'<div class="bvp-grid">'+_BV_GROUPS.map(function(g){
       return '<div class="bv-card"><h4>'+g[0]+'</h4>'+g[1].filter(function(k){return I[k]!=null;}).map(function(k){
         var c=C[I[k]];
         return '<details class="bvp-row"><summary><span class="bvp-l">'+_esc(_BV_LONG[k]||c.l)+'</span><span class="bvp-v">'+_bvFmt(r[I[k]],c.f)+'</span></summary><p>'+_esc(c.t||'')+'</p></details>';
       }).join('')+'</div>';
     }).join('')+'</div>'
-    +'<p class="bv-note">Tap a label for what it means. Marks are fund prices aged onto today\u2019s curve; see Notes. Display only: nothing here changes a stock rating.</p></div>';
+    +'<p class="bv-note">Tap a label for what it means. Marks are fund prices aged onto today\u2019s curve; see Notes. Display only: nothing here changes a stock\u2019s score.</p></div>';
   ov.innerHTML=h;ov.classList.add('open');
   document.documentElement.classList.add('bvp-open');
   /* Flush the pending hash first (as _drillPush does), so a debounced
@@ -17007,13 +17064,20 @@ function _cxQ(){var i=document.getElementById('f-search');return i?i.value:'';}
 var _CX_RATINGS=['LONG','LEAN LONG','NEUTRAL','AVOID'];
 /* The screener's four ratings take the stock ratings' colours, rank for rank. */
 var _CX_RC={'LONG':'BUY','LEAN LONG':'LEAN BUY','NEUTRAL':'HOLD','AVOID':'PASS'};
+/* Currencies show their score, never their rating: the four keys are the
+   score's bands on the screener's own lines (gate_meta.thresholds), shown
+   as "57+", "39–56" ... The rating can sit below its score's band (caps are
+   on in the currency model): ⚠, with the reasons. */
+function _cxLines(){var t=(_CX&&_CX.gate_meta&&_CX.gate_meta.thresholds)||{};return {long:_num(t.long)!=null?+t.long:57,lean:_num(t.lean)!=null?+t.lean:39,neutral:_num(t.neutral)!=null?+t.neutral:25};}
+function _cxBand(s){s=_num(s);if(s==null)return null;var t=_cxLines();return s>=t.long?'LONG':s>=t.lean?'LEAN LONG':s>=t.neutral?'NEUTRAL':'AVOID';}
+function _cxBandLabel(k){var t=_cxLines(),f=_bandFmt;return k==='LONG'?f(t.long)+'+':k==='LEAN LONG'?f(t.lean)+'–'+(Math.round(t.long)===t.long?t.long-1:f(t.long)):k==='NEUTRAL'?f(t.neutral)+'–'+(Math.round(t.lean)===t.lean?t.lean-1:f(t.lean)):k==='AVOID'?'<'+f(t.neutral):(k||'—');}
+function _cxCapped(r){return !!(r&&r.rating&&r.rating_raw&&r.rating!==r.rating_raw);}
 var _CX_VIEWS=[['dash','Dashboard'],['table','Screener'],['matrix','Gate Matrix'],['map','Map'],['detail','Detail']];
 /* k=field, t=title, f=format, l=left-aligned, s=hidden on phones */
 var _CX_COLS=[
   {k:'code',t:'CCY',f:'code',l:1},
   {k:'name',t:'Currency',f:'text',l:1},
-  {k:'rating',t:'Rating',f:'pill'},
-  {k:'_composite_score',t:'Score',f:'score'},
+  {k:'_composite_score',t:'Score',f:'pill'},
   {k:'regime',t:'Regime',f:'text',s:1},
   {k:'_score_pillar_valuation',t:'Valuation',f:'sc'},
   {k:'_score_pillar_carry',t:'Carry',f:'sc'},
@@ -17065,9 +17129,9 @@ function _cxFmt(kind,v){
 }
 var _CX_NA='<span class="bv-mut">—</span>';
 function _cxPill(r){
-  var v=r.rating,h='<span class="rb" style="background:'+(RC[_CX_RC[v]]||'#888')+'">'+_esc(v||'N/A')+'</span>';
-  if(r._rating_cap&&r._rating_cap_reasons&&r._rating_cap_reasons.length)
-    h+='<span class="rb-cap" title="'+_attr('Scored '+(_cxNum(r._composite_score)?r._composite_score.toFixed(1):'n/a')+', which reads '+r.rating_raw+'. Flag: capped to '+r._rating_cap+' because '+r._rating_cap_reasons.join('; ')+'.')+'">⚠</span>';
+  var s=_num(r._composite_score),k=_cxBand(s),h='<span class="rb" style="background:'+(RC[_CX_RC[k]]||'#888')+'" title="Composite score, band '+_attr(_cxBandLabel(k))+'">'+(s==null?'N/A':Math.round(s))+'</span>';
+  if(_cxCapped(r))
+    h+='<span class="rb-cap" title="'+_attr('Capped: a flag holds it below its score\u2019s band ('+_cxBandLabel(r.rating_raw)+')'+((r._rating_cap_reasons||[]).length?' because '+r._rating_cap_reasons.join('; '):'')+'.')+'">⚠</span>';
   return h;
 }
 function _cxScCls(v){return !_cxNum(v)?'gn':v>=60?'sg':v>=40?'sm':'sp';}
@@ -17102,25 +17166,25 @@ function _cxTh(k,label,cls,extra){
    the gate pass rates and the currencies at either end. Reads every
    currency, not the filtered set. */
 function _cxDash(D){
-  var gm=D.gate_meta,R=D.rows,n={};R.forEach(function(r){n[r.rating]=(n[r.rating]||0)+1;});
-  var capped=R.filter(function(r){return r._rating_cap&&r.rating!==r.rating_raw;}).length;
+  var gm=D.gate_meta,R=D.rows,n={};R.forEach(function(r){var k=_cxBand(r._composite_score);if(k)n[k]=(n[k]||0)+1;});
+  var capped=R.filter(_cxCapped).length;
   var srt=R.filter(function(r){return _cxNum(r._composite_score);}).sort(function(a,b){return b._composite_score-a._composite_score;});
   var th=gm.thresholds||{},col={};
   _CX_RATINGS.forEach(function(r){col[r]=_FD_RC[_CX_RC[r]];});
   var avg=function(k){var v=R.map(function(r){return r[k];}).filter(_cxNum);return v.length?v.reduce(function(a,b){return a+b;},0)/v.length:null;};
   var h='<div class="sx"><div class="qh-card qh-flush">'
-    +_qHelp('<span class="note-q-t">Pillar scores are 0–100; the composite is their weighted average over the pillars that apply to that currency. Tap a rating box to open the Screener on that rating, a pillar card to sort it by that pillar, or a currency for its Detail.</span>','About the Currency Dashboard','corner')
+    +_qHelp('<span class="note-q-t">Pillar scores are 0–100; the composite is their weighted average over the pillars that apply to that currency. Tap a score box to open the Screener on that band, a pillar card to sort it by that pillar, or a currency for its Detail.</span>','About the Currency Dashboard','corner')
     +'<div class="sec-label">Currency Summary</div></div>'
     +'<div class="xsect-sub">Run '+_esc(D.run_date)+' · '+D.total+' currencies ranked rich to cheap on '+gm.gates.length+' gates in '+gm.categories.length+' weighted pillars · ECB, BIS and World Bank data</div>'
     +'<div class="pp-tiles bv-tiles">'
     +(srt.length?'<div class="pp-tile" title="Highest composite score."><span>Top ranked</span><b>'+_esc(srt[0].code)+' · '+srt[0]._composite_score.toFixed(0)+'</b></div>'
       +'<div class="pp-tile" title="Lowest composite score."><span>Bottom ranked</span><b>'+_esc(srt[srt.length-1].code)+' · '+srt[srt.length-1]._composite_score.toFixed(0)+'</b></div>':'')
-    +'<div class="pp-tile" title="Rows whose rating was capped below what the score reads (pegs, the base currency, thin data, very high inflation)."><span>Capped</span><b>'+capped+'</b></div>'
+    +'<div class="pp-tile" title="Currencies a flag holds below their score\u2019s band (pegs, the base currency, thin data, very high inflation)."><span>⚠ Capped</span><b>'+capped+'</b></div>'
     +'</div>'
     +_fdBoxes(_CX_RATINGS.map(function(r){
       var t=r==='LONG'?'Composite ≥ '+th.long:r==='LEAN LONG'?'Composite ≥ '+th.lean:r==='NEUTRAL'?'Composite ≥ '+th.neutral:'Below '+th.neutral;
-      return {label:r,n:n[r]||0,total:R.length,color:col[r],on:_cxF.r===r,
-        title:t+'. '+((gm.ui&&gm.ui.rating)||'')+' Open the Screener with only '+r+'.',click:_fdCall('_cxDashGo','r',r)};
+      return {label:'Score '+_cxBandLabel(r),n:n[r]||0,total:R.length,color:col[r],on:_cxF.r===r,
+        title:t+'. Open the Screener with only these currencies.',click:_fdCall('_cxDashGo','r',r)};
     }))
     +'<div class="sec-label" style="margin-top:14px">By Pillar</div>'
     +_fdCards(gm.categories.map(function(c){
@@ -17130,8 +17194,8 @@ function _cxDash(D){
         title:c.tip+' Open the Screener sorted by '+c.name+'.',click:_fdCall('_cxDashGo','s',c.scoreKey)};
     }))
     +'</div>';
-  h+='<div class="sx"><div class="sec-label">Composite Score Distribution</div><div class="sec-sub">Currencies per 10-point bracket, colored by rating</div>'
-    +_fdHist(R.map(function(r){return [r._composite_score,r.rating];}),_CX_RATINGS.slice().reverse(),col,'currencies')+'</div>';
+  h+='<div class="sx"><div class="sec-label">Composite Score Distribution</div><div class="sec-sub">Currencies per 10-point bracket, colored by score band</div>'
+    +_fdHist(R.map(function(r){return [r._composite_score,_cxBand(r._composite_score)];}),_CX_RATINGS.slice().reverse(),col,'currencies',_cxBandLabel)+'</div>';
   h+='<div class="sx"><div class="sec-label">Gate Pass Rates</div><div class="sec-sub">Share of the currencies each gate applies to that pass it</div>'
     +_fdRates(gm.categories.map(function(c){
       return {name:c.name,color:c.dark,rows:c.gates.map(function(g){
@@ -17139,11 +17203,11 @@ function _cxDash(D){
         return t?{label:g.label,pct:p/t*100,title:g.label+': passes when '+g.threshold+' · '+p+' of '+t}:null;
       }).filter(function(x){return x;})};
     }))+'</div>';
-  var li=function(r){return {label:r.code,sub:r.name,val:_cxPill(r)+' '+r._composite_score.toFixed(0),click:_fdCall('_cxPick',r.code)};};
+  var li=function(r){return {label:r.code,sub:r.name,val:_cxPill(r),click:_fdCall('_cxPick',r.code)};};
   h+='<div class="sx"><div class="sec-label">Either End</div><div class="bv-grid">'
     +_fdList('Top ranked',srt.slice(0,5).map(li))+_fdList('Bottom ranked',srt.slice(-5).reverse().map(li))+'</div>'
     +'<div class="bv-note">Gate Matrix: green passes the gate, red fails, grey is not applicable: either the data is missing (scored 0, kept in the pillar) or the gate cannot describe this currency (left out of the pillar), as for a peg’s volatility or the dollar’s carry against itself.</div>'
-    +'<div class="etf-note">'+_cxProv(D)+' Built by the currency screener (currencies/). Not investment advice. Display only: nothing here changes a stock rating.</div>'
+    +'<div class="etf-note">'+_cxProv(D)+' Built by the currency screener (currencies/). Not investment advice. Display only: nothing here changes a stock\u2019s score.</div>'
     +'</div>';
   return h;
 }
@@ -17169,7 +17233,7 @@ function _cxRows(){
   var f=_cxF,q=_cxQ().trim().toLowerCase(),k=_cxSortK,d=_cxDir;
   return _CX.rows.filter(function(r){
     if(q&&(r.code+' '+r.name).toLowerCase().indexOf(q)<0)return false;
-    if(f.r&&r.rating!==f.r)return false;
+    if(f.r&&_cxBand(r._composite_score)!==f.r)return false;
     return true;
   }).sort(function(a,b){
     var x=a[k],y=b[k],xn=x==null,yn=y==null;
@@ -17205,7 +17269,7 @@ function _cxTable(rows){
 }
 function _cxMatrix(rows){
   var cats=_CX.gate_meta.categories;
-  var r1='<tr>'+_cxTh('code','CCY','fixed-header',' rowspan="2"')+_cxTh('rating','Rating','fixed-header',' rowspan="2"');
+  var r1='<tr>'+_cxTh('code','CCY','fixed-header',' rowspan="2"')+_cxTh('_composite_score','Score','fixed-header',' rowspan="2"');
   cats.forEach(function(c){
     var w=Math.round(c.weight*100);
     r1+='<th class="cat-header" colspan="'+(c.gates.length+1)+'" style="background:'+c.dark+'" data-col-tip="ccy_cat_'+_attr(c.name)+'" data-col-label="'+_attr(c.name+' ('+w+'%)')+'" data-col-tip-body="'+_attr(c.tip+' Weighted '+w+'% of the composite score.')+'">'+_esc(c.name)+' ('+w+'%)</th>';
@@ -17251,7 +17315,7 @@ function _cxMapPaint(rows){
     if(c)p.style.fill=c;
     p.classList.add('has');
     var t=document.createElementNS('http://www.w3.org/2000/svg','title');
-    t.textContent=(p.getAttribute('data-name')||iso)+' — '+r.code+' — score '+(_cxNum(v)?v.toFixed(0):'n/a')+' — '+r.rating;
+    t.textContent=(p.getAttribute('data-name')||iso)+' — '+r.code+' — score '+(_cxNum(v)?v.toFixed(0):'n/a')+(_cxCapped(r)?' ⚠ capped':'');
     p.appendChild(t);
     p.addEventListener('click',function(){_cxPick(r.code);});
     drawn++;
@@ -17281,9 +17345,9 @@ function _cxDetail(){
   if(!r){host.innerHTML='<div class="xsect-dashboard"><p class="bv-note">Pick a currency in the Screener, Gate Matrix or Map to see its gate-by-gate breakdown here.</p></div>';return;}
   var gm=_CX.gate_meta,ui=gm.ui||{};
   var h='<div class="cx-det xsect-dashboard"><div class="cx-dhead"><h3>'+_esc(r.code)+' · '+_esc(r.name)+'</h3></div>'
-    +'<div class="cx-dsub">'+_cxPill(r)+' composite <b>'+(_cxNum(r._composite_score)?r._composite_score.toFixed(1):'n/a')+'</b> · gates '+_esc(r._gates_passed||'—')+' · coverage '+(_cxNum(r._data_coverage_score)?r._data_coverage_score.toFixed(0)+'%':'n/a')+' · '+_esc(r.regime||'')+'</div>';
+    +'<div class="cx-dsub">composite <b>'+(_cxNum(r._composite_score)?r._composite_score.toFixed(1):'n/a')+'</b> · gates '+_esc(r._gates_passed||'—')+' · coverage '+(_cxNum(r._data_coverage_score)?r._data_coverage_score.toFixed(0)+'%':'n/a')+' · '+_esc(r.regime||'')+'</div>';
   if(r._rating_cap&&r._rating_cap_reasons&&r._rating_cap_reasons.length)
-    h+='<div class="bv-warn"><h4>Flag: rating capped at '+_esc(r._rating_cap)+' (score reads '+_esc(r.rating_raw)+')</h4><p>'+r._rating_cap_reasons.map(_esc).join('; ')+'</p></div>';
+    h+='<div class="bv-warn"><h4>'+(_cxCapped(r)?'⚠ Capped: a flag holds it below its score\u2019s band ('+_esc(_cxBandLabel(r.rating_raw))+')':'Flag')+'</h4><p>'+r._rating_cap_reasons.map(_esc).join('; ')+'</p></div>';
   h+='<div class="bv-card cx-sparkcard"><h4 title="'+_attr(ui.spark||'')+'">Price history</h4>'+(_cxSpark(r.spark)||'<p class="bv-note">No price history.</p>')+'</div><div class="bv-grid">';
   gm.categories.forEach(function(c){
     var sc=r[c.scoreKey];
@@ -17518,7 +17582,7 @@ function _ppfExpVal(e,v){
 }
 function _ppfChips(e,list){
   return list.map(function(m){
-    return '<span class="ppf-chip" data-tk="'+_attr(m.ticker)+'" onclick="openDet(this.dataset.tk)" title="'+_attr((m.company_name||m.ticker)+(m.rating?' · '+m.rating:''))+'">'+_esc(m.ticker)+(m.value!=null?'<i>'+_ppfExpVal(e,m.value)+'</i>':'')+'</span>';
+    return '<span class="ppf-chip" data-tk="'+_attr(m.ticker)+'" onclick="openDet(this.dataset.tk)" title="'+_attr((m.company_name||m.ticker)+(m.rating?' · score '+bandLabel(m.rating):''))+'">'+_esc(m.ticker)+(m.value!=null?'<i>'+_ppfExpVal(e,m.value)+'</i>':'')+'</span>';
   }).join('');
 }
 function _ppfExposure(f){
@@ -17701,40 +17765,41 @@ function _gvGates(d,cat){
       val:_gvFmt(d[g.key],g.fmt),tg:g.target||g.threshold||'',sc:sc};
   });
 }
-/* Where a composite sits against the rating lines: above the line it
-   clears and short of the next one up. */
+/* Where a composite sits against the band lines (GM.ratings): above the
+   line it clears and short of the next one up. Shown as the lines' scores
+   ("18 above the 39 line"), never the ratings. */
 function _gvLines(comp,lines){
   var ls=(lines||[]).slice().sort(function(a,b){return b.min-a.min;}),out=[];
   var f=function(x){return Math.abs(x)<10?(Math.round(Math.abs(x)*10)/10)+'':Math.round(Math.abs(x))+'';};
   for(var i=0;i<ls.length;i++){
     if(comp>=ls[i].min){
-      out.push({k:'above',r:ls[i].rating,n:f(comp-ls[i].min)});
-      if(i>0)out.push({k:'short',r:ls[i-1].rating,n:f(ls[i-1].min-comp)});
+      out.push({k:'above',r:ls[i].rating,m:ls[i].min,n:f(comp-ls[i].min)});
+      if(i>0)out.push({k:'short',r:ls[i-1].rating,m:ls[i-1].min,n:f(ls[i-1].min-comp)});
       return out;
     }
   }
-  if(ls.length)out.push({k:'short',r:ls[ls.length-1].rating,n:f(ls[ls.length-1].min-comp)});
+  if(ls.length)out.push({k:'short',r:ls[ls.length-1].rating,m:ls[ls.length-1].min,n:f(ls[ls.length-1].min-comp)});
   return out;
 }
 function _gvRender(d){
   if(typeof GM==='undefined'||!GM||!GM.categories)return '';
   var h='',comp=d._composite_score_raw!=null?d._composite_score_raw:d._composite_score;
   if(comp!=null&&isFinite(comp)){
-    var lines=GM.ratings||[],rt=d.rating_raw||d.rating||'',col=_GV_RC[rt]||'#6a7a90';
+    var lines=GM.ratings||[],col=_GV_RC[bandKey(comp)]||'#6a7a90';
     /* Whole numbers, unless rounding would carry the score across a line. */
     var shown=Math.round(comp);
     lines.forEach(function(l){if((comp<l.min)!==(shown<l.min))shown=comp.toFixed(1);});
     var why=_gvLines(comp,lines).map(function(x){
-      return x.k==='above'?'<b>'+x.n+'</b> above the '+esc(x.r)+' line':'<b>'+x.n+'</b> short of '+esc(x.r);
+      return x.k==='above'?'<b>'+x.n+'</b> above the '+x.m+' line':'<b>'+x.n+'</b> short of '+x.m;
     });
-    var lbl=isCapped(d)?'Rating cap':'Flag',flags=[];
+    var lbl=isCapped(d)?'Flag (lowers its band)':'Flag',flags=[];
     (d._rating_cap_reasons||[]).forEach(function(r){
       var t=typeof r==='string'?r:(r&&r.text)||'';
       if(t)flags.push('<li>'+esc(t.charAt(0).toUpperCase()+t.slice(1))+'</li>');
     });
     var pct=Math.max(0,Math.min(100,comp));
     h+='<div class="gv-score"><div class="gv-sc-n">'+shown+'<small> / 100</small>'
-      +(rt?'<span class="gv-sc-r" style="background:'+col+'">'+esc(rt)+'</span>':'')+'</div>'
+      +'</div>'
       +'<div class="gv-sc-bar"><div class="gv-trk" role="img" aria-label="'+_attr('Composite '+shown+' of 100')+'">'
       +'<i style="width:'+pct+'%;background:'+col+'"></i>'
       +lines.map(function(l){return '<span class="gv-tick" style="left:'+l.min+'%"></span><span class="gv-tick-l" style="left:'+l.min+'%">'+l.min+'</span>';}).join('')
@@ -18407,7 +18472,7 @@ function _ppLiquidityCache(){
     if(d.operating_income){bySec[sec].oi+=d.operating_income;if(d.operating_income>0){bySec[sec].oiPos+=d.operating_income;allOIPos+=d.operating_income;}}
     if(d.revenue)bySec[sec].rev+=d.revenue;
     if(bySec[sec].cr4Rev==null&&d.pp_sector_cr4!=null)bySec[sec].cr4Rev=d.pp_sector_cr4;
-    bySec[sec].stocks.push({ticker:d.ticker,name:d.company_name,dv:(mc>0&&tor!=null)?tor*mc:0,tor:tor,mcap:mc,oi:d.operating_income,rev:d.revenue,rating:d.rating,pp_multiple:d.pp_multiple,operating_margin:d.operating_margin});
+    bySec[sec].stocks.push({ticker:d.ticker,name:d.company_name,dv:(mc>0&&tor!=null)?tor*mc:0,tor:tor,mcap:mc,oi:d.operating_income,rev:d.revenue,rating:d.rating,_composite_score:d._composite_score,pp_multiple:d.pp_multiple,operating_margin:d.operating_margin});
     if(mc<=0||tor==null)return;
     var dv=tor*mc;var so=d.shares_out||0;var shr=so?so*tor:0;
     var tier=_capTier(mc/1e9);
@@ -18568,7 +18633,7 @@ function renderWorldMosMap(){
     var a=_mapAgg[iso]=_mapAgg[iso]||{name:d.country,n:0,mosVals:[],buys:0};
     a.n++;
     if(d.mos!=null)a.mosVals.push(d.mos);
-    if(d.rating==='BUY'||d.rating==='LEAN BUY')a.buys++;
+    var bk=bandOf(d);if(bk==='BUY'||bk==='LEAN BUY')a.buys++;
   });
   Object.keys(_mapAgg).forEach(function(iso){
     var a=_mapAgg[iso];
@@ -18628,7 +18693,7 @@ function renderWorldMosMap(){
           +'<div style="font-size:0.85em;line-height:1.5"><div><span style="color:#7f8c9a">Median MoS&nbsp;</span><span style="font-weight:700;color:'+col+'">'+mosTxt+'</span></div>'
           +'<div><span style="color:#7f8c9a">Stocks&nbsp;</span>'+agg.n+(agg.n<uni?' of '+uni+' in universe':'')+'</div>'
           +'<div><span style="color:#7f8c9a">Priced&nbsp;</span>'+agg.mosVals.length+'</div>'
-          +'<div><span style="color:#7f8c9a">BUY rated&nbsp;</span>'+agg.buys+'</div>'
+          +'<div><span style="color:#7f8c9a">Scoring '+_bandFmt(_bandMins()['LEAN BUY'])+'+&nbsp;</span>'+agg.buys+'</div>'
           +(_selCountries[agg.name]&&_restricted?'<div style="color:#94a3b8;margin-top:3px">click to clear filter</div>':'')
         +'</div>';
         tt.style.display='block';
@@ -18672,7 +18737,7 @@ function renderCrossSectorDashboard(){
   /* === Band 1/2 helpers: aggregations & pill rendering ===
      bySecU = universe (DATA), bySecF = filtered (FD).
      topBuysBySec uses FD so the per-bar pills follow the user's filters. */
-  var _ACTIONABLE=function(d){return d.rating==='BUY'||d.rating==='LEAN BUY';};
+  var _ACTIONABLE=function(d){var k=bandOf(d);return k==='BUY'||k==='LEAN BUY';};
   function _xsVals(arr,k){if(!arr)return[];return arr.map(function(d){return d[k];}).filter(function(v){return v!=null&&!isNaN(v);});}
   var _bySecU={},_bySecF={};
   DATA.forEach(function(d){if(!d.sector)return;(_bySecU[d.sector]=_bySecU[d.sector]||[]).push(d);});
@@ -18683,11 +18748,11 @@ function renderCrossSectorDashboard(){
   });
   function _xsPill(d){
     var t=d.ticker.replace(/'/g,"\\'");
-    return'<span class="rb" style="background:'+(RC[d.rating]||'#888')+';font-size:0.66em;padding:2px 6px;cursor:pointer;margin-left:4px;display:inline-block" onclick="event.stopPropagation();openDet(\''+t+'\')" title="Open '+d.ticker+'">'+d.ticker+'</span>';
+    return'<span class="rb" style="background:'+(RC[bandOf(d)]||'#888')+';font-size:0.66em;padding:2px 6px;cursor:pointer;margin-left:4px;display:inline-block" onclick="event.stopPropagation();openDet(\''+t+'\')" title="Open '+d.ticker+'">'+d.ticker+'</span>';
   }
   function _xsPillsForSec(s){
     var arr=_topBuysBySec[s]||[];
-    if(!arr.length)return'<span style="color:#bbb;font-size:0.7em;font-style:italic">no BUY</span>';
+    if(!arr.length)return'<span style="color:#bbb;font-size:0.7em;font-style:italic">none scoring 39+</span>';
     return arr.map(_xsPill).join('');
   }
   /* _xsLensChart (per-lens sector bar list) was defined here but never
@@ -18866,7 +18931,7 @@ function renderCrossSectorDashboard(){
     return'<th data-sort="'+key+'" onclick="_heatSort(\''+key+'\')" style="width:'+width+'px'+(leftAlign?';text-align:left':'')+'" data-col-tip="heat_'+key+'" data-col-label="'+_attr(label)+'" data-col-tip-body="'+_attr(title)+'"><span class="th-inner"><span>'+label+'<span class="heat-arrow"></span></span></span></th>';
   }
   var _heatTableHtml=_sumStats.length
-    ?_qHelp('<span class="note-q-t">Most values are sector medians; Op Margin is revenue-weighted, and Cos, HHI, CR4 and BUY % describe the whole sector. Green is best and red worst within each column. Tap a header to sort, a sector to open its page.</span>','How to read the heatmap','corner')
+    ?_qHelp('<span class="note-q-t">Most values are sector medians; Op Margin is revenue-weighted, and Cos, HHI, CR4 and 39+ % describe the whole sector. Green is best and red worst within each column. Tap a header to sort, a sector to open its page.</span>','How to read the heatmap','corner')
       +'<div class="sec-label" style="margin-bottom:14px">Sector Heatmap</div>'
       /* Compact column widths so the full 16-column heatmap fits within a
          standard laptop viewport without horizontal scrolling. Sector column
@@ -18888,7 +18953,7 @@ function renderCrossSectorDashboard(){
         +_th('medNDEB','ND/EBITDA',68,'Median (Debt − Cash) / EBITDA. < 2× = strength; > 4× = rolling-credit dependence when markets sour.')
         +_th('medAltZ','Altman Z',60,'Median Altman Z, lenders left out (Z was built for industrial balance sheets). > 3.0 = sector-wide health; < 1.8 = distress across the cohort. Avoid permanent capital loss — Z flags the line before the market does.')
         +_th('medShrYld','Shr Yld',60,'Median (Dividends + Net Buybacks) / Mkt Cap. The best use of cash when the stock is cheap is to buy it back. 4%+ cohort-wide = disciplined capital allocation.')
-        +_th('pctBuy','BUY %',60,'Share of sector rated BUY or LEAN BUY. High concentration = clusters of margin of safety. A focus signal, not a substitute for analysis.')
+        +_th('pctBuy','39+ %',60,'Share of the sector with a composite score of 39 or more. High concentration = clusters of margin of safety. A focus signal, not a substitute for analysis.')
       +'</tr></thead><tbody id="heat-tbody"></tbody></table></div>'
     :'';
   /* Mount: fill tbody after the dashboard return string is injected. */
@@ -19245,7 +19310,7 @@ function renderPool(){
         bars+='<rect data-k="__others" data-w="'+barW.toFixed(2)+'" x="'+bx.toFixed(1)+'" y="'+barY.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+barH.toFixed(1)+'" fill="#90a4ae" opacity="0.82" stroke="rgba(255,255,255,0.6)" stroke-width="0.5" onmouseenter="ppOthersTip(event,\''+seO+'\')" onmouseleave="ppHide()"/>';
         if(barW>16)labels+='<text data-k="__others" x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="middle" font-size="8" fill="#444" pointer-events="none">Others</text>';
       }else{
-        var d=it.d;var col=RC[d.rating]||'#aaa';
+        var d=it.d;var col=RC[bandOf(d)]||'#aaa';
         var tk=d.ticker.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         bars+='<rect data-k="'+_attr(d.ticker)+'" data-w="'+barW.toFixed(2)+'" x="'+bx.toFixed(1)+'" y="'+barY.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+barH.toFixed(1)+'" fill="'+col+'" opacity="0.82" stroke="rgba(255,255,255,0.6)" stroke-width="0.5" onmouseenter="ppTip(event,\''+tk+'\')" onmouseleave="ppHide()" onclick="openDet(\''+tk+'\')" style="cursor:pointer"/>';
         if(barW>16)labels+='<text data-k="'+_attr(d.ticker)+'" x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="middle" font-size="8" fill="#444" pointer-events="none">'+d.ticker+'</text>';
@@ -19314,7 +19379,7 @@ function renderPool(){
     var industriesHtml=renderPoolIndustries(sec);
     chartHtml+='<div data-pane="pool" class="pp-section pp-chart"><span class="pp-section-label">Who Earns It</span>'
       +(industriesHtml?'<div class="ppc-tabs"><button type="button" class="pp-range-btn ppc-tab active" onclick="_ppChartView(this,\'co\')">Companies</button><button type="button" class="pp-range-btn ppc-tab" onclick="_ppChartView(this,\'ind\')">Industries</button></div>':'')
-      +'<div class="ppc-view" data-view="co"><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;margin:4px 0 0">'+ticks+axes+bars+labels+'</svg><div class="pph-key"><span><i style="background:#1a9850"></i>BUY</span><span><i style="background:#74c476"></i>LEAN BUY</span><span><i style="background:#fd8d3c"></i>HOLD</span><span><i style="background:#de2d26"></i>PASS</span><span><i style="background:#90a4ae"></i>Others (pooled tail)</span></div>'+renderPoolCompanyTable(shownCos,tailCos)+'</div>'
+      +'<div class="ppc-view" data-view="co"><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;margin:4px 0 0">'+ticks+axes+bars+labels+'</svg><div class="pph-key"><span><i style="background:#1a9850"></i>Score 57+</span><span><i style="background:#74c476"></i>39–56</span><span><i style="background:#fd8d3c"></i>25–38</span><span><i style="background:#de2d26"></i>&lt;25</span><span><i style="background:#90a4ae"></i>Others (pooled tail)</span></div>'+renderPoolCompanyTable(shownCos,tailCos)+'</div>'
       +(industriesHtml?'<div class="ppc-view" data-view="ind" hidden>'+industriesHtml+'</div>':'')+'</div>';
 
     /* Then the pool over time: how it got to the shape drawn above, and
@@ -19361,7 +19426,7 @@ function ppTip(e,ticker){
   var mult=d.pp_multiple!=null?d.pp_multiple.toFixed(2)+'x':'N/A';
   var rs=d.pp_revenue_share!=null?(d.pp_revenue_share*100).toFixed(1)+'%':'N/A';
   var ps=d.pp_profit_share!=null?(d.pp_profit_share*100).toFixed(1)+'%':'N/A';
-  tt.innerHTML='<b>'+d.ticker+'</b>'+(d.company_name?' &mdash; '+d.company_name:'')+'<br>Rating: '+(d.rating||'N/A')+'<br>Op. Margin: '+m+'<br>Rev Share: '+rs+' &nbsp;|&nbsp; Profit Share: '+ps+'<br>Pool Multiple: '+mult;
+  tt.innerHTML='<b>'+d.ticker+'</b>'+(d.company_name?' &mdash; '+d.company_name:'')+'<br>Score: '+(_num(d._composite_score)!=null?Math.round(d._composite_score):'N/A')+'<br>Op. Margin: '+m+'<br>Rev Share: '+rs+' &nbsp;|&nbsp; Profit Share: '+ps+'<br>Pool Multiple: '+mult;
   tt.style.display='block';
   var _rect=(e.target&&e.target.getBoundingClientRect)?e.target.getBoundingClientRect():{left:e.clientX,top:e.clientY,right:e.clientX,bottom:e.clientY,width:0,height:0};
   _placeTip(_rect,tt);
@@ -20052,7 +20117,7 @@ function aiScreen(inp){
     });
   }
   var limit=Math.min(inp.limit||25,200);
-  var flds=(inp.fields&&inp.fields.length)?inp.fields.slice(0,25):['ticker','company_name','sector','rating','_composite_score','price','mos','pe','roic'];
+  var flds=(inp.fields&&inp.fields.length)?inp.fields.slice(0,25):['ticker','company_name','sector','_composite_score','price','mos','pe','roic'];
   if(flds.indexOf('ticker')<0)flds.unshift('ticker');
   var out=rows.slice(0,limit).map(function(d){
     var o={};flds.forEach(function(k){o[k]=aiTrim(d[k]);});return o;
@@ -20165,9 +20230,18 @@ function aiRunTool(name,input){
       case 'open_ticker':return aiOpenTicker(input||{});
       default:return {error:'unknown tool: '+name};
     }
-  }).catch(function(e){return {error:String(e&&e.message||e)};});
+  }).then(_aiNoRating).catch(function(e){return {error:String(e&&e.message||e)};});
 }
 window._aiRunTool=aiRunTool; /* debug/test hook */
+/* The page shows the score, never the rating: tool results leave the rating
+   fields out, so the analyst answers in scores (its prompt says so too). */
+var _AI_RATING_KEYS={rating:1,rating_raw:1,rating_prev:1,rating_chg:1,rating_hist:1,_rating_cap:1};
+function _aiNoRating(o){
+  if(Array.isArray(o))return o.map(_aiNoRating);
+  if(!o||typeof o!=='object')return o;
+  var out={};Object.keys(o).forEach(function(k){if(!_AI_RATING_KEYS[k])out[k]=_aiNoRating(o[k]);});
+  return out;
+}
 /* ---------- actions on the page ----------
    The two tools that change what the reader sees. A filter is built as the
    search box's field query (_fqApply), so it lands in the Filters panel as
@@ -20179,7 +20253,7 @@ function aiActionNote(html){
 }
 function aiApplyFilter(inp){
   var fq={conds:[],text:String(inp.search||'').trim()},skipped=[];
-  [['ratings','ms-rating','Rating'],['sectors','ms-sector','Sector'],['countries','ms-country','Country']].forEach(function(x){
+  [['ratings','ms-rating','Score band'],['sectors','ms-sector','Sector'],['countries','ms-country','Country']].forEach(function(x){
     var v=inp[x[0]];if(!v||!v.length)return;
     var vals=_fqMsVals(x[1],[].concat(v).join(','));
     if(vals.length)fq.conds.push({ms:x[1],l:x[2],vals:vals});else skipped.push(x[0]+'='+v);
@@ -20214,9 +20288,9 @@ function aiOpenTicker(inp){
 }
 var AI_TOOLS=[
   {name:'list_fields',description:'List every queryable field on the stock records with type, coverage percentage, and an example value. Call this first when unsure of exact field names before screening or aggregating.',input_schema:{type:'object',properties:{},required:[]}},
-  {name:'get_stock',description:'Fetch the complete analysis record for one ticker: price, rating, composite score, DCF/EPV/RIM/NAV fair values, margin of safety, quality ratios, and all sector-specific enrichment fields.',input_schema:{type:'object',properties:{ticker:{type:'string',description:'Ticker symbol, e.g. AAPL'}},required:['ticker']}},
-  {name:'screen_stocks',description:'Filter, sort, and rank the full stock universe in this report. Ratio fields are decimals (0.15 = 15%). Rating values: BUY, LEAN BUY, HOLD, PASS. Returns total match count plus the top rows. Call this whenever the user asks for lists, rankings, or "which stocks..." questions.',input_schema:{type:'object',properties:{filters:{type:'array',description:'ALL conditions must hold (AND)',items:{type:'object',properties:{field:{type:'string'},op:{type:'string',enum:['eq','ne','gt','gte','lt','lte','contains','in','notnull','isnull']},value:{description:'Comparison value; array for op=in; omit for notnull/isnull'}},required:['field','op']}},sort_by:{type:'string'},sort_dir:{type:'string',enum:['asc','desc'],description:'default desc'},limit:{type:'integer',description:'rows to return, default 25, max 200'},fields:{type:'array',items:{type:'string'},description:'fields to include per row (ticker always included)'}},required:[]}},
-  {name:'aggregate_stocks',description:'Group stocks by a field (e.g. sector, industry, rating, country) and compute count plus mean/median/min/max of numeric metrics per group. Optional filters applied first. Call this for sector-level or distribution questions.',input_schema:{type:'object',properties:{group_by:{type:'string',description:'default sector'},metrics:{type:'array',items:{type:'string'},description:'numeric fields, max 6, default [_composite_score]'},filters:{type:'array',items:{type:'object',properties:{field:{type:'string'},op:{type:'string'},value:{}},required:['field','op']}}},required:[]}},
+  {name:'get_stock',description:'Fetch the complete analysis record for one ticker: price, composite score, DCF/EPV/RIM/NAV fair values, margin of safety, quality ratios, and all sector-specific enrichment fields.',input_schema:{type:'object',properties:{ticker:{type:'string',description:'Ticker symbol, e.g. AAPL'}},required:['ticker']}},
+  {name:'screen_stocks',description:'Filter, sort, and rank the full stock universe in this report. Ratio fields are decimals (0.15 = 15%). Rank and filter on _composite_score (bands: 57+, 39–56, 25–38, below 25). Returns total match count plus the top rows. Call this whenever the user asks for lists, rankings, or "which stocks..." questions.',input_schema:{type:'object',properties:{filters:{type:'array',description:'ALL conditions must hold (AND)',items:{type:'object',properties:{field:{type:'string'},op:{type:'string',enum:['eq','ne','gt','gte','lt','lte','contains','in','notnull','isnull']},value:{description:'Comparison value; array for op=in; omit for notnull/isnull'}},required:['field','op']}},sort_by:{type:'string'},sort_dir:{type:'string',enum:['asc','desc'],description:'default desc'},limit:{type:'integer',description:'rows to return, default 25, max 200'},fields:{type:'array',items:{type:'string'},description:'fields to include per row (ticker always included)'}},required:[]}},
+  {name:'aggregate_stocks',description:'Group stocks by a field (e.g. sector, industry, country) and compute count plus mean/median/min/max of numeric metrics per group. Optional filters applied first. Call this for sector-level or distribution questions.',input_schema:{type:'object',properties:{group_by:{type:'string',description:'default sector'},metrics:{type:'array',items:{type:'string'},description:'numeric fields, max 6, default [_composite_score]'},filters:{type:'array',items:{type:'object',properties:{field:{type:'string'},op:{type:'string'},value:{}},required:['field','op']}}},required:[]}},
   {name:'apply_filter',description:'Show a screen to the reader: replaces the report\'s filters and opens the Stocks table filtered to it, where the reader can refine it or save it as a portfolio. Use it when the reader asks to see, show, filter or list stocks on the page (after screen_stocks if you need to check the result first). Filters use the same field names and decimal convention as screen_stocks (0.15 = 15%); ops gt/gte/lt/lte/eq for numbers (bounds are inclusive), eq for text fields such as industry. Returns the match count.',input_schema:{type:'object',properties:{filters:{type:'array',items:{type:'object',properties:{field:{type:'string'},op:{type:'string',enum:['gt','gte','lt','lte','eq']},value:{}},required:['field','op','value']}},ratings:{type:'array',items:{type:'string',enum:['BUY','LEAN BUY','HOLD','PASS']}},sectors:{type:'array',items:{type:'string'}},countries:{type:'array',items:{type:'string'}},search:{type:'string',description:'free-text search over ticker, name, industry and description'}},required:[]}},
   {name:'open_ticker',description:'Open one stock\'s page in the report for the reader. Use it when the reader asks to open, show or go to a stock.',input_schema:{type:'object',properties:{ticker:{type:'string'}},required:['ticker']}},
   {name:'get_price_history',description:'Daily-close derived stats for up to 8 tickers: trailing returns (1m to 5y), max drawdown, 2020 and 2022 drawdowns, and a ~72-point sampled price series. Index tickers SPY, QQQ, DIA are available for benchmarking. Call this for questions about past performance, volatility, or price trends.',input_schema:{type:'object',properties:{tickers:{type:'array',items:{type:'string'}}},required:['tickers']}}
@@ -20224,19 +20298,20 @@ var AI_TOOLS=[
 function aiSystemPrompt(){
   var counts={},sectors={};
   DATA.forEach(function(d){
-    counts[d.rating]=(counts[d.rating]||0)+1;
+    var k=bandOf(d);if(k)counts[k]=(counts[k]||0)+1;
     if(d.sector)sectors[d.sector]=1;
   });
-  var rc=Object.keys(counts).map(function(k){return k+': '+counts[k];}).join(', ');
+  var rc=_BAND_KEYS.filter(function(k){return counts[k];}).map(function(k){return 'score '+bandLabel(k)+': '+counts[k];}).join(', ');
   return 'You are an equity-analysis assistant embedded in a daily stock analysis report ('+AI_GEN+'). '
     +'The report comes from a fundamental screening model covering '+DATA.length+' US-listed stocks (market cap >= $300M at screening). '
-    +'Each stock carries a composite score (field _composite_score, 0-100, higher = better value/quality blend) and a rating. Current distribution: '+rc+'. '
+    +'Each stock carries a composite score (field _composite_score, 0-100, higher = better value/quality blend), read against the lines 57, 39 and 25. Current distribution: '+rc+'. '
     +'Sectors: '+Object.keys(sectors).sort().join(', ')+'. '
     +'Valuations come from DCF, EPV, RIM and NAV models (fields dcf_fv, epv_fv, rim_fv, nav_fv; mos = margin of safety vs price). '
     +'Sector enrichments include FDIC bank metrics (nim, efficiency_ratio, cet1_ratio, npl_ratio, deposit_beta), REIT proxies (ffo_growth_5y, affo_margin), XBRL KPIs (rule_of_40, capex_intensity, inventory_days, combined_ratio, debt_maturity_wall_yrs and more) and FDA pipeline counts (fda_pipeline_count).\n\n'
     +'Rules:\n'
     +'- Always fetch data with tools before making claims about specific stocks in this report; never quote numbers from memory. Use list_fields when unsure of a field name.\n'
     +'- Ratio fields are decimals: 0.15 means 15%.\n'
+    +'- Describe stocks by their composite score and the line it clears (e.g. "64, above the 57 line"). Never call a stock BUY, LEAN BUY, HOLD or PASS: this report shows scores, not ratings.\n'
     +'- Be concise and analytical. Use markdown tables for comparisons. Cite tickers.\n'
     +'- When the reader wants to see stocks on the page, use apply_filter so the table shows them; when they want a stock\'s page, use open_ticker. Say what you applied.\n'
     +'- This is research assistance on model output, not individualized financial advice; flag material risks when a stock looks attractive.';
