@@ -456,6 +456,13 @@ if wants enrich; then
   run etf_holdings    soft "$VPY" scripts/fetch_etf_holdings.py
   # Must follow every enrichment so the banners pick the fields up.
   sidemodels_join
+  # Each stock's composite over the last 26 weeks, re-scored with today's
+  # model (scripts/score_history.py), for the report's and the app's score
+  # trend and prior-run score. Seconds when the model is unchanged, a full
+  # rebuild (~10 s) when it changed. A failure keeps last night's cache; the
+  # render then reads prior scores from the stored snapshot.
+  run score_history   soft "$VPY" scripts/score_history.py --results-dir output \
+    --date "$RUNDATE" --archive-dir "$SNAP_WT"
   run render          soft "$VPY" scripts/rescore_and_render.py "$SNAPSHOT" --prices-dir output/prices
   # Your portfolio groupings (portfolio/portfolios.json): stats + change
   # alerts. Before the archive, so portfolio_alerts.json rides into

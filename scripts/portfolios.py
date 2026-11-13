@@ -531,7 +531,8 @@ def build_digest(portfolios, rows, prev_rows, day, prev_day, history=None, expla
         pg.portfolio_alerts(portfolios, by_tk, prev_by_tk, run_date=day,
                             history=history, explain=explain, stopped=stopped,
                             prev2_by_tk=pg.rows_by_ticker(prev2_rows or []))
-    systemic = dict(stats, message=pg.systemic_message(stats)) if prev_day else None
+    systemic = dict(stats, message=pg.systemic_message(stats),
+                    display=pg.systemic_display(stats)) if prev_day else None
     out = []
     for p in portfolios:
         res = pg.resolve_members(p, by_tk)

@@ -820,6 +820,25 @@ RATING_ORDER = ['BUY', 'LEAN BUY', 'HOLD', 'PASS']
 REPORT_DATA_VERSION = 1
 
 
+def thresholds_by_class():
+    """The composite lines each asset class's rating bands sit on, as
+    ``{class: {'buy', 'lean', 'pass'}}`` plus ``'_base'`` for a class not
+    listed. Resolved the way ``scoring_kernel.rating_from_composite`` does
+    with no per-run override: the class's own calibrated value, else the base
+    threshold. The stock report shows a bond's score against these lines
+    instead of its rating; the cut-offs differ by class, so one set would
+    misplace every Treasury."""
+    from scripts.config import (RATING_THRESHOLD_BUY, RATING_THRESHOLD_LEAN,
+                                RATING_THRESHOLD_PASS, RATING_THRESHOLDS_BY_CLASS)
+    base = {'buy': float(RATING_THRESHOLD_BUY), 'lean': float(RATING_THRESHOLD_LEAN),
+            'pass': float(RATING_THRESHOLD_PASS)}
+    out = {'_base': base}
+    for cls, d in RATING_THRESHOLDS_BY_CLASS.items():
+        out[cls] = {k: float(d[k]) if (d or {}).get(k) is not None else v
+                    for k, v in base.items()}
+    return out
+
+
 def report_data(rows, meta, term, payload=None):
     """The page as data: what ``render`` draws, for another report to draw in
     its own style. Plain JSON types throughout (the table rows are already
@@ -851,6 +870,7 @@ def report_data(rows, meta, term, payload=None):
         'term': [{'name': s['name'], 'points': [list(p) for p in s['points']]}
                  for s in term_series(term)],
         'cap_reasons': [list(c) for c in payload['capReasons']],
+        'thresholds_by_class': thresholds_by_class(),
         'categories': payload['categories'],
         'tips': SECTION_TIPS,
         'notes': {'term': TERM_NOTE, 'categories': CATEGORY_NOTE},

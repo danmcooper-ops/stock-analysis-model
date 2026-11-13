@@ -141,6 +141,35 @@ def _mos_tempered(row, vc):
     return bool(px and bull and px <= bull)
 
 
+def _lines():
+    """The score lines the rating bands sit on: ``(buy, lean, pass)``.
+
+    The report and the app show the composite score, never the rating, so
+    every sentence here names the score and its line instead. The decisions
+    below still read the rating, which is that score's band.
+    """
+    from scripts.param_set import default_params
+    p = default_params()
+    return (float(p['rating_threshold_buy']), float(p['rating_threshold_lean']),
+            float(p['rating_threshold_pass']))
+
+
+def _score_line_text(row):
+    """'Composite 64, above the 57 line' — the score against the nearest
+    line it clears or misses, or None without a score."""
+    comp = _num(row, '_composite_score')
+    if comp is None:
+        return None
+    buy, lean, low = _lines()
+    if comp >= buy:
+        return f'Composite {comp:.0f}, above the {buy:g} line'
+    if comp >= lean:
+        return f'Composite {comp:.0f}, above the {lean:g} line'
+    if comp >= low:
+        return f'Composite {comp:.0f}, below the {lean:g} line'
+    return f'Composite {comp:.0f}, below the {low:g} line'
+
+
 def _pass_only_from_mos(row):
     """The PASS is the margin-of-safety cap, not the model's own rating."""
     reasons = row.get('_rating_cap_reasons') or []
@@ -175,7 +204,12 @@ def _red_flags(row, vc=None):
     # Last: the specific reasons above make a better headline than the label,
     # which usually just restates one of them.
     if row.get('rating') == 'PASS' and not (tempered and _pass_only_from_mos(row)):
-        flags.append('The model rates it PASS')
+        comp, low = _num(row, '_composite_score'), _lines()[2]
+        if comp is not None and comp < low:
+            flags.append(f'Its composite score ({comp:.0f}) is below {low:g}')
+        else:
+            # A snapshot rated with caps on: a flag pushed it to the bottom band.
+            flags.append('A flag puts its score in the bottom band')
     return flags
 
 
@@ -206,11 +240,9 @@ def _checks(row, med):
 
     rating = row.get('rating')
     if rating:
-        comp = _num(row, '_composite_score')
         gp = row.get('_gates_passed')
-        det = ', '.join(p for p in (f'composite {comp:.0f}' if comp is not None else '',
-                                    f'gates {gp}' if gp else '') if p)
-        txt = f'Model rating {rating}' + (f' ({det})' if det else '')
+        txt = (_score_line_text(row) or 'No composite score') \
+            + (f' (gates {gp})' if gp else '')
         add('rating', 3, 1 if rating in _BUYISH else -1 if rating == 'PASS' else 0, txt)
 
     mos, fv = _num(row, 'mos'), _fv(row)
@@ -320,7 +352,7 @@ def _checks(row, med):
     capped = raw is not None and row.get('rating') not in (None, raw)
     for reason in row.get('_rating_cap_reasons') or []:
         if isinstance(reason, str) and not any(d in reason for d in _CAP_DUPLICATES):
-            add('cap', 1, -1, f'{"Rating capped" if capped else "Flag"}: {reason}')
+            add('cap', 1, -1, f'{"Flag (lowers its band)" if capped else "Flag"}: {reason}')
     return out
 
 
@@ -357,7 +389,14 @@ def _invest_blockers(row, checks, conv):
     out = []
     rating, mos = row.get('rating'), _num(row, 'mos')
     if rating not in _BUYISH:
-        out.append(f'the model rates it {rating}' if rating else 'it has no model rating')
+        comp, lean = _num(row, '_composite_score'), _lines()[1]
+        if comp is None:
+            out.append('it has no composite score')
+        elif comp < lean:
+            out.append(f'its composite ({comp:.0f}) is below {lean:g}')
+        else:
+            # Rated with caps on (an older snapshot): a flag lowered the band.
+            out.append(f'a flag holds it below the {lean:g} line')
     if mos is None or mos < MIN_MOS:
         out.append('no margin of safety' if mos is None or mos <= 0
                    else f'only {_pct(mos)} below fair value')
@@ -382,13 +421,15 @@ def _headline(verdict, row, pros, cons, flags, buy_below, blockers, vc=None):
                else f'below its {_price(bull)} bull case')
         return (f'Watch: priced {_pct(-mos)} above its {_price(_fv(row))} fair value, '
                 f'but that value is low-confidence and the price is {rng}.')
-    # The rating is already on the page's header; the headline says why.
+    # The score is already on the page's header; the headline says why.
     reasons = [t for k, t in pros if k != 'rating']
     if verdict == INVEST:
         return f'Invest: {"; ".join(_lc(t) for t in reasons[:2])}.' if reasons else 'Invest.'
     rating = row.get('rating')
     if rating in _BUYISH:
-        lead = f'Watch: {rating}-rated, but {_join(blockers[:2])}'
+        line = _score_line_text(row)
+        clears = (line[0].lower() + line[1:]) if line else 'the score clears the buy line'
+        lead = f'Watch: {clears}, but {_join(blockers[:2])}'
         mos = _num(row, 'mos')
         if buy_below is not None and (mos is None or mos < MIN_MOS):
             return f'{lead}; it becomes a buy below {_price(buy_below)}.'
