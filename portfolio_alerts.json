@@ -1,18 +1,19 @@
 {
  "version": 1,
- "date": "2026-11-12",
- "prev_date": "2026-11-11",
+ "date": "2026-11-13",
+ "prev_date": "2026-11-12",
  "systemic": {
-  "n": 3883,
-  "prev_n": 3885,
-  "changed": 24,
-  "changed_share": 0.0062,
-  "missing_data": 0,
-  "missing_share": 0.0,
-  "shrink_share": 0.0005,
+  "n": 3889,
+  "prev_n": 3883,
+  "changed": 33,
+  "changed_share": 0.0085,
+  "missing_data": 6,
+  "missing_share": 0.0015,
+  "shrink_share": 0.0,
   "flood": false,
   "cause": null,
-  "message": null
+  "message": null,
+  "display": null
  },
  "portfolios": [
   {
@@ -29,9 +30,9 @@
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": -0.6506135191887786,
+    "median_mos": -0.5958715310811667,
     "median_score": 49.25,
-    "median_spread": 0.2252654318246698,
+    "median_spread": 0.22483551256687961,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -62,13 +63,13 @@
     "n": 53,
     "ratings": {
      "BUY": 11,
-     "LEAN BUY": 30,
-     "HOLD": 7,
+     "LEAN BUY": 31,
+     "HOLD": 6,
      "PASS": 5
     },
-    "median_mos": -0.2198564648715298,
-    "median_score": 50.2,
-    "median_spread": 0.25521400186222365,
+    "median_mos": -0.19595225829618607,
+    "median_score": 50.3,
+    "median_spread": 0.25471400186222365,
     "sector_weights": {
      "Technology": 0.2641509433962264,
      "Financial Services": 0.11320754716981131,
@@ -83,22 +84,10 @@
     "hhi": 0.17906728373086506,
     "concentrated": false,
     "no_sector": 0,
-    "upgrades": 0,
+    "upgrades": 1,
     "downgrades": 0
    },
    "alerts": [
-    {
-     "ticker": "AMAT",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "AMAT reports earnings on 2026-11-12"
-    },
-    {
-     "ticker": "DDS",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "DDS reports earnings on 2026-11-12"
-    },
     {
      "ticker": "HD",
      "kind": "earnings_soon",
@@ -130,19 +119,36 @@
      "message": "TGT reports earnings on 2026-11-18"
     },
     {
+     "ticker": "UL",
+     "from": "HOLD",
+     "to": "LEAN BUY",
+     "score_from": 38.1,
+     "score_to": 39.3,
+     "kind": "reversal",
+     "level": "watch",
+     "reversal_of": "2026-11-06",
+     "message": "UL moved into the buy zone: HOLD → LEAN BUY (reverses the 2026-11-06 move)",
+     "display": "UL crossed above 39 (38.1 → 39.3) (reverses the 2026-11-06 move)",
+     "why": [
+      "Composite score moved 38 → 39, crossing above the LEAN BUY (39) threshold.",
+      "Biggest category moves: Valuation 31 → 37 (+6).",
+      "Largest metric swings: MoS -8.5% → 2.4% (score 3 → 25)."
+     ]
+    },
+    {
      "ticker": "WMT",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "WMT reports earnings on 2026-11-19"
     },
     {
-     "ticker": "TDG",
+     "ticker": "BKNG",
      "kind": "buy_below",
-     "mos0": 0.2783,
-     "mos1": -0.014,
+     "mos0": 0.1572,
+     "mos1": 0.1497,
      "level": "fyi",
      "into": false,
-     "message": "TDG rose back above its buy-below price $1,008.41 (MoS -1% at $1,203.00)"
+     "message": "BKNG rose back above its buy-below price $159.52 (MoS 15% at $159.58)"
     }
    ]
   },
@@ -153,40 +159,34 @@
    "mode": "buy_line",
    "missing": [],
    "stats": {
-    "n": 134,
+    "n": 131,
     "ratings": {
-     "BUY": 134,
+     "BUY": 131,
      "LEAN BUY": 0,
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": 0.26022746738454494,
+    "median_mos": 0.26839948119298124,
     "median_score": 60.6,
-    "median_spread": 0.19395673246187317,
+    "median_spread": 0.19455843671704756,
     "sector_weights": {
-     "Technology": 0.26119402985074625,
-     "Consumer Defensive": 0.14925373134328357,
-     "Healthcare": 0.1417910447761194,
-     "Industrials": 0.17164179104477612,
-     "Consumer Cyclical": 0.17164179104477612,
-     "Communication Services": 0.05970149253731346,
-     "Basic Materials": 0.04477611940298509
+     "Technology": 0.2671755725190841,
+     "Consumer Defensive": 0.14503816793893126,
+     "Healthcare": 0.1374045801526717,
+     "Industrials": 0.17557251908396945,
+     "Consumer Cyclical": 0.1679389312977099,
+     "Communication Services": 0.061068702290076306,
+     "Basic Materials": 0.04580152671755723
     },
     "top_sector": "Technology",
-    "top_sector_weight": 0.26119402985074625,
-    "hhi": 0.17509467587435953,
+    "top_sector_weight": 0.2671755725190841,
+    "hhi": 0.17615523570887479,
     "concentrated": false,
     "no_sector": 0,
-    "upgrades": 2,
+    "upgrades": 0,
     "downgrades": 0
    },
    "alerts": [
-    {
-     "ticker": "AFYA",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "AFYA reports earnings on 2026-11-12"
-    },
     {
      "ticker": "BRBR",
      "kind": "earnings_soon",
@@ -200,17 +200,10 @@
      "message": "CPRT reports earnings on 2026-11-19"
     },
     {
-     "ticker": "CVCO",
-     "portfolio": "paper",
-     "kind": "joined",
-     "level": "watch",
-     "message": "CVCO joined Paper book (rating LEAN BUY → BUY)"
-    },
-    {
-     "ticker": "ELTP",
+     "ticker": "IESC",
      "kind": "earnings_soon",
      "level": "watch",
-     "message": "ELTP reports earnings on 2026-11-12"
+     "message": "IESC reports earnings on 2026-11-20"
     },
     {
      "ticker": "INTU",
@@ -219,10 +212,24 @@
      "message": "INTU reports earnings on 2026-11-19"
     },
     {
+     "ticker": "JBSS",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "watch",
+     "message": "JBSS left Paper book (rating BUY → LEAN BUY)",
+     "display": "JBSS left Paper book (score 57.2 → 56.9 (rule: score ≥ 57))"
+    },
+    {
      "ticker": "JJSF",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "JJSF reports earnings on 2026-11-18"
+    },
+    {
+     "ticker": "MMS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MMS reports earnings on 2026-11-20"
     },
     {
      "ticker": "NTES",
@@ -239,9 +246,10 @@
     {
      "ticker": "TPR",
      "portfolio": "paper",
-     "kind": "joined",
+     "kind": "left",
      "level": "watch",
-     "message": "TPR joined Paper book (rating LEAN BUY → BUY)"
+     "message": "TPR left Paper book (rating BUY → LEAN BUY)",
+     "display": "TPR left Paper book (score 57 → 56.9 (rule: score ≥ 57))"
     },
     {
      "ticker": "VIPS",
@@ -262,26 +270,30 @@
      "message": "ZTO reports earnings on 2026-11-17"
     },
     {
-     "ticker": "CVCO",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "kind": "same_side",
+     "ticker": "ISRG",
+     "portfolio": "paper",
+     "kind": "left",
      "level": "fyi",
-     "message": "CVCO LEAN BUY → BUY",
-     "why": [
-      "Composite score moved 56.9 → 57.0, crossing above the BUY (57) threshold."
-     ]
+     "message": "ISRG left Paper book (rating BUY → LEAN BUY)",
+     "display": "ISRG left Paper book (score 62.7 → 49.4 (rule: score ≥ 57))"
     },
     {
-     "ticker": "TPR",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "kind": "same_side",
+     "ticker": "PAYX",
+     "kind": "buy_below",
+     "mos0": 0.1574,
+     "mos1": 0.1478,
      "level": "fyi",
-     "message": "TPR LEAN BUY → BUY",
-     "why": [
-      "Composite score moved 56.9 → 57.0, crossing above the BUY (57) threshold."
-     ]
+     "into": false,
+     "message": "PAYX rose back above its buy-below price $115.38 (MoS 15% at $115.68)"
+    },
+    {
+     "ticker": "PCTY",
+     "kind": "buy_below",
+     "mos0": 0.0194,
+     "mos1": 0.1528,
+     "level": "fyi",
+     "into": true,
+     "message": "PCTY crossed below its buy-below price $178.81 (MoS 15% at $178.22); a Watch follows if it holds"
     }
    ]
   }
