@@ -5768,6 +5768,7 @@ def _write_outputs(results, run_start_date, _prov, risk_free_rate,
     macro_dash = None
     try:
         from data.fred_client import FREDClient
+        from data.fx_store import FXStore
         from data.macro_client import fetch_yahoo_closes
         from scripts.macro_dashboard import build_macro_payload, make_narrative_client
         macro_dash = build_macro_payload(FREDClient(), macro_regime_result,
@@ -5776,7 +5777,8 @@ def _write_outputs(results, run_start_date, _prov, risk_free_rate,
                                          sector_data=sector_etf_data,
                                          local_rs=local_rs,
                                          narrative_client=make_narrative_client(),
-                                         yahoo=fetch_yahoo_closes)
+                                         yahoo=fetch_yahoo_closes,
+                                         fx_store=FXStore())
         if macro_dash:
             _n = len(macro_dash['sidecar']['series'])
             _nar = ' + Claude narrative' if macro_dash['sidecar'].get('narrative') else ''

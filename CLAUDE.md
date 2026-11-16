@@ -1798,7 +1798,21 @@ by analyze_stock and gitignored):
   keyless `fredgraph.csv` endpoint)
 - `MACRO_ANTHROPIC_API_KEY` — optional; enables the Claude-generated macro
   narrative — the story on the Macro Outlook tab's Overview (skipped
-  cleanly when unset: the tab renders without it). The Overview is four
+  cleanly when unset: the tab renders without it). The Overview opens on
+  **Markets** (2026-11-16, `macro_dashboard.BOARD`, `_macBoardHTML`): a
+  quote screen of 32 rows in four panels (equities, rates, currencies,
+  commodities). Each row shows its last value at the run's close, its
+  change over 1D/1W/1M/YTD/1Y (bp for yields, % otherwise; the choice is
+  kept in `stock_mac_board_period_v1`) and a one-year spark. A row opens
+  the zoom dialog. The sources are Yahoo (indices, DXY, front futures),
+  FRED (US Treasuries, which print a day behind; the Bund, Gilt and JGB
+  rows are OECD monthlies tagged with their month, with no 1D/1W) and the
+  FX store's parquets (`fx_store=`). Rows the series cards already fetched
+  are not fetched again. A row that fails is dropped on its own, and an
+  empty board is omitted. The board rides `sidecar.board` and, without
+  each row's `hist`, `summary.board`, so it paints first. It is display
+  only, and its numbers are not handed to the narrative. Tests:
+  `tests/test_macro_board.py`. Below it are four
   cards read top down: The US Economy (the call, `bottom_line`, which names the
   regime, so no separate regime name or gloss unless there is no bottom
   line; then the regime model's inputs, Regime signals with the composite,

@@ -255,6 +255,78 @@ REGIONS = [
 # limits would flag series that are merely on schedule.
 STALE_AFTER_DAYS = {'d': 14, 'w': 28, 'm': 150, 'q': 270}
 
+# The market board that leads the Overview: a quote screen of world equities,
+# rates, currencies and commodities at the run's close. Each row: k (key),
+# l (label), src ('fred' | 'yf' | 'fx'), sym (FRED id, Yahoo symbol or ISO
+# currency), unit ('pct' moves in %; 'bp' moves in basis points of a level
+# quoted in percent), fmt (as MACRO_SERIES), invert (fx only: the store holds
+# USD per unit, so a units-per-USD quote is 1/rate), freq (default 'd'; a
+# monthly row has no change over a window shorter than a month). A row whose
+# source has nothing is left out; a board with no rows is left out.
+BOARD = [
+    {'k': 'eq', 'l': 'Equities', 'rows': [
+        dict(k='spx', l='S&P 500', src='yf', sym='^GSPC', unit='pct', fmt='int'),
+        dict(k='ndx', l='Nasdaq 100', src='yf', sym='^NDX', unit='pct', fmt='int'),
+        dict(k='rut', l='Russell 2000', src='yf', sym='^RUT', unit='pct', fmt='int'),
+        dict(k='vix', l='VIX', src='yf', sym='^VIX', unit='pct', fmt='n2'),
+        dict(k='sx5e', l='Euro Stoxx 50', src='yf', sym='^STOXX50E', unit='pct',
+             fmt='int'),
+        dict(k='ukx', l='FTSE 100', src='yf', sym='^FTSE', unit='pct', fmt='int'),
+        dict(k='nky', l='Nikkei 225', src='yf', sym='^N225', unit='pct', fmt='int'),
+        dict(k='eem', l='Emerging (EEM)', src='yf', sym='EEM', unit='pct', fmt='n2'),
+    ]},
+    {'k': 'rt', 'l': 'Rates', 'rows': [
+        dict(k='us2y', l='US 2Y', src='fred', sym='DGS2', unit='bp', fmt='pct2'),
+        dict(k='us10y', l='US 10Y', src='fred', sym='DGS10', unit='bp', fmt='pct2'),
+        dict(k='us30y', l='US 30Y', src='fred', sym='DGS30', unit='bp', fmt='pct2'),
+        dict(k='s2s10', l='2s10s', src='fred', sym='T10Y2Y', unit='bp', fmt='pct2'),
+        dict(k='real10', l='US 10Y real', src='fred', sym='DFII10', unit='bp',
+             fmt='pct2'),
+        dict(k='de10', l='Germany 10Y', src='fred', sym='IRLTLT01DEM156N',
+             unit='bp', fmt='pct2', freq='m'),
+        dict(k='uk10', l='UK 10Y', src='fred', sym='IRLTLT01GBM156N', unit='bp',
+             fmt='pct2', freq='m'),
+        dict(k='jp10', l='Japan 10Y', src='fred', sym='IRLTLT01JPM156N',
+             unit='bp', fmt='pct2', freq='m'),
+    ]},
+    {'k': 'fx', 'l': 'Currencies', 'rows': [
+        dict(k='dxy', l='US Dollar Index', src='yf', sym='DX-Y.NYB', unit='pct',
+             fmt='n2'),
+        dict(k='eur', l='EUR/USD', src='fx', sym='EUR', unit='pct', fmt='n4'),
+        dict(k='jpy', l='USD/JPY', src='fx', sym='JPY', unit='pct', fmt='n2',
+             invert=True),
+        dict(k='gbp', l='GBP/USD', src='fx', sym='GBP', unit='pct', fmt='n4'),
+        dict(k='cny', l='USD/CNY', src='fx', sym='CNY', unit='pct', fmt='n4',
+             invert=True),
+        dict(k='aud', l='AUD/USD', src='fx', sym='AUD', unit='pct', fmt='n4'),
+        dict(k='mxn', l='USD/MXN', src='fx', sym='MXN', unit='pct', fmt='n2',
+             invert=True),
+        dict(k='brl', l='USD/BRL', src='fx', sym='BRL', unit='pct', fmt='n2',
+             invert=True),
+    ]},
+    {'k': 'cm', 'l': 'Commodities', 'rows': [
+        dict(k='wti', l='WTI ($/bbl)', src='yf', sym='CL=F', unit='pct', fmt='n2'),
+        dict(k='brent', l='Brent ($/bbl)', src='yf', sym='BZ=F', unit='pct', fmt='n2'),
+        dict(k='ng', l='Nat gas ($/MMBtu)', src='yf', sym='NG=F', unit='pct', fmt='n2'),
+        dict(k='gold', l='Gold ($/oz)', src='yf', sym='GC=F', unit='pct', fmt='int'),
+        dict(k='silver', l='Silver ($/oz)', src='yf', sym='SI=F', unit='pct', fmt='n2'),
+        dict(k='copper', l='Copper ($/lb)', src='yf', sym='HG=F', unit='pct', fmt='n2'),
+        dict(k='wheat', l='Wheat (¢/bu)', src='yf', sym='ZW=F', unit='pct', fmt='n2'),
+        dict(k='corn', l='Corn (¢/bu)', src='yf', sym='ZC=F', unit='pct', fmt='n2'),
+    ]},
+]
+# Change windows: key -> calendar days back from the row's last bar ('ytd'
+# is the last bar on or before the prior 31 December; None is the previous
+# bar). A base bar further than BOARD_BASE_LOOKBACK_DAYS before its target
+# is no base at all.
+BOARD_WINDOWS = (('1d', None), ('1w', 7), ('1m', 30), ('ytd', 'ytd'),
+                 ('1y', 365))
+BOARD_BASE_LOOKBACK_DAYS = 10
+BOARD_SOURCE = {'yf': 'Yahoo Finance', 'fred': 'FRED',
+                'fx': 'Yahoo Finance, FRED H.10'}
+BOARD_HISTORY_YEARS = 5
+BOARD_SPARK_DAYS = 365
+
 # Headline tiles on the Overview sub-tab, in display order.
 OVERVIEW_IDS = ['DGS10', 'T10Y2Y', 'PCEPILFE', 'UNRATE', 'BAMLH0A0HYM2',
                 'A191RL1Q225SBEA', 'NFCI', 'DTWEXBGS']
@@ -369,7 +441,7 @@ def recession_bands(usrec_obs):
 def _round(v, fmt):
     if v is None:
         return None
-    return round(v, 0 if fmt == 'int' else 3)
+    return round(v, {'int': 0, 'n4': 5}.get(fmt, 3))
 
 
 def _window_label(dates):
@@ -478,6 +550,154 @@ def _build_curve(fred, as_of):
             'yrs': [round(CURVE_YEARS[t], 4) for t in tenors], **snaps}
 
 
+def _board_base(dates, obs, latest_d, window, freq):
+    """The base observation a window's change is measured from, or None."""
+    if window is None:
+        if freq != 'd':
+            return None
+        i = bisect_left(dates, latest_d)
+        return dates[i - 1] if i > 0 else None
+    if window == 'ytd':
+        target = date(latest_d.year - 1, 12, 31)
+    else:
+        if freq != 'd' and window < 28:
+            return None
+        target = latest_d - timedelta(days=window)
+    lookback = BOARD_BASE_LOOKBACK_DAYS if freq == 'd' else 45
+    i = bisect_left(dates, target + timedelta(days=1))
+    if i == 0:
+        return None
+    base = dates[i - 1]
+    if (target - base).days > lookback:
+        return None
+    return base
+
+
+def board_changes(obs, latest_d, unit, freq='d'):
+    """{window: change} for one board row. Pure.
+
+    'pct' rows move in percent, 'bp' rows (levels quoted in percent) in basis
+    points. A window with no base observation is None."""
+    dates = sorted(d for d in obs if d <= latest_d)
+    last = obs[latest_d]
+    out = {}
+    for key, window in BOARD_WINDOWS:
+        base = _board_base(dates, obs, latest_d, window, freq)
+        if base is None or obs.get(base) is None:
+            out[key] = None
+        elif unit == 'bp':
+            out[key] = round((last - obs[base]) * 100.0, 1)
+        elif obs[base] > 0:
+            out[key] = round((last / obs[base] - 1.0) * 100.0, 2)
+        else:
+            out[key] = None
+    return out
+
+
+def _board_spark(obs, latest_d, n=60):
+    """The trailing year as at most ``n`` evenly spaced closes, last included."""
+    cut = latest_d - timedelta(days=BOARD_SPARK_DAYS)
+    ds = [d for d in sorted(obs) if cut <= d <= latest_d]
+    if len(ds) > n:
+        step = (len(ds) - 1) / (n - 1)
+        ds = [ds[round(i * step)] for i in range(n)]
+    return ds
+
+
+def _board_row(meta, obs, as_of):
+    """One board row (series-shaped, so the zoom dialog can chart it), or None."""
+    obs = {d: v for d, v in obs.items() if d <= as_of and v is not None}
+    if len(obs) < 2:
+        return None
+    if meta.get('invert'):
+        obs = {d: 1.0 / v for d, v in obs.items() if v}
+    freq = meta.get('freq', 'd')
+    fmt = meta['fmt']
+    latest_d = max(obs)
+    dates = sorted(obs)
+    prior_d = dates[-2]
+    chg = board_changes(obs, latest_d, meta['unit'], freq)
+    hist = downsample(obs) if freq == 'd' else obs
+    hd = sorted(hist)
+    sd = _board_spark(obs, latest_d)
+    m1 = _nearest_before(obs, latest_d - timedelta(days=30))
+    y1 = _nearest_before(obs, latest_d - timedelta(days=365))
+    row = {
+        'id': 'mb_' + meta['k'], 'k': meta['k'], 'l': meta['l'], 'fmt': fmt,
+        'suffix': '', 'good': 'none', 'freq': freq, 'unit': meta['unit'],
+        'src': BOARD_SOURCE[meta['src']],
+        'latest': {'d': latest_d.isoformat(), 'v': _round(obs[latest_d], fmt)},
+        'prior': {'d': prior_d.isoformat(), 'v': _round(obs[prior_d], fmt)},
+        'chg': chg,
+        'chg_1m': _round(obs[latest_d] - obs[m1], fmt) if m1 else None,
+        'chg_1y': _round(obs[latest_d] - obs[y1], fmt) if y1 else None,
+        'spark': [_round(obs[d], fmt) for d in sd],
+        'hist': {'d': [d.isoformat() for d in hd],
+                 'v': [_round(hist[d], fmt) for d in hd]},
+    }
+    limit = STALE_AFTER_DAYS.get(freq)
+    if limit is not None and (as_of - latest_d).days > limit:
+        row['stale'] = True
+    return row
+
+
+def _fx_obs(fx_store, ccy, start):
+    """{date: USD per unit} from the FX store since ``start``, or {}."""
+    if fx_store is None:
+        return {}
+    df = fx_store.frame(ccy)
+    if df is None or 'rate' not in df:
+        return {}
+    s = df['rate'].dropna()
+    return {ts.date(): float(v) for ts, v in s.items()
+            if ts.date() >= start and v > 0}
+
+
+def _build_board(fred, yahoo, fx_store, as_of, cache=None):
+    """The Overview's market board, or None when no row has data.
+
+    ``cache`` maps a FRED id or Yahoo symbol already fetched for the series
+    cards to its raw closes, so a row the cards share costs no request. Each
+    row fails alone."""
+    cache = cache or {}
+    start = as_of - timedelta(days=int(BOARD_HISTORY_YEARS * 365.25))
+    panels = []
+    for p in BOARD:
+        rows = []
+        for meta in p['rows']:
+            try:
+                src, sym = meta['src'], meta['sym']
+                if src == 'fx':
+                    raw = _fx_obs(fx_store, sym, start)
+                elif sym in cache:
+                    raw = cache[sym]
+                elif src == 'yf':
+                    raw = yahoo(sym, start) if yahoo else {}
+                else:
+                    raw = fred.fetch_series(sym, start=start) if fred else {}
+                raw = {d: v for d, v in (raw or {}).items() if d >= start}
+                row = _board_row(meta, raw, as_of) if raw else None
+                if row:
+                    rows.append(row)
+            except Exception as e:
+                print(f"  Market board row {meta['k']} skipped ({e}).")
+        if rows:
+            panels.append({'k': p['k'], 'l': p['l'], 'rows': rows})
+    if not panels:
+        return None
+    return {'as_of': as_of.isoformat(), 'panels': panels}
+
+
+def _board_summary(board):
+    """The board without each row's long history, for the inline summary."""
+    if not board:
+        return None
+    return {'as_of': board.get('as_of'),
+            'panels': [dict(p, rows=[{k: v for k, v in r.items() if k != 'hist'}
+                                     for r in p.get('rows') or []])
+                       for p in board.get('panels') or []]}
+
+
 def _sector_facts(sector_data, local_rs):
     """Compact per-sector facts (ETF momentum + local relative strength)
     for the sidecar, keyed by GICS sector name. Pure.
@@ -525,7 +745,8 @@ def make_narrative_client():
 
 def build_macro_payload(fred, regime_result=None, macro_adj=None, as_of=None,
                         sector_data=None, local_rs=None,
-                        narrative_client=None, yahoo=None):
+                        narrative_client=None, yahoo=None,
+                        fx_store=None):
     """Fetch, transform and package everything the Macro Outlook tab needs.
 
     Returns {'summary': small-inline-dict, 'sidecar': macro.json-dict}, or
@@ -541,11 +762,16 @@ def build_macro_payload(fred, regime_result=None, macro_adj=None, as_of=None,
     data.macro_client.fetch_yahoo_closes) serves the series that carry a
     ``yf`` symbol; without it they are skipped, as a FRED series that returns
     nothing is.
+
+    ``fx_store`` (data.fx_store.FXStore) serves the market board's currency
+    rows; without it they are left out. The board's other rows reuse the
+    closes fetched for the series cards where they overlap.
     """
     as_of = as_of or date.today()
     daily_start = as_of - timedelta(days=int(DAILY_HISTORY_YEARS * 365.25))
 
     series_out = {}
+    fetched = {}
     for meta in MACRO_SERIES:
         try:
             if meta.get('years'):
@@ -563,6 +789,7 @@ def build_macro_payload(fred, regime_result=None, macro_adj=None, as_of=None,
                 raw = {d: v for d, v in raw.items() if d >= start}
             if not raw:
                 continue
+            fetched[meta.get('yf') or meta['id']] = raw
             entry = _build_series_entry(meta, raw, as_of)
             if entry:
                 series_out[meta['id']] = entry
@@ -618,6 +845,14 @@ def build_macro_payload(fred, regime_result=None, macro_adj=None, as_of=None,
         'curve': curve,
         'oas_buckets': oas_buckets,
     }
+
+    try:
+        board = _build_board(fred, yahoo, fx_store, as_of, cache=fetched)
+    except Exception as e:
+        print(f"  Market board skipped ({e}).")
+        board = None
+    if board:
+        sidecar['board'] = board
 
     sector_facts = _sector_facts(sector_data, local_rs)
     if sector_facts:
@@ -687,7 +922,8 @@ def _summary_of(sidecar):
     tiles = [_tile_of(sid, series[sid]) for sid in OVERVIEW_IDS if sid in series]
     return {'as_of': sidecar.get('as_of'), 'regime': sidecar.get('regime'),
             'tiles': tiles, 'intl': _intl_of(series),
-            'narrative': sidecar.get('narrative')}
+            'narrative': sidecar.get('narrative'),
+            'board': _board_summary(sidecar.get('board'))}
 
 
 def summary_from_sidecar(sidecar):

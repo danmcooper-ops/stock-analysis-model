@@ -340,3 +340,20 @@ def test_regime_note_matches_the_model_weights_and_cutoffs():
     for cut in ('> 0.40', '> 0.10', '> -0.10', '> -0.40'):
         assert cut in body
     assert '_MAC_REGIME_NOTE' in src.split('function _macRegimeHTML', 1)[1]
+
+
+def test_market_board_leads_the_overview():
+    """The market board (macro_dashboard.BOARD) is the Overview's first card,
+    reads the inline summary so it paints before macro.json, and its rows
+    open the same zoom dialog the section cards do."""
+    css = _css()
+    body = re.search(r'function _macOverviewHTML\(\).*?\n\}\n', css, re.S).group(0)
+    assert '_macBoardHTML()+_macRegimeHTML(true)' in body
+    board = re.search(r'function _macBoardHTML\(\).*?\n\}\n', css, re.S).group(0)
+    assert '(MACRO&&MACRO.board)||(MACRO_SUM&&MACRO_SUM.board)' in board
+    assert "if(!b||!b.panels||!b.panels.length)return '';" in board
+    assert '_macZoomAttrs(r.id,r.l)' in board and '_esc(r.l)' in board
+    zoom = re.search(r'function _macZoomDraw\(\).*?\n\}\n', css, re.S).group(0)
+    assert '||_macBoardRow(_MZ.id)' in zoom
+    assert "localStorage.setItem('stock_mac_board_period_v1'" in css
+    assert ".mb-grid{grid-template-columns:minmax(0,1fr);}" in css, 'one column on phones'
