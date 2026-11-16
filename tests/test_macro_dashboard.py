@@ -13,7 +13,7 @@ from scripts.macro_dashboard import (
     yoy, mom_diff, percentile_rank, zscore, downsample, recession_bands,
     build_macro_payload, make_narrative_client, _sector_facts,
     MACRO_SERIES, OVERVIEW_IDS, DAILY_HISTORY_YEARS, REGIONS,
-    STALE_AFTER_DAYS, MIN_SERIES_FOR_DASHBOARD,
+    STALE_AFTER_DAYS, MIN_SERIES_FOR_DASHBOARD, BOARD, BOARD_HISTORY_YEARS,
 )
 
 
@@ -186,7 +186,9 @@ def full_stub():
 def _stub_yahoo(fred):
     """Yahoo client serving each ``yf`` series from the FRED stub's table."""
     by_symbol = {m['yf']: m['id'] for m in MACRO_SERIES if m.get('yf')}
-    return lambda symbol, start: fred.fetch_series(by_symbol[symbol])
+    # A symbol only the market board asks for has no card: nothing.
+    return lambda symbol, start: (fred.fetch_series(by_symbol[symbol])
+                                  if symbol in by_symbol else {})
 
 
 class _StartRecordingFRED(StubFRED):
@@ -326,8 +328,14 @@ class TestBuildMacroPayload:
             return _stub_yahoo(fred)(symbol, start)
 
         sc = build_macro_payload(fred, as_of=as_of, yahoo=yahoo)['sidecar']
-        assert set(asked) == {'GC=F', 'SI=F', '^STOXX50E', '^FTSE', '^N225',
-                              'MCHI', 'EEM'}
+        cards = {'GC=F', 'SI=F', '^STOXX50E', '^FTSE', '^N225', 'MCHI', 'EEM'}
+        assert cards <= set(asked)
+        # The market board asks only for what the cards did not fetch, over
+        # its own shorter window.
+        board = {r['sym'] for p in BOARD for r in p['rows'] if r['src'] == 'yf'}
+        assert set(asked) == cards | board
+        assert asked['^GSPC'] == as_of - timedelta(
+            days=int(BOARD_HISTORY_YEARS * 365.25))
         assert asked['GC=F'] == as_of - timedelta(
             days=int(DAILY_HISTORY_YEARS * 365.25))
         assert {'GOLD', 'SILVER'} <= set(sc['series'])

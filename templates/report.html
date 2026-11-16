@@ -2626,6 +2626,31 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 .mac-overview>.mac-card{margin:0 0 16px;}
 .mac-overview .mac-narrative{max-width:none;padding:14px 20px;}
 .mac-cond>.sec-label,.mac-watch-card>.sec-label,.mac-intl-card>.sec-label{margin-bottom:12px;}
+/* Markets (_macBoardHTML): a quote screen at the run's close, four panels of
+   last / change / one-year spark. Colours carry !important against the
+   blanket dark text rule. */
+.mac-overview .mac-board{padding:14px 20px;}
+.mb-head{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;margin-bottom:10px;}
+.mb-head>.sec-label{margin:0;}
+.mb-per{display:flex;gap:4px;}
+.mb-asof{margin-left:auto;font-size:0.78em;color:var(--mac-muted) !important;}
+.mb-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 26px;}
+.mb-panel-t{font-size:0.8em;font-weight:700;color:var(--mac-muted) !important;margin:2px 0 3px;}
+.mb-row{display:grid;grid-template-columns:minmax(0,1fr) auto 74px 64px;align-items:center;gap:0 10px;
+  padding:4px 4px;border-top:1px solid var(--mac-line);font-size:0.86em;font-variant-numeric:tabular-nums;cursor:pointer;}
+.mb-row:hover,.mb-row:focus-visible{background:var(--mac-chip);outline:none;}
+.mb-l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.mb-d{font-size:0.82em;color:var(--mac-muted) !important;margin-left:4px;}
+.mb-v{text-align:right;font-weight:600;}
+.mb-c{text-align:right;font-weight:600;color:var(--mac-muted) !important;}
+.mb-c.up{color:var(--mac-up) !important;}.mb-c.down{color:var(--mac-down) !important;}
+.mb-sp{text-align:right;line-height:0;}
+.mb-sp .ppf-spark{margin:0;width:60px;height:18px;}
+.mb-sp.up .ppf-spark polyline{stroke:var(--mac-up);}.mb-sp.down .ppf-spark polyline{stroke:var(--mac-down);}
+.mb-sp .ppf-spark polyline{stroke:var(--mac-faint);}
+.mb-foot{margin-top:8px;font-size:0.76em;color:var(--mac-muted) !important;}
+@media(max-width:900px){.mb-grid{grid-template-columns:minmax(0,1fr);}}
+@media(max-width:420px){.mb-row{grid-template-columns:minmax(0,1fr) auto 64px 46px;gap:0 6px;}.mb-sp .ppf-spark{width:44px;}}
 /* The International Economy (_macIntlHTML): the narrative's paragraph, set
    as The US Economy's bottom line is, or, with no narrative, a grid of each
    region's readings. */
@@ -15237,6 +15262,7 @@ function _mfmt(v,fmt,suffix){
   else if(fmt==='pct2')s=v.toFixed(2)+'%';
   else if(fmt==='n1')s=v.toFixed(1);
   else if(fmt==='n2')s=v.toFixed(2);
+  else if(fmt==='n4')s=v.toFixed(4);
   else if(fmt==='int')s=Math.round(v).toLocaleString('en-US');
   else s=String(v);
   return s+(suffix||'');
@@ -15307,7 +15333,7 @@ function _macZoomDraw(){
       +'<div class="mz-foot">Now, a month ago and a year ago · drag across the chart to read a maturity</div>';
     return;
   }
-  var s=(MACRO.series||{})[_MZ.id];
+  var s=(MACRO.series||{})[_MZ.id]||_macBoardRow(_MZ.id);
   if(!s){o.innerHTML=box+'<p class="mac-note">No history for this series.</p></div>';return;}
   var d=(s.hist&&s.hist.d)||[],v=(s.hist&&s.hist.v)||[];
   var yrs={'1Y':1,'5Y':5,'10Y':10}[_MZ.rng],cut=0;
@@ -15330,12 +15356,12 @@ function _macZoomDraw(){
   var dHTML='as of '+(s.latest?s.latest.d:'?')+(s.prior?' · prior '+_mfmt(s.prior.v,s.fmt,s.suffix):'')
     +(s.stale?' · <span class="mac-stale" title="The last observation is further behind than this series\'s release schedule">not updating</span>':'');
   body.innerHTML='<div class="mz-head"><div class="mz-t">'+s.l+'</div>'
-    +'<div class="mz-v"><span class="mac-tile-v" id="'+hid+'-v">'+vHTML+'</span>'+_mdelta(s.chg_1m,s,'1M')+_mdelta(s.chg_1y,s,'1Y')+'</div></div>'
+    +'<div class="mz-v"><span class="mac-tile-v" id="'+hid+'-v">'+vHTML+'</span>'+(s.chg?_mbZoomChg(s.chg,s.unit):_mdelta(s.chg_1m,s,'1M')+_mdelta(s.chg_1y,s,'1Y'))+'</div></div>'
     +'<div class="mz-rng">'+btns+'</div>'
     +_macChartSVG(sv,hid,{w:w,h:h})
     +_mpctRow(s)
     +'<div class="mac-tile-date" id="'+hid+'-d">'+dHTML+'</div>'
-    +'<div class="mz-foot">FRED · shaded bands mark NBER recessions · drag across the chart to read a date</div>';
+    +'<div class="mz-foot">'+_esc(s.src||'FRED')+' · shaded bands mark NBER recessions · drag across the chart to read a date</div>';
   _macRegisterReadout(hid,vHTML,dHTML);
 }
 window.addEventListener('resize',function(){
@@ -15652,6 +15678,64 @@ function _macIntlHTML(){
   h+='<a class="mac-more" href="#" onclick="navGo(\'macro\',\'intl\');return false">Full charts ›</a></div>';
   return h;
 }
+/* === MARKET BOARD ===
+   Leads the Overview: world equities, rates, currencies and commodities at
+   the run's close (macro_dashboard.BOARD), each row's last value, its change
+   over the chosen period (bp for yields, % otherwise) and a one-year spark.
+   The inline summary carries it so it paints first; a row opens its history
+   in the zoom dialog once macro.json is in. Display only. */
+var _MB_WIN=[['1d','1D'],['1w','1W'],['1m','1M'],['ytd','YTD'],['1y','1Y']];
+var _MB_PER=(function(){try{var v=localStorage.getItem('stock_mac_board_period_v1');return /^(1d|1w|1m|ytd|1y)$/.test(v||'')?v:'1d';}catch(e){return '1d';}})();
+function _macBoardPer(k){_MB_PER=k;try{localStorage.setItem('stock_mac_board_period_v1',k);}catch(e){}renderMacro();}
+function _macBoardRow(id){
+  var b=MACRO&&MACRO.board,f=null;
+  if(b)(b.panels||[]).forEach(function(p){(p.rows||[]).forEach(function(r){if(r.id===id)f=r;});});
+  return f;
+}
+function _mbChg(c,unit){
+  if(c==null||isNaN(c))return '<span class="mb-c">—</span>';
+  var cls=c>0?' up':c<0?' down':'';
+  var t=unit==='bp'?(Math.abs(c)<10&&Math.round(c)!==c?c.toFixed(1):c.toFixed(0))+'bp':c.toFixed(2)+'%';
+  return '<span class="mb-c'+cls+'">'+(c>0?'+':c<0?'−':'')+t.replace('-','')+'</span>';
+}
+/* A board row in the zoom dialog: its 1M and 1Y moves in the board's own
+   units (%, bp), not the series cards' level differences. */
+function _mbZoomChg(chg,unit){
+  var h='';
+  [['1m','1M'],['1y','1Y']].forEach(function(w){
+    var c=chg[w[0]];if(c==null)return;
+    var t=unit==='bp'?(Math.round(c)!==c&&Math.abs(c)<10?c.toFixed(1):c.toFixed(0))+'bp':c.toFixed(2)+'%';
+    h+='<span class="mac-delta'+(c>0?' up':c<0?' down':'')+'" title="Change over '+w[1]+'">'+(c>0?'+':'')+t+' '+w[1]+'</span>';
+  });
+  return h;
+}
+function _macBoardHTML(){
+  var b=(MACRO&&MACRO.board)||(MACRO_SUM&&MACRO_SUM.board);
+  if(!b||!b.panels||!b.panels.length)return '';
+  var lbl={};_MB_WIN.forEach(function(w){lbl[w[0]]=w[1];});
+  var h='<div class="mac-card mac-board"><div class="mb-head"><div class="sec-label">Markets</div><div class="mb-per" role="group" aria-label="Change over">';
+  _MB_WIN.forEach(function(w){
+    h+='<button type="button" class="pp-range-btn'+(w[0]===_MB_PER?' active':'')+'" aria-pressed="'+(w[0]===_MB_PER)+'" onclick="_macBoardPer(\''+w[0]+'\')">'+w[1]+'</button>';
+  });
+  h+='</div><span class="mb-asof">Close as of '+_esc(b.as_of||'?')+'</span></div><div class="mb-grid">';
+  b.panels.forEach(function(p){
+    h+='<div class="mb-panel"><div class="mb-panel-t">'+_esc(p.l)+'</div>';
+    (p.rows||[]).forEach(function(r){
+      var c=(r.chg||{})[_MB_PER],d=r.latest?r.latest.d:'';
+      var tag=r.stale?' <span class="mb-d mac-stale" title="Last observation '+_attr(d)+'">not updating</span>'
+        :(r.freq&&r.freq!=='d'?' <span class="mb-d" title="Monthly average, last observation '+_attr(d)+'">'+(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+d.slice(5,7)-1]||_esc(d.slice(0,7)))+'</span>':'');
+      var dir=c>0?' up':c<0?' down':'';
+      h+='<div class="mb-row" title="'+_attr(r.l+' · '+lbl[_MB_PER]+' change · last '+d)+'"'+_macZoomAttrs(r.id,r.l)+'>'
+        +'<span class="mb-l">'+_esc(r.l)+tag+'</span>'
+        +'<span class="mb-v">'+_mfmt(r.latest?r.latest.v:null,r.fmt,r.suffix)+'</span>'
+        +_mbChg(c,r.unit)
+        +'<span class="mb-sp'+dir+'">'+_ppfSpark(r.spark)+'</span></div>';
+    });
+    h+='</div>';
+  });
+  h+='</div><div class="mb-foot">Rates move in basis points, everything else in percent. Sparklines span the last year. Tap a row for its full history.</div></div>';
+  return h;
+}
 function _macOverviewHTML(){
   /* Read top to bottom: the regime card above carries the bottom line, then
      the economy (each section ends in its figures and a Full charts link)
@@ -15662,7 +15746,7 @@ function _macOverviewHTML(){
      International Economy (the world it sits in), The Conditions (why),
      What to Watch (what would change the call). */
   var h='<div class="mac-overview">';
-  h+=_macRegimeHTML(true)+_macIntlHTML()+_macNarrativeHTML();
+  h+=_macBoardHTML()+_macRegimeHTML(true)+_macIntlHTML()+_macNarrativeHTML();
   if(!MACRO)h+=_macStatusNote();
   h+='</div>';
   return h;

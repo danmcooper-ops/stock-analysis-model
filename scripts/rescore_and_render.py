@@ -174,6 +174,7 @@ def _macro_payload_for_render(html_path, run_date, snap):
     local_rs = snap.get('sector_local_rs') if isinstance(snap, dict) else None
     try:
         from data.fred_client import FREDClient
+        from data.fx_store import FXStore
         from data.macro_client import fetch_yahoo_closes
         from scripts.macro_dashboard import build_macro_payload, make_narrative_client
         # No sector_etf_data here — the snapshot doesn't store ETF metrics;
@@ -182,7 +183,8 @@ def _macro_payload_for_render(html_path, run_date, snap):
         payload = build_macro_payload(FREDClient(), regime, adj, as_of=run_date,
                                       local_rs=local_rs,
                                       narrative_client=make_narrative_client(),
-                                      yahoo=fetch_yahoo_closes)
+                                      yahoo=fetch_yahoo_closes,
+                                      fx_store=FXStore())
         if payload:
             print(f"Macro dashboard: {len(payload['sidecar']['series'])} series")
             return payload
