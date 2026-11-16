@@ -281,3 +281,46 @@ def test_analyst_replays_unknown_blocks_whole():
     stream = src[src.index('function aiStream('):src.index('/* ---------- minimal markdown')]
     assert 'else blocks[ev.index]=JSON.parse(JSON.stringify(nb));' in stream
     assert "if(b.type==='thinking')return {type:'thinking',thinking:b.thinking,signature:b.signature};" in stream
+
+
+@node
+def test_earnings_date_queries_and_filters(tmp_path):
+    """The app's date filters (iOS #83): earnings>DATE, earnings=A..B and
+    earnings<30d parse into a day range; rows with no date never match."""
+    src = _src()
+    helpers = '\n'.join([_line('_cfDayStr', src), _fn('_cfDayRange', src), _line('_cfDay', src),
+                         _line('_cfDayPass', src)])
+    out = _eval(tmp_path, helpers + """
+globalThis._cfDayStr=_cfDayStr;globalThis._cfDayRange=_cfDayRange;globalThis._cfDay=_cfDay;globalThis._cfDayPass=_cfDayPass;
+_CF_FMT.earnings_next_date='date';_CF_OPTS.push({g:'Dates',k:'earnings_next_date',l:'Next Earnings (date)'});
+DATA[0].earnings_next_date='2026-11-20';DATA[1].earnings_next_date='2026-12-15T00:00:00';
+var after=_fqParse('earnings>2026-12-01'),span=_fqParse('earnings=2026-11-01..2026-11-30'),
+    soon=_fqParse('earnings<30d'),bad=_fqParse('earnings<soon');
+var r=_cfDayRange(30,new Date(2026,10,16)),back=_cfDayRange(-30,new Date(2026,10,16));
+return {after:after.conds[0],span:span.conds[0],soon:soon.conds[0],bad:bad.conds.length,
+  la:_fqLabel(after.conds[0]),ls:_fqLabel(span.conds[0]),
+  na:_fqCount(after),ns:_fqCount(span),r:r,back:back,
+  pass:[_cfDayPass('2026-11-20','2026-11-01','2026-11-30'),_cfDayPass(null,'2026-11-01',null),
+        _cfDayPass('2026-12-01T00:00:00',null,'2026-11-30')]};""")
+    assert (out['after']['from'], out['after']['to']) == ('2026-12-01', None)
+    assert (out['span']['from'], out['span']['to']) == ('2026-11-01', '2026-11-30')
+    assert out['soon']['from'] and out['soon']['to'] and out['soon']['from'] < out['soon']['to']
+    assert out['bad'] == 0
+    assert out['la'] == 'Next Earnings from 2026-12-01'
+    assert out['ls'] == 'Next Earnings 2026-11-01 to 2026-11-30'
+    # One row each side of 1 December; the third has no date.
+    assert out['na'] == 1 and out['ns'] == 1
+    assert out['r'] == ['2026-11-16', '2026-12-16'] and out['back'] == ['2026-10-17', '2026-11-16']
+    assert out['pass'] == [True, False, False]
+
+
+def test_date_filters_round_trip_through_the_panel_and_links():
+    """A date row is read, restored, linked and kept out of portfolio rules."""
+    src = _src()
+    assert "['earnings_next_date','Next Earnings']" in src
+    assert "if(cf.date){if(!_cfDayPass(d[cf.key],cf.from,cf.to))return false;continue;}" in _fn('applyFilters', src)
+    assert "cf.push({key:key,from:fr||null,to:to||null})" in _fn('_getCurrentFilterState', src)
+    assert ".cfr-from').value=c.from" in _fn('_applyFilterState', src)
+    assert "[c.key,null,null,null,c.from,c.to]" in _fn('_stateToParam', src)
+    assert "if('from' in c){dated=true;return;}" in _fn('_pfRuleFromFilters', src)
+    assert "fmt==='date'" in _fn('aiApplyFilter', src)

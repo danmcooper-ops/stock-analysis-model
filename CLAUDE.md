@@ -1210,7 +1210,13 @@ ruff check .
     applied as the Filters panel's own state (`_fqApply`, replacing what
     was set; a drill off a stock table), with Save as portfolio beside it;
     percent columns take percents, dollar columns k/m/b/t, and the table's
-    own search ignores those terms. The list also finds Pages (every
+    own search ignores those terms. Next Earnings is a date column
+    (`_CF_DATE`, listed first under Dates, as in the iOS app): its filter row
+    is a From – To day range with Next 7/30/90 and Past 30 days presets
+    (counted from today; a new row starts on the next 30 days), and queries
+    take `earnings>2026-12-01`, `earnings=2026-11-01..2026-11-30` or
+    `earnings<30d`. A day range is relative to when it was set, so Save as
+    portfolio leaves it out of the rule. The list also finds Pages (every
     `_navGroups` tab) and Terms (Filters-panel columns with a `TT`
     definition, opened as a card), shows a stock's rating and MoS, and,
     focused and empty, the last 8 picks (`stock_search_recent_v1`). The
