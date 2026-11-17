@@ -1,14 +1,14 @@
 {
  "version": 1,
- "date": "2026-11-13",
- "prev_date": "2026-11-12",
+ "date": "2026-11-16",
+ "prev_date": "2026-11-13",
  "systemic": {
   "n": 3889,
-  "prev_n": 3883,
-  "changed": 33,
-  "changed_share": 0.0085,
-  "missing_data": 6,
-  "missing_share": 0.0015,
+  "prev_n": 3889,
+  "changed": 32,
+  "changed_share": 0.0082,
+  "missing_data": 0,
+  "missing_share": 0.0,
   "shrink_share": 0.0,
   "flood": false,
   "cause": null,
@@ -30,9 +30,9 @@
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": -0.5958715310811667,
-    "median_score": 49.25,
-    "median_spread": 0.22483551256687961,
+    "median_mos": -0.6107953781709413,
+    "median_score": 49.45,
+    "median_spread": 0.22207047707734912,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -62,14 +62,14 @@
    "stats": {
     "n": 53,
     "ratings": {
-     "BUY": 11,
-     "LEAN BUY": 31,
-     "HOLD": 6,
+     "BUY": 12,
+     "LEAN BUY": 29,
+     "HOLD": 7,
      "PASS": 5
     },
-    "median_mos": -0.19595225829618607,
-    "median_score": 50.3,
-    "median_spread": 0.25471400186222365,
+    "median_mos": -0.20145784569987163,
+    "median_score": 50.0,
+    "median_spread": 0.2520740912678353,
     "sector_weights": {
      "Technology": 0.2641509433962264,
      "Financial Services": 0.11320754716981131,
@@ -85,7 +85,7 @@
     "concentrated": false,
     "no_sector": 0,
     "upgrades": 1,
-    "downgrades": 0
+    "downgrades": 1
    },
    "alerts": [
     {
@@ -120,19 +120,18 @@
     },
     {
      "ticker": "UL",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "score_from": 38.1,
-     "score_to": 39.3,
+     "from": "LEAN BUY",
+     "to": "HOLD",
+     "score_from": 39.3,
+     "score_to": 38.7,
      "kind": "reversal",
      "level": "watch",
-     "reversal_of": "2026-11-06",
-     "message": "UL moved into the buy zone: HOLD → LEAN BUY (reverses the 2026-11-06 move)",
-     "display": "UL crossed above 39 (38.1 → 39.3) (reverses the 2026-11-06 move)",
+     "reversal_of": "2026-11-13",
+     "message": "UL fell out of the buy zone: LEAN BUY → HOLD (reverses the 2026-11-13 move)",
+     "display": "UL fell below 39 (39.3 → 38.7) (reverses the 2026-11-13 move)",
      "why": [
-      "Composite score moved 38 → 39, crossing above the LEAN BUY (39) threshold.",
-      "Biggest category moves: Valuation 31 → 37 (+6).",
-      "Largest metric swings: MoS -8.5% → 2.4% (score 3 → 25)."
+      "Composite score moved 39.3 → 38.7, crossing below the LEAN BUY (39) threshold.",
+      "Biggest category moves: Valuation 37 → 34 (-3)."
      ]
     },
     {
@@ -142,13 +141,18 @@
      "message": "WMT reports earnings on 2026-11-19"
     },
     {
-     "ticker": "BKNG",
-     "kind": "buy_below",
-     "mos0": 0.1572,
-     "mos1": 0.1497,
+     "ticker": "KLAC",
+     "from": "LEAN BUY",
+     "to": "BUY",
+     "score_from": 56.8,
+     "score_to": 57.1,
+     "kind": "same_side",
      "level": "fyi",
-     "into": false,
-     "message": "BKNG rose back above its buy-below price $159.52 (MoS 15% at $159.58)"
+     "message": "KLAC LEAN BUY → BUY",
+     "display": "KLAC crossed above 57 (56.8 → 57.1)",
+     "why": [
+      "Composite score moved 56.8 → 57.1, crossing above the BUY (57) threshold."
+     ]
     }
    ]
   },
@@ -159,31 +163,31 @@
    "mode": "buy_line",
    "missing": [],
    "stats": {
-    "n": 131,
+    "n": 132,
     "ratings": {
-     "BUY": 131,
+     "BUY": 132,
      "LEAN BUY": 0,
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": 0.26839948119298124,
+    "median_mos": 0.24789990340558657,
     "median_score": 60.6,
-    "median_spread": 0.19455843671704756,
+    "median_spread": 0.19352837878029855,
     "sector_weights": {
-     "Technology": 0.2671755725190841,
-     "Consumer Defensive": 0.14503816793893126,
-     "Healthcare": 0.1374045801526717,
-     "Industrials": 0.17557251908396945,
-     "Consumer Cyclical": 0.1679389312977099,
-     "Communication Services": 0.061068702290076306,
-     "Basic Materials": 0.04580152671755723
+     "Technology": 0.2727272727272727,
+     "Consumer Defensive": 0.13636363636363638,
+     "Healthcare": 0.14393939393939395,
+     "Industrials": 0.17424242424242423,
+     "Consumer Cyclical": 0.16666666666666666,
+     "Communication Services": 0.06060606060606064,
+     "Basic Materials": 0.045454545454545484
     },
     "top_sector": "Technology",
-    "top_sector_weight": 0.2671755725190841,
-    "hhi": 0.17615523570887479,
+    "top_sector_weight": 0.2727272727272727,
+    "hhi": 0.17757116620752983,
     "concentrated": false,
     "no_sector": 0,
-    "upgrades": 0,
+    "upgrades": 1,
     "downgrades": 0
    },
    "alerts": [
@@ -212,24 +216,32 @@
      "message": "INTU reports earnings on 2026-11-19"
     },
     {
-     "ticker": "JBSS",
-     "portfolio": "paper",
-     "kind": "left",
-     "level": "watch",
-     "message": "JBSS left Paper book (rating BUY → LEAN BUY)",
-     "display": "JBSS left Paper book (score 57.2 → 56.9 (rule: score ≥ 57))"
-    },
-    {
      "ticker": "JJSF",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "JJSF reports earnings on 2026-11-18"
     },
     {
+     "ticker": "KLAC",
+     "portfolio": "paper",
+     "kind": "joined",
+     "level": "watch",
+     "message": "KLAC joined Paper book (rating LEAN BUY → BUY)",
+     "display": "KLAC joined Paper book (score 56.8 → 57.1 (rule: score ≥ 57))"
+    },
+    {
      "ticker": "MMS",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "MMS reports earnings on 2026-11-20"
+    },
+    {
+     "ticker": "MZTI",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "watch",
+     "message": "MZTI left Paper book (rating BUY → LEAN BUY)",
+     "display": "MZTI left Paper book (score 57 → 56.9 (rule: score ≥ 57))"
     },
     {
      "ticker": "NTES",
@@ -242,20 +254,6 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "ROST reports earnings on 2026-11-19"
-    },
-    {
-     "ticker": "TPR",
-     "portfolio": "paper",
-     "kind": "left",
-     "level": "watch",
-     "message": "TPR left Paper book (rating BUY → LEAN BUY)",
-     "display": "TPR left Paper book (score 57 → 56.9 (rule: score ≥ 57))"
-    },
-    {
-     "ticker": "VIPS",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "VIPS reports earnings on 2026-11-19"
     },
     {
      "ticker": "YALA",
@@ -271,29 +269,45 @@
     },
     {
      "ticker": "ISRG",
-     "portfolio": "paper",
-     "kind": "left",
+     "kind": "data_gap",
      "level": "fyi",
-     "message": "ISRG left Paper book (rating BUY → LEAN BUY)",
-     "display": "ISRG left Paper book (score 62.7 → 49.4 (rule: score ≥ 57))"
+     "from": "LEAN BUY",
+     "to": "BUY",
+     "score_from": 49.4,
+     "score_to": 62.7,
+     "message": "ISRG LEAN BUY → BUY, but the prior run's row is missing its price or identity (likely a data outage), so this is not a signal",
+     "display": "ISRG crossed above 57 (49.4 → 62.7), but the prior run's row is missing its price or identity (likely a data outage), so this is not a signal"
     },
     {
-     "ticker": "PAYX",
-     "kind": "buy_below",
-     "mos0": 0.1574,
-     "mos1": 0.1478,
+     "ticker": "ISRG",
+     "portfolio": "paper",
+     "kind": "joined",
      "level": "fyi",
-     "into": false,
-     "message": "PAYX rose back above its buy-below price $115.38 (MoS 15% at $115.68)"
+     "message": "ISRG joined Paper book (rating LEAN BUY → BUY)",
+     "display": "ISRG joined Paper book (score 49.4 → 62.7 (rule: score ≥ 57))"
+    },
+    {
+     "ticker": "KLAC",
+     "from": "LEAN BUY",
+     "to": "BUY",
+     "score_from": 56.8,
+     "score_to": 57.1,
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "KLAC LEAN BUY → BUY",
+     "display": "KLAC crossed above 57 (56.8 → 57.1)",
+     "why": [
+      "Composite score moved 56.8 → 57.1, crossing above the BUY (57) threshold."
+     ]
     },
     {
      "ticker": "PCTY",
      "kind": "buy_below",
-     "mos0": 0.0194,
-     "mos1": 0.1528,
+     "mos0": 0.1528,
+     "mos1": 0.0761,
      "level": "fyi",
-     "into": true,
-     "message": "PCTY crossed below its buy-below price $178.81 (MoS 15% at $178.22); a Watch follows if it holds"
+     "into": false,
+     "message": "PCTY rose back above its buy-below price $169.70 (MoS 8% at $184.46)"
     }
    ]
   }
