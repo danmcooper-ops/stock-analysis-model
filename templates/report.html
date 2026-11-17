@@ -459,6 +459,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .col-unit{font-size:0.78em;color:#888;min-width:8px;}
 #dash-filt-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;margin:0 0 8px;border:1px solid var(--border,#d0d7de);border-radius:8px;}
 .dash-filt-l{font-weight:600;font-size:0.9em;}
+/* A date row: the column and its × on the first line, the From – To pair
+   and the presets on a full-width line under it. */
+.col-filter-row:has(.cfr-date:not([style*="none"])){flex-wrap:wrap;}
+.col-filter-row:has(.cfr-date:not([style*="none"])) .cfr-remove{order:1;margin-left:auto;}
+.cfr-date{display:flex;flex-wrap:wrap;align-items:center;gap:4px;flex:1 1 100%;order:2;min-width:0;}
+.cfr-date input[type="date"]{min-width:0;flex:1 1 0;width:auto;}
+.cfr-pre{display:flex;flex-wrap:wrap;gap:4px;width:100%;}
 .cfr-remove{border:none;background:none;cursor:pointer;color:#ccc;font-size:1em;padding:0 3px;line-height:1;flex-shrink:0;}
 .cfr-remove:hover{color:#de2d26;}
 .add-filter-btn{align-self:flex-start;padding:5px 12px;font-size:0.85em;border:1px dashed #b0b8c8;border-radius:5px;background:transparent;cursor:pointer;color:#667;white-space:nowrap;}
@@ -5076,7 +5083,11 @@ function pfNewWithTicker(){var tk=_pfDetTk();pfNewDialog({tickers:tk?[tk]:[]});}
 function _pfRuleFromFilters(){
   var st=_getCurrentFilterState();
   var r={ratings:st.ratings||null,sectors:st.sectors||null,countries:st.countries||null,cf:[]};
+  var dated=false;
   (st.colFilters||[]).forEach(function(c){
+    /* A day range would freeze today's dates into a standing rule (and
+       portfolio_groups.rule_matches has no date clause), so it is left out. */
+    if('from' in c){dated=true;return;}
     if(c.txt!=null){r.cf.push({key:c.key,txt:String(c.txt).toUpperCase()});return;}
     var pct=_CF_FMT[c.key]==='pct';
     function conv(x){return x==null?null:(pct?Math.round(x*1e6)/1e8:x);}
@@ -5088,6 +5099,7 @@ function _pfRuleFromFilters(){
   if(st.blueChipOnly)ignored.push('Blue Chip');if(st.r2000Only)ignored.push('Russell 2000');
   if(st.revFilter)ignored.push('Reviewed');if(st.rcFilter)ignored.push('Upgrades/Downgrades');
   if(st.dashFilter)ignored.push('dashboard drill-down');if(_pfSel.length)ignored.push('Portfolios');
+  if(dated)ignored.push('date ranges');
   var empty=r.ratings==null&&r.sectors==null&&r.countries==null&&!r.cf.length;
   return{rule:empty?null:r,ignored:ignored};
 }
@@ -6903,6 +6915,11 @@ function _getCurrentFilterState(){
       if(t)cf.push({key:key,txt:t});
       return;
     }
+    if((window._CF_FMT&&_CF_FMT[key])==='date'){
+      var fr=row.querySelector('.cfr-from').value,to=row.querySelector('.cfr-to').value;
+      if(fr||to)cf.push({key:key,from:fr||null,to:to||null});
+      return;
+    }
     var minR=row.querySelector('.cfr-min').value,maxR=row.querySelector('.cfr-max').value;
     if(minR===''&&maxR==='')return;
     cf.push({key:key,min:minR!==''?parseFloat(minR):null,max:maxR!==''?parseFloat(maxR):null});
@@ -6949,6 +6966,8 @@ function _applyFilterState(st){
       if(c.txt!=null)row.querySelector('.cfr-text').value=c.txt;
       if(c.min!=null)row.querySelector('.cfr-min').value=c.min;
       if(c.max!=null)row.querySelector('.cfr-max').value=c.max;
+      if(c.from!=null)row.querySelector('.cfr-from').value=c.from;
+      if(c.to!=null)row.querySelector('.cfr-to').value=c.to;
     });
   }
   _flagOnly=!!st.flagOnly;document.getElementById('f-flagged').classList.toggle('active',_flagOnly);
@@ -7071,7 +7090,7 @@ function _stateToParam(){
   if(st.ratings)p.r=st.ratings;
   if(st.sectors)p.s=st.sectors;
   if(st.countries)p.c=st.countries;
-  if(st.colFilters&&st.colFilters.length)p.cf=st.colFilters.map(function(c){return c.txt!=null?[c.key,null,null,c.txt]:[c.key,c.min,c.max];});
+  if(st.colFilters&&st.colFilters.length)p.cf=st.colFilters.map(function(c){return 'from' in c?[c.key,null,null,null,c.from,c.to]:c.txt!=null?[c.key,null,null,c.txt]:[c.key,c.min,c.max];});
   if(st.flagOnly)p.fl=1;
   if(st.founderOnly)p.fo=1;
   if(st.blueChipOnly)p.bc=1;
@@ -7126,6 +7145,7 @@ function _restoreFromHash(){
     st.colFilters=(p.cf||[]).filter(function(c){
       return c&&c[0]&&window._CF_FMT&&(c[0]in window._CF_FMT);
     }).map(function(c){
+      if(c[4]!=null||c[5]!=null)return{key:c[0],from:c[4]!=null?String(c[4]):null,to:c[5]!=null?String(c[5]):null};
       if(c[3]!=null)return{key:c[0],txt:String(c[3])};
       return{key:c[0],min:c[1]!=null?c[1]:null,max:c[2]!=null?c[2]:null};
     });
@@ -7622,6 +7642,11 @@ function applyFilters(){
       if(t)colFilters.push({key:key,txt:t.toUpperCase()});
       return;
     }
+    if((_CF_FMT[key]||'')==='date'){
+      var fr=row.querySelector('.cfr-from').value,to=row.querySelector('.cfr-to').value;
+      if(fr||to)colFilters.push({key:key,date:1,from:fr||null,to:to||null});
+      return;
+    }
     var minR=row.querySelector('.cfr-min').value;
     var maxR=row.querySelector('.cfr-max').value;
     var cMin=minR!==''?parseFloat(minR):null;
@@ -7661,6 +7686,8 @@ function applyFilters(){
         if(String(d[cf.key]==null?'':d[cf.key]).toUpperCase().indexOf(cf.txt)<0)return false;
         continue;
       }
+      /* Date filters: a day range; rows with no date never match. */
+      if(cf.date){if(!_cfDayPass(d[cf.key],cf.from,cf.to))return false;continue;}
       /* Use _num() so the filter's notion of N/A matches every other
          display in the report — null, undefined, NaN, Infinity, and any
          non-numeric string all canonicalize to null and drop the row.
@@ -8153,6 +8180,25 @@ document.addEventListener('click',function(e){
 });
 var _cfRowId=0;
 var _cfOptHtml='';
+/* Date filters (Next Earnings): "yyyy-mm-dd" days in the reader's own
+   calendar, compared as strings with the row's date. Presets count from
+   today, as the app's do. */
+var _CF_DATE=[['earnings_next_date','Next Earnings']];
+var _CF_DATE_PRESETS=[[7,'Next 7 days'],[30,'Next 30 days'],[90,'Next 90 days'],[-30,'Past 30 days']];
+function _cfDayStr(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+/* Today through `days` days out (negative: that many days back). */
+function _cfDayRange(days,today){
+  var t=today||new Date(),o=new Date(t.getFullYear(),t.getMonth(),t.getDate()+days),a=_cfDayStr(t),b=_cfDayStr(o);
+  return days>=0?[a,b]:[b,a];
+}
+function _cfDatePreset(btn,days){
+  var row=btn.closest('.col-filter-row'),r=_cfDayRange(days);
+  row.querySelector('.cfr-from').value=r[0];row.querySelector('.cfr-to').value=r[1];
+  applyFilters();
+}
+/* A row's day, or '' when it has none. */
+function _cfDay(v){return v==null?'':String(v).slice(0,10);}
+function _cfDayPass(v,from,to){var d=_cfDay(v);return !!d&&!(from&&d<from)&&!(to&&d>to);}
 function addColFilter(){
   var id=++_cfRowId;
   var wrap=document.getElementById('col-filters');
@@ -8168,6 +8214,9 @@ function addColFilter(){
     +'<span class="score-sep cfr-sep">\u2013</span>'
     +'<input type="number" class="f-num cfr-max" placeholder="Max" oninput="applyFilters()">'
     +'<input type="text" class="f-num cfr-text" placeholder="Contains\u2026" style="display:none" oninput="applyFilters()">'
+    +'<span class="cfr-date" style="display:none"><input type="date" class="f-num cfr-from" aria-label="From" oninput="applyFilters()">'
+    +'<span class="score-sep">\u2013</span><input type="date" class="f-num cfr-to" aria-label="To" oninput="applyFilters()">'
+    +'<span class="cfr-pre">'+_CF_DATE_PRESETS.map(function(p){return '<button type="button" class="pp-range-btn" onclick="_cfDatePreset(this,'+p[0]+')">'+p[1]+'</button>';}).join('')+'</span></span>'
     +'<span class="col-unit cfr-unit"></span>'
     +'<button class="cfr-remove" onclick="removeColFilter(this)" title="Remove">\u00d7</button>';
   wrap.appendChild(row);
@@ -8239,11 +8288,12 @@ function _cfPut(key,min,max,txt){
    dropdown onchange and by _applyFilterState when rebuilding rows. */
 function _cfSyncRowMode(row,key){
   var fmt=_CF_FMT[key]||'';
-  var isText=fmt==='text';
-  row.querySelector('.cfr-min').style.display=isText?'none':'';
-  row.querySelector('.cfr-max').style.display=isText?'none':'';
-  row.querySelector('.cfr-sep').style.display=isText?'none':'';
+  var isText=fmt==='text',isDate=fmt==='date',isNum=!isText&&!isDate;
+  row.querySelector('.cfr-min').style.display=isNum?'':'none';
+  row.querySelector('.cfr-max').style.display=isNum?'':'none';
+  row.querySelector('.cfr-sep').style.display=isNum?'':'none';
   row.querySelector('.cfr-text').style.display=isText?'':'none';
+  row.querySelector('.cfr-date').style.display=isDate?'':'none';
   row.querySelector('.cfr-unit').textContent=fmt==='pct'?'%':(fmt==='dollar'||fmt==='ds')?'$':'';
   _cfselSyncLabel(row);
 }
@@ -8252,7 +8302,11 @@ function onColRowChange(sel){
   row.querySelector('.cfr-min').value='';
   row.querySelector('.cfr-max').value='';
   row.querySelector('.cfr-text').value='';
+  row.querySelector('.cfr-from').value='';
+  row.querySelector('.cfr-to').value='';
   _cfSyncRowMode(row,sel.value);
+  /* A date column starts on the next 30 days, as the app's does. */
+  if((_CF_FMT[sel.value]||'')==='date'){var r=_cfDayRange(30);row.querySelector('.cfr-from').value=r[0];row.querySelector('.cfr-to').value=r[1];}
   applyFilters();
 }
 
@@ -14567,7 +14621,8 @@ function _qrTop(list,n){
 var _FQ_ALIAS={pe:'pe',peratio:'pe',mcap:'mcap',marketcap:'mcap',cap:'mcap',score:'_composite_score',composite:'_composite_score',
   yield:'div_yield',dy:'div_yield',divyield:'div_yield',dividend:'div_yield',ev:'ev_ebitda',evebitda:'ev_ebitda',
   margin:'mos',marginofsafety:'mos',upside:'mos',price:'price',roic:'roic',roe:'roe',spread:'spread',wacc:'wacc',
-  pb:'pb',pfcf:'pfcf',beta:'beta_adjusted',debt:'nd_ebitda',leverage:'nd_ebitda'};
+  pb:'pb',pfcf:'pfcf',beta:'beta_adjusted',debt:'nd_ebitda',leverage:'nd_ebitda',
+  earnings:'earnings_next_date',nextearnings:'earnings_next_date',earningsdate:'earnings_next_date'};
 var _FQ_MS={rating:'ms-rating',ratings:'ms-rating',sector:'ms-sector',sectors:'ms-sector',country:'ms-country',countries:'ms-country'};
 var _FQ_MS_FIELD={'ms-rating':'rating','ms-sector':'sector','ms-country':'country'};
 var _FQ_RATINGS=['BUY','LEAN BUY','HOLD','PASS'];
@@ -14637,6 +14692,15 @@ function _fqParse(raw){
       if(ft==='text'){
         if(op!=='='&&op!==':')return;
         c.txt=val;
+      }else if(ft==='date'){
+        /* earnings>2026-12-01, earnings=2026-11-01..2026-11-30, or
+           earnings<30d (today through 30 days out), as in the app. */
+        var dr=(op==='='||op===':')&&val.match(/^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$/),dd=val.match(/^(\d{1,4})d$/i);
+        if(c.from===undefined){c.from=null;c.to=null;}
+        if(dr){c.from=dr[1]<dr[2]?dr[1]:dr[2];c.to=dr[1]<dr[2]?dr[2]:dr[1];}
+        else if(dd){var nr=_cfDayRange(+dd[1]);if(op[0]==='<'){c.from=nr[0];c.to=nr[1];}else if(op[0]==='>'){c.from=nr[1];c.to=null;}else return;}
+        else if(/^\d{4}-\d{2}-\d{2}$/.test(val)){if(op[0]==='>')c.from=val;else if(op[0]==='<')c.to=val;else{c.from=val;c.to=val;}}
+        else return;
       }else{
         var rg=(op==='='||op===':')&&val.match(/^(.+?)(?:\.\.|(?!^)-)(.+)$/),a,b;
         if(rg){a=_fqNum(rg[1],ft);b=_fqNum(rg[2],ft);if(a==null||b==null)return;c.min=Math.min(a,b);c.max=Math.max(a,b);}
@@ -14663,6 +14727,10 @@ function _fqLabel(c){
   if(c.ms==='ms-rating')return bandsAsRange(c.vals)||('Score '+c.vals.map(bandLabel).join(', '));
   if(c.ms)return c.l+': '+c.vals.join(', ');
   if(c.txt!=null)return c.l+' contains “'+c.txt+'”';
+  if(c.from!==undefined){
+    if(c.from&&c.to)return c.from===c.to?c.l+' on '+c.from:c.l+' '+c.from+' to '+c.to;
+    return c.l+(c.from?' from '+c.from:' up to '+c.to);
+  }
   if(c.min!=null&&c.max!=null)return c.min===c.max?c.l+' = '+_fqFmtVal(c,c.min):c.l+' '+_fqFmtVal(c,c.min)+'–'+_fqFmtVal(c,c.max);
   return c.l+(c.min!=null?' ≥ '+_fqFmtVal(c,c.min):' ≤ '+_fqFmtVal(c,c.max));
 }
@@ -14673,6 +14741,7 @@ function _fqMatch(fq,d){
     var c=fq.conds[i];
     if(c.ms){if(c.vals.indexOf(d[_FQ_MS_FIELD[c.ms]])<0)return false;continue;}
     if(c.txt!=null){if(String(d[c.k]==null?'':d[c.k]).toUpperCase().indexOf(c.txt.toUpperCase())<0)return false;continue;}
+    if(c.from!==undefined){if(!_cfDayPass(d[c.k],c.from,c.to))return false;continue;}
     var v=_num(d[c.k]);if(v==null)return false;
     if(('_gate_'+c.k) in d&&_num(d['_gate_'+c.k])==null)return false;
     var cv=c.fmt==='pct'?v*100:v;
@@ -14697,7 +14766,7 @@ function _fqApply(fq){
   var st={search:fq.text||'',colFilters:[]};
   fq.conds.forEach(function(c){
     if(c.ms)st[{'ms-rating':'ratings','ms-sector':'sectors','ms-country':'countries'}[c.ms]]=c.vals.slice();
-    else st.colFilters.push(c.txt!=null?{key:c.k,txt:c.txt}:{key:c.k,min:c.min,max:c.max});
+    else st.colFilters.push(c.from!==undefined?{key:c.k,from:c.from,to:c.to}:c.txt!=null?{key:c.k,txt:c.txt}:{key:c.k,min:c.min,max:c.max});
   });
   _applyFilterState(st);
   if(!onTable){
@@ -19667,6 +19736,12 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   _CF_TEXT.forEach(function(p){_CF_FMT[p[0]]='text';txtHtml+='<option value="'+p[0]+'">'+p[1]+' (text)</option>';
     if(!_cfSeen[p[0]]){_cfSeen[p[0]]=1;_CF_OPTS.push({g:'Text',k:p[0],l:p[1]+' (text)'});}});
   optHtml+='<optgroup label="Text">'+txtHtml+'</optgroup>';
+  /* Day-range filters on date fields (a from/to pair and presets), listed
+     first as the iOS app's Filters panel lists Dates first. */
+  var dtHtml='';
+  _CF_DATE.forEach(function(p){_CF_FMT[p[0]]='date';dtHtml+='<option value="'+p[0]+'">'+p[1]+' (date)</option>';
+    if(!_cfSeen[p[0]]){_cfSeen[p[0]]=1;_CF_OPTS.unshift({g:'Dates',k:p[0],l:p[1]+' (date)'});}});
+  optHtml=optHtml.replace('</option>','</option><optgroup label="Dates">'+dtHtml+'</optgroup>');
   _cfOptHtml=optHtml;
   addColFilter(); // seed one empty row
   _filtCountSync();
@@ -20379,6 +20454,14 @@ function aiApplyFilter(inp){
     if(!fld||fld.ms){skipped.push(f.field+' (not a filter column; use ratings/sectors/countries for those)');return;}
     var fmt=_CF_FMT[fld.k]||'',c={k:fld.k,l:fld.l,fmt:fmt,min:null,max:null,txt:null};
     if(fmt==='text'){if(f.value==null){skipped.push(f.field);return;}c.txt=String(f.value);}
+    else if(fmt==='date'){
+      /* Date fields take yyyy-mm-dd (as the app's analyst does). */
+      var dv=String(f.value==null?'':f.value).slice(0,10);
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(dv)||!AI_OPS[f.op]){skipped.push(f.field+' '+f.op+' (dates take yyyy-mm-dd)');return;}
+      c.from=null;c.to=null;
+      if(f.op[0]==='g'||f.op==='eq')c.from=dv;
+      if(f.op[0]==='l'||f.op==='eq')c.to=dv;
+    }
     else{
       var v=_num(f.value);if(v==null||!AI_OPS[f.op]){skipped.push(f.field+' '+f.op);return;}
       /* Tools speak decimals (0.15); the panel's percent columns take 15. */
@@ -20407,7 +20490,7 @@ var AI_TOOLS=[
   {name:'get_stock',description:'Fetch the complete analysis record for one ticker: price, composite score, DCF/EPV/RIM/NAV fair values, margin of safety, quality ratios, and all sector-specific enrichment fields.',input_schema:{type:'object',properties:{ticker:{type:'string',description:'Ticker symbol, e.g. AAPL'}},required:['ticker']}},
   {name:'screen_stocks',description:'Filter, sort, and rank the full stock universe in this report. Ratio fields are decimals (0.15 = 15%). Rank and filter on _composite_score (bands: 57+, 39–56, 25–38, below 25). Returns total match count plus the top rows. Call this whenever the user asks for lists, rankings, or "which stocks..." questions.',input_schema:{type:'object',properties:{filters:{type:'array',description:'ALL conditions must hold (AND)',items:{type:'object',properties:{field:{type:'string'},op:{type:'string',enum:['eq','ne','gt','gte','lt','lte','contains','in','notnull','isnull']},value:{description:'Comparison value; array for op=in; omit for notnull/isnull'}},required:['field','op']}},sort_by:{type:'string'},sort_dir:{type:'string',enum:['asc','desc'],description:'default desc'},limit:{type:'integer',description:'rows to return, default 25, max 200'},fields:{type:'array',items:{type:'string'},description:'fields to include per row (ticker always included)'}},required:[]}},
   {name:'aggregate_stocks',description:'Group stocks by a field (e.g. sector, industry, country) and compute count plus mean/median/min/max of numeric metrics per group. Optional filters applied first. Call this for sector-level or distribution questions.',input_schema:{type:'object',properties:{group_by:{type:'string',description:'default sector'},metrics:{type:'array',items:{type:'string'},description:'numeric fields, max 6, default [_composite_score]'},filters:{type:'array',items:{type:'object',properties:{field:{type:'string'},op:{type:'string'},value:{}},required:['field','op']}}},required:[]}},
-  {name:'apply_filter',description:'Show a screen to the reader: replaces the report\'s filters and opens the Stocks table filtered to it, where the reader can refine it or save it as a portfolio. Use it when the reader asks to see, show, filter or list stocks on the page (after screen_stocks if you need to check the result first). Filters use the same field names and decimal convention as screen_stocks (0.15 = 15%); ops gt/gte/lt/lte/eq for numbers (bounds are inclusive), eq for text fields such as industry. Returns the match count.',input_schema:{type:'object',properties:{filters:{type:'array',items:{type:'object',properties:{field:{type:'string'},op:{type:'string',enum:['gt','gte','lt','lte','eq']},value:{}},required:['field','op','value']}},ratings:{type:'array',items:{type:'string',enum:['BUY','LEAN BUY','HOLD','PASS']}},sectors:{type:'array',items:{type:'string'}},countries:{type:'array',items:{type:'string'}},search:{type:'string',description:'free-text search over ticker, name, industry and description'}},required:[]}},
+  {name:'apply_filter',description:'Show a screen to the reader: replaces the report\'s filters and opens the Stocks table filtered to it, where the reader can refine it or save it as a portfolio. Use it when the reader asks to see, show, filter or list stocks on the page (after screen_stocks if you need to check the result first). Filters use the same field names and decimal convention as screen_stocks (0.15 = 15%); ops gt/gte/lt/lte/eq for numbers (bounds are inclusive), eq for text fields such as industry; earnings_next_date takes yyyy-mm-dd with the same ops. Returns the match count.',input_schema:{type:'object',properties:{filters:{type:'array',items:{type:'object',properties:{field:{type:'string'},op:{type:'string',enum:['gt','gte','lt','lte','eq']},value:{}},required:['field','op','value']}},ratings:{type:'array',items:{type:'string',enum:['BUY','LEAN BUY','HOLD','PASS']}},sectors:{type:'array',items:{type:'string'}},countries:{type:'array',items:{type:'string'}},search:{type:'string',description:'free-text search over ticker, name, industry and description'}},required:[]}},
   {name:'open_ticker',description:'Open one stock\'s page in the report for the reader. Use it when the reader asks to open, show or go to a stock.',input_schema:{type:'object',properties:{ticker:{type:'string'}},required:['ticker']}},
   {name:'get_price_history',description:'Daily-close derived stats for up to 8 tickers: trailing returns (1m to 5y), max drawdown, 2020 and 2022 drawdowns, and a ~72-point sampled price series. Index tickers SPY, QQQ, DIA are available for benchmarking. Call this for questions about past performance, volatility, or price trends.',input_schema:{type:'object',properties:{tickers:{type:'array',items:{type:'string'}}},required:['tickers']}}
 ];
