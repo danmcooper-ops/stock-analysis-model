@@ -1,12 +1,12 @@
 {
  "version": 1,
- "date": "2026-11-17",
- "prev_date": "2026-11-16",
+ "date": "2026-11-18",
+ "prev_date": "2026-11-17",
  "systemic": {
   "n": 3895,
-  "prev_n": 3889,
-  "changed": 19,
-  "changed_share": 0.0049,
+  "prev_n": 3895,
+  "changed": 29,
+  "changed_share": 0.0074,
   "missing_data": 0,
   "missing_share": 0.0,
   "shrink_share": 0.0,
@@ -30,9 +30,9 @@
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": -0.6467401351874349,
-    "median_score": 49.45,
-    "median_spread": 0.22171716084773935,
+    "median_mos": -0.6337655107807808,
+    "median_score": 49.6,
+    "median_spread": 0.22453882034460682,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -44,14 +44,7 @@
     "upgrades": 0,
     "downgrades": 0
    },
-   "alerts": [
-    {
-     "ticker": "NVDA",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "NVDA reports earnings on 2026-11-17"
-    }
-   ]
+   "alerts": []
   },
   {
    "id": "flagged",
@@ -63,13 +56,13 @@
     "n": 53,
     "ratings": {
      "BUY": 12,
-     "LEAN BUY": 30,
-     "HOLD": 6,
+     "LEAN BUY": 29,
+     "HOLD": 7,
      "PASS": 5
     },
-    "median_mos": -0.20615220028227155,
-    "median_score": 50.0,
-    "median_spread": 0.25179962663913436,
+    "median_mos": -0.18071573780217276,
+    "median_score": 50.5,
+    "median_spread": 0.2544719497826392,
     "sector_weights": {
      "Technology": 0.2641509433962264,
      "Financial Services": 0.11320754716981131,
@@ -84,27 +77,15 @@
     "hhi": 0.17906728373086506,
     "concentrated": false,
     "no_sector": 0,
-    "upgrades": 1,
-    "downgrades": 0
+    "upgrades": 0,
+    "downgrades": 1
    },
    "alerts": [
-    {
-     "ticker": "HD",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "HD reports earnings on 2026-11-17"
-    },
     {
      "ticker": "LOW",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "LOW reports earnings on 2026-11-18"
-    },
-    {
-     "ticker": "NVDA",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "NVDA reports earnings on 2026-11-17"
     },
     {
      "ticker": "SNEX",
@@ -120,17 +101,19 @@
     },
     {
      "ticker": "UL",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "score_from": 38.7,
-     "score_to": 39.0,
+     "from": "LEAN BUY",
+     "to": "HOLD",
+     "score_from": 39.0,
+     "score_to": 38.1,
      "kind": "reversal",
      "level": "watch",
-     "reversal_of": "2026-11-16",
-     "message": "UL moved into the buy zone: HOLD → LEAN BUY (reverses the 2026-11-16 move)",
-     "display": "UL crossed above 39 (38.7 → 39.0) (reverses the 2026-11-16 move)",
+     "reversal_of": "2026-11-17",
+     "message": "UL fell out of the buy zone: LEAN BUY → HOLD (reverses the 2026-11-17 move)",
+     "display": "UL fell below 39 (39.0 → 38.1) (reverses the 2026-11-17 move)",
      "why": [
-      "Composite score moved 38.7 → 39.0, crossing above the LEAN BUY (39) threshold."
+      "Composite score moved 39 → 38, crossing below the LEAN BUY (39) threshold.",
+      "Biggest category moves: Valuation 35 → 31 (-4).",
+      "Largest metric swings: MoS 0.3% → -8.0% (score 21 → 4)."
      ]
     },
     {
@@ -138,6 +121,15 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "WMT reports earnings on 2026-11-19"
+    },
+    {
+     "ticker": "BKNG",
+     "kind": "buy_below",
+     "mos0": 0.1496,
+     "mos1": 0.1776,
+     "level": "fyi",
+     "into": true,
+     "message": "BKNG crossed below its buy-below price $158.43 (MoS 18% at $153.28); a Watch follows if it holds"
     }
    ]
   },
@@ -148,28 +140,28 @@
    "mode": "buy_line",
    "missing": [],
    "stats": {
-    "n": 135,
+    "n": 137,
     "ratings": {
-     "BUY": 135,
+     "BUY": 137,
      "LEAN BUY": 0,
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": 0.2394434692453688,
-    "median_score": 60.7,
-    "median_spread": 0.19227518255126547,
+    "median_mos": 0.23797761397705683,
+    "median_score": 60.6,
+    "median_spread": 0.1942944390847863,
     "sector_weights": {
-     "Technology": 0.2666666666666668,
-     "Consumer Defensive": 0.1481481481481481,
-     "Healthcare": 0.1407407407407407,
-     "Industrials": 0.17037037037037037,
-     "Consumer Cyclical": 0.17037037037037037,
-     "Communication Services": 0.059259259259259234,
-     "Basic Materials": 0.04444444444444443
+     "Technology": 0.2700729927007299,
+     "Consumer Defensive": 0.14598540145985406,
+     "Healthcare": 0.13868613138686137,
+     "Industrials": 0.16788321167883213,
+     "Consumer Cyclical": 0.16788321167883213,
+     "Communication Services": 0.058394160583941604,
+     "Basic Materials": 0.051094890510948905
     },
     "top_sector": "Technology",
-    "top_sector_weight": 0.2666666666666668,
-    "hhi": 0.17640603566529495,
+    "top_sector_weight": 0.2700729927007299,
+    "hhi": 0.17587511321860516,
     "concentrated": false,
     "no_sector": 0,
     "upgrades": 3,
@@ -187,6 +179,14 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "BRBR reports earnings on 2026-11-18"
+    },
+    {
+     "ticker": "FAST",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "watch",
+     "message": "FAST left Paper book (rating BUY → LEAN BUY)",
+     "display": "FAST left Paper book (score 57 → 56.8 (rule: score ≥ 57))"
     },
     {
      "ticker": "IESC",
@@ -207,14 +207,6 @@
      "message": "ITRN reports earnings on 2026-11-24"
     },
     {
-     "ticker": "JBSS",
-     "portfolio": "paper",
-     "kind": "joined",
-     "level": "watch",
-     "message": "JBSS joined Paper book (rating LEAN BUY → BUY)",
-     "display": "JBSS joined Paper book (score 56.7 → 57 (rule: score ≥ 57))"
-    },
-    {
      "ticker": "JJSF",
      "kind": "earnings_soon",
      "level": "watch",
@@ -224,15 +216,7 @@
      "ticker": "MMS",
      "kind": "earnings_soon",
      "level": "watch",
-     "message": "MMS reports earnings on 2026-11-20"
-    },
-    {
-     "ticker": "MZTI",
-     "portfolio": "paper",
-     "kind": "joined",
-     "level": "watch",
-     "message": "MZTI joined Paper book (rating LEAN BUY → BUY)",
-     "display": "MZTI joined Paper book (score 56.9 → 57.2 (rule: score ≥ 57))"
+     "message": "MMS reports earnings on 2026-11-19"
     },
     {
      "ticker": "NTES",
@@ -241,18 +225,48 @@
      "message": "NTES reports earnings on 2026-11-19"
     },
     {
+     "ticker": "POWL",
+     "kind": "fv_jump",
+     "level": "watch",
+     "move": 0.6178,
+     "message": "POWL fair value moved +62% ($103.32 → $167.16)"
+    },
+    {
+     "ticker": "POWL",
+     "portfolio": "paper",
+     "kind": "joined",
+     "level": "watch",
+     "message": "POWL joined Paper book (rating LEAN BUY → BUY)",
+     "display": "POWL joined Paper book (score 56.1 → 58.8 (rule: score ≥ 57))"
+    },
+    {
      "ticker": "ROST",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "ROST reports earnings on 2026-11-19"
     },
     {
-     "ticker": "TPR",
+     "ticker": "SANM",
+     "kind": "fv_jump",
+     "level": "watch",
+     "move": 0.59,
+     "message": "SANM fair value moved +59% ($178.89 → $284.42)"
+    },
+    {
+     "ticker": "SANM",
      "portfolio": "paper",
      "kind": "joined",
      "level": "watch",
-     "message": "TPR joined Paper book (rating LEAN BUY → BUY)",
-     "display": "TPR joined Paper book (score 56.5 → 57.2 (rule: score ≥ 57))"
+     "message": "SANM joined Paper book (rating LEAN BUY → BUY)",
+     "display": "SANM joined Paper book (score 54 → 58.2 (rule: score ≥ 57))"
+    },
+    {
+     "ticker": "SCCO",
+     "portfolio": "paper",
+     "kind": "joined",
+     "level": "watch",
+     "message": "SCCO joined Paper book (rating LEAN BUY → BUY)",
+     "display": "SCCO joined Paper book (score 56.9 → 57 (rule: score ≥ 57))"
     },
     {
      "ticker": "URBN",
@@ -267,52 +281,58 @@
      "message": "VIPS reports earnings on 2026-11-24"
     },
     {
-     "ticker": "ZTO",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "ZTO reports earnings on 2026-11-17"
-    },
-    {
-     "ticker": "JBSS",
+     "ticker": "POWL",
      "from": "LEAN BUY",
      "to": "BUY",
-     "score_from": 56.7,
-     "score_to": 57.0,
+     "score_from": 56.1,
+     "score_to": 58.8,
      "kind": "same_side",
      "level": "fyi",
-     "message": "JBSS LEAN BUY → BUY",
-     "display": "JBSS crossed above 57 (56.7 → 57.0)",
+     "message": "POWL LEAN BUY → BUY",
+     "display": "POWL crossed above 57 (56.1 → 58.8)",
      "why": [
-      "Composite score moved 56.7 → 57.0, crossing above the BUY (57) threshold."
+      "Composite score moved 56 → 59, crossing above the BUY (57) threshold.",
+      "Biggest category moves: Valuation 18 → 39 (+21), Growth 85 → 64 (-21), Quality 41 → 53 (+12).",
+      "Largest metric swings: 5Y FCF CAGR 18.1% → N/A (score 100 → 0); Accruals 1.2% → -12.8% (score 11 → 92); MoS -46.0% → 7.3% (score 0 → 35)."
      ]
     },
     {
-     "ticker": "MZTI",
+     "ticker": "SANM",
+     "kind": "buy_below",
+     "mos0": 0.1465,
+     "mos1": 0.446,
+     "level": "fyi",
+     "into": true,
+     "message": "SANM crossed below its buy-below price $241.76 (MoS 45% at $157.57); a Watch follows if it holds"
+    },
+    {
+     "ticker": "SANM",
+     "from": "LEAN BUY",
+     "to": "BUY",
+     "score_from": 54.0,
+     "score_to": 58.2,
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "SANM LEAN BUY → BUY",
+     "display": "SANM crossed above 57 (54.0 → 58.2)",
+     "why": [
+      "Composite score moved 54 → 58, crossing above the BUY (57) threshold.",
+      "Biggest category moves: Valuation 35 → 60 (+25), Quality 81 → 58 (-23), Growth 68 → 80 (+12).",
+      "Largest metric swings: MoS 14.7% → 44.6% (score 49 → 100); Int Cov 17.60× → 5.58× (score 87 → 24); Mult vs Hist 186.2% → 48.9% (score 0 → 34)."
+     ]
+    },
+    {
+     "ticker": "SCCO",
      "from": "LEAN BUY",
      "to": "BUY",
      "score_from": 56.9,
-     "score_to": 57.2,
+     "score_to": 57.0,
      "kind": "same_side",
      "level": "fyi",
-     "message": "MZTI LEAN BUY → BUY",
-     "display": "MZTI crossed above 57 (56.9 → 57.2)",
+     "message": "SCCO LEAN BUY → BUY",
+     "display": "SCCO crossed above 57 (56.9 → 57.0)",
      "why": [
-      "Composite score moved 56.9 → 57.2, crossing above the BUY (57) threshold."
-     ]
-    },
-    {
-     "ticker": "TPR",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "score_from": 56.5,
-     "score_to": 57.2,
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "TPR LEAN BUY → BUY",
-     "display": "TPR crossed above 57 (56.5 → 57.2)",
-     "why": [
-      "Composite score moved 56 → 57, crossing above the BUY (57) threshold.",
-      "Biggest category moves: Valuation 26 → 29 (+3)."
+      "Composite score moved 56.9 → 57.0, crossing above the BUY (57) threshold."
      ]
     }
    ]
