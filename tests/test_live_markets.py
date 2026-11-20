@@ -1,0 +1,63 @@
+"""The intraday Markets board (scripts/live_markets.py): rebuilt from Yahoo in
+market hours, uploaded to the site's LIVE KV for the iOS app."""
+from datetime import date, timedelta
+
+from scripts.live_markets import (
+    build_live_board, fx_symbol, merge_closes, session_ticks, yahoo_symbols,
+)
+from scripts.macro_dashboard import BOARD
+
+TODAY = date(2026, 11, 20)
+
+
+def _series(n=400, start=100.0, step=0.1):
+    return {TODAY - timedelta(days=n - i): start + i * step for i in range(n + 1)}
+
+
+def _nightly():
+    return {'as_of': '2026-11-19', 'panels': [
+        {'k': 'eq', 'l': 'Equities', 'rows': [{'k': 'spx', 'l': 'old', 'hist': {'d': [], 'v': []}}]},
+        {'k': 'rt', 'l': 'Rates', 'rows': [{'k': 'us10y', 'l': 'US 10Y', 'chg': {'1d': 3.0},
+                                            'hist': {'d': ['2026-11-18'], 'v': [5.1]}}]},
+    ]}
+
+
+def test_symbols_cover_live_panels_only():
+    yf_syms, fx = yahoo_symbols()
+    assert '^GSPC' in yf_syms and '^DJI' in yf_syms and 'CL=F' in yf_syms
+    assert fx['EUR'] == 'EURUSD=X' == fx_symbol('EUR')
+    rates = {m['sym'] for p in BOARD if p['k'] == 'rt' for m in p['rows']}
+    assert not rates & set(yf_syms)
+
+
+def test_merge_closes_lays_recent_over_history():
+    out = merge_closes({TODAY: 1.0, date(2026, 11, 19): 2.0}, {TODAY: 3.0, date(2026, 11, 18): None})
+    assert out == {TODAY: 3.0, date(2026, 11, 19): 2.0}
+    assert merge_closes(None, {TODAY: 1.0}) == {TODAY: 1.0}
+
+
+def test_board_rebuilds_yahoo_rows_and_copies_rates_without_hist():
+    yf_syms, fx = yahoo_symbols()
+    board = build_live_board(_nightly(), {'^GSPC': _series(), '^DJI': _series()},
+                             {'EUR': _series(start=1.0, step=0.001)}, TODAY, '2026-11-20T15:00:00Z')
+    assert board['as_of'] == '2026-11-20' and board['live'] is True
+    assert board['night'] == '2026-11-19' and board['updated'] == '2026-11-20T15:00:00Z'
+    panels = {p['k']: p for p in board['panels']}
+    assert [r['k'] for r in panels['eq']['rows']] == ['spx', 'dji']     # BOARD order; others missing
+    spx = panels['eq']['rows'][0]
+    assert spx['latest']['d'] == '2026-11-20' and spx['chg']['1d'] is not None
+    assert 'hist' not in spx and spx['spark']
+    assert panels['rt']['rows'] == [{'k': 'us10y', 'l': 'US 10Y', 'chg': {'1d': 3.0}}]
+    assert [r['k'] for r in panels['fx']['rows']] == ['eur']
+    assert 'cm' not in panels
+
+
+def test_no_live_rows_is_no_board():
+    assert build_live_board(_nightly(), {}, {}, TODAY, 'x') is None
+
+
+def test_session_ticks_every_15_minutes_to_16_15():
+    ticks = session_ticks(TODAY)
+    assert (ticks[0].hour, ticks[0].minute) == (9, 30)
+    assert (ticks[-1].hour, ticks[-1].minute) == (16, 15)
+    assert len(ticks) == 28

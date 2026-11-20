@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import worker, {
   verifyAccessJwt, accessConfig, privateCacheControl, _resetJwksCache,
   quoteResponse, announceQuotes, finnhubSymbol, parseFinnhubQuote, inQuoteWindow, _resetQuotes,
+  liveMarketsResponse, LIVE_MARKETS_PATH,
 } from '../_worker.js';
 
 const TEAM = 'example.cloudflareaccess.com';
@@ -232,4 +233,22 @@ test('the page is told about the route only on HTML and only with a key', () => 
   } finally {
     delete globalThis.HTMLRewriter;
   }
+});
+
+test('live markets board sits behind the login and comes from the LIVE KV', async () => {
+  assert.equal((await get(LIVE_MARKETS_PATH)).status, 403);
+  const t = await sign(good, goodClaims());
+  assert.equal((await get(LIVE_MARKETS_PATH, t)).status, 404);            // no binding
+  const empty = { async get() { return null; } };
+  assert.equal((await get(LIVE_MARKETS_PATH, t, env({ LIVE: empty }))).status, 404);
+  const asked = [];
+  const kv = { async get(k) { asked.push(k); return '{"as_of":"2026-11-20"}'; } };
+  const r = await get(LIVE_MARKETS_PATH, t, env({ LIVE: kv }));
+  assert.equal(r.status, 200);
+  assert.deepEqual(asked, ['markets']);
+  assert.equal(r.headers.get('cache-control'), 'private, no-store');
+  assert.match(r.headers.get('content-type'), /json/);
+  assert.deepEqual(await r.json(), { as_of: '2026-11-20' });
+  assert.deepEqual(assetRequests, []);
+  assert.equal((await liveMarketsResponse({})).status, 404);
 });
