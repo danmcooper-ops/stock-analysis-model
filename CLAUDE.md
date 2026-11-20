@@ -1393,6 +1393,20 @@ ruff check .
     and a tooltip naming the last trade and the close. MoS is recomputed on
     the scoring rule. `tests/test_report_live_quote.py` pins the no-write
     rule.
+- **Live Markets board for the iOS app (`scripts/live_markets.py`,
+  2026-11-20):** every 15 minutes from 09:30 to 16:15 ET on trading days the
+  Mac mini rebuilds the Macro Markets board (`BOARD`, `_board_row`) from
+  yfinance and PUTs it to the Pages project's `LIVE` KV namespace
+  (`CF_LIVE_KV_NAMESPACE`, key `markets`, 36 h TTL); the Worker serves it as
+  `live/markets.json` behind the Access login (404 without the binding or
+  key). Yahoo rows: five years of closes cached per day plus a 5-day batch
+  download per tick; FX rows: the FX store plus today's `<CCY>USD=X`; rates
+  rows are the nightly ones copied (FRED is daily). Rows carry no `hist`
+  (~22 KB). The app overlays it on the nightly board. Started by the desktop
+  app task `the-live-markets-board` (weekdays 09:25) through
+  `scheduled-tasks/live-markets/mac_run.sh`, which launches the loop detached
+  and reports the previous day's RESULT line. Tests:
+  `tests/test_live_markets.py`, the worker test.
 - **Portfolio groupings (`portfolio/portfolios.json`, `models/portfolio_groups.py`):**
   named sets of tickers — hand-picked, rule-driven, or both — and a ticker may
   sit in any number of them. **Positions** (`models/portfolio_positions.py`)
