@@ -266,6 +266,7 @@ STALE_AFTER_DAYS = {'d': 14, 'w': 28, 'm': 150, 'q': 270}
 BOARD = [
     {'k': 'eq', 'l': 'Equities', 'rows': [
         dict(k='spx', l='S&P 500', src='yf', sym='^GSPC', unit='pct', fmt='int'),
+        dict(k='dji', l='Dow Jones', src='yf', sym='^DJI', unit='pct', fmt='int'),
         dict(k='ndx', l='Nasdaq 100', src='yf', sym='^NDX', unit='pct', fmt='int'),
         dict(k='rut', l='Russell 2000', src='yf', sym='^RUT', unit='pct', fmt='int'),
         dict(k='vix', l='VIX', src='yf', sym='^VIX', unit='pct', fmt='n2'),
