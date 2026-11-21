@@ -61,3 +61,52 @@ def test_session_ticks_every_15_minutes_to_16_15():
     assert (ticks[0].hour, ticks[0].minute) == (9, 30)
     assert (ticks[-1].hour, ticks[-1].minute) == (16, 15)
     assert len(ticks) == 28
+
+
+def test_history_cache_retries_symbols_yahoo_missed(tmp_path, monkeypatch):
+    import data.macro_client as mc
+    import scripts.live_markets as lm
+    monkeypatch.setattr(lm, 'OUT_DIR', tmp_path)
+    calls = []
+    answers = {'A': _series(10), 'B': {}}
+    monkeypatch.setattr(mc, 'fetch_yahoo_closes', lambda s, start: calls.append(s) or answers[s])
+    out = lm.history_cache(TODAY, ['A', 'B'])
+    assert out['A'] and not out.get('B') and calls == ['A', 'B']
+    answers['B'] = _series(10)                       # Yahoo recovers next tick
+    out = lm.history_cache(TODAY, ['A', 'B'])
+    assert calls == ['A', 'B', 'B'] and out['A'] and out['B']
+    lm.history_cache(TODAY, ['A', 'B'])              # both cached now: no fetch
+    assert calls == ['A', 'B', 'B']
+
+
+def test_a_crashing_tick_does_not_end_the_loop(monkeypatch, capsys):
+    import scripts.live_markets as lm
+    import scripts.market_open as mo
+    monkeypatch.setattr(mo, 'market_status', lambda d: (True, 'open'))
+    monkeypatch.setattr(lm, 'session_ticks', lambda d: [lm.datetime.now(lm.ET)] * 3)
+    monkeypatch.setattr(lm.time, 'sleep', lambda s: None)
+    results = iter([RuntimeError('boom'), True, True])
+
+    def fake_tick(dry_run):
+        r = next(results)
+        if isinstance(r, Exception):
+            raise r
+        return r
+    monkeypatch.setattr(lm, 'tick', fake_tick)
+    assert lm.loop() == 0
+    out = capsys.readouterr().out
+    assert 'tick failed: RuntimeError: boom' in out and 'RESULT ok=2 failed=1' in out
+
+
+def test_launcher_counts_only_real_failures(tmp_path):
+    import subprocess
+    log = tmp_path / 'p.log'
+    log.write_text('10:00 uploaded 1 bytes\n10:15 upload failed: x\n10:30 no rows built\n'
+                   'RESULT ok=1 failed=2\n', encoding='utf-8')
+    script = open('scheduled-tasks/live-markets/mac_run.sh', encoding='utf-8').read()
+    line = next(ln for ln in script.splitlines() if 'previous failed ticks' in ln).strip()
+    out = subprocess.run(['bash', '-c', f'PREV={log}; {line}'], capture_output=True, text=True).stdout
+    assert out.strip() == 'previous failed ticks: 2'
+    log.write_text('10:00 uploaded 1 bytes\nRESULT ok=1 failed=0\n', encoding='utf-8')
+    out = subprocess.run(['bash', '-c', f'PREV={log}; {line}'], capture_output=True, text=True).stdout
+    assert out.strip() == 'previous failed ticks: 0'

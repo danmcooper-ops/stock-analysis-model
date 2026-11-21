@@ -14,7 +14,7 @@ TODAY="$(TZ=America/New_York date +%F)"
 PREV="$(ls -1 "$LIVE"/loop-*.log 2>/dev/null | grep -v "loop-$TODAY.log" | tail -1)"
 if [ -n "$PREV" ]; then
   echo "previous: $(basename "$PREV"): $(grep '^RESULT' "$PREV" | tail -1 || true)"
-  grep -c 'failed' "$PREV" | sed 's/^/previous failed ticks: /'
+  echo "previous failed ticks: $(grep -v '^RESULT' "$PREV" | grep -cE ' failed|no rows built' || true)"
 fi
 
 if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
@@ -26,7 +26,7 @@ if [ $? = 10 ]; then echo "MARKET CLOSED $TODAY"; exit 0; fi
 
 LOG="$LIVE/loop-$TODAY.log"
 perl -MPOSIX=setsid -e 'setsid; exec @ARGV' \
-  .venv/bin/python scripts/live_markets.py --loop >>"$LOG" 2>&1 </dev/null &
+  .venv/bin/python -u scripts/live_markets.py --loop >>"$LOG" 2>&1 </dev/null &
 echo $! >"$PIDFILE"
 sleep 2
 if kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then

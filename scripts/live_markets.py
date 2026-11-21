@@ -157,16 +157,25 @@ def history_cache(today, yf_syms):
     path = OUT_DIR / f'history-{today.isoformat()}.json'
     try:
         raw = json.loads(path.read_text(encoding='utf-8'))
-        return {s: {date.fromisoformat(d): v for d, v in obs.items()} for s, obs in raw.items()}
+        out = {s: {date.fromisoformat(d): v for d, v in obs.items()} for s, obs in raw.items()}
     except (OSError, ValueError):
-        pass
+        out = {}
+    missing = [s for s in yf_syms if not out.get(s)]
+    if not missing:
+        return out
+    # Symbols Yahoo returned nothing for are never cached, so a blip at the
+    # open is retried next tick instead of costing the row its history all day.
     start = today - timedelta(days=int(BOARD_HISTORY_YEARS * 365.25))
-    out = {s: fetch_yahoo_closes(s, start) for s in yf_syms}
+    fetched = {s: fetch_yahoo_closes(s, start) for s in missing}
+    out.update({s: obs for s, obs in fetched.items() if obs})
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     for old in OUT_DIR.glob('history-*.json'):
-        old.unlink(missing_ok=True)
-    path.write_text(json.dumps({s: {d.isoformat(): v for d, v in obs.items()}
-                                for s, obs in out.items() if obs}), encoding='utf-8')
+        if old != path:
+            old.unlink(missing_ok=True)
+    tmp = path.with_suffix('.tmp')
+    tmp.write_text(json.dumps({s: {d.isoformat(): v for d, v in obs.items()}
+                               for s, obs in out.items() if obs}), encoding='utf-8')
+    tmp.replace(path)
     return out
 
 
@@ -276,7 +285,12 @@ def loop(dry_run=False):
             continue                     # started late: skip marks long gone
         if wait > 0:
             time.sleep(wait)
-        if tick(dry_run):
+        try:
+            done = tick(dry_run)
+        except Exception as e:           # one bad tick never ends the day's loop
+            print(f'{datetime.now(ET):%H:%M} tick failed: {type(e).__name__}: {e}', flush=True)
+            done = False
+        if done:
             ok += 1
         else:
             fails += 1
