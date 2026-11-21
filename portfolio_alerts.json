@@ -1,15 +1,15 @@
 {
  "version": 1,
- "date": "2026-11-19",
- "prev_date": "2026-11-18",
+ "date": "2026-11-20",
+ "prev_date": "2026-11-19",
  "systemic": {
-  "n": 3899,
-  "prev_n": 3894,
-  "changed": 44,
-  "changed_share": 0.0113,
+  "n": 3896,
+  "prev_n": 3899,
+  "changed": 42,
+  "changed_share": 0.0108,
   "missing_data": 0,
   "missing_share": 0.0,
-  "shrink_share": 0.0,
+  "shrink_share": 0.0008,
   "flood": false,
   "cause": null,
   "message": null,
@@ -30,9 +30,9 @@
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": -0.6882388048929715,
-    "median_score": 49.35,
-    "median_spread": 0.22039046736573215,
+    "median_mos": -0.6115030636931331,
+    "median_score": 50.2,
+    "median_spread": 0.21637024491537635,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -56,13 +56,13 @@
     "n": 53,
     "ratings": {
      "BUY": 12,
-     "LEAN BUY": 30,
-     "HOLD": 6,
+     "LEAN BUY": 29,
+     "HOLD": 7,
      "PASS": 5
     },
-    "median_mos": -0.2149540457831169,
-    "median_score": 50.2,
-    "median_spread": 0.2496750947151606,
+    "median_mos": -0.20959497336819444,
+    "median_score": 49.9,
+    "median_spread": 0.24579449604944328,
     "sector_weights": {
      "Technology": 0.2641509433962264,
      "Financial Services": 0.11320754716981131,
@@ -77,42 +77,33 @@
     "hhi": 0.17906728373086506,
     "concentrated": false,
     "no_sector": 0,
-    "upgrades": 1,
-    "downgrades": 0
+    "upgrades": 0,
+    "downgrades": 1
    },
    "alerts": [
     {
-     "ticker": "BKNG",
-     "kind": "buy_below",
-     "mos0": 0.1776,
-     "mos1": 0.1683,
-     "level": "watch",
-     "into": true,
-     "confirmed": true,
-     "message": "BKNG has held below its buy-below price $150.56 for two runs (MoS 17% at $147.32)"
-    },
-    {
      "ticker": "UL",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "score_from": 38.1,
-     "score_to": 39.3,
+     "from": "LEAN BUY",
+     "to": "HOLD",
+     "score_from": 39.3,
+     "score_to": 38.7,
      "kind": "reversal",
      "level": "watch",
-     "reversal_of": "2026-11-18",
-     "message": "UL moved into the buy zone: HOLD → LEAN BUY (reverses the 2026-11-18 move)",
-     "display": "UL crossed above 39 (38.1 → 39.3) (reverses the 2026-11-18 move)",
+     "reversal_of": "2026-11-19",
+     "message": "UL fell out of the buy zone: LEAN BUY → HOLD (reverses the 2026-11-19 move)",
+     "display": "UL fell below 39 (39.3 → 38.7) (reverses the 2026-11-19 move)",
      "why": [
-      "Composite score moved 38 → 39, crossing above the LEAN BUY (39) threshold.",
-      "Biggest category moves: Valuation 31 → 36 (+6).",
-      "Largest metric swings: MoS -8.0% → 0.6% (score 4 → 21)."
+      "Composite score moved 39.3 → 38.7, crossing below the LEAN BUY (39) threshold."
      ]
     },
     {
-     "ticker": "WMT",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "WMT reports earnings on 2026-11-19"
+     "ticker": "BKNG",
+     "kind": "buy_below",
+     "mos0": 0.1683,
+     "mos1": 0.1494,
+     "level": "fyi",
+     "into": false,
+     "message": "BKNG rose back above its buy-below price $144.81 (MoS 15% at $144.91)"
     }
    ]
   },
@@ -123,28 +114,28 @@
    "mode": "buy_line",
    "missing": [],
    "stats": {
-    "n": 139,
+    "n": 141,
     "ratings": {
-     "BUY": 139,
+     "BUY": 141,
      "LEAN BUY": 0,
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": 0.21532485105097204,
-    "median_score": 60.6,
-    "median_spread": 0.1910150696087437,
+    "median_mos": 0.2386916195868897,
+    "median_score": 60.5,
+    "median_spread": 0.19080071456616898,
     "sector_weights": {
-     "Technology": 0.28057553956834547,
-     "Consumer Defensive": 0.13669064748201434,
-     "Healthcare": 0.13669064748201434,
-     "Industrials": 0.16546762589928057,
-     "Consumer Cyclical": 0.16546762589928057,
-     "Communication Services": 0.05755395683453235,
-     "Basic Materials": 0.05755395683453235
+     "Technology": 0.2836879432624115,
+     "Consumer Defensive": 0.13475177304964533,
+     "Healthcare": 0.13475177304964533,
+     "Industrials": 0.1631205673758865,
+     "Consumer Cyclical": 0.1631205673758865,
+     "Communication Services": 0.05673758865248224,
+     "Basic Materials": 0.06382978723404252
     },
     "top_sector": "Technology",
-    "top_sector_weight": 0.28057553956834547,
-    "hhi": 0.17747528595828377,
+    "top_sector_weight": 0.2836879432624115,
+    "hhi": 0.17730496453900713,
     "concentrated": false,
     "no_sector": 0,
     "upgrades": 3,
@@ -158,36 +149,12 @@
      "message": "ADSK reports earnings on 2026-11-24"
     },
     {
-     "ticker": "BRBR",
-     "portfolio": "paper",
-     "kind": "left",
-     "level": "watch",
-     "message": "BRBR left Paper book (rating BUY → LEAN BUY)",
-     "display": "BRBR left Paper book (score 63.1 → 45.7 (rule: score ≥ 57))"
-    },
-    {
-     "ticker": "EACO",
+     "ticker": "ESEA",
      "portfolio": "paper",
      "kind": "joined",
      "level": "watch",
-     "message": "EACO joined Paper book (rating LEAN BUY → BUY)",
-     "display": "EACO joined Paper book (score 55.9 → 64.7 (rule: score ≥ 57))"
-    },
-    {
-     "ticker": "EXP",
-     "portfolio": "paper",
-     "kind": "joined",
-     "level": "watch",
-     "message": "EXP joined Paper book (rating LEAN BUY → BUY)",
-     "display": "EXP joined Paper book (score 53.8 → 57.2 (rule: score ≥ 57))"
-    },
-    {
-     "ticker": "GCT",
-     "portfolio": "paper",
-     "kind": "joined",
-     "level": "watch",
-     "message": "GCT joined Paper book (rating LEAN BUY → BUY)",
-     "display": "GCT joined Paper book (score 56.5 → 57 (rule: score ≥ 57))"
+     "message": "ESEA joined Paper book (rating LEAN BUY → BUY)",
+     "display": "ESEA joined Paper book (score 56.9 → 57 (rule: score ≥ 57))"
     },
     {
      "ticker": "IESC",
@@ -196,44 +163,44 @@
      "message": "IESC reports earnings on 2026-11-20"
     },
     {
-     "ticker": "INTU",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "INTU reports earnings on 2026-11-19"
-    },
-    {
      "ticker": "ITRN",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "ITRN reports earnings on 2026-11-24"
     },
     {
-     "ticker": "MMS",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "MMS reports earnings on 2026-11-19"
-    },
-    {
-     "ticker": "NTES",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "NTES reports earnings on 2026-11-19"
-    },
-    {
-     "ticker": "ROST",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "ROST reports earnings on 2026-11-19"
-    },
-    {
-     "ticker": "SANM",
+     "ticker": "JJSF",
      "kind": "buy_below",
-     "mos0": 0.446,
-     "mos1": 0.4306,
+     "mos0": 0.2058,
+     "mos1": 0.1797,
      "level": "watch",
      "into": true,
      "confirmed": true,
-     "message": "SANM has held below its buy-below price $231.01 for two runs (MoS 43% at $154.75)"
+     "message": "JJSF has held below its buy-below price $97.74 for two runs (MoS 18% at $94.33)"
+    },
+    {
+     "ticker": "KGC",
+     "portfolio": "paper",
+     "kind": "joined",
+     "level": "watch",
+     "message": "KGC joined Paper book (rating LEAN BUY → BUY)",
+     "display": "KGC joined Paper book (score 56.7 → 57.1 (rule: score ≥ 57))"
+    },
+    {
+     "ticker": "MMS",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "watch",
+     "message": "MMS left Paper book (rating BUY → LEAN BUY)",
+     "display": "MMS left Paper book (score 58.7 → 54.6 (rule: score ≥ 57))"
+    },
+    {
+     "ticker": "NXT",
+     "portfolio": "paper",
+     "kind": "joined",
+     "level": "watch",
+     "message": "NXT joined Paper book (rating LEAN BUY → BUY)",
+     "display": "NXT joined Paper book (score 56.4 → 57 (rule: score ≥ 57))"
     },
     {
      "ticker": "URBN",
@@ -248,68 +215,65 @@
      "message": "VIPS reports earnings on 2026-11-24"
     },
     {
-     "ticker": "EACO",
+     "ticker": "ESEA",
      "from": "LEAN BUY",
      "to": "BUY",
-     "score_from": 55.9,
-     "score_to": 64.7,
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "EACO LEAN BUY → BUY",
-     "display": "EACO crossed above 57 (55.9 → 64.7)",
-     "why": [
-      "Composite score moved 56 → 65, crossing above the BUY (57) threshold.",
-      "Biggest category moves: Growth 61 → 84 (+23), Valuation 46 → 60 (+14), Moat 68 → 73 (+6).",
-      "Largest metric swings: 5Y FCF CAGR N/A → 12.5% (score 0 → 87); P/TBV 4.66× → 3.56× (score 8 → 36); Mult vs Hist 130.5% → 59.6% (score 0 → 27)."
-     ]
-    },
-    {
-     "ticker": "EXP",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "score_from": 53.8,
-     "score_to": 57.2,
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "EXP LEAN BUY → BUY",
-     "display": "EXP crossed above 57 (53.8 → 57.2)",
-     "why": [
-      "Composite score moved 54 → 57, crossing above the BUY (57) threshold.",
-      "Biggest category moves: Moat 64 → 75 (+11).",
-      "Largest metric swings: Pool Share Δ 0.8% → 18.3% (score 43 → 100)."
-     ]
-    },
-    {
-     "ticker": "GCT",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "score_from": 56.5,
+     "score_from": 56.9,
      "score_to": 57.0,
      "kind": "same_side",
      "level": "fyi",
-     "message": "GCT LEAN BUY → BUY",
-     "display": "GCT crossed above 57 (56.5 → 57.0)",
+     "message": "ESEA LEAN BUY → BUY",
+     "display": "ESEA crossed above 57 (56.9 → 57.0)",
      "why": [
-      "Composite score moved 56 → 57, crossing above the BUY (57) threshold."
+      "Composite score moved 56.9 → 57.0, crossing above the BUY (57) threshold."
      ]
     },
     {
-     "ticker": "JJSF",
-     "kind": "buy_below",
-     "mos0": -0.1201,
-     "mos1": 0.2058,
+     "ticker": "KGC",
+     "from": "LEAN BUY",
+     "to": "BUY",
+     "score_from": 56.7,
+     "score_to": 57.1,
+     "kind": "same_side",
      "level": "fyi",
-     "into": true,
-     "message": "JJSF crossed below its buy-below price $101.07 (MoS 21% at $94.44); a Watch follows if it holds"
+     "message": "KGC LEAN BUY → BUY",
+     "display": "KGC crossed above 57 (56.7 → 57.1)",
+     "why": [
+      "Composite score moved 56.7 → 57.1, crossing above the BUY (57) threshold."
+     ]
     },
     {
-     "ticker": "XPEL",
+     "ticker": "NXT",
+     "from": "LEAN BUY",
+     "to": "BUY",
+     "score_from": 56.4,
+     "score_to": 57.0,
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "NXT LEAN BUY → BUY",
+     "display": "NXT crossed above 57 (56.4 → 57.0)",
+     "why": [
+      "Composite score moved 56 → 57, crossing above the BUY (57) threshold.",
+      "Biggest category moves: Valuation 43 → 46 (+3)."
+     ]
+    },
+    {
+     "ticker": "PPC",
      "kind": "buy_below",
-     "mos0": 0.182,
-     "mos1": 0.1373,
+     "mos0": 0.1724,
+     "mos1": 0.0804,
      "level": "fyi",
      "into": false,
-     "message": "XPEL rose back above its buy-below price $37.06 (MoS 14% at $37.61)"
+     "message": "PPC rose back above its buy-below price $26.43 (MoS 8% at $28.60)"
+    },
+    {
+     "ticker": "URBN",
+     "kind": "buy_below",
+     "mos0": 0.1683,
+     "mos1": 0.1234,
+     "level": "fyi",
+     "into": false,
+     "message": "URBN rose back above its buy-below price $82.01 (MoS 12% at $84.58)"
     }
    ]
   }
