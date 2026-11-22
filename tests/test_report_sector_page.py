@@ -303,8 +303,8 @@ def test_touch_swipe_moves_between_sub_tabs():
     # anywhere on the page, not just inside a .view (blank space, margins,
     # the title rows) — only the chrome, dialogs and drag-owning marks opt out
     assert "tg.closest('.view')" not in block
-    for guard in (".header,#det-modal,#sidebar,.sb-scrim,.fpop-panel,#cfsel-panel,#ai-panel,#hk-overlay,#pf-overlay,svg,canvas,input,select,textarea,[ontouchstart]",
-                  "['ai-panel','hk-overlay','pf-overlay'].some(",
+    for guard in (".header,#det-modal,#sidebar,.sb-scrim,.fpop-panel,#cfsel-panel,#ai-panel,#hk-overlay,#about-overlay,#pf-overlay,svg,canvas,input,select,textarea,[ontouchstart]",
+                  "['ai-panel','hk-overlay','about-overlay','pf-overlay'].some(",
                   "vv.scale>1.01", "sx<28||sx>vw-28", "x+vw<se.scrollWidth-1",
                   "Math.abs(dx)<70", "performance.now()-st>650"):
         assert guard in block, guard
