@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import worker, {
   verifyAccessJwt, accessConfig, privateCacheControl, _resetJwksCache,
   quoteResponse, announceQuotes, finnhubSymbol, parseFinnhubQuote, inQuoteWindow, _resetQuotes,
-  liveMarketsResponse, LIVE_MARKETS_PATH,
+  liveMarketsResponse, LIVE_MARKETS_PATH, LIVE_PRICES_PATH,
 } from '../_worker.js';
 
 const TEAM = 'example.cloudflareaccess.com';
@@ -251,4 +251,17 @@ test('live markets board sits behind the login and comes from the LIVE KV', asyn
   assert.deepEqual(await r.json(), { as_of: '2026-11-20' });
   assert.deepEqual(assetRequests, []);
   assert.equal((await liveMarketsResponse({})).status, 404);
+});
+
+test('live prices sit behind the login and come from the LIVE KV key prices', async () => {
+  assert.equal((await get(LIVE_PRICES_PATH)).status, 403);
+  const t = await sign(good, goodClaims());
+  assert.equal((await get(LIVE_PRICES_PATH, t)).status, 404);             // no binding
+  const asked = [];
+  const kv = { async get(k) { asked.push(k); return '{"q":{"AAPL":[1,0.01,2]}}'; } };
+  const r = await get(LIVE_PRICES_PATH, t, env({ LIVE: kv }));
+  assert.equal(r.status, 200);
+  assert.deepEqual(asked, ['prices']);
+  assert.equal(r.headers.get('cache-control'), 'private, no-store');
+  assert.deepEqual(await r.json(), { q: { AAPL: [1, 0.01, 2] } });
 });
