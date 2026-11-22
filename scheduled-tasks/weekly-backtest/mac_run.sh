@@ -132,4 +132,22 @@ CHILD=$!
 wait "$CHILD"
 rc=$?
 echo "mac_run: run.sh exited $rc; status in $STOCK_MODEL_WORK/status.txt"
+
+# Mail the outcome (scripts/email_backtest.py), whatever it was: OK, failed at
+# a step, or dead before status.txt got its RESULT. A smoke or dry run sends
+# nothing, and neither does a run stopped by a signal (on_signal exits above).
+# The SMTP keys are read from .env here, in a subshell, so run.sh never saw
+# them; without SMTP_USER/SMTP_APP_PASSWORD the script says so and exits 0.
+# A failed send never changes this script's exit code.
+if [ "${SMOKE:-0}" = 1 ] || [ "${DRY_RUN:-0}" = 1 ]; then
+  echo "mac_run: smoke/dry run: no results email"
+else
+  (
+    if [ -f "$REPO/.env" ]; then
+      eval "$("$PY3" "$REPO/scheduled-tasks/weekly-backtest/env_keys.py" "$REPO/.env" \
+        SMTP_USER SMTP_APP_PASSWORD SMTP_HOST SMTP_PORT EMAIL_TO EMAIL_SUMMARY)"
+    fi
+    "$PY3" "$REPO/scripts/email_backtest.py" --date "$RUNDATE" --log "$LOG"
+  ) >>"$LOG" 2>&1 || echo "mac_run: results email not sent (see $LOG)"
+fi
 exit "$rc"
