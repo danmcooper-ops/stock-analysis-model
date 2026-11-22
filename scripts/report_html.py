@@ -2892,6 +2892,7 @@ def _build_etf_payload(rows, out_dir, run_date, prices_dir=None, run_provenance=
 
 BOND_REPORT_VERSION = 1      # bonds/: REPORT_DATA_VERSION we draw
 CURRENCY_REPORT_VERSION = 1  # currencies/: REPORT_DATA_VERSION we draw
+CRYPTO_REPORT_VERSION = 1  # models/crypto_market.REPORT_VERSION we draw
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -2905,6 +2906,12 @@ def _currency_output_dir():
     """The currency screener's output/ (``CURRENCY_MODEL_OUTPUT`` overrides)."""
     return os.environ.get('CURRENCY_MODEL_OUTPUT') or os.path.join(
         _REPO_ROOT, 'currencies', 'output')
+
+
+def _crypto_output_dir():
+    """scripts/crypto_market.py's output (``CRYPTO_MODEL_OUTPUT`` overrides)."""
+    return os.environ.get('CRYPTO_MODEL_OUTPUT') or os.path.join(
+        _REPO_ROOT, 'output', 'crypto')
 
 
 def _stage_model_report(out_dir, run_date, src_dir, prefix, dest_name, version, label,
@@ -3006,6 +3013,21 @@ def _currency_search_index(data):
             if r.get('code')]
 
 
+def _stage_crypto_report(out_dir, run_date, src_dir=None):
+    """scripts/crypto_market.py's ``crypto_report_<date>.json`` as
+    ``crypto.json``, for Investing › Crypto (``_stage_model_report``)."""
+    return _stage_model_report(out_dir, run_date, src_dir or _crypto_output_dir(),
+                               'crypto_report', 'crypto.json',
+                               CRYPTO_REPORT_VERSION, 'Crypto',
+                               index=_crypto_search_index)
+
+
+def _crypto_search_index(data):
+    """``[symbol, name]`` per coin (~20), for the top-bar search."""
+    return [[r.get('symbol'), r.get('name') or ''] for r in data.get('rows') or []
+            if r.get('symbol')]
+
+
 def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=None,
                macro_payload=None):
     """Render the interactive HTML report via Jinja2 template."""
@@ -3093,6 +3115,12 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         logger.warning("Currencies failed: %s", e, exc_info=True)
         ccy_meta = None
 
+    try:
+        crypto_meta = _stage_crypto_report(_out_dir_early, run_date)
+    except Exception as e:  # display only: never fail a render over it
+        logger.warning("Crypto failed: %s", e, exc_info=True)
+        crypto_meta = None
+
     # Sidecar JSON files (PRICES, HIST) live next to the HTML output. The
     # template lazy-fetches them on first chart open, so the embedded HTML
     # stays small enough to publish via GitHub Pages (<100 MB hard cap) and
@@ -3161,6 +3189,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         etf_json=dumps_for_script(_sanitize(etf_payload), default=_json_default),
         bond_meta=dumps_for_script(bond_meta),
         ccy_meta=dumps_for_script(ccy_meta),
+        crypto_meta=dumps_for_script(crypto_meta),
         paper_meta=dumps_for_script(paper_meta),
         prices_available=('true' if prices_payload is not None else 'false'),
         prices_size_mb=prices_size_mb,

@@ -1569,8 +1569,8 @@ html.bvp-open{overflow:hidden;}
    cells and .rb pills, on a table of its own (.cx-tbl) so the stock
    table's fixed column widths and offsets never reach it. Tiles, cards and
    controls are Bonds'. */
-#cx{--cx-na:#e3e7ec;--cx-cell:#fff;--cx-edge:#e8e8e8;--cx-hov:#eaf4fd;}
-[data-theme="dark"] #cx{--cx-na:#2b3138;--cx-cell:#161b22;--cx-edge:#21262d;--cx-hov:#1f3a5c;}
+#cx,#kx{--cx-na:#e3e7ec;--cx-cell:#fff;--cx-edge:#e8e8e8;--cx-hov:#eaf4fd;}
+[data-theme="dark"] #cx,[data-theme="dark"] #kx{--cx-na:#2b3138;--cx-cell:#161b22;--cx-edge:#21262d;--cx-hov:#1f3a5c;}
 /* Investing's ETFs/Bonds/Currencies panes (_fmApply sets hidden). */
 .fm-tabbed>[hidden]{display:none !important;}
 /* Investing's ETFs/Bonds/Currencies Dashboards (_fdCards, _fdBoxes,
@@ -1622,23 +1622,23 @@ html.bvp-open{overflow:hidden;}
 [data-theme="dark"] .fd-s,[data-theme="dark"] .fd-box em,[data-theme="dark"] .fd-ax span,
 [data-theme="dark"] .fd-lg,[data-theme="dark"] .fd-bc span,[data-theme="dark"] .fd-gp{color:#8b949e !important;}
 .fm-tbl{background:var(--ppf-bg);}
-#cx .cx-wrap{overflow:auto;max-height:74vh;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.07);-webkit-overflow-scrolling:touch;margin-bottom:4px;}
-#cx .cx-tbl{border-collapse:separate;border-spacing:0;min-width:100%;background:var(--cx-cell);font-size:0.78em;white-space:nowrap;}
-#cx .cx-tbl th{padding:7px 10px;font-size:0.82em;font-weight:700;text-align:center;border:1px solid #ccc;border-width:0 1px 1px 0;cursor:pointer;user-select:none;}
-#cx .cx-tbl th.fixed-header{background:var(--hdr-bg);color:#fff;}
-#cx .cx-tbl th.cat-header{color:#fff;}
-#cx .cx-tbl th.col-header{color:#1a1d21;font-weight:600;white-space:normal;min-width:70px;}
-#cx .cx-tbl td{padding:6px 10px;text-align:center;border:1px solid var(--cx-edge);border-width:0 1px 1px 0;background:var(--cx-cell);font-variant-numeric:tabular-nums;}
-#cx .cx-tbl td.tk{font-weight:700;color:#1a252f;text-decoration:underline;text-decoration-color:rgba(41,128,185,0.3);}
-#cx .cx-tbl thead th{position:sticky;top:0;z-index:2;}
-#cx .cx-mx thead tr:nth-child(2) th{top:31px;}
-#cx .cx-tbl th:first-child,#cx .cx-tbl td:first-child{position:sticky;left:0;z-index:1;box-shadow:2px 0 6px rgba(0,0,0,0.10);}
-#cx .cx-tbl thead th:first-child{z-index:3;}
-#cx .cx-tbl td.cx-l,#cx .cx-tbl th.cx-l{text-align:left;}
-#cx .cx-tbl tbody tr{cursor:pointer;}
-#cx .cx-tbl tbody tr:hover td,#cx .cx-tbl tr.cx-sel td{background-color:var(--cx-hov) !important;}
-#cx .cx-thr{font-weight:400;font-size:0.9em;opacity:.8;}
-#cx .rb-cap{margin-left:3px;cursor:help;}
+#cx .cx-wrap,#kx .cx-wrap{overflow:auto;max-height:74vh;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.07);-webkit-overflow-scrolling:touch;margin-bottom:4px;}
+#cx .cx-tbl,#kx .cx-tbl{border-collapse:separate;border-spacing:0;min-width:100%;background:var(--cx-cell);font-size:0.78em;white-space:nowrap;}
+#cx .cx-tbl th,#kx .cx-tbl th{padding:7px 10px;font-size:0.82em;font-weight:700;text-align:center;border:1px solid #ccc;border-width:0 1px 1px 0;cursor:pointer;user-select:none;}
+#cx .cx-tbl th.fixed-header,#kx .cx-tbl th.fixed-header{background:var(--hdr-bg);color:#fff;}
+#cx .cx-tbl th.cat-header,#kx .cx-tbl th.cat-header{color:#fff;}
+#cx .cx-tbl th.col-header,#kx .cx-tbl th.col-header{color:#1a1d21;font-weight:600;white-space:normal;min-width:70px;}
+#cx .cx-tbl td,#kx .cx-tbl td{padding:6px 10px;text-align:center;border:1px solid var(--cx-edge);border-width:0 1px 1px 0;background:var(--cx-cell);font-variant-numeric:tabular-nums;}
+#cx .cx-tbl td.tk,#kx .cx-tbl td.tk{font-weight:700;color:#1a252f;text-decoration:underline;text-decoration-color:rgba(41,128,185,0.3);}
+#cx .cx-tbl thead th,#kx .cx-tbl thead th{position:sticky;top:0;z-index:2;}
+#cx .cx-mx thead tr:nth-child(2) th,#kx .cx-mx thead tr:nth-child(2) th{top:31px;}
+#cx .cx-tbl th:first-child,#kx .cx-tbl th:first-child,#cx .cx-tbl td:first-child,#kx .cx-tbl td:first-child{position:sticky;left:0;z-index:1;box-shadow:2px 0 6px rgba(0,0,0,0.10);}
+#cx .cx-tbl thead th:first-child,#kx .cx-tbl thead th:first-child{z-index:3;}
+#cx .cx-tbl td.cx-l,#kx .cx-tbl td.cx-l,#cx .cx-tbl th.cx-l,#kx .cx-tbl th.cx-l{text-align:left;}
+#cx .cx-tbl tbody tr,#kx .cx-tbl tbody tr{cursor:pointer;}
+#cx .cx-tbl tbody tr:hover td,#kx .cx-tbl tbody tr:hover td,#cx .cx-tbl tr.cx-sel td,#kx .cx-tbl tr.cx-sel td{background-color:var(--cx-hov) !important;}
+#cx .cx-thr,#kx .cx-thr{font-weight:400;font-size:0.9em;opacity:.8;}
+#cx .rb-cap,#kx .rb-cap{margin-left:3px;cursor:help;}
 .cx-mapcard #cx-map svg{width:100%;height:auto;display:block;}
 #cx-map path{fill:var(--cx-na);stroke:var(--ppf-bg);stroke-width:.4;}
 #cx-map path.has{cursor:pointer;}
@@ -1661,11 +1661,11 @@ html.bvp-open{overflow:hidden;}
 .cx-kv b{font-weight:600;font-variant-numeric:tabular-nums;text-align:right;}
 .cx-ok{color:var(--ppf-tw);}.cx-no{color:var(--ppf-hw);}
 @media (max-width:768px){ #cx .cx-sm-hide{display:none;} }
-[data-theme="dark"] #cx .cx-tbl th{border-color:#30363d;}
-[data-theme="dark"] #cx .cx-tbl th.col-header{color:#1a1d21 !important;}
-[data-theme="dark"] #cx .cx-tbl th.fixed-header,[data-theme="dark"] #cx .cx-tbl th.cat-header{color:#fff !important;}
-[data-theme="dark"] #cx .cx-tbl td{color:#e6edf3 !important;}
-[data-theme="dark"] #cx .cx-tbl td.tk{color:#58a6ff !important;}
+[data-theme="dark"] #cx .cx-tbl th,[data-theme="dark"] #kx .cx-tbl th{border-color:#30363d;}
+[data-theme="dark"] #cx .cx-tbl th.col-header,[data-theme="dark"] #kx .cx-tbl th.col-header{color:#1a1d21 !important;}
+[data-theme="dark"] #cx .cx-tbl th.fixed-header,[data-theme="dark"] #kx .cx-tbl th.fixed-header,[data-theme="dark"] #cx .cx-tbl th.cat-header,[data-theme="dark"] #kx .cx-tbl th.cat-header{color:#fff !important;}
+[data-theme="dark"] #cx .cx-tbl td,[data-theme="dark"] #kx .cx-tbl td{color:#e6edf3 !important;}
+[data-theme="dark"] #cx .cx-tbl td.tk,[data-theme="dark"] #kx .cx-tbl td.tk{color:#58a6ff !important;}
 [data-theme="dark"] .cx-dhead h3,[data-theme="dark"] .cx-kv,[data-theme="dark"] .cx-kv span,[data-theme="dark"] .cx-kv b{color:var(--ppf-txt) !important;}
 [data-theme="dark"] .cx-dsub,[data-theme="dark"] .cx-legend,[data-theme="dark"] .cx-legend span,[data-theme="dark"] .cx-x{color:var(--ppf-sub) !important;}
 [data-theme="dark"] .cx-ok{color:var(--ppf-tw) !important;}[data-theme="dark"] .cx-no{color:var(--ppf-hw) !important;}
@@ -3946,6 +3946,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
   <div id="sb-pf"></div>
   <div class="sb-div"></div>
   <button type="button" class="sb-row" onclick="sbClose();toggleFiltMenu(event)" title="Filters"><svg class="sb-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 5h16l-6 7v6l-4 2v-8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span class="sb-lbl">Filters</span><kbd class="navmenu-key">F</kbd></button>
+  <button type="button" class="sb-row" onclick="sbClose();aboutOpen()" title="About this report"><svg class="sb-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/></g></svg><span class="sb-lbl">About</span></button>
   <button type="button" class="sb-row" onclick="sbClose();hkOverlayOpen()" title="Keyboard shortcuts"><svg class="sb-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/></g></svg><span class="sb-lbl">Shortcuts</span><kbd class="navmenu-key">?</kbd></button>
   <div class="sb-foot">Data as of {{ generated_at }}</div>
 </nav>
@@ -3969,6 +3970,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
     <div id="m-etf-view" style="display:none"></div>
     <div id="m-bond-view" style="display:none"></div>
     <div id="m-ccy-view" style="display:none"></div>
+    <div id="m-crypto-view" style="display:none"></div>
     <div class="matrix-wrap"><table class="matrix-table" id="mtx"><thead id="mtx-h"></thead><tbody id="mtx-b"></tbody></table></div>
   </div>
   <div id="view-table" class="view">
@@ -4477,6 +4479,7 @@ var SECTOR_POOL={{ sector_pool_json }};
 var ETF_LT={{ etf_json }};
 var BOND_META={{ bond_meta|default('null') }};
 var CCY_META={{ ccy_meta|default('null') }};
+var CRYPTO_META={{ crypto_meta|default('null') }};
 var PAPER_META={{ paper_meta|default('null') }};
 /* PRICES context lives in prices_meta.json (dates axis, manifests, index
    series, sector composites) with per-ticker closes sharded under px/;
@@ -7907,7 +7910,7 @@ function _updateCountLabel(){
 var _altN={};
 function _filtCountSync(){
   var k=_altFiltKind(),f=function(n){return (+n||0).toLocaleString();};
-  var w={bond:['bond','bonds'],ccy:['currency','currencies'],etf:['ETF','ETFs']}[k],t='';
+  var w={bond:['bond','bonds'],ccy:['currency','currencies'],crypto:['coin','coins'],etf:['ETF','ETFs']}[k],t='';
   if(k==='pf')w=['stock','stocks'];
   if(curView==='pool'||curView==='macro'||k==='chart'||(k==='pf'&&!_pfMembersOn()))t='';
   else if(!k)t=f(FD.length)+' of '+f(DATA.length)+' stock'+(DATA.length===1?'':'s');
@@ -8062,7 +8065,7 @@ function _positionFpop(panel,btn){
    badge counts them. */
 function _phOn(){return curView==='table'&&curTSub==='prices'&&!document.documentElement.classList.contains('det-open');}
 function _pfOn(){return curView==='pf'&&(curPfSub==='overview'||!!_pfById[curPfSub])&&!document.documentElement.classList.contains('det-open');}
-function _altFiltKind(){return _bvOn()?'bond':_cxOn()?'ccy':_etfOn()?'etf':_phOn()?'chart':_pfOn()?'pf':'';}
+function _altFiltKind(){return _bvOn()?'bond':_cxOn()?'ccy':_kxOn()?'crypto':_etfOn()?'etf':_phOn()?'chart':_pfOn()?'pf':'';}
 function _pfMembersOn(){return curPfSub!=='overview'&&_pfSubTabCur()==='members';}
 function _altFiltActive(k){return k==='bond'?_bvActive():k==='ccy'?(_cxF.r?1:0):k==='etf'?(_etfF.c?1:0):k==='pf'?(_pfMembersOn()&&_pfm.q?1:0):0;}
 function _altFiltSync(){
@@ -8074,7 +8077,7 @@ function _altFiltSync(){
   if(s1)s1.style.display=k?'none':'';
   if(s2)s2.style.display=k?'none':'';
   var tl=document.querySelector('#filt-panel .fpop-title');
-  if(tl)tl.textContent=k==='bond'?'Bond filters':k==='ccy'?'Currency filters':k==='etf'?'ETF filters':k==='chart'?'Chart options':k==='pf'?'Portfolio':'Filters';
+  if(tl)tl.textContent=k==='bond'?'Bond filters':k==='ccy'?'Currency filters':k==='crypto'?'Crypto':k==='etf'?'ETF filters':k==='chart'?'Chart options':k==='pf'?'Portfolio':'Filters';
   var fb=document.getElementById('filt-show');if(fb&&k)fb.textContent='Done';
   _filtCountSync();
   var cl=document.querySelector('#filt-panel .filter-clear');
@@ -8090,6 +8093,8 @@ function _altFiltSync(){
       +'<label class="alt-chk"><input type="checkbox"'+(_bvF.u?' checked':'')+' onchange="_bvSet(\'u\',this.checked)"> Without cap flags</label>';
   }else if(k==='ccy'){
     box.innerHTML=lab('Score band')+'<select onchange="_cxSet(\'r\',this.value)" aria-label="Score band">'+opt('','All scores',_cxF.r)+_CX_RATINGS.map(function(r){return opt(r,_cxBandLabel(r),_cxF.r);}).join('')+'</select>';
+  }else if(k==='crypto'){
+    box.innerHTML='<p class="bv-note">Crypto has no filters: search by coin or name, and sort by any column.</p>';
   }else if(k==='etf'){
     var ec={};
     Object.keys((ETF_LT&&ETF_LT.funds)||{}).forEach(function(t){ec[_etfCat(ETF_LT.funds[t])]=1;});
@@ -8201,6 +8206,7 @@ function _filtClear(){
   var k=_altFiltKind();
   if(k==='bond')_bvReset();
   else if(k==='ccy')_cxSet('r','');
+  else if(k==='crypto'){closeFiltMenu();return;}
   else if(k==='etf')_etfSet('c','');
   else if(k==='pf'){_pfm.q='';_pfmRedraw();}
   else if(k==='chart'){phReset();return;}
@@ -8656,17 +8662,19 @@ function swMSub(key){
    screener). One view shows at a time. */
 function _mIsMatrix(){return (curMSub||'matrix')==='matrix';}
 function _mShow(){
-  var mw=document.querySelector('.matrix-wrap'),ov=document.getElementById('m-overview-view'),ev=document.getElementById('m-etf-view'),bv=document.getElementById('m-bond-view'),cv=document.getElementById('m-ccy-view');
+  var mw=document.querySelector('.matrix-wrap'),ov=document.getElementById('m-overview-view'),ev=document.getElementById('m-etf-view'),bv=document.getElementById('m-bond-view'),cv=document.getElementById('m-ccy-view'),kv=document.getElementById('m-crypto-view');
   var k=curMSub||'matrix';
   if(mw)mw.style.display=k==='matrix'?'':'none';
   if(ov)ov.style.display=k==='dashboard'?'':'none';
   if(ev)ev.style.display=k==='etf'?'':'none';
   if(bv)bv.style.display=k==='bond'?'':'none';
   if(cv)cv.style.display=k==='ccy'?'':'none';
+  if(kv)kv.style.display=k==='crypto'?'':'none';
   if(k==='dashboard')renderOverview();
   else if(k==='etf')renderEtfView();
   else if(k==='bond')renderBondView();
   else if(k==='ccy')renderCcyView();
+  else if(k==='crypto')renderCryptoView();
   else renderMatrix();
   _syncSearchPh();
 }
@@ -13909,7 +13917,7 @@ function navDet(dir){var idx=_detIdx+dir;if(idx<0||idx>=_detNav.length)return;op
 function _innerSubTabs(){
   if(curView==='pool')return document.querySelector('#pool-chart-area .pp-subtabs');
   if(curView==='pf')return document.querySelector('#pf-view .pp-subtabs');
-  if(curView==='matrix'&&/^(etf|bond|ccy)$/.test(curMSub))return document.querySelector('#m-'+curMSub+'-view .pp-subtabs');
+  if(curView==='matrix'&&/^(etf|bond|ccy|crypto)$/.test(curMSub))return document.querySelector('#m-'+curMSub+'-view .pp-subtabs');
   var s2=document.getElementById('sn-sub2');
   if(s2&&s2.style.display!=='none'&&s2.children.length)return s2;
   return null;
@@ -13947,10 +13955,10 @@ function _swipeTab(dir){
     if(!tg)return;
     if(tg.nodeType!==1)tg=tg.parentElement||document.body;
     if(!tg.closest)return;
-    if(tg.closest('.header,#det-modal,#sidebar,.sb-scrim,.fpop-panel,#cfsel-panel,#ai-panel,#hk-overlay,#pf-overlay,svg,canvas,input,select,textarea,[ontouchstart]'))return;
+    if(tg.closest('.header,#det-modal,#sidebar,.sb-scrim,.fpop-panel,#cfsel-panel,#ai-panel,#hk-overlay,#about-overlay,#pf-overlay,svg,canvas,input,select,textarea,[ontouchstart]'))return;
     var dm=document.getElementById('det-modal');
     if(dm&&dm.classList.contains('open'))return;
-    var open=['ai-panel','hk-overlay','pf-overlay'].some(function(id){var o=document.getElementById(id);if(!o||!o.getClientRects().length)return false;var cs=getComputedStyle(o);return cs.visibility!=='hidden'&&cs.display!=='none'&&+cs.opacity>0;});
+    var open=['ai-panel','hk-overlay','about-overlay','pf-overlay'].some(function(id){var o=document.getElementById(id);if(!o||!o.getClientRects().length)return false;var cs=getComputedStyle(o);return cs.visibility!=='hidden'&&cs.display!=='none'&&+cs.opacity>0;});
     if(open)return;
     var rc=document.documentElement.classList;
     if(rc.contains('sb-drawer')||rc.contains('sb-over'))return;
@@ -14011,6 +14019,10 @@ document.addEventListener('keydown',function(e){
      navigates behind it. */
   if(_hkOverlayOpen()){
     if(e.key==='Escape'||e.key==='?'){e.preventDefault();hkOverlayClose();}
+    return;
+  }
+  if(_aboutOpen()){
+    if(e.key==='Escape'){e.preventDefault();aboutClose();}
     return;
   }
   /* The portfolio dialog is modal the same way; the membership menu stacks
@@ -14299,7 +14311,7 @@ function _navGroups(){
     /* The Stocks Dashboard is the first tab of Stocks' own row (_stkTabs),
        as ETFs, Bonds and Currencies each open on theirs (_fmBar). */
     {v:'matrix',l:'Investing',cur:curView==='table'&&curTSub!=='prices'||curMSub==='dashboard'?'matrix':(curMSub||'matrix'),
-     items:[{k:'matrix',l:'Stocks'},{k:'etf',l:'ETFs'},{k:'bond',l:'Bonds'},{k:'ccy',l:'Currencies'}]},
+     items:[{k:'matrix',l:'Stocks'},{k:'etf',l:'ETFs'},{k:'bond',l:'Bonds'},{k:'ccy',l:'Currencies'}].concat(CRYPTO_META?[{k:'crypto',l:'Crypto'}]:[])},
     {v:'charts',l:'Charts',cur:'price',items:[{k:'price',l:'Stock Comparison'}]},
     {v:'pf',l:'Portfolios',cur:curPfSub,
      items:[{k:'overview',l:'Overview'}].concat(_pfDefs().map(function(p){return{k:p.id,l:p.name};}))}
@@ -14668,7 +14680,7 @@ function _detOpenState(on){
 /* The kind the visible table filters itself, left out of the list. */
 function _qrOwn(){
   if(_qrActive())return null;
-  if(curView==='matrix')return curMSub==='etf'?'etf':curMSub==='bond'?'bond':curMSub==='ccy'?'ccy':'stock';
+  if(curView==='matrix')return curMSub==='etf'?'etf':curMSub==='bond'?'bond':curMSub==='ccy'?'ccy':curMSub==='crypto'?'crypto':'stock';
   return curView==='table'?'stock':null;
 }
 /* Every token must match; an id match outranks a name match, a prefix a
@@ -14688,7 +14700,7 @@ function _qrScore(id,nm,toks){
   return s;
 }
 /* Per group: [score, shown id, name, key], best first, at most n. */
-var _QR_N={stock:6,etf:3,ccy:3,bond:3,page:3,term:3},_QR_BOND_MIN=3;
+var _QR_N={stock:6,etf:3,ccy:3,crypto:3,bond:3,page:3,term:3},_QR_BOND_MIN=3;
 function _qrTop(list,n){
   list.sort(function(a,b){return b[0]-a[0]||(a[1]<b[1]?-1:a[1]>b[1]?1:0);});
   return list.slice(0,n);
@@ -14975,6 +14987,15 @@ function qrRender(){
     });
     if(l.length)G.push({h:'Currencies',k:'ccy',it:_qrTop(l,_QR_N.ccy)});
   }
+  if(own!=='crypto'&&CRYPTO_META){
+    /* As the currencies: the inlined [symbol, name] index. */
+    l=[];
+    (_KX?_KX.rows.map(function(r){return [r.symbol,r.name];}):(CRYPTO_META.index||[])).forEach(function(c){
+      var sc=_qrScore(String(c[0]).toUpperCase(),String(c[1]||'').toUpperCase(),toks);
+      if(sc)l.push([sc,c[0],c[1]||'',c[0]]);
+    });
+    if(l.length)G.push({h:'Crypto',k:'crypto',it:_qrTop(l,_QR_N.crypto)});
+  }
   /* ~9k bonds sit in bonds.json (~2 MB), fetched on the first query long
      enough to be worth it; the list redraws when it lands. */
   if(own!=='bond'&&BOND_META&&q.length>=_QR_BOND_MIN&&!_BV_FAILED){
@@ -15080,12 +15101,14 @@ function _qrGo(k,key){
   }
   if(k==='etf'&&ETF_LT&&ETF_LT.funds[key])_qrRecentPush({k:'etf',key:key,t:key,n:ETF_LT.funds[key].fund_name||''});
   if(k==='ccy')_qrRecentPush({k:'ccy',key:key,t:key,n:((CCY_META&&CCY_META.index||[]).filter(function(c){return c[0]===key;})[0]||[])[1]||''});
+  if(k==='crypto')_qrRecentPush({k:'crypto',key:key,t:key,n:((CRYPTO_META&&CRYPTO_META.index||[]).filter(function(c){return c[0]===key;})[0]||[])[1]||''});
   if(document.documentElement.classList.contains('det-open'))closeDetail();
   var sub=k==='bonds'?'bond':k;
   _drillPush(_qrHere());
   /* The sub-tab is set before the view draws, so it opens on it. */
   if(k==='etf'){_etfSel=key;_fmKeep('etf','detail');}
   else if(k==='ccy'){_cxSel=key;_cxView='detail';_fmKeep('ccy','detail');}
+  else if(k==='crypto'){_kxSel=key;_fmKeep('crypto','detail');}
   else _fmKeep('bond','table');
   curMSub=sub;
   if(curView!=='matrix')showView('matrix');else swMSub(sub);
@@ -15337,6 +15360,12 @@ var TOUCH_GESTURES=[
   {g:'Ticker page',k:'Summary',l:'Print the one-page company summary'},
   {g:'Ticker page',k:'\u00d7',l:'Close the page, in the top bar'}
 ];
+function _aboutOpen(){var o=document.getElementById('about-overlay');return!!(o&&o.classList.contains('open'));}
+function aboutClose(){var o=document.getElementById('about-overlay');if(o){o.classList.remove('open');if(!document.getElementById('det-modal').classList.contains('open'))_unlockBody();}}
+function aboutOpen(){var o=document.getElementById('about-overlay');if(!o)return;closeNavMenu();closeFiltMenu();o.classList.add('open');_lockBody();try{localStorage.setItem('stock_about_seen_v1','1');}catch(e){}}
+/* First visit only: the About card opens once by itself, as the app's
+   welcome does. Not over a shared link that opens a ticker page. */
+setTimeout(function(){var seen='1';try{seen=localStorage.getItem('stock_about_seen_v1');}catch(e){}if(!seen&&!document.getElementById('det-modal').classList.contains('open'))aboutOpen();},600);
 function hkOverlayClose(){var o=document.getElementById('hk-overlay');if(o){o.classList.remove('open');if(!document.getElementById('det-modal').classList.contains('open'))_unlockBody();}}
 function hkOverlayOpen(){
   var o=document.getElementById('hk-overlay'),body=document.getElementById('hk-body');
@@ -16681,7 +16710,7 @@ function _ppEpRows(list,cls,maxV){
    visit (localStorage stock_fm_subtab_v2; v1 remembered 'table' from before
    the dashboards). */
 var _FM_SUB=(function(){
-  var d={etf:'dash',bond:'dash',ccy:'dash'};
+  var d={etf:'dash',bond:'dash',ccy:'dash',crypto:'dash'};
   try{var v=JSON.parse(localStorage.getItem('stock_fm_subtab_v2')||'{}');Object.keys(d).forEach(function(k){if(typeof v[k]==='string')d[k]=v[k];});}catch(e){}
   return d;
 })();
@@ -16722,6 +16751,7 @@ function _fmSubTab(view,k){
   _fmKeep(view,k);
   var root=document.getElementById('m-'+view+'-view');
   if(view==='ccy'){_cxView=k;if(k==='table'||k==='matrix'||k==='map')_cxDraw();}
+  if(view==='crypto'&&k==='table'&&_KX)_kxDraw();
   _fmApply(root,k);
   if(view==='etf'&&k==='detail')_etfcDrawAll(root);
   var bar=root&&root.querySelector('.fm-subtabs');
@@ -16800,7 +16830,7 @@ function _fdJump(view,set,tab){
   _fmDrill(view);
   set();
   _fmSubTab(view,tab||'table');
-  if(view==='etf')renderEtfView();else if(view==='bond')renderBondView();else _cxDraw();
+  if(view==='etf')renderEtfView();else if(view==='bond')renderBondView();else if(view==='crypto')_kxDraw();else _cxDraw();
   _altFiltSync();
   _drillSeal();
   window.scrollTo(0,0);
@@ -17036,7 +17066,7 @@ function renderBondView(){
    what it searches on this view. */
 function _syncSearchPh(){
   var i=document.getElementById('f-search');if(!i)return;
-  var t=_bvOn()?'Search bonds by CUSIP, issuer or maturity':_cxOn()?'Search currencies by code or name':_etfOn()?'Search ETFs by ticker, name or sector':'Search stocks, ETFs, currencies and bonds, or ask the AI Analyst';
+  var t=_bvOn()?'Search bonds by CUSIP, issuer or maturity':_cxOn()?'Search currencies by code or name':_kxOn()?'Search coins by symbol or name':_etfOn()?'Search ETFs by ticker, name or sector':'Search stocks, ETFs, currencies, crypto and bonds, or ask the AI Analyst';
   if(i.getAttribute('aria-label')!==t)i.setAttribute('aria-label',t);
 }
 function _bvCls(v){return _esc(String(v).replace('TREASURY_BILL','T-BILL').replace('TREASURY','TSY').replace('CORP_',''));}
@@ -17652,6 +17682,199 @@ function _cxPick(code){
 }
 function _cxSortBy(k){if(k===_cxSortK)_cxDir=-_cxDir;else{_cxSortK=k;_cxDir=-1;}_cxDraw();}
 function _cxSet(k,v){_cxF[k]=v;_cxDraw();_altFiltSync();}
+/* Investing › Crypto: the largest cryptocurrencies as a market table
+   (scripts/crypto_market.py -> output/crypto/crypto_report_<date>.json,
+   staged beside this page as crypto.json by report_html._stage_crypto_report).
+   No score, no rating, no gates: price, size, returns, risk and how each coin
+   moves with bitcoin and the S&P 500. Stablecoins and other tokenized claims
+   are left out (the report's `excluded`). Drawn on the Currencies table's
+   look (.cx-tbl inside #kx). Display only. */
+var _KX=null,_KX_LOADING=false,_KX_FAILED=false;
+var _kxSortK='market_cap',_kxDir=-1,_kxSel=null;
+function _kxOn(){return curView==='matrix'&&curMSub==='crypto'&&!document.documentElement.classList.contains('det-open');}
+function _kxQ(){var i=document.getElementById('f-search');return i?i.value:'';}
+var _KX_VIEWS=[['dash','Dashboard'],['table','Table'],['detail','Detail']];
+/* k=field, t=title, f=format, l=left-aligned, s=hidden on phones */
+var _KX_COLS=[
+  {k:'symbol',t:'Coin',f:'code',l:1},
+  {k:'name',t:'Name',f:'text',l:1},
+  {k:'price',t:'Price',f:'usd'},
+  {k:'chg_24h',t:'24h',f:'chg'},
+  {k:'chg_7d',t:'7d',f:'chg'},
+  {k:'chg_30d',t:'30d',f:'chg',s:1},
+  {k:'ytd',t:'YTD',f:'chg',s:1},
+  {k:'chg_1y',t:'1y',f:'chg'},
+  {k:'market_cap',t:'Market cap',f:'big'},
+  {k:'weight',t:'Share',f:'share',s:1},
+  {k:'volume_24h',t:'Volume 24h',f:'big',s:1},
+  {k:'vol_30d',t:'Vol 30d',f:'pct0',s:1},
+  {k:'vol_1y',t:'Vol 1y',f:'pct0',s:1},
+  {k:'max_dd_1y',t:'Max DD 1y',f:'pct0',s:1},
+  {k:'off_high_1y',t:'From 1y high',f:'pct0',s:1},
+  {k:'ath_off',t:'From ATH',f:'pct0',s:1},
+  {k:'corr_btc_1y',t:'Corr BTC',f:'corr',s:1},
+  {k:'corr_spy_1y',t:'Corr S&P',f:'corr',s:1}
+];
+function renderCryptoView(){
+  var cv=document.getElementById('m-crypto-view');if(!cv)return;
+  var msg=function(t){cv.innerHTML='<p style="color:#888;padding:20px;font-size:0.9em">'+t+'</p>';};
+  if(!CRYPTO_META)return msg('No crypto report for this run.');
+  if(!_KX){
+    if(_KX_FAILED)return msg('The crypto report could not be loaded.');
+    msg('Loading '+(CRYPTO_META.total||0)+' coins…');
+    if(!_KX_LOADING){
+      _KX_LOADING=true;
+      var again=function(){_KX_LOADING=false;if(curView==='matrix'&&curMSub==='crypto')renderCryptoView();};
+      _loadSidecar('crypto.json',function(d){if(d&&d.rows)_KX=_kxPrep(d);else _KX_FAILED=true;again();});
+    }
+    return;
+  }
+  cv.innerHTML='<div id="kx">'+_fmBar('crypto',_KX_VIEWS,'Crypto sections')
+    +'<div class="fm-tabbed">'
+    +'<div data-pane="dash">'+_kxDash(_KX)+'</div>'
+    +'<div data-pane="table"><div id="kx-body"></div></div>'
+    +'<div data-pane="detail" id="kx-det"></div>'
+    +'</div></div>';
+  _fmApply(cv,_FM_SUB.crypto);
+  _kxDraw();
+}
+function _kxPrep(d){d.bySym={};d.rows.forEach(function(r){d.bySym[r.symbol]=r;});d.ui=d.ui||{};return d;}
+function _kxNum(v){return typeof v==='number'&&isFinite(v);}
+var _KX_NA='<span class="bv-mut">—</span>';
+/* Dollars at a coin's own scale: $60,863 · $1.23 · $0.0001234. */
+function _kxUsd(v){
+  if(!_kxNum(v))return null;
+  var a=Math.abs(v);
+  return '$'+(a>=1000?v.toLocaleString(undefined,{maximumFractionDigits:0}):a>=1?v.toFixed(2):a>=0.01?v.toFixed(4):v.toPrecision(3));
+}
+function _kxBig(v){
+  if(!_kxNum(v))return null;
+  var a=Math.abs(v);
+  return '$'+(a>=1e12?(v/1e12).toFixed(2)+'T':a>=1e9?(v/1e9).toFixed(1)+'B':a>=1e6?(v/1e6).toFixed(0)+'M':a>=1e3?(v/1e3).toFixed(0)+'K':Math.round(v).toLocaleString());
+}
+function _kxFmt(kind,v){
+  if(!_kxNum(v))return null;
+  if(kind==='usd')return _kxUsd(v);
+  if(kind==='big')return _kxBig(v);
+  if(kind==='chg')return '<span class="'+(v>0?'bv-pos':v<0?'bv-neg':'')+'">'+(v>0?'+':'')+(v*100).toFixed(1)+'%</span>';
+  if(kind==='pct0')return (v*100).toFixed(0)+'%';
+  /* A share: one decimal under 10%, so the small coins do not all read 0%. */
+  if(kind==='share')return (v*100).toFixed(Math.abs(v)<0.1?1:0)+'%';
+  if(kind==='corr')return v.toFixed(2);
+  if(kind==='num')return v.toLocaleString(undefined,{maximumFractionDigits:0});
+  return String(v);
+}
+function _kxCell(r,c){
+  var v=r[c.k];
+  if(c.f==='code')return _esc(v);
+  if(c.f==='text')return v==null||v===''?_KX_NA:_esc(v);
+  var s=_kxFmt(c.f,v);return s===null?_KX_NA:s;
+}
+function _kxTh(k,label,cls){
+  var on=k===_kxSortK,tip=(_KX&&_KX.ui&&_KX.ui[k])||'';
+  return '<th class="'+(cls||'')+'" onclick="_kxSortBy(\''+k+'\')"'+(tip?' data-col-tip="kx_'+_attr(k)+'" data-col-label="'+_attr(label)+'" data-col-tip-body="'+_attr(tip)+'"':'')
+    +(on?' aria-sort="'+(_kxDir>0?'ascending':'descending')+'"':'')+'>'+_esc(label)+(on?' <span class="arrow">'+(_kxDir>0?'▲':'▼')+'</span>':'')+'</th>';
+}
+function _kxProv(D){
+  var p=[];
+  if(D.generated)p.push('Prices as of '+_esc(D.generated)+'.');
+  p.push('Source: CoinGecko (prices aggregated across exchanges; daily closes stamped 00:00 UTC).');
+  if((D.errors||[]).length)p.push(D.errors.length+' fetch'+(D.errors.length===1?'':'es')+' failed; the affected columns are blank.');
+  return p.join(' ');
+}
+/* Investing › Crypto › Dashboard: the market at a glance, the biggest
+   movers both ways, and which coins the table leaves out and why. */
+function _kxDash(D){
+  var R=D.rows,mc=0;R.forEach(function(r){if(_kxNum(r.market_cap))mc+=r.market_cap;});
+  var med=function(k){var v=R.map(function(r){return r[k];}).filter(_kxNum).sort(function(a,b){return a-b;});return v.length?v[Math.floor((v.length-1)/2)]:null;};
+  var by=function(k,dir){return R.filter(function(r){return _kxNum(r[k]);}).sort(function(a,b){return dir*(b[k]-a[k]);});};
+  var btc=D.bySym.BTC,up7=R.filter(function(r){return r.chg_7d>0;}).length;
+  var h='<div class="sx"><div class="qh-card qh-flush">'
+    +_qHelp('<span class="note-q-t">The '+D.total+' largest cryptocurrencies by market cap, leaving out stablecoins and tokens that are claims on another asset (wrapped, bridged or staked copies of a coin, tokenized gold or credit). No score or rating: a market table. Tap a coin for its Detail.</span>','About the Crypto Dashboard','corner')
+    +'<div class="sec-label">Crypto Market</div></div>'
+    +'<div class="xsect-sub">'+_esc(D.run_date)+' · top '+D.total+' coins by market cap · '+_kxProv(D)+'</div>'
+    +'<div class="pp-tiles bv-tiles">'
+    +'<div class="pp-tile" title="Combined market cap of the coins in the table."><span>Market cap</span><b>'+(_kxBig(mc)||'—')+'</b></div>'
+    +(btc?'<div class="pp-tile" title="Bitcoin’s share of the table’s combined market cap."><span>Bitcoin share</span><b>'+(_kxNum(btc.weight)?(btc.weight*100).toFixed(0)+'%':'—')+'</b></div>'
+      +'<div class="pp-tile" title="Bitcoin over the last 7 days."><span>BTC 7d</span><b>'+(_kxNum(btc.chg_7d)?(btc.chg_7d>0?'+':'')+(btc.chg_7d*100).toFixed(1)+'%':'—')+'</b></div>':'')
+    +'<div class="pp-tile" title="Coins whose price rose over the last 7 days."><span>Up over 7d</span><b>'+up7+' of '+R.length+'</b></div>'
+    +'<div class="pp-tile" title="Median annualised volatility over the last 30 days."><span>Median vol 30d</span><b>'+(_kxNum(med('vol_30d'))?(med('vol_30d')*100).toFixed(0)+'%':'—')+'</b></div>'
+    +'<div class="pp-tile" title="Median correlation of weekly returns with the S&P 500 over the last year."><span>Median corr S&amp;P</span><b>'+(_kxNum(med('corr_spy_1y'))?med('corr_spy_1y').toFixed(2):'—')+'</b></div>'
+    +'</div></div>';
+  var li=function(k){return function(r){return {label:r.symbol,sub:r.name,val:_kxFmt('chg',r[k]),click:_fdCall('_kxPick',r.symbol)};};};
+  h+='<div class="sx"><div class="sec-label">Movers</div><div class="bv-grid">'
+    +_fdList('Best 7 days',by('chg_7d',1).slice(0,5).map(li('chg_7d')))+_fdList('Worst 7 days',by('chg_7d',-1).slice(0,5).map(li('chg_7d')))
+    +_fdList('Best year',by('chg_1y',1).slice(0,5).map(li('chg_1y')))+_fdList('Worst year',by('chg_1y',-1).slice(0,5).map(li('chg_1y')))
+    +'</div></div>';
+  var ex=D.excluded||[];
+  h+='<div class="sx"><div class="sec-label">Left Out</div><div class="sec-sub">Coins in CoinGecko’s top '+(ex.length+R.length)+' that are not in the table</div>'
+    +(ex.length?ex.map(function(e){return '<div class="fd-li"><span><b>'+_esc(e.symbol||'')+'</b> <span class="etf-name">'+_esc(e.name||'')+' · #'+_esc(e.rank==null?'?':e.rank)+'</span></span><em>'+_esc(e.reason||'')+'</em></div>';}).join(''):'<p class="bv-note">None.</p>')
+    +'<div class="etf-note">Built by scripts/crypto_market.py. Not investment advice. Display only: nothing here changes a stock’s score.</div></div>';
+  return h;
+}
+function _kxRows(){
+  var q=_kxQ().trim().toLowerCase(),k=_kxSortK,d=_kxDir;
+  return _KX.rows.filter(function(r){
+    return !q||(r.symbol+' '+r.name+' '+r.id).toLowerCase().indexOf(q)>=0;
+  }).sort(function(a,b){
+    var x=a[k],y=b[k],xn=x==null,yn=y==null;
+    if(xn&&yn)return (a.rank||0)-(b.rank||0);
+    if(xn)return 1;if(yn)return -1;
+    if(typeof x==='string'||typeof y==='string')return String(x)<String(y)?-d:String(x)>String(y)?d:0;
+    return x<y?-d:x>y?d:0;
+  });
+}
+function _kxDraw(){
+  var host=document.getElementById('kx-body');if(!host)return;
+  var rows=_kxRows();
+  host.innerHTML='<div class="cx-wrap"><table class="cx-tbl"><thead><tr>'
+    +_KX_COLS.map(function(c){return _kxTh(c.k,c.t,'fixed-header'+(c.l?' cx-l':'')+(c.s?' cx-sm-hide':''));}).join('')
+    +'</tr></thead><tbody>'
+    +(rows.map(function(r){
+      return '<tr class="'+(r.symbol===_kxSel?'cx-sel':'')+'" onclick="_kxPick(\''+_attr(r.symbol)+'\')">'+_KX_COLS.map(function(c){
+        var cls=c.k==='symbol'?'tk':'';
+        if(c.l)cls+=' cx-l';if(c.s)cls+=' cx-sm-hide';
+        return '<td class="'+cls+'">'+_kxCell(r,c)+'</td>';
+      }).join('')+'</tr>';
+    }).join('')||'<tr><td colspan="'+_KX_COLS.length+'" class="cx-l">No coins match this search.</td></tr>')
+    +'</tbody></table></div><p class="bv-note">'+_kxProv(_KX)+' Vol is annualised over 365 days; correlations are over the last year (daily with bitcoin, weekly with the S&amp;P 500).</p>';
+  _altN.crypto=[rows.length,_KX.rows.length];
+  _filtCountSync();
+  _kxDetail();
+}
+function _kxKv(label,val,k){
+  var tip=k&&_KX.ui?_KX.ui[k]:'';
+  return '<div class="cx-kv"><span'+(tip?' class="bv-tl" title="'+_attr(tip)+'"':'')+'>'+_esc(label)+'</span><b>'+(val==null?_KX_NA:val)+'</b></div>';
+}
+function _kxDetail(){
+  var host=document.getElementById('kx-det');if(!host)return;
+  var r=_kxSel&&_KX.bySym[_kxSel];
+  if(!r){host.innerHTML='<div class="xsect-dashboard"><p class="bv-note">Pick a coin on the Dashboard or in the Table to see it here.</p></div>';return;}
+  var f=_kxFmt,num=function(v){return _kxNum(v)?v.toLocaleString(undefined,{maximumFractionDigits:0}):null;};
+  host.innerHTML='<div class="cx-det xsect-dashboard"><div class="cx-dhead"><h3>'+_esc(r.symbol)+' · '+_esc(r.name)+'</h3></div>'
+    +'<div class="cx-dsub">'+(f('usd',r.price)||'—')+' · '+(f('chg',r.chg_24h)||'—')+' today · #'+_esc(r.rank==null?'?':r.rank)+' by market cap</div>'
+    +'<div class="bv-card cx-sparkcard"><h4 title="'+_attr(_KX.ui.spark||'')+'">Last year</h4>'+(_cxSpark(r.spark)||'<p class="bv-note">No price history.</p>')+'</div><div class="bv-grid">'
+    +'<div class="bv-card"><h4>Returns</h4>'+_kxKv('24 hours',f('chg',r.chg_24h),'chg_24h')+_kxKv('7 days',f('chg',r.chg_7d),'chg_7d')+_kxKv('30 days',f('chg',r.chg_30d),'chg_30d')
+      +_kxKv('Year to date',f('chg',r.ytd),'ytd')+_kxKv('1 year',f('chg',r.chg_1y),'chg_1y')+'</div>'
+    +'<div class="bv-card"><h4>Risk</h4>'+_kxKv('Volatility 30d',f('pct0',r.vol_30d),'vol_30d')+_kxKv('Volatility 1y',f('pct0',r.vol_1y),'vol_1y')
+      +_kxKv('Max drawdown 1y',f('pct0',r.max_dd_1y),'max_dd_1y')+_kxKv('From 1y high',f('pct0',r.off_high_1y),'off_high_1y')
+      +_kxKv('From all-time high',f('pct0',r.ath_off),'ath_off')+_kxKv('All-time high on',r.ath_date?_esc(r.ath_date):null)
+      +_kxKv('Correlation with BTC',f('corr',r.corr_btc_1y),'corr_btc_1y')+_kxKv('Correlation with S&P 500',f('corr',r.corr_spy_1y),'corr_spy_1y')+'</div>'
+    +'<div class="bv-card"><h4>Size &amp; supply</h4>'+_kxKv('Market cap',f('big',r.market_cap),'market_cap')+_kxKv('Fully diluted',f('big',r.fdv),'fdv')
+      +_kxKv('Share of table',f('share',r.weight),'weight')+_kxKv('Volume 24h',f('big',r.volume_24h),'volume_24h')+_kxKv('Turnover',_kxNum(r.turnover)?(r.turnover*100).toFixed(1)+'%':null,'turnover')
+      +_kxKv('Circulating supply',num(r.circulating_supply))+_kxKv('Maximum supply',_kxNum(r.max_supply)?num(r.max_supply):'no cap')
+      +_kxKv('Issued',f('pct0',r.supply_issued),'supply_issued')+'</div>'
+    +'</div><p class="bv-note">'+_kxProv(_KX)+'</p></div>';
+}
+/* A row or a dashboard list item opens that coin's Detail tab. */
+function _kxPick(sym){
+  _fmDrill('crypto');
+  _kxSel=sym;
+  _kxDetail();
+  _fmSubTab('crypto','detail');
+}
+function _kxSortBy(k){if(k===_kxSortK)_kxDir=-_kxDir;else{_kxSortK=k;_kxDir=(k==='symbol'||k==='name')?1:-1;}_kxDraw();}
+
 
 /* A sector page's Value creation tab: its own SPDR. */
 function renderPoolEtf(sec){
@@ -19996,6 +20219,17 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
     <div class="hk-foot">Views are numbered in the order the Views menu lists them, and a ticker popup's sections in the order of its tabs. Keys are ignored while you are typing in a search or filter box.</div>
   </div>
 </div>
+<!-- About: the model in one paragraph, the same words as the iOS app's
+     welcome card and the App Store description. Opened from the sidebar's
+     About row, and once by itself on a reader's first visit
+     (stock_about_seen_v1). Reuses the shortcuts overlay's card styles. -->
+<div id="about-overlay" role="dialog" aria-modal="true" aria-label="About CitytoSummit" onclick="if(event.target===this)aboutClose()">
+  <div class="hk-card" style="max-width:520px">
+    <div class="hk-head"><h3>Welcome to CitytoSummit</h3><button class="hk-close" onclick="aboutClose()" aria-label="Close">&#215;</button></div>
+    <div id="about-body" style="padding:14px 18px 18px;font-size:14px;line-height:1.55;">CitytoSummit’s Stock Analysis Model values about 3,900 US stocks each night with several fair-value models and scores each one 0–100 on quality, growth and valuation. Results appear in an interactive report with live prices during the trading day, a weekly backtest checks the scores, and a paper account trades the top names intraday. The score is a starting point for research, not investment advice.</div>
+  </div>
+</div>
+<style>#about-overlay{position:fixed;inset:0;z-index:1600;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5);padding:20px;}#about-overlay.open{display:flex;}</style>
 <!-- Portfolios: the Manage / Save-filter dialog and the detail popup's
      membership menu (logic in the PORTFOLIOS script block). Colours come
      from the report's custom properties, so both themes need no extra rules. -->
