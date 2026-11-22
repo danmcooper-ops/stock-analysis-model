@@ -318,13 +318,13 @@ def test_plan_starts_the_side_models_before_the_analysis(tmp_path):
     assert steps.index('pull') < steps.index('sidemodels') < steps.index('analyze')
 
 
-def _sidemodels(tmp_path, bonds_body, ccy_body, wait_sec=60, rundate=None):
+def _sidemodels(tmp_path, bonds_body, ccy_body, wait_sec=60, rundate=None, crypto_body='exit 0'):
     """Run sidemodels_start then sidemodels_join with fake interpreters."""
     repo = tmp_path / 'repo'
     for d in ('bonds', 'currencies'):
         (repo / d).mkdir(parents=True)
     fakes = {}
-    for name, body in (('bonds', bonds_body), ('ccy', ccy_body)):
+    for name, body in (('bonds', bonds_body), ('ccy', ccy_body), ('vpy', crypto_body)):
         f = tmp_path / f'{name}_py'
         f.write_text(f'#!/bin/bash\n[ "$1" = -m ] && exit 1\necho "$PWD $*" >> {tmp_path}/calls\n{body}\n',
                      encoding='utf-8')
@@ -333,7 +333,7 @@ def _sidemodels(tmp_path, bonds_body, ccy_body, wait_sec=60, rundate=None):
     src = _src()
     block = re.search(r'^SIDE_PIDS=\(\)\n.*?^sidemodels_join\(\) \{\n.*?^\}\n', src, re.S | re.M).group(0)
     script = ('set -uo pipefail\n'
-              f'BONDS_PY={fakes["bonds"]}; CCY_PY={fakes["ccy"]}; SIDE_WAIT_SEC={wait_sec}\n'
+              f'BONDS_PY={fakes["bonds"]}; CCY_PY={fakes["ccy"]}; VPY={fakes["vpy"]}; SIDE_WAIT_SEC={wait_sec}\n'
               f'RUNDATE={rundate or "$(TZ=America/New_York date +%F)"}; LOGDIR={tmp_path}\n'
               f'DRY_RUN=0; BLOCKED=0; SOFT_FAIL=0; STEPLOG={tmp_path}/steps; NOTES={tmp_path}/notes\n'
               ': > "$STEPLOG"; : > "$NOTES"\n'
@@ -350,12 +350,20 @@ def _sidemodels(tmp_path, bonds_body, ccy_body, wait_sec=60, rundate=None):
 
 def test_side_models_run_in_their_own_folders_and_fail_soft(tmp_path):
     out, steps, calls, notes = _sidemodels(tmp_path, 'exit 0', 'exit 1')
-    assert steps == {'sidemodel_bonds': '0', 'sidemodel_currencies': '1', 'bond_checks': '0'}
+    assert steps == {'sidemodel_bonds': '0', 'sidemodel_currencies': '1', 'sidemodel_crypto': '0',
+                     'bond_checks': '0'}
     assert 'SOFT_FAIL=1' in out
     assert '/bonds scripts/analyze_bonds.py --as-of' in calls
     assert '/bonds scripts/report_html.py --run-date' in calls
     assert '/currencies scripts/analyze_currencies.py' in calls
+    assert '/repo scripts/crypto_market.py --run-date' in calls     # the repo root, stock venv
     assert 'currencies model failed' in notes
+
+
+def test_a_failed_crypto_build_costs_only_its_tab(tmp_path):
+    out, steps, _, notes = _sidemodels(tmp_path, 'exit 0', 'exit 0', crypto_body='exit 1')
+    assert steps['sidemodel_crypto'] == '1' and steps['sidemodel_currencies'] == '0'
+    assert 'crypto model failed' in notes
 
 
 def test_a_side_model_that_overruns_is_stopped(tmp_path):
@@ -368,7 +376,7 @@ def test_a_side_model_that_overruns_is_stopped(tmp_path):
 def test_a_past_date_leaves_the_currency_screener_alone(tmp_path):
     _, steps, calls, _ = _sidemodels(tmp_path, 'exit 0', 'exit 0', rundate='2026-09-25')
     assert steps == {'sidemodel_bonds': '0', 'bond_checks': '0'}
-    assert 'analyze_currencies' not in calls
+    assert 'analyze_currencies' not in calls and 'crypto_market' not in calls
 
 
 def test_bond_n_port_alerts_reach_the_run_notes(tmp_path):

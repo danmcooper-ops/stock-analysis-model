@@ -1080,6 +1080,32 @@ ruff check .
   LONG / NEUTRAL / AVOID take BUY / LEAN BUY / HOLD / PASS colours) without
   the stock table's fixed column offsets. Display only, like bonds. Tests:
   `tests/test_report_currency_tab.py`, `currencies/tests/test_report_data.py`.
+- **Crypto (Investing's sixth sub-tab, 2026-11-22):** a market table, not a
+  model: no score, rating or gates. `scripts/crypto_market.py` (stock
+  interpreter; nightly `sidemodels`, today's date only, since its prices are
+  live) asks CoinGecko (`data/crypto_client.py`) for the 60 largest coins
+  and keeps the top `TOP_N` (20) that are not claims on another asset:
+  `models/crypto_market.excluded_reason` reads each coin's CoinGecko
+  categories (cached 30 days in `data/cache/crypto/`) and skips
+  stablecoins, wrapped / bridged / liquid-staking copies and tokenized
+  assets (gold, private credit), with `ALWAYS_INCLUDE`/`ALWAYS_EXCLUDE` by
+  coin id. Per coin: price, market cap and share, 24h volume, 24h/7d/30d/1y
+  changes (CoinGecko's), YTD, 30d/1y volatility (√365), 1y max drawdown,
+  distance from the 1y high and the all-time high, correlation with bitcoin
+  (daily) and with SPY (weekly, each SPY week-end close paired with the
+  coin's next 00:00 UTC close, from `output/prices/SPY.parquet`), supply and a
+  1y spark. Keyless CoinGecko allows ~5 calls a minute, so the client
+  throttles at 13 s and waits out a 429 (~5 min a night);
+  `COINGECKO_API_KEY` (free demo key) cuts it to 2 s. Written to
+  `output/crypto/crypto_report_<date>.json` (`REPORT_VERSION` there,
+  `CRYPTO_REPORT_VERSION` here), staged as `crypto.json` by
+  `_stage_crypto_report` (`CRYPTO_MODEL_OUTPUT` overrides) and published
+  beside `currencies.json`; the iOS app reads the same file. The template
+  (`renderCryptoView`, `_kx*`) has Dashboard / Table / Detail sub-tabs on the
+  Currencies table's look (`#kx` shares the `#cx .cx-tbl` rules), a Crypto
+  group in the top-bar search (`CRYPTO_META.index`) and no filters. The
+  Investing menu shows Crypto only when a report was staged. Display only.
+  Tests: `tests/test_crypto_market.py`, `tests/test_report_crypto_tab.py`.
 - **Bonds (Investing's fourth sub-tab, 2026-10-27):** the
   bond model's report (`bonds/`), drawn in this report's styling and
   meant to replace that repo's own HTML page. The bond model's
@@ -1820,6 +1846,9 @@ by analyze_stock and gitignored):
 - `ALPACA_API_KEY`, `ALPACA_SECRET_KEY` — optional; the Alpaca **paper**
   account's keys for `scripts/paper_trade.py` (without them `rebalance`
   dry-runs against an empty $100k account at snapshot closes)
+- `COINGECKO_API_KEY` — optional; a free CoinGecko "demo" key for
+  Investing › Crypto (`data/crypto_client.py`), which lifts the keyless
+  ~5-calls-a-minute limit (a night's build drops from ~5 min to ~1)
 - `FRED_API_KEY` — optional; selects FRED's keyed JSON API for the macro
   series and the risk-free rate's `DGS10` fallback (unset falls back to the
   keyless `fredgraph.csv` endpoint)

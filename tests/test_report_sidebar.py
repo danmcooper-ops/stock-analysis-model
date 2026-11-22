@@ -488,7 +488,7 @@ def test_financial_model_has_stock_and_etf_valuations_tabs():
     src = _tpl()
     assert ("items:[{k:'matrix',l:'Stocks'},"
             "{k:'etf',l:'ETFs'},{k:'bond',l:'Bonds'},"
-            "{k:'ccy',l:'Currencies'}]},") in src
+            "{k:'ccy',l:'Currencies'}].concat(CRYPTO_META?[{k:'crypto',l:'Crypto'}]:[])},") in src
     assert "{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Stocks'}" not in src
     assert "curMSub==='dashboard'?'matrix'" in src     # the Dashboard lights Stocks
     assert '<div id="m-etf-view" style="display:none"></div>' in src
