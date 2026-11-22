@@ -609,7 +609,7 @@ def test_filters_panel_is_one_column_of_summarised_sections():
     controls, and a Show-N button pinned at the bottom."""
     src = _tpl()
     keys = re.findall(r'<div class="filt-col fsec"(?: id="pf-filt-col")? data-fsec="(\w+)">', src)
-    assert keys == ['saved', 'rating', 'quick', 'sector', 'country', 'pf']
+    assert keys == ['saved', 'rating', 'quick', 'country', 'sector', 'subsector', 'pf']
     assert '<div id="filt-stock-cols" class="fsec" data-fsec="cols">' in src
     for k in ('saved', 'rating', 'quick', 'sector', 'country', 'pf', 'cols'):
         assert f'<span class="fsec-s" id="fsum-{k}"></span>' in src, k

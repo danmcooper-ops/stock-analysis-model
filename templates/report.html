@@ -646,6 +646,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 /* Lists: the whole list, the panel scrolls (no box-in-a-box). */
 #filt-panel .fsec .ms-drop label{padding:4px 2px;font-size:0.85em;}
 #filt-panel .fsec .ms-drop .ms-all{border-bottom:1px solid #edf0f3;margin-bottom:2px;}
+.sub-n{color:#8a97a5;font-size:0.85em;}
+.sub-note{font-size:0.78em;color:#8a97a5;margin-top:4px;}
 .fsec-q{width:100%;box-sizing:border-box;margin:0 0 4px;padding:4px 8px;border:1px solid #d5dbe1;border-radius:4px;font:inherit;font-size:0.85em;background:transparent;}
 .fsec .add-filter-btn{margin-top:6px;}
 .sf-list{display:flex;flex-direction:column;gap:2px;margin-bottom:6px;}
@@ -755,6 +757,12 @@ td.ct{font-weight:700;}
 #dtbl th:nth-child(n+6),#dtbl td:nth-child(n+6){width:82px;min-width:82px;max-width:82px;}
 #dtbl th{white-space:normal;vertical-align:bottom;line-height:1.15;}
 #dtbl td:nth-child(n+6){overflow:hidden;text-overflow:ellipsis;}
+/* Sector and Industry, right after the frozen Ticker and Score on every data
+   tab (as the Gate Matrix and the iOS app have them). They are the first
+   columns to scroll sideways; long names end in an ellipsis on one line. */
+#dtbl th.dt-id-sec,#dtbl td.dt-id-sec{width:144px;min-width:144px;max-width:144px;}
+#dtbl th.dt-id-ind,#dtbl td.dt-id-ind{width:168px;min-width:168px;max-width:168px;}
+#dtbl td.dt-id-sec,#dtbl td.dt-id-ind{white-space:nowrap;text-align:left;}
 /* Freeze left 4 cols in DT header (# · flag · reviewed · ticker) */
 .dt th:nth-child(1){position:-webkit-sticky;position:sticky;left:0;z-index:12;background:var(--hdr-bg);}
 .dt th:nth-child(2){position:-webkit-sticky;position:sticky;left:40px;z-index:12;background:var(--hdr-bg);}
@@ -3869,19 +3877,28 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
                 <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()"><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Founder-Led</button>
                 <button class="fpop-toggle-btn" id="f-bluechip" onclick="toggleBlueChipFilter()" title="Large, established market leaders: market cap &ge; $50B, positive operating income, ROE &ge; 10%, and a sound balance sheet (Net Debt/EBITDA &le; 4, interest coverage &ge; 6x, or Altman Z &ge; 3)."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Blue Chip</button>
                 <button class="fpop-toggle-btn" id="f-r2000" onclick="toggleR2000Filter()" title="Only stocks that are current Russell 2000 constituents (small-cap index membership, sourced from Vanguard VTWO holdings at report build time)."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Russell 2000</button>
+                <button class="fpop-toggle-btn" id="f-divpay" onclick="toggleDivPayFilter()" title="Only companies that pay a dividend (dividend yield above zero). A missing yield counts as not paying."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Dividend paying</button>
                 <button class="fpop-toggle-btn" id="f-upgrades" onclick="setRcFilter(1)" title="Only stocks whose composite score crossed up into a higher band (57, 39 or 25) since the prior run, both scored with today's model. Stocks new since the prior run don't count."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Crossed up</button>
                 <button class="fpop-toggle-btn" id="f-downgrades" onclick="setRcFilter(2)" title="Only stocks whose composite score fell into a lower band (below 57, 39 or 25) since the prior run, both scored with today's model. Stocks new since the prior run don't count."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Crossed down</button>
               </div>
-            </div>
-            <div class="filt-col fsec" data-fsec="sector">
-              <button type="button" class="fsec-h" onclick="_fsecToggle('sector')" aria-expanded="false"><span class="fsec-t">Sectors</span><span class="fsec-s" id="fsum-sector"></span><span class="fsec-c" aria-hidden="true"></span></button>
-              <div class="ms-wrap fsec-b" id="ms-sector"><div class="ms-drop" id="ms-sector-opts"></div></div>
             </div>
             <div class="filt-col fsec" data-fsec="country">
               <button type="button" class="fsec-h" onclick="_fsecToggle('country')" aria-expanded="false"><span class="fsec-t">Countries</span><span class="fsec-s" id="fsum-country"></span><span class="fsec-c" aria-hidden="true"></span></button>
               <div class="fsec-b">
                 <input type="search" class="fsec-q" placeholder="Find a country" aria-label="Find a country" oninput="_fsecFind(this,'ms-country')">
                 <div class="ms-wrap" id="ms-country"><div class="ms-drop" id="ms-country-opts"></div></div>
+              </div>
+            </div>
+            <div class="filt-col fsec" data-fsec="sector">
+              <button type="button" class="fsec-h" onclick="_fsecToggle('sector')" aria-expanded="false"><span class="fsec-t">Sectors</span><span class="fsec-s" id="fsum-sector"></span><span class="fsec-c" aria-hidden="true"></span></button>
+              <div class="ms-wrap fsec-b" id="ms-sector"><div class="ms-drop" id="ms-sector-opts"></div></div>
+            </div>
+            <div class="filt-col fsec" data-fsec="subsector">
+              <button type="button" class="fsec-h" onclick="_fsecToggle('subsector')" aria-expanded="false"><span class="fsec-t">Subsectors</span><span class="fsec-s" id="fsum-subsector"></span><span class="fsec-c" aria-hidden="true"></span></button>
+              <div class="fsec-b">
+                <input type="search" class="fsec-q" id="ms-subsector-q" placeholder="Find a subsector" aria-label="Find a subsector" oninput="_fsecFind(this,'ms-subsector')">
+                <div class="ms-wrap" id="ms-subsector"><div class="ms-drop" id="ms-subsector-opts"></div></div>
+                <div class="sub-note" id="ms-subsector-note"></div>
               </div>
             </div>
             <div class="filt-col fsec" id="pf-filt-col" data-fsec="pf">
@@ -4383,21 +4400,28 @@ function dashCatJump(name,scoreKey){
 /* Sector page → Gate Matrix: an Industries row (or its bar) opens the
    matrix filtered to that industry. Stored by name, not by ticker list, so
    the filter round-trips through the share link and survives a re-render. */
+/* Tick only `val` in a Filters-panel list (no applyFilters; the caller's
+   jump re-filters). */
+function _msOnly(id,val){
+  var wrap=document.getElementById(id);if(!wrap)return;
+  wrap.querySelectorAll('.ms-drop input[type="checkbox"][value]').forEach(function(cb){cb.checked=cb.value===val;});
+  var allBox=wrap.querySelector('.ms-all input');
+  if(allBox){allBox.checked=false;allBox.indeterminate=true;}
+  msUpdateLabel(id);
+}
 function dashIndustryJump(sec,idx){
   var n=SECTOR_POOL&&SECTOR_POOL[sec],d=n&&n.industries&&n.industries[idx];
   if(!d)return;
   ppHide();
   _drillPush(sec+' \u00b7 Profit Pool');
-  var mem=d.members&&d.members.length?d.members.slice():[d.industry];
-  if(mem.length===1){
-    /* One industry: an Industry column filter in the Filters menu. */
-    if(_dashFilter&&_dashFilter.type!=='gate')_dashFilter=null;
-    _cfPut('industry',null,null,mem[0]);
-  }else{
-    /* The folded Other spans several industries, which one "contains"
-       filter cannot express, so it keeps the drill-down chip. */
-    _dashFilter={type:'industry',sector:sec,members:mem,label:'Other industries'};
-  }
+  var mem=d.members&&d.members.length?d.members.slice():[d.industry||'Other'];
+  /* The sector ticked and its industry (or the folded Other's several) on
+     the Filters panel's Subsectors row. Older share links may still carry
+     the 'industry' drill-down, which _dashPass keeps honouring. */
+  if(_dashFilter&&_dashFilter.type!=='gate')_dashFilter=null;
+  _msOnly('ms-sector',sec);
+  _subSet(mem);
+  _cfPut('industry',null,null,null);
   _dashJump();
 }
 /* A wind row → Gate Matrix: the sector (and the industry a force names)
@@ -4408,11 +4432,9 @@ function windMatrixJump(from,sec,ind){
   ppHide();
   _drillPush(from);
   if(_dashFilter&&_dashFilter.type!=='gate')_dashFilter=null;
-  wrap.querySelectorAll('.ms-drop input[type="checkbox"][value]').forEach(function(cb){cb.checked=cb.value===sec;});
-  var allBox=wrap.querySelector('.ms-all input');
-  if(allBox){allBox.checked=false;allBox.indeterminate=true;}
-  msUpdateLabel('ms-sector');
-  _cfPut('industry',null,null,ind||null);
+  _msOnly('ms-sector',sec);
+  _subSet(ind?[ind]:[]);
+  _cfPut('industry',null,null,null);
   _dashJump();
 }
 /* The button that makes that drill, closing the row's bullets: "Research
@@ -4793,6 +4815,10 @@ function toggleBlueChipFilter(){_blueChipOnly=!_blueChipOnly;document.getElement
    data/russell2000_tickers.txt (see report_html.py). */
 var _r2000Only=false;
 function toggleR2000Filter(){_r2000Only=!_r2000Only;document.getElementById('f-r2000').classList.toggle('active',_r2000Only);applyFilters();}
+/* Dividend paying — div_yield above zero; a missing yield counts as not
+   paying (the iOS app's Quick filter, app PR #111). */
+var _divPayOnly=false;
+function toggleDivPayFilter(){_divPayOnly=!_divPayOnly;document.getElementById('f-divpay').classList.toggle('active',_divPayOnly);applyFilters();}
 function _updateFlagCount(){var n=Object.keys(_flags).length;var el=document.getElementById('flag-count-label');if(el)el.textContent=n>0?' ('+n+')':'';}
 /* One sync point for the display-only checkboxes leading the quick-filter
    rows: read the real state vars and mirror them. Runs from applyFilters,
@@ -4801,7 +4827,7 @@ function _updateFlagCount(){var n=Object.keys(_flags).length;var el=document.get
 function _syncQfChecks(){
   var m={'f-reviewed':_revFilter===2,'f-unreviewed':_revFilter===1,
          'f-flagged':_flagOnly,'f-founder':_founderOnly,
-         'f-bluechip':_blueChipOnly,'f-r2000':_r2000Only,
+         'f-bluechip':_blueChipOnly,'f-r2000':_r2000Only,'f-divpay':_divPayOnly,
          'f-upgrades':_rcFilter===1,'f-downgrades':_rcFilter===2};
   Object.keys(m).forEach(function(id){
     var el=document.getElementById(id);
@@ -5099,7 +5125,7 @@ function _pfRuleFromFilters(){
   var ignored=[];
   if(st.search)ignored.push('search');
   if(st.flagOnly)ignored.push('Flagged');if(st.founderOnly)ignored.push('Founder-Led');
-  if(st.blueChipOnly)ignored.push('Blue Chip');if(st.r2000Only)ignored.push('Russell 2000');
+  if(st.blueChipOnly)ignored.push('Blue Chip');if(st.r2000Only)ignored.push('Russell 2000');if(st.divPayOnly)ignored.push('Dividend paying');if(st.subsectors)ignored.push('Subsectors');
   if(st.revFilter)ignored.push('Reviewed');if(st.rcFilter)ignored.push('Upgrades/Downgrades');
   if(st.dashFilter)ignored.push('dashboard drill-down');if(_pfSel.length)ignored.push('Portfolios');
   if(dated)ignored.push('date ranges');
@@ -6910,6 +6936,7 @@ function _getCurrentFilterState(){
   var ctyBoxes=document.querySelectorAll('#ms-country .ms-drop input[type="checkbox"][value]');
   var ctySel=msGetSelected('ms-country');
   if(ctySel.length<ctyBoxes.length)st.countries=ctySel;
+  if(_subSel.length)st.subsectors=_subSel.slice();
   var cf=[];
   document.querySelectorAll('.col-filter-row').forEach(function(row){
     var key=row.querySelector('.cfr-col').value;if(!key)return;
@@ -6928,7 +6955,7 @@ function _getCurrentFilterState(){
     cf.push({key:key,min:minR!==''?parseFloat(minR):null,max:maxR!==''?parseFloat(maxR):null});
   });
   st.colFilters=cf;
-  st.flagOnly=_flagOnly;st.founderOnly=_founderOnly;st.blueChipOnly=_blueChipOnly;st.r2000Only=_r2000Only;st.revFilter=_revFilter;st.rcFilter=_rcFilter;
+  st.flagOnly=_flagOnly;st.founderOnly=_founderOnly;st.blueChipOnly=_blueChipOnly;st.r2000Only=_r2000Only;st.divPayOnly=_divPayOnly;st.revFilter=_revFilter;st.rcFilter=_rcFilter;
   if(_dashFilter)st.dashFilter=_dashFilter;
   if(_pfSel.length)st.portfolios=_pfSel.slice();
   return st;
@@ -6937,6 +6964,7 @@ function _applyFilterState(st){
   /* Restore (or clear) the dashboard drill-down alongside everything else —
      the zero-row fallback calls _applyFilterState({}) expecting a FULL reset. */
   _dashFilter=st.dashFilter||null;
+  _subSet(st.subsectors);
   document.getElementById('f-search').value=st.search||'';
   ['ms-rating','ms-sector','ms-country'].forEach(function(id){
     var sel=id==='ms-rating'?st.ratings:(id==='ms-sector'?st.sectors:st.countries);
@@ -6977,6 +7005,7 @@ function _applyFilterState(st){
   _founderOnly=!!st.founderOnly;document.getElementById('f-founder').classList.toggle('active',_founderOnly);
   _blueChipOnly=!!st.blueChipOnly;document.getElementById('f-bluechip').classList.toggle('active',_blueChipOnly);
   _r2000Only=!!st.r2000Only;document.getElementById('f-r2000').classList.toggle('active',_r2000Only);
+  _divPayOnly=!!st.divPayOnly;document.getElementById('f-divpay').classList.toggle('active',_divPayOnly);
   _revFilter=st.revFilter|0;
   _syncRevBtns();
   _rcFilter=st.rcFilter|0;
@@ -7002,9 +7031,9 @@ function _sfList(){
 function _sfStore(list){try{localStorage.setItem(_SF_KEY,JSON.stringify(list));return true;}catch(e){return false;}}
 function _sfSnap(){
   var st=_getCurrentFilterState(),o={};
-  ['ratings','sectors','countries','portfolios'].forEach(function(k){if(st[k])o[k]=st[k].slice();});
+  ['ratings','sectors','subsectors','countries','portfolios'].forEach(function(k){if(st[k])o[k]=st[k].slice();});
   if(st.colFilters&&st.colFilters.length)o.colFilters=st.colFilters;
-  ['flagOnly','founderOnly','blueChipOnly','r2000Only'].forEach(function(k){if(st[k])o[k]=true;});
+  ['flagOnly','founderOnly','blueChipOnly','r2000Only','divPayOnly'].forEach(function(k){if(st[k])o[k]=true;});
   if(st.revFilter)o.revFilter=st.revFilter;
   if(st.rcFilter)o.rcFilter=st.rcFilter;
   return o;
@@ -7021,11 +7050,12 @@ function _sfDesc(o){
   var p=[];
   if(o.ratings)p.push(o.ratings.length?o.ratings.join(', '):'No ratings');
   if(o.sectors)p.push(o.sectors.length===1?o.sectors[0]:o.sectors.length+' sectors');
+  if(o.subsectors)p.push(o.subsectors.length===1?o.subsectors[0]:o.subsectors.length+' subsectors');
   if(o.countries)p.push(o.countries.length===1?o.countries[0]:o.countries.length+' countries');
   var q=[];
   if(o.revFilter)q.push(o.revFilter===2?'Reviewed':'Unreviewed');
   if(o.flagOnly)q.push('Flagged');if(o.founderOnly)q.push('Founder-led');
-  if(o.blueChipOnly)q.push('Blue chip');if(o.r2000Only)q.push('Russell 2000');
+  if(o.blueChipOnly)q.push('Blue chip');if(o.r2000Only)q.push('Russell 2000');if(o.divPayOnly)q.push('Dividend paying');
   if(o.rcFilter)q.push(o.rcFilter===1?'Upgrades':'Downgrades');
   p=p.concat(q);
   if(o.portfolios)p.push(o.portfolios.length===1&&_pfById[o.portfolios[0]]?_pfById[o.portfolios[0]].name:o.portfolios.length+' portfolios');
@@ -7098,6 +7128,8 @@ function _stateToParam(){
   if(st.founderOnly)p.fo=1;
   if(st.blueChipOnly)p.bc=1;
   if(st.r2000Only)p.r2=1;
+  if(st.subsectors)p.ss=st.subsectors;
+  if(st.divPayOnly)p.dp=1;
   if(st.revFilter)p.rv=st.revFilter;
   if(st.rcFilter)p.rc=st.rcFilter;
   if(st.dashFilter)p.df=st.dashFilter;
@@ -7142,7 +7174,7 @@ function _restoreFromHash(){
     if(p.v==='macro'&&!_MACRO_AVAILABLE){}
     else if(p.v&&document.getElementById('view-'+p.v))showView(p.v);
     var st={search:p.q||'',ratings:p.r,sectors:p.s,countries:p.c,
-            flagOnly:!!p.fl,founderOnly:!!p.fo,blueChipOnly:!!p.bc,r2000Only:!!p.r2,revFilter:p.rv|0,rcFilter:p.rc|0,
+            flagOnly:!!p.fl,founderOnly:!!p.fo,blueChipOnly:!!p.bc,r2000Only:!!p.r2,divPayOnly:!!p.dp,subsectors:Array.isArray(p.ss)?p.ss:null,revFilter:p.rv|0,rcFilter:p.rc|0,
             dashFilter:(p.df&&typeof p.df==='object'&&typeof p.df.type==='string')?p.df:null,
             portfolios:Array.isArray(p.pf)?p.pf:null};
     st.colFilters=(p.cf||[]).filter(function(c){
@@ -7593,6 +7625,45 @@ function msToggleAll(id,state){
   msUpdateLabel(id);
   applyFilters();
 }
+/* Subsectors (the industry names the sector pages group by), as the iOS
+   app's Filters panel has them (app PR #114). Opt-in: nothing ticked shows
+   every subsector. The list holds the ticked sectors' subsectors (every
+   subsector when all sectors are ticked), and ticking sectors drops any
+   picked subsector outside them, so the table can't empty by mistake. A
+   row with no industry counts as Other, as the sector pages group it. */
+var _subSel=[],_SUB_BY_SEC=null;
+function _subOf(d){return d.industry||'Other';}
+function _subBySec(){
+  if(_SUB_BY_SEC)return _SUB_BY_SEC;
+  var m={};
+  DATA.forEach(function(d){if(!d.sector)return;var a=m[d.sector]||(m[d.sector]={});a[_subOf(d)]=(a[_subOf(d)]||0)+1;});
+  _SUB_BY_SEC=m;return m;
+}
+function _subAllowed(sectors,allSectors){
+  var m=_subBySec(),out={};
+  Object.keys(m).forEach(function(sec){
+    if(!allSectors&&sectors.indexOf(sec)<0)return;
+    Object.keys(m[sec]).forEach(function(n){out[n]=(out[n]||0)+m[sec][n];});
+  });
+  return out;
+}
+function _subRender(allowed){
+  var el=document.getElementById('ms-subsector-opts');if(!el)return;
+  var names=Object.keys(allowed).sort(function(a,b){return a.localeCompare(b);});
+  el.innerHTML=names.map(function(n){
+    return '<label><input type="checkbox" value="'+_attr(n)+'"'+(_subSel.indexOf(n)>=0?' checked':'')
+      +' onchange="_subTick(this.value,this.checked)"> '+esc(n)+' <span class="sub-n">'+allowed[n]+'</span></label>';
+  }).join('');
+  var q=document.getElementById('ms-subsector-q');if(q&&q.value)_fsecFind(q,'ms-subsector');
+  var note=document.getElementById('ms-subsector-note');
+  if(note)note.textContent='Nothing ticked shows every subsector.';
+}
+function _subTick(n,on){
+  _subSel=_subSel.filter(function(x){return x!==n;});
+  if(on)_subSel.push(n);
+  applyFilters();
+}
+function _subSet(list){_subSel=(list||[]).slice();}
 function msUpdateLabel(id){
   /* The per-group trigger buttons whose text this summarized are gone
      (the lists are inline in the Filters panel); kept as a no-op because
@@ -7635,6 +7706,9 @@ function applyFilters(){
   var allRatings=ratings.length===document.querySelectorAll('#ms-rating .ms-drop input[type="checkbox"][value]').length;
   var allSectors=sectors.length===document.querySelectorAll('#ms-sector .ms-drop input[type="checkbox"][value]').length;
   var allCountries=countries.length===document.querySelectorAll('#ms-country .ms-drop input[type="checkbox"][value]').length;
+  var _subOk=_subAllowed(sectors,allSectors);
+  _subSel=_subSel.filter(function(n){return n in _subOk;});
+  _subRender(_subOk);
   // Collect all active column-value filters
   var colFilters=[];
   document.querySelectorAll('.col-filter-row').forEach(function(row){
@@ -7668,6 +7742,7 @@ function applyFilters(){
     if(_founderOnly&&!d.founder_led)return false;
     if(_blueChipOnly&&!_isBlueChip(d))return false;
     if(_r2000Only&&!d.r2000)return false;
+    if(_divPayOnly&&!(d.div_yield>0))return false;
     if(!_pfPass(d))return false;
     if(_revFilter===1&&isReviewed(d.ticker))return false;
     if(_revFilter===2&&!isReviewed(d.ticker))return false;
@@ -7679,6 +7754,7 @@ function applyFilters(){
     /* The Score list's values are band keys; a row's band is its score's. */
     if(!allRatings&&ratings.indexOf(bandOf(d))<0)return false;
     if(!allSectors&&sectors.indexOf(d.sector)<0)return false;
+    if(_subSel.length&&_subSel.indexOf(_subOf(d))<0)return false;
     if(!allCountries&&countries.indexOf(d.country)<0)return false;
     for(var i=0;i<colFilters.length;i++){
       var cf=colFilters[i];
@@ -7739,12 +7815,12 @@ function applyFilters(){
      once: state 0 shows all and doesn't count; states 1 (Unreviewed) and
      2 (Reviewed) are active filters. */
   var fn=(toks.length?1:0)
-        +(_flagOnly?1:0)+(_founderOnly?1:0)+(_blueChipOnly?1:0)+(_r2000Only?1:0)
+        +(_flagOnly?1:0)+(_founderOnly?1:0)+(_blueChipOnly?1:0)+(_r2000Only?1:0)+(_divPayOnly?1:0)
         +(_pfSel.length?1:0)
         +(_revFilter>0?1:0)+(_rcFilter>0?1:0)
         +(_dashFilter?1:0)
         +colFilters.length
-        +(allRatings?0:1)+(allSectors?0:1)+(allCountries?0:1);
+        +(allRatings?0:1)+(allSectors?0:1)+(_subSel.length?1:0)+(allCountries?0:1);
   var fbtn=document.getElementById('filt-btn');
   var fopen=document.getElementById('filt-panel');
   fopen=fopen&&fopen.classList.contains('open');
@@ -7926,6 +8002,7 @@ function _applySuggestion(tk){
 function clearFilters(){
   document.getElementById('f-search').value='';
   msToggleAll('ms-rating',true);
+  _subSel=[];
   msToggleAll('ms-sector',true);
   msToggleAll('ms-country',true);
   document.getElementById('col-filters').innerHTML='';
@@ -7934,6 +8011,7 @@ function clearFilters(){
   _founderOnly=false;document.getElementById('f-founder').classList.remove('active');
   _blueChipOnly=false;document.getElementById('f-bluechip').classList.remove('active');
   _r2000Only=false;document.getElementById('f-r2000').classList.remove('active');
+  _divPayOnly=false;document.getElementById('f-divpay').classList.remove('active');
   _pfSel=[];_pfEditingId=null;_pfRenderFilter();
   _revFilter=0;_syncRevBtns();
   _rcFilter=0;document.getElementById('f-upgrades').classList.remove('active');document.getElementById('f-downgrades').classList.remove('active');
@@ -8079,10 +8157,10 @@ function _fsecListSum(id,lbl){
 }
 function _fsecSums(){
   var q=[];
-  [['f-reviewed','Reviewed'],['f-unreviewed','Unreviewed'],['f-flagged','Flagged'],['f-founder','Founder-led'],['f-bluechip','Blue chip'],['f-r2000','Russell 2000'],['f-upgrades','Crossed up'],['f-downgrades','Crossed down']]
+  [['f-reviewed','Reviewed'],['f-unreviewed','Unreviewed'],['f-flagged','Flagged'],['f-founder','Founder-led'],['f-bluechip','Blue chip'],['f-r2000','Russell 2000'],['f-divpay','Dividend paying'],['f-upgrades','Crossed up'],['f-downgrades','Crossed down']]
     .forEach(function(x){var c=document.querySelector('#'+x[0]+' .qf-chk');if(c&&c.checked)q.push(x[1]);});
   var st=_getCurrentFilterState(),cf=((st&&st.colFilters)||[]).length+(_dashFilter?1:0);
-  return {rating:_fsecListSum('ms-rating',bandLabel),sector:_fsecListSum('ms-sector'),country:_fsecListSum('ms-country'),
+  return {rating:_fsecListSum('ms-rating',bandLabel),sector:_fsecListSum('ms-sector'),subsector:_subSel.length?(_subSel.length===1?_subSel[0]:_subSel.length+' subsectors'):'',country:_fsecListSum('ms-country'),
     quick:q.length?(q.length<=2?q.join(', '):q.length+' on'):'',
     pf:_pfSel.length?(_pfSel.length===1?(function(){var d=_pfDefs().filter(function(p){return p.id===_pfSel[0];})[0];return d?d.name:'1 portfolio';})():_pfSel.length+' portfolios'):'',
     cols:cf?cf+' active':'',saved:(_sfCurrent()||{}).name||''};
@@ -8725,12 +8803,14 @@ function renderOverview(){
   gateRates.sort(function(a,b){return a.pct-b.pct;});
   var bottom3=new Set(gateRates.slice(0,3).map(function(x){return x.g.key;}));
   html+='<div class="sx">';
-  html+='<div class="sec-label">Gate Pass Rates</div><div class="sec-sub">&#9650; low \u2192 high</div>';
+  html+='<div class="sec-label">Gate Pass Rates</div><div class="sec-sub">&#9650; low \u2192 high \u00b7 click a gate or a category to filter</div>';
   GM.categories.forEach(function(cat,ci){
     var catRates=gateRates.filter(function(x){return x.g.category===cat.name;});
     if(!catRates.length)return;
     if(ci>0)html+='<div style="height:1px;background:#f0f0f0;margin:8px 0"></div>';
-    html+='<div style="font-size:0.7em;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:'+cat.dark+';margin-bottom:5px;padding-left:2px">'+cat.name+'</div>';
+    /* The category header opens the matrix filtered to the stocks scoring
+       above the category's average, as the Gates Summary cards do. */
+    html+='<div onclick="dashCatJump(\''+cat.name+'\',\''+cat.scoreKey+'\')" title="Show the stocks scoring at or above the '+cat.name+' average" style="cursor:pointer;font-size:0.7em;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:'+cat.dark+';margin-bottom:5px;padding-left:2px">'+cat.name+' &#8250;</div>';
     catRates.forEach(function(x){
       var g=x.g,pct=x.pct,isBot=bottom3.has(g.key);
       var accent=isBot?'#c62828':cat.dark;
@@ -8853,6 +8933,10 @@ function renderTable(){
      never the rating); a move across a band line since the prior run is on
      the ticker page and behind the Crossed up / Crossed down filters. */
   var cols=(TC[curTSub]||TC.prices).slice();
+  /* Sector and Industry follow the frozen Ticker and Score on every data tab.
+     Added here, not in TC, so the column-filter lists stay as they were. */
+  if(cols[0]&&cols[0].k==='ticker'&&cols[1]&&cols[1].k==='_composite_score')
+    cols.splice(2,0,{k:'sector',l:'Sector',f:'text',g:'dt-id-sec',id:1},{k:'industry',l:'Industry',f:'text',g:'dt-id-ind',id:1});
   var _dtbl=document.getElementById('dtbl');
   if(_dtbl)_dtbl.className='dt hdr-'+curTSub; /* paints the whole header row one per-tab hue */
   var th=document.getElementById('dt-h');
@@ -8892,7 +8976,7 @@ function _dtBuildRow(d,_i){
   html+='<td style="text-align:center">'+_revHtml(d.ticker)+'</td>';
   _dtCols.forEach(function(c){
     var r=ftc(d[c.k],c.f);
-    var cls=c.k==='ticker'?' class="tk2" onclick="openDet(\''+t+'\')"':'';
+    var cls=c.k==='ticker'?' class="tk2" onclick="openDet(\''+t+'\')"':c.id?' class="'+c.g+'"'+(d[c.k]?' title="'+_attr(d[c.k])+'"':''):'';
     /* A live price/MoS is shown, but data-value keeps the close the sort uses. */
     var lv=(c.k==='price'||c.k==='mos')&&d[c.k]!=null?_lqView(d,c.k):undefined;
     if(lv!=null){cls=' class="lq-live" title="'+esc(_lqTip(d,c.k))+'"';r={t:ftc(lv,c.f).t,v:r.v};}

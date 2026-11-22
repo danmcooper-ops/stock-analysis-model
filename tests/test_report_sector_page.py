@@ -270,11 +270,10 @@ def test_top_level_navigation_opens_the_first_sub_tab():
 
 
 def test_drilldowns_write_column_filters_not_a_chip():
-    """The category cards, the score histogram and a single-industry click
-    each set an ordinary column-filter row (visible and editable in the
-    Filters menu) instead of the hidden drill-down shown as a blue chip.
-    Only the gate pass/fail drill-down and the folded multi-industry Other,
-    which no single column filter can express, keep the chip."""
+    """The category cards and the score histogram each set an ordinary
+    column-filter row (visible and editable in the Filters menu) instead of
+    the hidden drill-down shown as a blue chip. An industry click ticks its
+    sector and subsector(s) on the Subsectors row, the folded Other too."""
     css = _tpl()
     def fn(name):
         return re.search(r'^function ' + name + r'\(.*?^\}', css, re.S | re.M).group(0)
@@ -283,8 +282,8 @@ def test_drilldowns_write_column_filters_not_a_chip():
     score = fn('toggleDashScore')
     assert "idx>=9?100:idx*10+9.9" in score and "_cfPut('_composite_score',lo,hi,null)" in score
     ind = fn('dashIndustryJump')
-    assert "_cfPut('industry',null,null,mem[0]);" in ind
-    assert "_dashFilter={type:'industry'" in ind          # the folded Other only
+    assert "_msOnly('ms-sector',sec);" in ind and "_subSet(mem);" in ind
+    assert "_dashFilter={type:'industry'" not in ind
     # the scores are filterable columns
     assert "var _CF_SCORES=[['_composite_score','Composite Score']]" in css
 
