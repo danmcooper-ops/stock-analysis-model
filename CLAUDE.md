@@ -1944,4 +1944,14 @@ by analyze_stock and gitignored):
   the email off. Unset, nothing is sent. A failed send never changes the
   run's status, and `--print` shows the email without sending it. A run that
   dies before `finish()` sends nothing. Tests: `tests/test_email_summary.py`.
+  The weekly backtest mails its results the same way:
+  `scheduled-tasks/weekly-backtest/mac_run.sh` runs `scripts/email_backtest.py`
+  after `run.sh` exits, with the same keys read from `.env` in a subshell (so
+  `run.sh` never sees them). The digest follows the runbook's summary
+  (`cloud-weekly-backtest/SKILL.md` §4) from `status.txt`, the summary JSON and
+  the step logs: the IC against the |t| ≥ 2 bar, rating buckets with an
+  out-of-order flag (and whether last week's was too), scoring models,
+  coverage, deferred pairs, `REGRESSION:`/`NOTICE:` lines and `PUBLISHED`.
+  A run with no `RESULT` reads "DID NOT FINISH"; SMOKE, DRY_RUN and a killed
+  run send nothing. Tests: `tests/test_email_backtest.py`.
 - yfinance requires no authentication

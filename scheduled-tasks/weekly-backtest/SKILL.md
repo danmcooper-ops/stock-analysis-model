@@ -48,6 +48,11 @@ never overlap.
 - Full log: `~/Library/Logs/StockModel/weekly_<date>.log`
 - Launch output (anything printed before the log starts):
   `~/Library/Logs/StockModel/weekly_launch.out`
+- Results email: once `run.sh` exits, `mac_run.sh` mails the outcome itself
+  (`scripts/email_backtest.py`, the nightly email's SMTP keys from `.env`), so
+  every run that is not killed, a SMOKE or a DRY_RUN is emailed whether or
+  not this task writes its summary. A Step 4 retry sends a second email. Its
+  `email:` line is at the end of the full log. You do not send anything.
 
 ## Step 1 — Decide, launch detached, wait
 
