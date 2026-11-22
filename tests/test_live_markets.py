@@ -110,3 +110,32 @@ def test_launcher_counts_only_real_failures(tmp_path):
     log.write_text('10:00 uploaded 1 bytes\nRESULT ok=1 failed=0\n', encoding='utf-8')
     out = subprocess.run(['bash', '-c', f'PREV={log}; {line}'], capture_output=True, text=True).stdout
     assert out.strip() == 'previous failed ticks: 0'
+
+
+def _ts(d, hh, mm):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    return int(datetime(d.year, d.month, d.day, hh, mm, tzinfo=ZoneInfo('America/New_York')).timestamp())
+
+
+def test_live_prices_keep_only_todays_trades():
+    from scripts.live_markets import build_live_prices
+    quotes = [
+        {'symbol': 'AAPL', 'regularMarketPrice': 231.456789, 'regularMarketTime': _ts(TODAY, 10, 44),
+         'regularMarketChangePercent': 1.2345},
+        {'symbol': 'HALT', 'regularMarketPrice': 5.0, 'regularMarketTime': _ts(TODAY - timedelta(days=1), 15, 59)},
+        {'symbol': 'ZERO', 'regularMarketPrice': 0, 'regularMarketTime': _ts(TODAY, 10, 44)},
+        {'symbol': 'NOPX', 'regularMarketTime': _ts(TODAY, 10, 44)},
+        {'symbol': 'NODP', 'regularMarketPrice': 12, 'regularMarketTime': _ts(TODAY, 9, 31)},
+    ]
+    out = build_live_prices(quotes, TODAY, '2026-11-20T15:45:00Z', '2026-11-19')
+    assert out['as_of'] == '2026-11-20' and out['night'] == '2026-11-19' and out['live'] is True
+    assert out['q'] == {'AAPL': [231.4568, 0.012345, _ts(TODAY, 10, 44)],
+                        'NODP': [12.0, None, _ts(TODAY, 9, 31)]}
+
+
+def test_live_prices_none_when_nothing_traded_today():
+    from scripts.live_markets import build_live_prices
+    old = [{'symbol': 'AAPL', 'regularMarketPrice': 1.0, 'regularMarketTime': _ts(TODAY - timedelta(days=3), 16, 0)}]
+    assert build_live_prices(old, TODAY, 'x', None) is None
+    assert build_live_prices([], TODAY, 'x', None) is None

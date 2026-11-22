@@ -1405,8 +1405,15 @@ ruff check .
   (~22 KB). The app overlays it on the nightly board. Started by the desktop
   app task `the-live-markets-board` (weekdays 09:25) through
   `scheduled-tasks/live-markets/mac_run.sh`, which launches the loop detached
-  and reports the previous day's RESULT line. Tests:
-  `tests/test_live_markets.py`, the worker test.
+  and reports the previous day's RESULT line. Each tick also uploads
+  **live company prices** (2026-11-22): every ticker in `app/manifest.json`
+  quoted through Yahoo's batch `v7/finance/quote` (yfinance's `YfData`, 200
+  symbols a call, ~20 calls, ~2 s) as `{as_of, updated, night, q: {TICKER:
+  [price, day change fraction, trade epoch s]}}` (~135 KB), KV key `prices`,
+  served as `live/prices.json`. Quotes not from today's session are dropped.
+  The app shows them on ticker and portfolio pages beside the close (display
+  only, as the report's live quotes); a prices failure never costs the board.
+  Tests: `tests/test_live_markets.py`, the worker test.
 - **Portfolio groupings (`portfolio/portfolios.json`, `models/portfolio_groups.py`):**
   named sets of tickers — hand-picked, rule-driven, or both — and a ticker may
   sit in any number of them. **Positions** (`models/portfolio_positions.py`)

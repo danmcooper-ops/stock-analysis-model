@@ -51,6 +51,7 @@ export default {
     const url = new URL(request.url);
     if (/(^|\/)api\/quote$/.test(url.pathname)) return quoteResponse(url, env);
     if (url.pathname === LIVE_MARKETS_PATH) return liveMarketsResponse(env);
+    if (url.pathname === LIVE_PRICES_PATH) return liveKvResponse(env, LIVE_PRICES_KEY);
 
     const resp = await env.ASSETS.fetch(request);
     const out = new Response(resp.body, resp);
@@ -256,9 +257,16 @@ export function announceQuotes(resp, env) {
 // binding or the key is missing: the app then stays on the nightly board.
 export const LIVE_MARKETS_PATH = '/live/markets.json';
 export const LIVE_MARKETS_KEY = 'markets';
+// Every company's latest price, uploaded by the same loop (key `prices`).
+export const LIVE_PRICES_PATH = '/live/prices.json';
+export const LIVE_PRICES_KEY = 'prices';
 
 export async function liveMarketsResponse(env) {
-  const body = env.LIVE ? await env.LIVE.get(LIVE_MARKETS_KEY) : null;
+  return liveKvResponse(env, LIVE_MARKETS_KEY);
+}
+
+export async function liveKvResponse(env, key) {
+  const body = env.LIVE ? await env.LIVE.get(key) : null;
   if (body == null) return text(404, 'Not found');
   return new Response(body, {
     status: 200,

@@ -24,6 +24,13 @@ Rows by source:
 The board leaves out each row's long ``hist`` (the app keeps the nightly
 one), which keeps the file around 30 KB.
 
+Each tick also uploads ``prices`` (served as ``live/prices.json``): every
+company in the app's universe (``app/manifest.json``) with Yahoo's latest
+regular-session price and day change, from the batch quote endpoint (200
+symbols a call, about 20 calls for the whole universe). The app shows them on
+ticker and portfolio pages beside the close; scores and filters keep the
+close. A price failure never costs the board, nor the board the prices.
+
 Run by the Claude desktop-app task ``the-live-markets-board`` (weekdays
 09:25 ET), which starts ``--loop`` detached. Needs CLOUDFLARE_API_TOKEN,
 CLOUDFLARE_ACCOUNT_ID and CF_LIVE_KV_NAMESPACE (environment or .env).
@@ -47,6 +54,13 @@ OUT_FILE = OUT_DIR / 'markets.json'
 NIGHTLY_MACRO = (REPO / '.claude' / 'worktrees' / 'pages-live' / 'docs' / 'macro.json',
                  REPO / 'output' / 'macro.json')
 KV_KEY = 'markets'
+PRICES_KV_KEY = 'prices'
+PRICES_FILE = OUT_DIR / 'prices.json'
+NIGHTLY_MANIFEST = (REPO / '.claude' / 'worktrees' / 'pages-live' / 'docs' / 'app' / 'manifest.json',
+                    REPO / 'output' / 'app' / 'manifest.json')
+QUOTE_URL = 'https://query1.finance.yahoo.com/v7/finance/quote'
+QUOTE_CHUNK = 200
+QUOTE_FIELDS = 'regularMarketPrice,regularMarketTime,regularMarketChangePercent'
 KV_TTL_SECONDS = 36 * 3600          # a board left over from a dead loop expires
 INTERVAL_MINUTES = 15
 SESSION_START = (9, 30)
@@ -120,6 +134,29 @@ def build_live_board(nightly, histories, fx_histories, today, updated):
         return None
     return {'as_of': today.isoformat(), 'updated': updated, 'live': True,
             'night': (nightly or {}).get('as_of'), 'panels': panels}
+
+
+def build_live_prices(quotes, today, updated, night):
+    """The live prices file, or None when no quote is from ``today``. Pure.
+
+    ``quotes`` is Yahoo's quote results ({symbol, regularMarketPrice,
+    regularMarketTime (epoch s), regularMarketChangePercent (in percent)}).
+    A quote whose last trade is not from today's session (a halted or
+    delisted name, a holiday) is left out, so the app keeps the close.
+    Each entry is [price, day change as a fraction, trade time in epoch s]."""
+    q = {}
+    for r in quotes or []:
+        sym, px, t = r.get('symbol'), r.get('regularMarketPrice'), r.get('regularMarketTime')
+        if not sym or not isinstance(px, (int, float)) or px <= 0 or not isinstance(t, (int, float)):
+            continue
+        if datetime.fromtimestamp(t, ET).date() != today:
+            continue
+        dp = r.get('regularMarketChangePercent')
+        dp = round(dp / 100, 6) if isinstance(dp, (int, float)) else None
+        q[sym] = [round(float(px), 4), dp, int(t)]
+    if not q:
+        return None
+    return {'as_of': today.isoformat(), 'updated': updated, 'live': True, 'night': night, 'q': q}
 
 
 # ---------------------------------------------------------------- I/O
@@ -209,14 +246,45 @@ def fx_histories(today, fx_syms, recent):
     return out
 
 
-def upload(body):
+def load_universe():
+    """(tickers, night) from the published app manifest, or ([], None)."""
+    for path in NIGHTLY_MANIFEST:
+        try:
+            m = json.loads(path.read_text(encoding='utf-8'))
+            if m.get('tickers'):
+                return list(m['tickers']), m.get('date')
+        except (OSError, ValueError):
+            continue
+    return [], None
+
+
+def fetch_quotes(symbols):
+    """Yahoo's batch quotes for ``symbols``, QUOTE_CHUNK a call. A chunk that
+    fails is skipped (its names keep the close); all failing raises."""
+    from yfinance.data import YfData
+    from data.macro_client import _yf_session
+    data = YfData(session=_yf_session())
+    out, errors = [], []
+    for i in range(0, len(symbols), QUOTE_CHUNK):
+        chunk = symbols[i:i + QUOTE_CHUNK]
+        try:
+            j = data.get_raw_json(QUOTE_URL, params={'symbols': ','.join(chunk), 'fields': QUOTE_FIELDS})
+            out.extend((j.get('quoteResponse') or {}).get('result') or [])
+        except Exception as e:
+            errors.append(f'{type(e).__name__}: {e}')
+    if errors and not out:
+        raise RuntimeError(errors[0])
+    return out
+
+
+def upload(body, key=KV_KEY):
     acct = os.environ.get('CLOUDFLARE_ACCOUNT_ID')
     ns = os.environ.get('CF_LIVE_KV_NAMESPACE')
     token = os.environ.get('CLOUDFLARE_API_TOKEN')
     if not (acct and ns and token):
         raise RuntimeError('CLOUDFLARE_ACCOUNT_ID, CF_LIVE_KV_NAMESPACE and CLOUDFLARE_API_TOKEN are needed to upload')
     url = (f'https://api.cloudflare.com/client/v4/accounts/{acct}/storage/kv/namespaces/'
-           f'{ns}/values/{KV_KEY}?expiration_ttl={KV_TTL_SECONDS}')
+           f'{ns}/values/{key}?expiration_ttl={KV_TTL_SECONDS}')
     req = urllib.request.Request(url, data=body.encode(), method='PUT', headers={
         'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'})
     with urllib.request.urlopen(req, timeout=30) as resp:
@@ -224,7 +292,54 @@ def upload(body):
             raise RuntimeError('KV write refused')
 
 
+def write_atomic(path, body):
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix('.tmp')
+    tmp.write_text(body, encoding='utf-8')
+    tmp.replace(path)
+
+
+def prices_tick(dry_run=False):
+    """Build, write and (unless dry_run) upload the live prices. True on success."""
+    now = datetime.now(ET)
+    tickers, night = load_universe()
+    if not tickers:
+        print(f'{now:%H:%M} prices failed: no app manifest')
+        return False
+    try:
+        quotes = fetch_quotes(tickers)
+    except Exception as e:
+        print(f'{now:%H:%M} prices failed: Yahoo quotes: {e}')
+        return False
+    prices = build_live_prices(quotes, now.date(), datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), night)
+    if not prices:
+        print(f'{now:%H:%M} prices: no quote from today ({len(quotes)} returned)')
+        return False
+    body = json.dumps(prices, separators=(',', ':'))
+    write_atomic(PRICES_FILE, body)
+    n = len(prices['q'])
+    if dry_run:
+        print(f'{now:%H:%M} prices: wrote {PRICES_FILE} ({len(body)} bytes, {n}/{len(tickers)}); upload skipped')
+        return True
+    try:
+        upload(body, PRICES_KV_KEY)
+    except Exception as e:
+        print(f'{now:%H:%M} prices upload failed: {e}')
+        return False
+    print(f'{now:%H:%M} prices: uploaded {len(body)} bytes, {n}/{len(tickers)} tickers')
+    return True
+
+
 def tick(dry_run=False):
+    """The board and the prices; True when the board succeeded."""
+    try:
+        prices_tick(dry_run)
+    except Exception as e:               # the prices never cost the board
+        print(f'{datetime.now(ET):%H:%M} prices failed: {type(e).__name__}: {e}', flush=True)
+    return board_tick(dry_run)
+
+
+def board_tick(dry_run=False):
     """Build, write and (unless dry_run) upload one board. True on success."""
     now = datetime.now(ET)
     today = now.date()
@@ -243,10 +358,7 @@ def tick(dry_run=False):
         print(f'{now:%H:%M} no rows built')
         return False
     body = json.dumps(board, separators=(',', ':'))
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    tmp = OUT_FILE.with_suffix('.tmp')
-    tmp.write_text(body, encoding='utf-8')
-    tmp.replace(OUT_FILE)
+    write_atomic(OUT_FILE, body)
     n = sum(len(p['rows']) for p in board['panels'])
     if dry_run:
         print(f'{now:%H:%M} wrote {OUT_FILE} ({len(body)} bytes, {n} rows); upload skipped')
