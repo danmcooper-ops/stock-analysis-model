@@ -576,7 +576,7 @@ def test_wind_rows_drill_to_the_gate_matrix(tmp_path):
     li = _fn(src, '_windMatrixLi')
     assert "windMatrixJump(this.dataset.from,this.dataset.sec,this.dataset.ind)" in li
     jump = _fn(src, 'windMatrixJump')
-    assert '_drillPush(from);' in jump and "_cfPut('industry',null,null,ind||null);" in jump and '_dashJump();' in jump
+    assert '_drillPush(from);' in jump and "_msOnly('ms-sector',sec);" in jump and "_subSet(ind?[ind]:[]);" in jump and '_dashJump();' in jump
 
 
 def test_stacked_wind_rows_indent_the_heading_under_the_status():
