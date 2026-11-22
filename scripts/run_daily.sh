@@ -28,11 +28,13 @@
 #   pull       fast-forward main so the run uses merged code; a checkout left on a
 #              merged branch with no uncommitted edits goes back to main first
 #              (non-blocking)
-#   sidemodels start the bond model (bonds/) and the currency screener
-#              (currencies/) in the background, each in its own folder on its
-#              own interpreter; the enrich step's re-render waits for them (at
-#              most 30 min) and draws their reports as Investing › Bond
-#              Valuations and Currencies                    (non-blocking)
+#   sidemodels start the bond model (bonds/), the currency screener
+#              (currencies/) and the crypto market table
+#              (scripts/crypto_market.py) in the background, the first two in
+#              their own folders on their own interpreters; the enrich step's
+#              re-render waits for them (at most 30 min) and draws their
+#              reports as Investing › Bonds, Currencies and Crypto
+#                                                          (non-blocking)
 #   analyze    analyze_stock.py                            (BLOCKING), then the
 #              companyfacts cache backup to Supabase Storage (non-blocking)
 #   enrich     FDIC, REIT, XBRL, FDA enrichment, price top-up for new entrants,
@@ -349,6 +351,10 @@ sidemodels_start() {
   if [ "$RUNDATE" = "$(TZ=America/New_York date +%F)" ]; then
     (cd currencies && "$CCY_PY" scripts/analyze_currencies.py) >"${slog}_currencies.log" 2>&1 &
     SIDE_PIDS+=("currencies:$!")
+    # Crypto prices are live when fetched, so likewise today only; the
+    # stock interpreter, output/crypto/crypto_report_<date>.json.
+    "$VPY" scripts/crypto_market.py --run-date "$RUNDATE" >"${slog}_crypto.log" 2>&1 &
+    SIDE_PIDS+=("crypto:$!")
   fi
   echo "sidemodels: started ${SIDE_PIDS[*]}; logs ${slog}_*.log"
 }
@@ -392,7 +398,7 @@ sidemodels_join() {
 
 if wants sidemodels; then
   run sidemodels soft sidemodels_start \
-    || note "sidemodels not started — Bond Valuations and Currencies draw the newest earlier reports"
+    || note "sidemodels not started — Bonds, Currencies and Crypto draw the newest earlier reports"
 fi
 
 # ---------------------------------------------------------------- analyze
@@ -611,6 +617,9 @@ publish() {
   # currencies.json (Investing › Currencies) likewise.
   if [ -f output/currencies.json ]; then cp output/currencies.json "$docs/currencies.json" || return 1
   else rm -f "$docs/currencies.json"; fi
+  # crypto.json (Investing › Crypto) likewise.
+  if [ -f output/crypto.json ]; then cp output/crypto.json "$docs/crypto.json" || return 1
+  else rm -f "$docs/crypto.json"; fi
   # paper.json (Portfolios › the paper portfolio's Paper account tab): only
   # this machine has the paper bot's records; public by choice.
   if [ -f output/paper.json ]; then cp output/paper.json "$docs/paper.json" || return 1

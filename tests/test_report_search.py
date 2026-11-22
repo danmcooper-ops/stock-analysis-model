@@ -78,7 +78,7 @@ var inp={{value:''}};
 var document={{getElementById:function(id){{return id==='hdr-qr'?box:inp;}},
   documentElement:{{classList:{{contains:function(){{return false;}}}}}}}};
 function esc(s){{return String(s);}}
-var DATA={json.dumps(STOCKS)},ETF_LT={json.dumps(ETFS)},CCY_META={json.dumps(CCY)},BOND_META={{total:3}};
+var DATA={json.dumps(STOCKS)},ETF_LT={json.dumps(ETFS)},CCY_META={json.dumps(CCY)},CRYPTO_META=null,BOND_META={{total:3}};
 var _BV={json.dumps(BONDS)},_BV_FAILED=false,_CX=null,_bvIdxMap=null;
 var curView={json.dumps(view)},curMSub={json.dumps(msub)};
 {_var('_QR_N', src)}
