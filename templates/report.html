@@ -3929,6 +3929,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
   <div id="sb-pf"></div>
   <div class="sb-div"></div>
   <button type="button" class="sb-row" onclick="sbClose();toggleFiltMenu(event)" title="Filters"><svg class="sb-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 5h16l-6 7v6l-4 2v-8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span class="sb-lbl">Filters</span><kbd class="navmenu-key">F</kbd></button>
+  <button type="button" class="sb-row" onclick="sbClose();aboutOpen()" title="About this report"><svg class="sb-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/></g></svg><span class="sb-lbl">About</span></button>
   <button type="button" class="sb-row" onclick="sbClose();hkOverlayOpen()" title="Keyboard shortcuts"><svg class="sb-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/></g></svg><span class="sb-lbl">Shortcuts</span><kbd class="navmenu-key">?</kbd></button>
   <div class="sb-foot">Data as of {{ generated_at }}</div>
 </nav>
@@ -13863,10 +13864,10 @@ function _swipeTab(dir){
     if(!tg)return;
     if(tg.nodeType!==1)tg=tg.parentElement||document.body;
     if(!tg.closest)return;
-    if(tg.closest('.header,#det-modal,#sidebar,.sb-scrim,.fpop-panel,#cfsel-panel,#ai-panel,#hk-overlay,#pf-overlay,svg,canvas,input,select,textarea,[ontouchstart]'))return;
+    if(tg.closest('.header,#det-modal,#sidebar,.sb-scrim,.fpop-panel,#cfsel-panel,#ai-panel,#hk-overlay,#about-overlay,#pf-overlay,svg,canvas,input,select,textarea,[ontouchstart]'))return;
     var dm=document.getElementById('det-modal');
     if(dm&&dm.classList.contains('open'))return;
-    var open=['ai-panel','hk-overlay','pf-overlay'].some(function(id){var o=document.getElementById(id);if(!o||!o.getClientRects().length)return false;var cs=getComputedStyle(o);return cs.visibility!=='hidden'&&cs.display!=='none'&&+cs.opacity>0;});
+    var open=['ai-panel','hk-overlay','about-overlay','pf-overlay'].some(function(id){var o=document.getElementById(id);if(!o||!o.getClientRects().length)return false;var cs=getComputedStyle(o);return cs.visibility!=='hidden'&&cs.display!=='none'&&+cs.opacity>0;});
     if(open)return;
     var rc=document.documentElement.classList;
     if(rc.contains('sb-drawer')||rc.contains('sb-over'))return;
@@ -13927,6 +13928,10 @@ document.addEventListener('keydown',function(e){
      navigates behind it. */
   if(_hkOverlayOpen()){
     if(e.key==='Escape'||e.key==='?'){e.preventDefault();hkOverlayClose();}
+    return;
+  }
+  if(_aboutOpen()){
+    if(e.key==='Escape'){e.preventDefault();aboutClose();}
     return;
   }
   /* The portfolio dialog is modal the same way; the membership menu stacks
@@ -15253,6 +15258,12 @@ var TOUCH_GESTURES=[
   {g:'Ticker page',k:'Summary',l:'Print the one-page company summary'},
   {g:'Ticker page',k:'\u00d7',l:'Close the page, in the top bar'}
 ];
+function _aboutOpen(){var o=document.getElementById('about-overlay');return!!(o&&o.classList.contains('open'));}
+function aboutClose(){var o=document.getElementById('about-overlay');if(o){o.classList.remove('open');if(!document.getElementById('det-modal').classList.contains('open'))_unlockBody();}}
+function aboutOpen(){var o=document.getElementById('about-overlay');if(!o)return;closeNavMenu();closeFiltMenu();o.classList.add('open');_lockBody();try{localStorage.setItem('stock_about_seen_v1','1');}catch(e){}}
+/* First visit only: the About card opens once by itself, as the app's
+   welcome does. Not over a shared link that opens a ticker page. */
+setTimeout(function(){var seen='1';try{seen=localStorage.getItem('stock_about_seen_v1');}catch(e){}if(!seen&&!document.getElementById('det-modal').classList.contains('open'))aboutOpen();},600);
 function hkOverlayClose(){var o=document.getElementById('hk-overlay');if(o){o.classList.remove('open');if(!document.getElementById('det-modal').classList.contains('open'))_unlockBody();}}
 function hkOverlayOpen(){
   var o=document.getElementById('hk-overlay'),body=document.getElementById('hk-body');
@@ -19912,6 +19923,17 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
     <div class="hk-foot">Views are numbered in the order the Views menu lists them, and a ticker popup's sections in the order of its tabs. Keys are ignored while you are typing in a search or filter box.</div>
   </div>
 </div>
+<!-- About: the model in one paragraph, the same words as the iOS app's
+     welcome card and the App Store description. Opened from the sidebar's
+     About row, and once by itself on a reader's first visit
+     (stock_about_seen_v1). Reuses the shortcuts overlay's card styles. -->
+<div id="about-overlay" role="dialog" aria-modal="true" aria-label="About CitytoSummit" onclick="if(event.target===this)aboutClose()">
+  <div class="hk-card" style="max-width:520px">
+    <div class="hk-head"><h3>Welcome to CitytoSummit</h3><button class="hk-close" onclick="aboutClose()" aria-label="Close">&#215;</button></div>
+    <div id="about-body" style="padding:14px 18px 18px;font-size:14px;line-height:1.55;">CitytoSummit’s Stock Analysis Model values about 3,900 US stocks each night with several fair-value models and scores each one 0–100 on quality, growth and valuation. Results appear in an interactive report with live prices during the trading day, a weekly backtest checks the scores, and a paper account trades the top names intraday. The score is a starting point for research, not investment advice.</div>
+  </div>
+</div>
+<style>#about-overlay{position:fixed;inset:0;z-index:1600;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5);padding:20px;}#about-overlay.open{display:flex;}</style>
 <!-- Portfolios: the Manage / Save-filter dialog and the detail popup's
      membership menu (logic in the PORTFOLIOS script block). Colours come
      from the report's custom properties, so both themes need no extra rules. -->
