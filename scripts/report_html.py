@@ -1108,6 +1108,9 @@ def _row_context(r, gate_meta_obj, _r2000, _prev_ratings, _rating_hist,
         '_gates_passed': r.get('_gates_passed'),
         # MC confidence
         'mc_confidence': r.get('mc_confidence'),
+        # Growth model the DCF ran under (dcf_inputs.model): the Summary PDF's
+        # valuation-confidence thresholds depend on it.
+        'dcf_model': (r.get('dcf_inputs') or {}).get('model') if isinstance(r.get('dcf_inputs'), dict) else None,
         'mc_cv': r.get('mc_cv'),
         'mc_p10_fv': r.get('mc_p10_fv'),
         'mc_p90_fv': r.get('mc_p90_fv'),

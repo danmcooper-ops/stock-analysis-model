@@ -69,6 +69,8 @@ from scipy.stats import norm, spearmanr
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from models import growth_v2  # noqa: E402
+from models.growth_v2 import fcf_volatility  # noqa: E402
 from models.montecarlo import evidence_growth_sigma, growth_sigma  # noqa: E402
 from scripts.config import (  # noqa: E402
     GROWTH_WEIGHT_FCF,
@@ -198,12 +200,13 @@ def estimate(eh, t, sector=None):
     """History-only growth estimate at year t: (g, signals, weights) or None.
 
     Reads nothing after year t (tests pin this)."""
-    fcf, rev = owner_fcf(eh), annual(eh.get('revenue_history'))
+    fcf = owner_fcf(eh)
     if t - CAGR_SPAN not in fcf:
         return None
-    pairs = [(full_cagr(fcf, t), GROWTH_WEIGHT_FCF),
-             (full_cagr(rev, t), GROWTH_WEIGHT_REV),
-             (fundamental_growth(eh, t), GROWTH_WEIGHT_FUNDAMENTAL)]
+    named = history_signals(eh, t)
+    pairs = [(named['fcf_cagr'], GROWTH_WEIGHT_FCF),
+             (named['rev_cagr'], GROWTH_WEIGHT_REV),
+             (named['fundamental'], GROWTH_WEIGHT_FUNDAMENTAL)]
     pairs = [(s, w) for s, w in pairs if s is not None and math.isfinite(s)]
     if not pairs:
         return None
@@ -211,6 +214,13 @@ def estimate(eh, t, sector=None):
     g = sum(s * w for s, w in pairs) / sum(wts)
     cap = _get_sector_config(sector or '')['growth_cap']
     return min(cap, max(-0.15, g)), sig, wts
+
+
+def history_signals(eh, t):
+    """The history signals by name, as the live blend keys them."""
+    fcf, rev = owner_fcf(eh), annual(eh.get('revenue_history'))
+    return {'fcf_cagr': full_cagr(fcf, t), 'rev_cagr': full_cagr(rev, t),
+            'fundamental': fundamental_growth(eh, t)}
 
 
 def realised_growth(base, future):
@@ -271,7 +281,13 @@ def build_cases(rows, target='fcf'):
             else:
                 y, censored = realised_growth(base, future)
             vol = rev_growth_vol(rev, t)
+            r0, r5 = rev.get(t), rev.get(t + HORIZON)
             cases.append({
+                'named': history_signals(eh, t), 'base': base, 'future': future,
+                'fcf_vol': fcf_volatility([fcf.get(y) for y in range(t - 5, t + 1)]),
+                'rev_realised': ((r5 / r0) ** (1 / HORIZON) - 1
+                                 if r0 and r5 and r0 > 0 and r5 > 0 else None),
+                'cap': _get_sector_config(r.get('sector') or '')['growth_cap'],
                 'ticker': r.get('ticker'), 'sector': r.get('sector'),
                 'origin': t, 'estimate': g, 'realised': y,
                 'censored': censored, 'signals': sig, 'weights': wts,
@@ -414,6 +430,231 @@ def score(cases, rules=None):
     return out
 
 
+# ---------------------------------------------------------------------------
+# Fit the v2 growth model's parameters (models/growth_v2_params.json)
+# ---------------------------------------------------------------------------
+
+V2_HISTORY_WEIGHTS = {'fcf_cagr': 0.0, 'rev_cagr': GROWTH_WEIGHT_REV,
+                      'fundamental': GROWTH_WEIGHT_FUNDAMENTAL}
+# Walk-forward on the five-year cash error favours λ = 0.25, but that leans
+# hardest on base rates measured on survivors only; 0.5 keeps most of the
+# gain (rank IC +0.16 vs +0.09 for v1, error 0.374 vs 0.393) while halving
+# the exposure to a biased base rate. Revisit once delisted filers are in.
+V2_SHRINK_LAMBDA = 0.5
+LAMBDA_GRID = (0.25, 0.5, 0.75, 1.0)
+
+
+def _cash_sum(base, path):
+    total, v = 0.0, base
+    for g in path:
+        v *= 1 + g
+        total += v
+    return total
+
+
+def _dlog_cash_dg(g, n=HORIZON):
+    """d ln(sum_k (1+g)^k) / dg: how a growth error moves the 5-year cash."""
+    num = sum(k * (1 + g) ** (k - 1) for k in range(1, n + 1))
+    return num / sum((1 + g) ** k for k in range(1, n + 1))
+
+
+def _base_rates(cases, bounds=growth_v2.BASE_RATE_BOUNDS, min_n=30):
+    """Sector base rate: the lower of the median realised FCF and revenue
+    growth, clipped to `bounds` (survivor-only medians read high)."""
+    by = defaultdict(lambda: ([], []))
+    for c in cases:
+        by[c['sector'] or ''][0].append(c['realised'])
+        if c['rev_realised'] is not None:
+            by[c['sector'] or ''][1].append(c['rev_realised'])
+    every_f = [c['realised'] for c in cases]
+    every_r = [c['rev_realised'] for c in cases if c['rev_realised'] is not None]
+
+    def rate(f, r):
+        return float(np.clip(min(np.median(f), np.median(r) if r else np.median(f)), *bounds))
+
+    out = {'_all': rate(every_f, every_r)}
+    for sec, (f, r) in by.items():
+        out[sec] = rate(f, r) if len(f) >= min_n else out['_all']
+    return out
+
+
+def _v2_long_run(c, lam, rates):
+    p = {'history_weights': V2_HISTORY_WEIGHTS, 'base_rates': rates, 'shrink_lambda': lam}
+    return growth_v2.long_run_rate(c['named'], c['sector'], c['cap'], p)[0]
+
+
+def walk_forward_lambda(cases):
+    """Per λ: per-origin median |log(actual / projected 5-year cash)|, its
+    bias, and the rank IC of L, with base rates from resolved outcomes only."""
+    out = {lam: defaultdict(list) for lam in LAMBDA_GRID}
+    for t in sorted({c['origin'] for c in cases}):
+        train = [c for c in cases if c['origin'] <= t - HORIZON]
+        test = [c for c in cases if c['origin'] == t and sum(c['future']) > 0]
+        if len(train) < 300 or len(test) < 30:
+            continue
+        rates = _base_rates(train)
+        for lam in LAMBDA_GRID:
+            L = np.array([_v2_long_run(c, lam, rates) for c in test])
+            err = np.array([math.log(sum(c['future']) / _cash_sum(c['base'], [g] * HORIZON))
+                            for c, g in zip(test, L, strict=True)])
+            out[lam]['abs'].append(float(np.median(np.abs(err))))
+            out[lam]['bias'].append(float(np.median(err)))
+            out[lam]['ic'].append(float(spearmanr(L, [c['realised'] for c in test]).statistic))
+    return {str(lam): {k: float(np.mean(v)) for k, v in d.items()} | {'origins': len(d['abs'])}
+            for lam, d in out.items() if d['abs']}
+
+
+def fit_v2(rows, lam=V2_SHRINK_LAMBDA):
+    """Fit models/growth_v2_params.json from the snapshot rows' histories."""
+    cases = build_cases(rows, 'fcf')
+    rates = _base_rates(cases)
+    L = np.array([_v2_long_run(c, lam, rates) for c in cases])
+
+    # Growth sigma: scale model on realised REVENUE growth (no base noise).
+    gi = [i for i, c in enumerate(cases) if c['rev_realised'] is not None
+          and c['rev_vol'] is not None and c['log_rev'] is not None]
+    X = np.array([[1.0, min(cases[i]['rev_vol'], 1.0), cases[i]['log_rev'], abs(L[i])] for i in gi])
+    e = np.array([cases[i]['rev_realised'] - L[i] for i in gi])
+    beta, *_ = np.linalg.lstsq(X, np.log(np.abs(e) + 1e-3), rcond=None)
+    s0 = np.exp(X @ beta)
+    k = min(K_GRID, key=lambda kk: float(np.mean(crps_normal(e, 0.0, kk * s0))))
+    gs = {'beta': [float(b) for b in beta], 'k': float(k), 'floor': MC_GROWTH_SIGMA_FLOOR,
+          'cap': 0.25, 'vol_default': float(np.median(X[:, 1])),
+          'logrev_default': float(np.median(X[:, 2]))}
+    params = {'history_weights': V2_HISTORY_WEIGHTS, 'base_rates': rates,
+              'shrink_lambda': lam, 'growth_sigma': gs}
+    sig_g = {i: growth_v2.growth_sigma(cases[i]['rev_vol'], math.exp(cases[i]['log_rev']), L[i], params)
+             for i in gi}
+
+    # Base-FCF sigma: the 5-year cash error left once the growth sigma's
+    # share is taken out, var(e) = sigma_b^2 + D^2 sigma_g^2, by FCF-volatility
+    # decile; then a line through the deciles.
+    bi = [i for i in gi if cases[i]['fcf_vol'] is not None and sum(cases[i]['future']) > 0]
+    vol = np.array([cases[i]['fcf_vol'] for i in bi])
+    elog = np.array([math.log(sum(cases[i]['future']) / _cash_sum(cases[i]['base'], [L[i]] * HORIZON))
+                     for i in bi])
+    gpart = np.array([(_dlog_cash_dg(L[i]) * sig_g[i]) ** 2 for i in bi])
+    edges = np.quantile(vol, np.linspace(0, 1, 11))
+    pts = []
+    for lo, hi in zip(edges[:-1], edges[1:], strict=True):
+        m = (vol >= lo) & (vol <= hi)
+        if m.sum() < 50:
+            continue
+        rob = 1.4826 * np.median(np.abs(elog[m] - np.median(elog[m])))
+        pts.append((float(np.median(vol[m])), math.sqrt(max(rob ** 2 - np.median(gpart[m]), 0.0)),
+                    int(m.sum())))
+    pv, ps, pw = (np.array(x) for x in zip(*pts, strict=True))
+    A = np.column_stack([np.ones_like(pv), np.minimum(pv, 2.0)])
+    ab, *_ = np.linalg.lstsq(A * np.sqrt(pw)[:, None], ps * np.sqrt(pw), rcond=None)
+    params['base_sigma'] = {'a': float(ab[0]), 'b': float(ab[1]), 'floor': 0.10, 'cap': 0.60,
+                            'vol_default': float(np.median(vol)),
+                            'deciles': [{'fcf_vol': v, 'sigma': s, 'n': n} for v, s, n in pts]}
+    params['fit'] = {
+        'n_cases': len(cases), 'n_tickers': len({c['ticker'] for c in cases}),
+        'origins': f"{min(c['origin'] for c in cases)}-{max(c['origin'] for c in cases)}",
+        'walk_forward_lambda': walk_forward_lambda(cases),
+        'note': ('Survivors only (companies listed on the fit date); base rates clipped to '
+                 f'{list(growth_v2.BASE_RATE_BOUNDS)}. The analyst part of the v2 path is '
+                 'not validated (no point-in-time analyst data).'),
+    }
+    return params
+
+
+# ---------------------------------------------------------------------------
+# v2 MC-confidence label cut-offs
+# ---------------------------------------------------------------------------
+
+V1_CUTS = (0.20, 0.40)
+V1_SPREAD_WIDE = 3.0
+
+
+def _proxy_cvs(row, params):
+    """(v1 CV, v2 CV) for a DCF row, both from the same proxy: the base FCF
+    that reproduces the row's DCF value under its v1 growth, GGM leg only,
+    a 1pp discount-rate sigma. Only the comparison between the two matters;
+    a real v2 run's mc_cv replaces it (label_cuts reads those when present).
+    """
+    import warnings as _w
+
+    from models.dcf import monte_carlo_dcf, two_stage_ev
+    from scripts.config import MC_ITERATIONS, MC_TERMINAL_GROWTH_SIGMA, MC_WACC_SIGMA
+    fv, sh, w = row.get('dcf_fv'), row.get('shares_out'), row.get('wacc')
+    g1, tg = row.get('fcf_growth'), row.get('terminal_growth') or 0.025
+    nd = row.get('net_debt') or 0.0
+    if not all(isinstance(x, (int, float)) and math.isfinite(x) for x in (fv, sh, w, g1)) or sh <= 0:
+        return None
+    with _w.catch_warnings():
+        _w.simplefilter('ignore')
+        unit = two_stage_ev(1.0, g1, w, tg)
+        if not unit or unit <= 0:
+            return None
+        base = (fv * sh + nd) / unit
+        if base <= 0:
+            return None
+        cap = _get_sector_config(row.get('sector') or '')['growth_cap']
+        sig = {'rev_cagr': row.get('rev_cagr_10y') or row.get('rev_cagr_5y'),
+               'fundamental': row.get('fundamental_growth')}
+        L = growth_v2.long_run_rate(sig, row.get('sector'), cap, params)[0]
+        path = growth_v2.stage1_path(growth_v2.clamp(g1, cap), L)
+        eh = row.get('edgar_history') if isinstance(row.get('edgar_history'), dict) else {}
+        fvals = [v for _, v in sorted(owner_fcf(eh).items())]
+        common = dict(wacc_sigma=MC_WACC_SIGMA, tg_sigma=MC_TERMINAL_GROWTH_SIGMA,
+                      n_iterations=MC_ITERATIONS, seed=1)
+        v1 = monte_carlo_dcf(base, g1, w, tg, nd, sh, growth_sigma=growth_sigma(
+            g1, MC_GROWTH_SIGMA_RATIO, MC_GROWTH_SIGMA_FLOOR), **common)
+        v2 = monte_carlo_dcf(
+            base, L, w, tg, nd, sh,
+            growth_sigma=growth_v2.growth_sigma(row.get('rev_growth_vol'), row.get('revenue'), L, params),
+            stage1_offsets=growth_v2.path_offsets(path, L),
+            base_sigma=growth_v2.base_sigma(fvals, params), **common)
+    if not v1 or not v2 or v1.get('cv') is None or v2.get('cv') is None:
+        return None
+
+    def spread(m):
+        return m['p90_fv'] / m['p10_fv'] if m['p10_fv'] > 0 else math.inf
+    return v1['cv'], v2['cv'], spread(v1), spread(v2)
+
+
+def label_cuts(rows, params=None):
+    """v2 (HIGH/MEDIUM, MEDIUM/LOW) cut-offs on mc_cv that give the same
+    shares v1's 20% / 40% give, so the label keeps its relative meaning.
+
+    Rows already run under v2 (dcf_inputs.model == 'v2') give their real
+    mc_cv and the shares come from the v1 rows of the same snapshot when
+    present; otherwise both sides come from _proxy_cvs.
+    """
+    params = params or growth_v2.load_params()
+    dcf = [r for r in rows if isinstance(r.get('mc_quantiles'), list)]
+    real = [r['mc_cv'] for r in dcf if isinstance(r.get('dcf_inputs'), dict)
+            and r['dcf_inputs'].get('model') == 'v2' and isinstance(r.get('mc_cv'), (int, float))]
+    if len(real) >= 200:
+        v2 = np.array(real)
+        v1 = np.array([r['mc_cv'] for r in dcf if isinstance(r.get('mc_cv'), (int, float))
+                       and (r.get('dcf_inputs') or {}).get('model', 'v1') == 'v1'])
+        basis = 'real v2 run'
+        if len(v1) < 200:
+            raise SystemExit('a v2 snapshot needs a v1 one beside it for the shares; '
+                             'pass a v1 snapshot to set them')
+        sp1 = sp2 = None
+    else:
+        pairs = [p for p in (_proxy_cvs(r, params) for r in dcf) if p]
+        v1, v2, sp1, sp2 = (np.array(x) for x in zip(*pairs, strict=True))
+        basis = 'proxy'
+    shares = [float(np.mean(v1 < c)) for c in V1_CUTS]
+    cuts = [float(np.quantile(v2, q)) for q in shares]
+    out = {'cuts': [round(c, 3) for c in cuts], 'shares': shares, 'basis': basis,
+           'n': int(len(v2)), 'median_cv': {'v1': float(np.median(v1)), 'v2': float(np.median(v2))}}
+    if sp1 is not None:
+        # profile_verdict's "P90 / P10 above 3x" LOW sign, mapped the same way.
+        wide = float(np.mean(sp1 > V1_SPREAD_WIDE))
+        out['spread_wide'] = round(float(np.quantile(sp2[np.isfinite(sp2)], 1 - wide)), 2) \
+            if np.isfinite(sp2).any() else None
+        out['spread_share'] = wide
+        out['wipeout_share'] = {'v1': float(np.mean(~np.isfinite(sp1))),
+                                'v2': float(np.mean(~np.isfinite(sp2)))}
+    return out
+
+
 def print_report(res):
     print(f"\n  GROWTH HINDCAST, target {res['target']}  ({res['n_cases']} cases, {res['n_tickers']} "
           f"tickers, origins {res['origin_range']}; censored "
@@ -464,6 +705,11 @@ def main(argv=None):
     ap.add_argument('--results-dir', default='output')
     ap.add_argument('--out', default='output/growth_hindcast.json')
     ap.add_argument('--target', choices=TARGETS, default='fcf')
+    ap.add_argument('--label-cuts', action='store_true',
+                    help='v2 MC-confidence cut-offs matching v1\'s label shares')
+    ap.add_argument('--fit-v2', metavar='PATH',
+                    help='fit the v2 growth model and write its params JSON '
+                         '(models/growth_v2_params.json)')
     ap.add_argument('--all-rows', action='store_true',
                     help='every row with history, not only DCF rows')
     a = ap.parse_args(argv)
@@ -477,6 +723,20 @@ def main(argv=None):
     rows = _load_rows(path)
     if not a.all_rows:
         rows = [r for r in rows if isinstance(r.get('mc_quantiles'), list)]
+    if a.label_cuts:
+        print(json.dumps(label_cuts(rows), indent=1))
+        return
+    if a.fit_v2:
+        params = fit_v2(rows)
+        params['fit']['snapshot'] = os.path.basename(str(path))
+        with open(a.fit_v2, 'w', encoding='utf-8') as f:
+            json.dump(params, f, indent=1, sort_keys=True)
+            f.write('\n')
+        print(json.dumps({k: params[k] for k in ('base_rates', 'shrink_lambda',
+                                                 'growth_sigma', 'base_sigma')}, indent=1))
+        print(json.dumps(params['fit']['walk_forward_lambda'], indent=1))
+        print(f"\n  wrote {a.fit_v2}")
+        return
     res = run(rows, a.target)
     res['snapshot'] = os.path.basename(str(path))
     print_report(res)

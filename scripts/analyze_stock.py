@@ -54,6 +54,7 @@ from models.quality import (calculate_earnings_quality, calculate_piotroski_f,
                             get_ev_to_equity_bridge,
                             calculate_altman_z, calculate_beneish_m)
 from models.market import compute_relative_multiples, compute_analyst_consensus, extract_next_earnings
+from models import growth_v2
 from models.montecarlo import evidence_growth_sigma, growth_sigma, quantile_rank, seed_from_ticker
 from models.ddm import (ddm_eligibility, estimate_ddm_growth, two_stage_ddm_valuation,
                          ddm_h_model_valuation, monte_carlo_ddm)
@@ -118,7 +119,7 @@ from scripts.config import (ERP, TERMINAL_GROWTH_RATE, PHASE2_IO_WORKERS,
                             CAPEX_DA_THRESHOLD, EXCESS_CAPEX_ADDBACK,
                             YIELD_CEILING_MULT, YIELD_CEILING_WINDOW,
                             DCF_UNLEVER_INTEREST, DCF_DEFAULT_TAX_RATE, DCF_MAX_TAX_RATE,
-                            HYPER_GROWTH_CAP, ANALYST_HAIRCUT, FALLBACK_GROWTH,
+                            HYPER_GROWTH_CAP, ANALYST_HAIRCUT, FALLBACK_GROWTH, DCF_GROWTH_MODEL,
                             DCF_YEARS, DCF_STAGE1,
                             EXIT_MULT_DIVERGENCE_THRESHOLD,
                             EXIT_MULT_DEFAULT_EV_EBITDA,
@@ -1300,6 +1301,16 @@ def _get_analyst_lt_growth_detail(yf_data):
     return None, None
 
 
+def _latest_revenue(yf_data):
+    """Newest positive 'Total Revenue' on the income statement, else None."""
+    inc = yf_data.get('income_statement')
+    if inc is None or (hasattr(inc, 'empty') and inc.empty) or 'Total Revenue' not in inc.index:
+        return None
+    revs = inc.loc['Total Revenue'].dropna().sort_index()
+    revs = [float(v) for v in revs.values if v and v > 0]
+    return revs[-1] if revs else None
+
+
 def _get_earnings_growth(yf_data):
     """Extract analyst 1-year forward earnings growth from info dict.
 
@@ -2311,9 +2322,34 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     # warning unreachable. A genuinely shrinking firm is now modeled shrinking.
     fcf_growth = min(growth_cap, max(-0.15, weighted_avg))
 
+    # --- Growth model v2 (config.DCF_GROWTH_MODEL, models/growth_v2.py) ---
+    # The DCF then runs on a long-run stage-1 rate with per-year offsets (a
+    # path), and fcf_growth becomes that path's equivalent constant rate, so
+    # every reader of fcf_growth still sees one comparable number.
+    dcf_g, dcf_off, v2_diag, v2_params = fcf_growth, None, None, None
+    if DCF_GROWTH_MODEL == 'v2':
+        v2_params = growth_v2.load_params()
+        long_run, hist_blend, base_rate = growth_v2.long_run_rate(
+            {'fcf_cagr': fcf_cagr, 'rev_cagr': rev_cagr, 'fundamental': fundamental_g},
+            sector, cfg['growth_cap'], v2_params)
+        g0, analyst_blend = growth_v2.near_term_rate(
+            {'st': _haircut(analyst_st), 'lt': _haircut(analyst_lt),
+             'earnings': _haircut(earnings_g)},
+            {'st': GROWTH_WEIGHT_ANALYST_ST, 'lt': _w_analyst_lt,
+             'earnings': GROWTH_WEIGHT_EARNINGS_G},
+            margin_adj + surprise_adj, long_run, growth_cap)
+        path = growth_v2.stage1_path(g0, long_run, years=DCF_STAGE1)
+        dcf_g, dcf_off = long_run, growth_v2.path_offsets(path, long_run)
+        v1_growth, fcf_growth = fcf_growth, growth_v2.equivalent_rate(path)
+        v2_diag = {'long_run': long_run, 'history_blend': hist_blend,
+                   'base_rate': base_rate, 'near_term': g0,
+                   'analyst_blend': analyst_blend, 'path': path,
+                   'v1_growth': v1_growth}
+
     # --- Two-stage DCF via shared model function (GGM terminal value) ---
-    ggm_valuation = two_stage_ev_valuation(base_fcf, fcf_growth, wacc, term_g,
-                                           total_years=DCF_YEARS, stage1_years=DCF_STAGE1)
+    ggm_valuation = two_stage_ev_valuation(base_fcf, dcf_g, wacc, term_g,
+                                           total_years=DCF_YEARS, stage1_years=DCF_STAGE1,
+                                           stage1_offsets=dcf_off)
     ev_ggm = ggm_valuation.value
     if ev_ggm is None or ev_ggm <= 0:
         return None, None, None, {}, None
@@ -2364,9 +2400,10 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
 
     if base_ebitda and base_ebitda > 0 and exit_multiple and shares and shares > 0:
         exit_valuation = two_stage_ev_exit_multiple_valuation(
-            base_fcf, fcf_growth, wacc, term_g,
+            base_fcf, dcf_g, wacc, term_g,
             base_ebitda, exit_multiple,
-            total_years=DCF_YEARS, stage1_years=DCF_STAGE1)
+            total_years=DCF_YEARS, stage1_years=DCF_STAGE1,
+            stage1_offsets=dcf_off)
         ev_exit = exit_valuation.value
         if ev_exit and ev_exit > 0:
             exit_mult_fv = fair_value_per_share(ev_exit, equity_bridge, shares)
@@ -2380,8 +2417,9 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     # Sensitivity range (supplementary)
     sens_range = None
     if shares and shares > 0:
-        sens = dcf_sensitivity(base_fcf, fcf_growth, wacc, term_g,
-                               equity_bridge, shares, years=DCF_YEARS, stage1=DCF_STAGE1)
+        sens = dcf_sensitivity(base_fcf, dcf_g, wacc, term_g,
+                               equity_bridge, shares, years=DCF_YEARS, stage1=DCF_STAGE1,
+                               stage1_offsets=dcf_off)
         vals = [v for v in sens.values() if v is not None]
         if vals:
             sens_range = (min(vals), max(vals))
@@ -2405,8 +2443,18 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
             fcf_growth, growth_signals, growth_weights, rev_growth_vol,
             years=MC_GROWTH_SIGMA_HISTORY_YEARS, floor=MC_GROWTH_SIGMA_FLOOR,
             cap=MC_GROWTH_SIGMA_CAP, ratio=MC_GROWTH_SIGMA_RATIO)
-        g_sigma = (ev_sigma if MC_GROWTH_SIGMA_EVIDENCE else
-                   growth_sigma(fcf_growth, MC_GROWTH_SIGMA_RATIO, MC_GROWTH_SIGMA_FLOOR))
+        b_sigma = None
+        if v2_params is not None:
+            # Fitted to realised growth (growth_hindcast --fit-v2): the growth
+            # draw's sigma from revenue volatility, size and |long-run rate|,
+            # and the starting FCF's own level uncertainty from FCF volatility.
+            g_sigma = growth_v2.growth_sigma(rev_growth_vol, _latest_revenue(yf_data),
+                                             dcf_g, v2_params)
+            b_sigma = growth_v2.base_sigma(fcf_values, v2_params)
+            v2_diag['base_sigma'] = b_sigma
+        else:
+            g_sigma = (ev_sigma if MC_GROWTH_SIGMA_EVIDENCE else
+                       growth_sigma(fcf_growth, MC_GROWTH_SIGMA_RATIO, MC_GROWTH_SIGMA_FLOOR))
         g_sigma *= growth_sigma_mult  # macro overlay: widen in stress
         em_sigma = exit_multiple * MC_EXIT_MULT_SIGMA_RATIO if exit_multiple else None
         # Widen sigma if TV methods diverge significantly
@@ -2416,7 +2464,7 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
                 em_sigma *= MC_HIGH_DIVERGENCE_SIGMA_MULT
 
         mc_result = monte_carlo_dcf(
-            base_fcf, fcf_growth, wacc, term_g,
+            base_fcf, dcf_g, wacc, term_g,
             equity_bridge, shares,
             base_ebitda=base_ebitda, exit_multiple=exit_multiple,
             n_iterations=MC_ITERATIONS,
@@ -2424,7 +2472,8 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
             tg_sigma=tg_sigma, exit_mult_sigma=em_sigma,
             exit_mult_floor=EXIT_MULT_MIN,
             total_years=DCF_YEARS, stage1_years=DCF_STAGE1,
-            wacc_tg_corr=MC_WACC_TG_CORRELATION, seed=seed, attribution=True)
+            wacc_tg_corr=MC_WACC_TG_CORRELATION, seed=seed, attribution=True,
+            stage1_offsets=dcf_off, base_sigma=b_sigma)
         if mc_result:
             mc_result['growth_sigma_evidence'] = ev_sigma
             mc_result['growth_sigma_basis'] = g_sigma_basis
@@ -2436,6 +2485,8 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
 
     _fcf_years = [str(c)[:10] for c in fcf_series.index] if len(fcf_series) else []
     dcf_inputs = {
+        'model': DCF_GROWTH_MODEL,
+        'v2': v2_diag,
         'signals': {k: v[0] for k, v in signal_log.items()},
         'weights': {k: v[1] for k, v in signal_log.items()},
         'analyst_raw': {'st': analyst_st, 'lt': analyst_lt, 'earnings': earnings_g},
@@ -2460,6 +2511,10 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
 
     growth_diag = {
         'dcf_inputs': dcf_inputs,
+        # The rate and per-year offsets the DCF ran on (v2: a path around the
+        # long-run rate), so reverse_dcf solves on the same projection.
+        'dcf_growth_rate': dcf_g,
+        'stage1_offsets': dcf_off,
         'analyst_ltg': analyst_lt,
         'earnings_growth': earnings_g,
         'margin_trend': margin_trend,
@@ -4646,7 +4701,16 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                     current_price, _rev_fcf, wacc, shares, _rev_bridge,
                     terminal_g=_rev_tg if _rev_tg is not None else 0.03,
                     base_ebitda=growth_diag.get('base_ebitda'),
-                    exit_multiple=growth_diag.get('exit_multiple'))
+                    exit_multiple=growth_diag.get('exit_multiple'),
+                    stage1_offsets=growth_diag.get('stage1_offsets'))
+                _off = growth_diag.get('stage1_offsets')
+                if rev_dcf and _off:
+                    # v2 solves for the long-run rate with the path's shape
+                    # fixed; report the implied path's equivalent constant
+                    # rate, on fcf_growth's basis.
+                    rev_dcf['implied_long_run'] = rev_dcf['implied_growth']
+                    rev_dcf['implied_growth'] = growth_v2.equivalent_rate(
+                        [rev_dcf['implied_growth'] + o for o in _off])
 
             # 52-Week Range
             high_52w = info.get('fiftyTwoWeekHigh')

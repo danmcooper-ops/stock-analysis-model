@@ -1,4 +1,5 @@
 # models/dcf.py
+import math
 import warnings as _py_warnings
 
 import numpy as np
@@ -67,11 +68,36 @@ def _confidence_from_warnings(warns):
     return max(0.4, 1.0 - 0.15 * len(warns))
 
 
+def _stage1_offsets(stage1_offsets, stage1_years):
+    """Validated per-year stage-1 growth offsets, or None.
+
+    With offsets, year k of stage 1 grows at growth_rate + offsets[k-1] (a
+    path that holds near-term growth and fades toward growth_rate, the
+    long-run stage-1 rate); stage 2 still fades from growth_rate to terminal
+    growth. None keeps the constant stage-1 rate.
+    """
+    if stage1_offsets is None:
+        return None
+    off = tuple(float(x) for x in stage1_offsets)
+    if len(off) != stage1_years or not all(math.isfinite(x) for x in off):
+        raise ValueError(f'stage1_offsets must be {stage1_years} finite numbers')
+    return off
+
+
+def _growth_at(yr, growth_rate, effective_tg, total_years, stage1_years, offsets):
+    if yr <= stage1_years:
+        return growth_rate + (offsets[yr - 1] if offsets else 0.0)
+    fade = (yr - stage1_years) / (total_years - stage1_years)
+    return growth_rate + (effective_tg - growth_rate) * fade
+
+
 def two_stage_ev_valuation(base_fcf, growth_rate, discount_rate, terminal_growth,
-                           total_years=10, stage1_years=5, min_spread=0.025):
+                           total_years=10, stage1_years=5, min_spread=0.025,
+                           stage1_offsets=None):
     """
     Two-stage DCF enterprise value, returned as a Valuation envelope.
-    Stage 1 (years 1–stage1_years): constant `growth_rate`.
+    Stage 1 (years 1–stage1_years): constant `growth_rate`, or
+    growth_rate + stage1_offsets[k] when a per-year path is given.
     Stage 2 (years stage1_years+1–total_years): linear fade to `terminal_growth`.
     Gordon Growth terminal value applied after final year.
 
@@ -92,6 +118,7 @@ def two_stage_ev_valuation(base_fcf, growth_rate, discount_rate, terminal_growth
         base_fcf, growth_rate, discount_rate, terminal_growth = _dcf_validate_core(
             base_fcf, growth_rate, discount_rate, terminal_growth)
         _validate_years(total_years, stage1_years)
+        offsets = _stage1_offsets(stage1_offsets, stage1_years)
     except ValueError as e:
         _py_warnings.warn(f"two_stage_ev input invalid: {e}", RuntimeWarning, stacklevel=3)
         return Valuation.invalid(method, f'input invalid: {e}')
@@ -99,6 +126,8 @@ def two_stage_ev_valuation(base_fcf, growth_rate, discount_rate, terminal_growth
     inputs = {'base_fcf': base_fcf, 'growth_rate': growth_rate,
               'discount_rate': discount_rate, 'terminal_growth': terminal_growth,
               'total_years': total_years, 'stage1_years': stage1_years}
+    if offsets:
+        inputs['stage1_offsets'] = offsets
 
     if discount_rate <= terminal_growth:
         return Valuation.invalid(
@@ -110,20 +139,17 @@ def two_stage_ev_valuation(base_fcf, growth_rate, discount_rate, terminal_growth
         effective_tg = discount_rate - min_spread
         inputs['effective_terminal_growth'] = effective_tg
 
-    if growth_rate > 0.25:
-        _warn(f'Initial growth {growth_rate:.1%} is aggressive — sustained >25% is rare')
-    if growth_rate < 0:
-        _warn(f'Negative growth ({growth_rate:.1%}) — verify this reflects secular decline, '
+    first_g = growth_rate + (offsets[0] if offsets else 0.0)
+    if first_g > 0.25:
+        _warn(f'Initial growth {first_g:.1%} is aggressive — sustained >25% is rare')
+    if first_g < 0:
+        _warn(f'Negative growth ({first_g:.1%}) — verify this reflects secular decline, '
               'not a transient dip')
 
     projected = []
     prev = base_fcf
     for yr in range(1, total_years + 1):
-        if yr <= stage1_years:
-            g = growth_rate
-        else:
-            fade = (yr - stage1_years) / (total_years - stage1_years)
-            g = growth_rate + (effective_tg - growth_rate) * fade
+        g = _growth_at(yr, growth_rate, effective_tg, total_years, stage1_years, offsets)
         prev = prev * (1 + g)
         projected.append(prev)
 
@@ -145,10 +171,12 @@ def two_stage_ev_valuation(base_fcf, growth_rate, discount_rate, terminal_growth
 
 
 def two_stage_ev(base_fcf, growth_rate, discount_rate, terminal_growth,
-                 total_years=10, stage1_years=5, min_spread=0.025):
+                 total_years=10, stage1_years=5, min_spread=0.025,
+                 stage1_offsets=None):
     """Legacy float|None wrapper around two_stage_ev_valuation()."""
     return two_stage_ev_valuation(
         base_fcf, growth_rate, discount_rate, terminal_growth,
+        stage1_offsets=stage1_offsets,
         total_years=total_years, stage1_years=stage1_years,
         min_spread=min_spread).value
 
@@ -166,7 +194,7 @@ def fair_value_per_share(enterprise_value, net_debt, shares_outstanding):
 def two_stage_ev_exit_multiple_valuation(base_fcf, growth_rate, discount_rate,
                                          terminal_growth, base_ebitda, exit_multiple,
                                          total_years=10, stage1_years=5,
-                                         min_spread=0.025):
+                                         min_spread=0.025, stage1_offsets=None):
     """Two-stage DCF with EV/EBITDA exit multiple, as a Valuation envelope.
 
     FCF projection identical to two_stage_ev().
@@ -187,6 +215,7 @@ def two_stage_ev_exit_multiple_valuation(base_fcf, growth_rate, discount_rate,
         exit_multiple = _validate_numeric('exit_multiple', exit_multiple,
                                           positive=True, low=3.0, high=40.0)
         _validate_years(total_years, stage1_years)
+        offsets = _stage1_offsets(stage1_offsets, stage1_years)
     except ValueError as e:
         _py_warnings.warn(f"two_stage_ev_exit_multiple input invalid: {e}", RuntimeWarning, stacklevel=3)
         return Valuation.invalid(method, f'input invalid: {e}')
@@ -208,11 +237,7 @@ def two_stage_ev_exit_multiple_valuation(base_fcf, growth_rate, discount_rate,
     projected_fcf = []
     prev_fcf = base_fcf
     for yr in range(1, total_years + 1):
-        if yr <= stage1_years:
-            g = growth_rate
-        else:
-            fade = (yr - stage1_years) / (total_years - stage1_years)
-            g = growth_rate + (effective_tg - growth_rate) * fade
+        g = _growth_at(yr, growth_rate, effective_tg, total_years, stage1_years, offsets)
         prev_fcf = prev_fcf * (1 + g)
         projected_fcf.append(prev_fcf)
 
@@ -222,11 +247,7 @@ def two_stage_ev_exit_multiple_valuation(base_fcf, growth_rate, discount_rate,
     # Project EBITDA forward with same growth pattern
     prev_ebitda = base_ebitda
     for yr in range(1, total_years + 1):
-        if yr <= stage1_years:
-            g = growth_rate
-        else:
-            fade = (yr - stage1_years) / (total_years - stage1_years)
-            g = growth_rate + (effective_tg - growth_rate) * fade
+        g = _growth_at(yr, growth_rate, effective_tg, total_years, stage1_years, offsets)
         prev_ebitda = prev_ebitda * (1 + g)
 
     terminal_value = prev_ebitda * exit_multiple
@@ -255,20 +276,30 @@ def blend_fair_value_legs(fv_ggm, fv_exit):
 
 def two_stage_ev_exit_multiple(base_fcf, growth_rate, discount_rate,
                                terminal_growth, base_ebitda, exit_multiple,
-                               total_years=10, stage1_years=5, min_spread=0.025):
+                               total_years=10, stage1_years=5, min_spread=0.025,
+                               stage1_offsets=None):
     """Legacy float|None wrapper around two_stage_ev_exit_multiple_valuation()."""
     return two_stage_ev_exit_multiple_valuation(
         base_fcf, growth_rate, discount_rate, terminal_growth,
         base_ebitda, exit_multiple, total_years=total_years,
-        stage1_years=stage1_years, min_spread=min_spread).value
+        stage1_years=stage1_years, min_spread=min_spread,
+        stage1_offsets=stage1_offsets).value
 
 
 def _mc_dcf_eval(u, *, base_fcf, growth_rate, discount_rate, terminal_growth,
                  net_debt, shares_outstanding, has_exit, base_ebitda, exit_multiple,
                  g_sigma, w_sigma, t_sigma, e_sigma, exit_mult_floor,
-                 total_years, stage1_years, wacc_tg_corr):
+                 total_years, stage1_years, wacc_tg_corr,
+                 stage1_offsets=None, base_sigma=None):
     """Fair value per share for each row of uniforms `u` (n x 4: growth,
-    discount rate, terminal growth's own part, exit multiple).
+    discount rate, terminal growth's own part, exit multiple; a fifth column,
+    the base FCF level, when `base_sigma` is set).
+
+    stage1_offsets shifts each stage-1 year around the drawn long-run rate
+    (the growth draw moves the whole path). base_sigma draws the starting
+    FCF log-normally around base_fcf (median-preserving, log-sd base_sigma),
+    a level that persists through the projection; EBITDA keeps its own base,
+    since the base-year noise is FCF's (cash conversion), not EBITDA's.
 
     The scenario model behind monte_carlo_dcf, shared by its main run and its
     attribution so both value scenarios identically. Returns (fair values,
@@ -297,15 +328,19 @@ def _mc_dcf_eval(u, *, base_fcf, growth_rate, discount_rate, terminal_growth,
 
     # --- Vectorized FCF projection: shape (n, total_years) ---
     projected = np.empty((n, total_years))
-    prev = np.full(n, base_fcf)
+    base_draw = (lognormal_from_uniform(u[:, 4], base_fcf, base_sigma * base_fcf)
+                 if base_sigma else np.full(n, base_fcf))
+    prev = base_draw.copy()
+    growth_index = np.ones(n)          # cumulative growth, for terminal EBITDA
     for yr in range(total_years):
         yr1 = yr + 1  # 1-indexed
         if yr1 <= stage1_years:
-            g = g_samples
+            g = g_samples + (stage1_offsets[yr] if stage1_offsets else 0.0)
         else:
             fade = (yr1 - stage1_years) / (total_years - stage1_years)
             g = g_samples + (tg_samples - g_samples) * fade
         prev = prev * (1 + g)
+        growth_index = growth_index * (1 + g)
         projected[:, yr] = prev
 
     # Discount factors: shape (n, total_years)
@@ -336,8 +371,9 @@ def _mc_dcf_eval(u, *, base_fcf, growth_rate, discount_rate, terminal_growth,
     em_samples = np.maximum(em_samples, exit_mult_floor)
 
     # EBITDA follows the same growth path as FCF, so terminal EBITDA is
-    # the base scaled by the FCF path's cumulative growth.
-    terminal_ebitda = base_ebitda * projected[:, -1] / base_fcf
+    # the base scaled by the FCF path's cumulative growth (not by the base
+    # FCF draw: that noise is FCF's own).
+    terminal_ebitda = base_ebitda * growth_index
     tv_exit = terminal_ebitda * em_samples
     pv_tv_exit = tv_exit / (1 + w_samples) ** total_years
     ev_exit = pv_fcfs + pv_tv_exit
@@ -358,7 +394,8 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
                     wacc_sigma=0.01, tg_sigma=0.005,
                     exit_mult_sigma=None, exit_mult_floor=3.0,
                     total_years=10, stage1_years=5,
-                    wacc_tg_corr=0.5, seed=None, attribution=False):
+                    wacc_tg_corr=0.5, seed=None, attribution=False,
+                    stage1_offsets=None, base_sigma=None):
     """Vectorized quasi-Monte Carlo simulation over DCF parameters.
 
     Scenarios come from a scrambled Sobol sequence (see models.montecarlo):
@@ -393,6 +430,11 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
     exit_multiple (> 0) are supplied; a non-finite or non-positive
     exit_multiple, or a non-finite base_ebitda, drops the leg with a
     RuntimeWarning rather than silently valuing it at the floor multiple.
+
+    stage1_offsets (a per-year stage-1 path around growth_rate) and
+    base_sigma (log-normal uncertainty of the starting FCF, a fifth Sobol
+    dimension and the 'base_fcf' driver) are the growth-model v2 inputs;
+    with both None the draws are exactly the four-dimension run.
     """
     try:
         base_fcf, growth_rate, discount_rate, terminal_growth = _dcf_validate_core(
@@ -404,6 +446,9 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
         n = _validate_count('n_iterations', n_iterations)
         wacc_tg_corr = _validate_numeric('wacc_tg_corr', wacc_tg_corr, low=-1.0, high=1.0)
         _validate_years(total_years, stage1_years)
+        offsets = _stage1_offsets(stage1_offsets, stage1_years)
+        if base_sigma is not None:
+            base_sigma = _validate_numeric('base_sigma', base_sigma, low=0.0)
     except ValueError as e:
         _py_warnings.warn(f"monte_carlo_dcf input invalid: {e}", RuntimeWarning, stacklevel=2)
         return None
@@ -440,10 +485,13 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
             base_ebitda=base_ebitda, exit_multiple=exit_multiple,
             g_sigma=g_sigma, w_sigma=w_sigma, t_sigma=t_sigma, e_sigma=e_sigma,
             exit_mult_floor=exit_mult_floor, total_years=total_years,
-            stage1_years=stage1_years, wacc_tg_corr=wacc_tg_corr)
+            stage1_years=stage1_years, wacc_tg_corr=wacc_tg_corr,
+            stage1_offsets=offsets, base_sigma=base_sigma or None)
 
+    # A fifth dimension only with base uncertainty, so v1 draws are unchanged.
+    dims = 5 if base_sigma else 4
     fv_combined, wacc_floor_rate, n_tg_clipped, n_em_floored = evaluate(
-        sobol_uniforms(n, 4, seed))
+        sobol_uniforms(n, dims, seed))
     exit_floor_rate = n_em_floored / n if has_exit else None
 
     valid = fv_combined > 0
@@ -456,13 +504,17 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
 
     drivers = drivers_first = drivers_total = None
     if attribution:
-        names = MC_DCF_DRIVERS if has_exit else MC_DCF_DRIVERS[:3]
+        names = list(MC_DCF_DRIVERS if has_exit else MC_DCF_DRIVERS[:3])
+        cols = list(range(len(names)))          # Sobol column -> eval column
+        if base_sigma:
+            names.append('base_fcf')
+            cols.append(4)
 
         def f(x):
-            # The exit dimension is unused without the exit leg; pad it.
-            if x.shape[1] < 4:
-                x = np.column_stack([x, np.full(x.shape[0], 0.5)])
-            return evaluate(x)[0]
+            # Unused dimensions (the exit leg without one) sit at the median.
+            full = np.full((x.shape[0], dims), 0.5)
+            full[:, cols] = x
+            return evaluate(full)[0]
 
         first, total = sobol_indices(f, n, len(names), seed ^ _ATTRIBUTION_SEED_XOR)
         if total is not None and total.sum() > 0:
@@ -494,6 +546,7 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
         'exit_floor_rate': exit_floor_rate,
         'quantiles': fv_quantiles(fv_combined),
         'growth_sigma': g_sigma,
+        'base_sigma': base_sigma or None,
         'drivers': drivers,
         'drivers_first': drivers_first,
         'drivers_total': drivers_total,
@@ -501,7 +554,8 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
 
 
 def dcf_sensitivity(base_fcf, growth_rate, base_wacc, base_terminal_growth,
-                    net_debt, shares_outstanding, years=10, stage1=5):
+                    net_debt, shares_outstanding, years=10, stage1=5,
+                    stage1_offsets=None):
     """
     Worksheet Step 5A sensitivity table: WACC ±1% vs terminal growth ±0.5%.
     Uses two-stage DCF (consistent with main valuation).
@@ -514,7 +568,8 @@ def dcf_sensitivity(base_fcf, growth_rate, base_wacc, base_terminal_growth,
         for dg in growth_deltas:
             w = base_wacc + dw
             g = base_terminal_growth + dg
-            ev = two_stage_ev(base_fcf, growth_rate, w, g, years, stage1) if w > g else None
+            ev = (two_stage_ev(base_fcf, growth_rate, w, g, years, stage1,
+                               stage1_offsets=stage1_offsets) if w > g else None)
             fv = fair_value_per_share(ev, net_debt, shares_outstanding)
             table[(round(dw, 4), round(dg, 4))] = fv
     return table
@@ -523,7 +578,7 @@ def dcf_sensitivity(base_fcf, growth_rate, base_wacc, base_terminal_growth,
 def reverse_dcf(price, fcf, wacc, shares_outstanding, net_debt=0,
                 terminal_g=0.03, total_years=10, stage1_years=5,
                 growth_range=(-0.30, 0.30), tol=1e-6, max_iter=80,
-                base_ebitda=None, exit_multiple=None):
+                base_ebitda=None, exit_multiple=None, stage1_offsets=None):
     """Solve for the implied growth rate that makes DCF fair value equal
     the market price.
 
@@ -537,6 +592,9 @@ def reverse_dcf(price, fcf, wacc, shares_outstanding, net_debt=0,
     The default range spans decline as well as growth: the forward
     estimate floors at -15%, so a solve floored at 0% blanked the implied
     growth for every stock priced for shrinkage.
+
+    With `stage1_offsets` (the forward model's per-year path), the solve is
+    for the long-run stage-1 rate with the path's shape held fixed.
     """
     if (price is None or price <= 0 or fcf is None or fcf <= 0 or
             wacc is None or wacc <= 0 or
@@ -552,13 +610,14 @@ def reverse_dcf(price, fcf, wacc, shares_outstanding, net_debt=0,
         # bisection step.
         with _py_warnings.catch_warnings():
             _py_warnings.simplefilter('ignore', RuntimeWarning)
-            ev = two_stage_ev(fcf, g, wacc, terminal_g, total_years, stage1_years)
+            ev = two_stage_ev(fcf, g, wacc, terminal_g, total_years, stage1_years,
+                              stage1_offsets=stage1_offsets)
             fv_ggm = fair_value_per_share(ev, net_debt, shares_outstanding)
             fv_exit = None
             if use_exit:
                 ev_exit = two_stage_ev_exit_multiple(
                     fcf, g, wacc, terminal_g, base_ebitda, exit_multiple,
-                    total_years, stage1_years)
+                    total_years, stage1_years, stage1_offsets=stage1_offsets)
                 fv_exit = fair_value_per_share(ev_exit, net_debt, shares_outstanding)
         fv = blend_fair_value_legs(fv_ggm, fv_exit)
         return fv if fv is not None else 0.0
