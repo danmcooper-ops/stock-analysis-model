@@ -40,11 +40,11 @@ def test_rating_sets_as_score_ranges():
     assert pg.ratings_as_score_range([]) is None
 
 
-def test_entering_the_buy_zone_keeps_its_message_and_adds_a_display():
+def test_crossing_a_line_is_worded_as_a_score_in_message_and_display():
     e = _classify(_r('AAA', 'LEAN BUY', 41.0), _r('AAA', 'HOLD', 36.2))
     a = next(x for x in e if x['ticker'] == 'AAA')
     assert a['kind'] == 'entered_buy' and a['level'] == 'action'
-    assert a['message'] == 'AAA moved into the buy zone: HOLD → LEAN BUY'
+    assert a['message'] == 'AAA crossed above 39 (36.2 → 41.0)'
     assert a['display'] == 'AAA crossed above 39 (36.2 → 41.0)'
     assert a['score_from'] == 36.2 and a['score_to'] == 41.0
 
@@ -53,7 +53,7 @@ def test_a_move_within_a_side_reads_as_its_line():
     e = _classify(_r('AAA', 'LEAN BUY', 55.1), _r('AAA', 'BUY', 58.0))
     a = next(x for x in e if x['ticker'] == 'AAA')
     assert a['kind'] == 'same_side'
-    assert a['message'] == 'AAA BUY → LEAN BUY'
+    assert a['message'] == 'AAA fell below 57 (58.0 → 55.1)'
     assert a['display'] == 'AAA fell below 57 (58.0 → 55.1)'
 
 
@@ -75,7 +75,7 @@ def test_rule_change_in_score_terms():
 
 def test_systemic_display_names_no_rating():
     st = {'flood': True, 'cause': 'model', 'changed_share': 0.4, 'changed': 1500}
-    assert 'changed rating' in pg.systemic_message(st)
+    assert pg.systemic_message(st) == pg.systemic_display(st)
     d = pg.systemic_display(st)
     assert 'crossed a score line' in d and 'rating' not in d
     assert pg.systemic_display({'flood': False}) is None

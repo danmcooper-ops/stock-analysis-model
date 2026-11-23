@@ -3659,20 +3659,18 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
 .pro-mast-r{text-align:right;color:var(--pro-mut);font-size:.9em;white-space:nowrap;line-height:1.35;}
 .pro-mast-r b{color:var(--pro-ink);}
 .pro-desc{margin:.3em 0 .4em;color:#333;font-size:.92em;line-height:1.3;}
-/* Verdict band */
-.pro-verdict{display:grid;grid-template-columns:8.2em minmax(0,1fr) minmax(0,1fr);gap:.15em 1.2em;border:1.5px solid var(--pro-vc);border-left-width:.55em;border-radius:.3em;padding:.4em .65em;margin-bottom:.4em;}
-.pro-v-inv{--pro-vc:var(--pro-pos);}
-.pro-v-wat{--pro-vc:var(--pro-warn);}
-.pro-v-avo{--pro-vc:var(--pro-neg);}
+/* Score band: the composite score, its band, the summary line */
+.pro-scoreband{display:grid;grid-template-columns:8.2em minmax(0,1fr) minmax(0,1fr);gap:.15em 1.2em;border:1.5px solid var(--pro-vc);border-left-width:.55em;border-radius:.3em;padding:.4em .65em;margin-bottom:.4em;}
+.pro-v-b1{--pro-vc:var(--pro-pos);}
+.pro-v-b2{--pro-vc:#5d8a26;}
+.pro-v-b3{--pro-vc:var(--pro-warn);}
+.pro-v-b4{--pro-vc:var(--pro-neg);}
 .pro-v-na{--pro-vc:var(--pro-mut);}
 .pro-vcol{grid-row:1/span 5;display:flex;flex-direction:column;gap:.15em;}
 .pro-vlabel{font-size:1.9em;font-weight:900;line-height:1;color:var(--pro-vc);letter-spacing:.01em;}
-.pro-conv{font-size:.8em;color:var(--pro-mut);}
-.pro-meter{display:block;width:100%;height:.35em;border-radius:.2em;background:var(--pro-line);overflow:hidden;}
-.pro-meter i{display:block;height:100%;background:var(--pro-vc);}
+.pro-band{font-size:.8em;font-weight:700;color:var(--pro-vc);}
 .pro-vsub{font-size:.78em;color:var(--pro-mut);line-height:1.3;}
 .pro-headline{grid-column:2/-1;font-weight:700;font-size:1.12em;}
-.pro-need{grid-column:2/-1;color:var(--pro-mut);font-size:.88em;}
 /* Valuation range line: bear/base/bull and how far to trust the fair value */
 .pro-range{grid-column:2/-1;font-size:.95em;line-height:1.35;}
 .pro-range b{font-weight:800;}
@@ -3687,8 +3685,8 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
 .pro-pc ul{margin:0;padding:0;list-style:none;}
 .pro-pc li{padding-left:1.1em;position:relative;margin:.05em 0;font-size:.92em;}
 .pro-pc li::before{position:absolute;left:0;font-weight:800;}
-/* For/Against sit in fixed columns, so rows added above them (the range
-   line, the need line) never push them into the verdict column. */
+/* Strengths/Weaknesses sit in fixed columns, so rows added above them (the
+   range line, the flags) never push them into the score column. */
 .pro-pros{grid-column:2;}
 .pro-cons{grid-column:3;}
 .pro-pros li::before{content:'\2713';color:var(--pro-pos);}
@@ -3713,11 +3711,9 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
 .pro-chart .c-stk{fill:none;stroke:var(--pro-bar);stroke-width:1.6;stroke-linejoin:round;}
 .pro-chart .c-spy{fill:none;stroke:#8a8f96;stroke-width:1;stroke-dasharray:3 2;}
 .pro-chart .c-fv{stroke:var(--pro-pos);stroke-width:1.2;stroke-dasharray:4 2;}
-.pro-chart .c-bb{stroke:var(--pro-warn);stroke-width:1;stroke-dasharray:1.5 2;}
 .pro-chart text.c-lg{fill:var(--pro-ink);font-weight:600;}
 .pro-chart text.c-legend{font-size:8px;}
 .pro-chart text.c-fvl{fill:var(--pro-pos);font-weight:700;}
-.pro-chart text.c-bbl{fill:var(--pro-warn);font-weight:700;}
 .pro-ff .ff-bar{fill:var(--pro-bar-soft);}
 .pro-ff .ff-mid{fill:var(--pro-bar);}
 .pro-ff .ff-px{stroke:var(--pro-ink);stroke-width:1.4;}
@@ -4000,7 +3996,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
            In flow, so nothing beside the ticker, name or meta has to clear
            it, and gone when the band collapses. -->
       <div class="d-toprow"><div class="d-mini-nav-actions"><span id="d-pf" class="d-pf-btn" onclick="pfDetMenu(event)" role="button" tabindex="0" title="Portfolios"></span><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div><div class="d-mini-nav"><div class="d-mini-nav-arrows"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><span class="det-nav-pos"></span><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div><button class="detail-close" onclick="closeDetail()" aria-label="Close ticker page">&times;</button></div></div>
-      <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><button type="button" class="d-sum-btn sa-chrome" id="d-sum" onclick="exportProfilePdf()" aria-label="Summary PDF: one page on this company" title="One-page summary of this company with an invest / watch / avoid verdict. Opens the print dialog; choose “Save as PDF”."><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 1.2v6.3M3.2 5L6 7.8 8.8 5M1.8 10.6h8.4"/></svg>Summary</button></div></div>
+      <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><button type="button" class="d-sum-btn sa-chrome" id="d-sum" onclick="exportProfilePdf()" aria-label="Summary PDF: one page on this company" title="One-page summary of this company with its composite score. Opens the print dialog; choose “Save as PDF”."><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 1.2v6.3M3.2 5L6 7.8 8.8 5M1.8 10.6h8.4"/></svg>Summary</button></div></div>
       <div class="dcname" id="d-cname"></div>
       <div class="dmeta" id="d-meta"></div>
       <!-- Rating row is the band's BOTTOM line (below the CEO meta line),
@@ -5229,7 +5225,7 @@ function _pfRenderManage(){
       +((p.exclude||[]).length?' · excludes '+_pfEsc(p.exclude.join(', ')):'')
       +(miss?' · <span title="'+_pfEsc(missL.join(', '))+'">'+miss+' not in today’s universe</span>':'')+'</div></div>'
       +'<div class="pf-row-btns"><select class="pf-btn pf-mode" title="Alerts for this portfolio" onchange="pfSetField(\''+id+'\',\'alerts\',this.value)">'
-      +[['buy_line','Alerts: buy line'],['all','Alerts: all changes'],['off','Alerts: off']].map(function(o){return'<option value="'+o[0]+'"'+(((p.alerts||'buy_line')===o[0])?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>'
+      +[['buy_line','Alerts: score line'],['all','Alerts: all changes'],['off','Alerts: off']].map(function(o){return'<option value="'+o[0]+'"'+(((p.alerts||'buy_line')===o[0])?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>'
       +'<select class="pf-btn pf-mode" title="How stats, performance and risk weigh the members" onchange="pfSetField(\''+id+'\',\'weighting\',this.value)">'
       +[['equal','Weights: equal'],['model','Weights: model sizing'],['target','Weights: targets'],['held','Weights: holdings']].map(function(o){
         var dis=o[0]==='target'&&!(p.targets&&Object.keys(p.targets).length);
@@ -5352,13 +5348,13 @@ function _pfConsumeShareHash(){
    definitions (they need the prior run's rows), so a portfolio edited in
    this browser shows them only while its definition still matches. --- */
 var curPfSub='overview';
-/* Alert levels (models/portfolio_groups.py): Action = crossed the buy line,
-   Watch = worth a look, FYI = quiet (moves within a side, or on missing
+/* Alert levels (models/portfolio_groups.py), keys action/watch/fyi, shown
+   as Crossed = the score crossed the middle line, Notable = worth a look, FYI = quiet (moves within a side, or on missing
    data). Each portfolio's alert mode (buy_line / all / off) sets the final
    level. "New" = the run is newer than the last one viewed in this browser,
    captured once per page load so the pills survive the visit that clears
    them. */
-var _PF_LV={action:0,watch:1,fyi:2},_PF_LVN={action:'Action',watch:'Watch',fyi:'FYI'};
+var _PF_LV={action:0,watch:1,fyi:2},_PF_LVN={action:'Crossed',watch:'Notable',fyi:'FYI'};
 var _PF_RATING_KINDS={entered_buy:1,exited_buy:1,reversal:1,same_side:1};
 var _PF_SEEN_KEY='stock_pf_alerts_seen_v1';
 var _pfSeenBefore=(function(){try{return localStorage.getItem(_PF_SEEN_KEY)||'';}catch(e){return'';}})();
@@ -5708,7 +5704,7 @@ function _pfOvTable(sums){
       +'<td class="r'+tone(x.rel)+'">'+_pfPct(x.rel,true)+'</td>'
       +'<td class="r">'+(x.beta==null?'—':x.beta.toFixed(2))+'</td>'
       +['r1m','r3m','since','vs'].map(function(k){return'<td class="r'+tone(x[k])+'">'+_pfFmtRet(x[k])+'</td>';}).join('')
-      +'<td class="r">'+(x.aw?'<span class="pfv-badge'+(x.cnt.action?' hot':'')+'" title="'+x.cnt.action+' action, '+x.cnt.watch+' watch">'+x.aw+'</span>':'<span class="pf-muted">—</span>')+'</td></tr>';
+      +'<td class="r">'+(x.aw?'<span class="pfv-badge'+(x.cnt.action?' hot':'')+'" title="'+x.cnt.action+' crossed, '+x.cnt.watch+' notable">'+x.aw+'</span>':'<span class="pf-muted">—</span>')+'</td></tr>';
   });
   return h+'</tbody></table></div>';
 }
@@ -5736,7 +5732,7 @@ function _pfOverviewHtml(){
     var kind=p.rule?((p.tickers||[]).length?'Rule + '+p.tickers.length+' picked':'Rule'):'Hand-picked';
     h+='<div class="pfv-card" style="--pf:'+_pfEsc(_pfCol(p.color))+'" role="button" tabindex="0" onclick="navGo(\'pf\',\''+id+'\')" onkeydown="if(event.key===\'Enter\')navGo(\'pf\',\''+id+'\')">'
       +'<div class="pfv-card-h"><span class="pfv-name">'+_pfEsc(p.name)+'</span>'
-      +(nAW?'<span class="pfv-badge'+(cnt.action?' hot':'')+(_pfIsNew()?' new':'')+'" title="'+cnt.action+' action, '+cnt.watch+' watch'+(_pfIsNew()?' (new)':'')+'">'+nAW+'</span>':'')+'</div>'
+      +(nAW?'<span class="pfv-badge'+(cnt.action?' hot':'')+(_pfIsNew()?' new':'')+'" title="'+cnt.action+' crossed, '+cnt.watch+' notable'+(_pfIsNew()?' (new)':'')+'">'+nAW+'</span>':'')+'</div>'
       +'<div class="pfv-meta">'+st.n+' stock'+(st.n===1?'':'s')+' · '+_pfEsc(kind)+'</div>'
       +(p.rule?'<div class="pfv-rule">'+_pfEsc(_pfRuleSummary(p.rule))+'</div>':'')
       +_pfMixBar(st)+_pfKpis(st)
@@ -5758,7 +5754,7 @@ function _pfOverviewHtml(){
   _pfSortAlerts(list);
   var oc=_pfCount(list);
   h+='<div class="sx"><h3 class="pfv-h3"><span class="sec-label">Alerts</span>'+(oc.action+oc.watch?' <span class="pfv-count">'+(oc.action+oc.watch)+'</span>':'')+'</h3>';
-  h+=_pfAlertsHtml(list,true,PF_PUB.prev_date?'Nothing crossed the buy line, reversed, or needs watching in your portfolios today.':'No prior run to compare against.',15);
+  h+=_pfAlertsHtml(list,true,PF_PUB.prev_date?'Nothing crossed a score line, reversed, or stands out in your portfolios today.':'No prior run to compare against.',15);
   return h+'</div></div>';
 }
 /* Portfolios › a portfolio › News: the members' own headlines, curated.
@@ -5882,7 +5878,7 @@ function _pfDetailHtml(id){
     ['alerts','Alerts'+(nAW?' ('+nAW+')':''),'<h3 class="pfv-h3"><span class="sec-label">Alerts</span>'+(nAW?' <span class="pfv-count">'+nAW+'</span>':'')
       +(mode!=='buy_line'?' <span class="pf-tag">'+(mode==='off'?'muted':'all changes')+'</span>':'')+'</h3>'
       +_pfAlertsHtml(al,false,mode==='off'?'Alerts are muted for this portfolio (Manage → Alerts).':
-        (PF_PUB.prev_date?'Nothing crossed the buy line, reversed, or needs watching since '+_pfEsc(PF_PUB.prev_date)+'.':'No prior run to compare against.'))],
+        (PF_PUB.prev_date?'Nothing crossed a score line, reversed, or stands out since '+_pfEsc(PF_PUB.prev_date)+'.':'No prior run to compare against.'))],
     ['recent','Score moves','<h3 class="pfv-h3"><span class="sec-label">Recent score moves</span> <span class="pf-muted pfv-h3-sub">band lines crossed, last 3 weeks</span></h3>'+_pfRecentHtml(id)]
   ].filter(Boolean);
   var cur=_pfSubTabCur();
@@ -5931,7 +5927,7 @@ function _ppaHtml(){
     +tile('Paper − SPY',R.vs_spy==null?'—':_ppaPp(R.vs_spy),'SPY '+_pfFmtRet(R.spy),_ppaTone(R.vs_spy).trim())
     +tile('Book bought',B.target_held==null?'—':Math.round(B.target_held*100)+'%',(B.held||0)+' of '+(B.targets||0)+' names held','','Share of the target weight the account holds (each name counted up to its target)')
     +tile('Cash',B.cash==null?'—':Math.round(B.cash*100)+'%',B.pending?B.pending+' names not yet bought':'fully built')
-    +tile('To sell',String(B.to_sell||0),'held, no longer in the book')
+    +tile('Leaving',String(B.to_sell||0),'held, no longer in the book')
     +'</div>';
   var how=['Public: an Alpaca paper account (no real money). Positions as of '+_pfEsc(D.as_of)+'’s reconcile; targets from the rebalance on results_'+_pfEsc(D.snapshot||'—')+'.'];
   if(D.untradable)how.push(Math.round(D.untradable*1000)/10+'% of the book is not tradable at Alpaca (OTC lines) and is spread over the rest; the model holds it.');
@@ -7381,7 +7377,7 @@ rev_volatility:'Rev Volatility = σ of year-over-year revenue growth — how ste
 fcf_yield:'FCF Yield = Free Cash Flow / Market Cap, judged against the risk-free rate. An absolute, model-independent floor on value — does the cash the business throws off beat a Treasury? — that holds whether or not the fair-value models agree.',
 dcf_fv:'FV = Σ FCFₜ/(1+WACC)ᵗ + terminal value — every future free cash flow, discounted back to today. The figure shown can be pulled toward sector multiples or blended with the dividend model (see Blend Method). Treat the figure as a range; the assumptions, not the arithmetic, drive it.',
 price:'The market’s offer for today — one you are never obliged to accept. Price is what you pay; value is what you get.',
-mos:'MoS = (Fair Value − Price) / Fair Value — the discount the market hands you, and the room your analysis has to be wrong. The gate passes above 10% and scores in full at 40%; the Summary PDF\u2019s INVEST verdict asks for 15%.',
+mos:'MoS = (Fair Value − Price) / Fair Value — the discount the market hands you, and the room your analysis has to be wrong. The gate passes above 10% and scores in full at 40%.',
 pe:'P/E = Price / trailing EPS (forward EPS when trailing is unavailable) — a first-pass screen. A low P/E means little by itself; a low P/E with high ROIC and cash-backed earnings is one of the most reliable combinations in fundamental analysis.',
 ev_ebitda:'EV/EBITDA = (Market Cap + Net Debt) / EBITDA — a multiple the capital structure cannot flatter, since it prices the whole enterprise. But it flatters capex-heavy businesses, where EBITDA ignores the reinvestment needed just to stand still.',
 pfcf:'P/FCF = Price / Free Cash Flow — the multiple paid on owner earnings, the cash left after the business has paid its way. Below 20× is reasonable; below 15×, attractive.',
@@ -10811,7 +10807,6 @@ function _dtcFutureModel(closes,d){
   var est=d.earnings_date_est;
   est=est===true||(typeof est==='number'&&est!==0)||(typeof est==='string'&&/^(true|1|yes)$/i.test(est));
   var o={today:today,horizon:horizon,price:price,vol:vol,cone:cone,fv:fv,bear:bear,bull:bull,
-    buyBelow:pos(d.profile&&d.profile.buy_below),
     targets:{low:pos(d.target_low),mean:pos(d.target_mean),high:pos(d.target_high)},
     earnings:ed,earningsEst:est,implied:_num(d.implied_growth),modelGrowth:_num(d.fcf_growth)};
   var mc=String(d.mc_confidence||'').toUpperCase(),lvl=/^LOW/.test(mc)?'Low':/^MED/.test(mc)?'Medium':/^HIGH/.test(mc)?'High':null;
@@ -10844,7 +10839,7 @@ function _dtcFutureRender(tk,d,el,tb,fut){
 function _dtcFutureSVG(f,lead,W){
   var H=270,L=6,R=46,T=10,B=24,pw=W-L-R,ph=H-T-B;
   var t0=lead.length?+new Date(lead[0].d+'T00:00:00'):+f.today,t1=+f.horizon;
-  var lv=lead.map(function(p){return p.c;}).concat([f.price,f.fv,f.bear,f.bull,f.buyBelow,f.targets.low,f.targets.mean,f.targets.high]);
+  var lv=lead.map(function(p){return p.c;}).concat([f.price,f.fv,f.bear,f.bull,f.targets.low,f.targets.mean,f.targets.high]);
   f.cone.forEach(function(c){lv.push(c.l1,c.h1);});
   lv=lv.filter(function(v){return v!=null&&isFinite(v);});
   lv=lv.filter(function(v){return v>0;});
@@ -10882,7 +10877,6 @@ function _dtcFutureSVG(f,lead,W){
   /* No text on the plot: the legend above names every mark
      (_dtcFutureLegend), so nothing crowds the lines or the picker. */
   if(f.fv!=null)g+='<line x1="'+n1(X(f.today))+'" x2="'+n1(X(f.horizon))+'" y1="'+n1(Y(f.fv))+'" y2="'+n1(Y(f.fv))+'" stroke="#1a9850" stroke-width="1.6"/>';
-  if(f.buyBelow!=null&&f.buyBelow!==f.fv)g+='<line x1="'+n1(X(f.today))+'" x2="'+n1(X(f.horizon))+'" y1="'+n1(Y(f.buyBelow))+'" y2="'+n1(Y(f.buyBelow))+'" stroke="#e67e22" stroke-width="1" stroke-dasharray="2 3"/>';
   g+='<line x1="'+n1(X(f.today))+'" x2="'+n1(X(f.today))+'" y1="'+T+'" y2="'+(T+ph)+'" class="dtcf-today"/>';
   if(f.earnings){
     var ex=n1(X(f.earnings));
@@ -10912,7 +10906,6 @@ function _dtcFutureLegend(f){
   var h='<div class="dtcf-legend">'+it(ln('#f28c28'),'Price');
   if(f.bear!=null&&f.bull!=null)h+=it(bd('#1a9850',0.25),'Value range');
   if(f.fv!=null)h+=it(ln('#1a9850'),'Fair value');
-  if(f.buyBelow!=null&&f.buyBelow!==f.fv)h+=it(ln('#e67e22',1),'Buy below');
   if(f.cone.length)h+=it(bd('#f28c28',0.3),'Likely range');
   if(f.targets.mean!=null||f.targets.low!=null)h+=it('<svg width="14" height="8" aria-hidden="true"><circle cx="7" cy="4" r="3.5" fill="#2563eb"/></svg>','Analyst targets');
   if(f.earnings)h+=it(ln('#8e44ad',1),'Earnings');
@@ -11360,13 +11353,15 @@ function _renderTrackRecord(d){
   sec.style.display='';
 }
 /* === SUMMARY PDF (ticker page) — the one-page company summary ============
-   Every decision-relevant number for one company on one dense letter page,
-   led by the rule-based verdict models/profile_verdict.py computes at render
-   time (d.profile, shipped in the details/ parts, so it lands with them).
+   Every key number for one company on one dense letter page, led by its
+   composite score and the summary models/profile_verdict.profile_summary
+   computes at render time (d.profile, shipped in the details/ parts, so it
+   lands with them). It never gives a verdict, a conviction or a "buy below"
+   price: nothing here may read as an investment recommendation.
 
    Page order:
    - masthead and business line;
-   - verdict band;
+   - score band;
    - 16 key-stat tiles;
    - price history vs the S&P 500, beside the fair-value range;
    - four balanced columns of label/value blocks;
@@ -11381,7 +11376,8 @@ function _renderTrackRecord(d){
    There is no on-screen view: the "Summary" button beside the ticker symbol
    (#d-sum) calls exportProfilePdf(), which waits for the details parts, the
    hist/ shard and the px/ shards, then prints _proHtml. */
-var _PRO_VCLS={'INVEST':'pro-v-inv','WATCH':'pro-v-wat','AVOID':'pro-v-avo','INSUFFICIENT DATA':'pro-v-na'};
+/* The score band's colour, by the score's band (bandKey). */
+var _PRO_BCLS={'BUY':'pro-v-b1','LEAN BUY':'pro-v-b2','HOLD':'pro-v-b3','PASS':'pro-v-b4'};
 function _proFmt(v,f){
   if(f==='raw')return v==null||v===''?null:String(v);
   var n=_num(v);if(n==null)return null;
@@ -11475,7 +11471,7 @@ function _proFootball(d){
 function _proPxAt(a,i){while(i>=0&&a[i]==null)i--;return i;}
 /* Price history: up to five years of closes from the ticker's px/ shard,
    with the S&P 500 (SPY) rebased to the stock's first close in the window,
-   and the fair value and buy-below price as reference lines. A small table
+   and the fair value as a reference line. A small table
    below gives 1/3/5-year price returns against SPY. The px/ shard is loaded
    by exportProfilePdf before this runs; without it the block is omitted. */
 function _proPriceChart(d){
@@ -11491,15 +11487,14 @@ function _proPriceChart(d){
   idx.forEach(function(ix,k){if(k%step===0||k===idx.length-1)pts.push(ix);});
   var base=a[idx[0]],sb=spy?spy[_proPxAt(spy,idx[0])]:null;
   var sval=function(ix){if(!spy||!sb)return null;var j=_proPxAt(spy,ix);return j>=0?spy[j]/sb*base:null;};
-  var fv=_num(d._fv_effective),bb=d.profile&&_num(d.profile.buy_below);
+  var fv=_num(d._fv_effective);
   var lo=Infinity,hi=-Infinity;
   pts.forEach(function(ix){var v=a[ix],s=sval(ix);lo=Math.min(lo,v);hi=Math.max(hi,v);if(s!=null){lo=Math.min(lo,s);hi=Math.max(hi,s);}});
   /* Reference lines only when they fall near the traded range; otherwise
      their level is stated in the legend so the price path keeps its scale. */
   var span=hi-lo||hi*0.1||1,near=function(v){return v!=null&&v>0&&v>=lo-span*0.6&&v<=hi+span*0.6;};
-  var fvIn=near(fv),bbIn=near(bb);
+  var fvIn=near(fv);
   if(fvIn){lo=Math.min(lo,fv);hi=Math.max(hi,fv);}
-  if(bbIn){lo=Math.min(lo,bb);hi=Math.max(hi,bb);}
   var pad=(hi-lo)*0.06||hi*0.05;lo=Math.max(0,lo-pad);hi+=pad;
   var W=460,H=112,L=4,R=40,T=14,B=14;
   var X=function(k){return (L+k/(pts.length-1)*(W-L-R)).toFixed(1);},Y=function(v){return (T+(hi-v)/(hi-lo)*(H-T-B)).toFixed(1);};
@@ -11509,11 +11504,9 @@ function _proPriceChart(d){
   var sp=pts.map(function(ix,k){var v=sval(ix);return v==null?null:X(k)+','+Y(v);}).filter(Boolean);
   if(sp.length>1)s+='<polyline class="c-spy" points="'+sp.join(' ')+'"/>';
   if(fvIn)s+='<line class="c-fv" x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(fv)+'" y2="'+Y(fv)+'"/>';
-  if(bbIn)s+='<line class="c-bb" x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(bb)+'" y2="'+Y(bb)+'"/>';
   s+='<polyline class="c-stk" points="'+pts.map(function(ix,k){return X(k)+','+Y(a[ix]);}).join(' ')+'"/>';
   var lg='<tspan class="c-lg">— '+esc(d.ticker)+'</tspan>  <tspan>- - S&amp;P 500 (rebased)</tspan>';
   if(fv)lg+='  <tspan class="c-fvl">FV '+esc(_proFmt(fv,'usd'))+(fvIn?'':' (off scale)')+'</tspan>';
-  if(bb)lg+='  <tspan class="c-bbl">Buy below '+esc(_proFmt(bb,'usd'))+(bbIn?'':' (off scale)')+'</tspan>';
   s+='<text class="c-legend" x="'+L+'" y="9">'+lg+'</text></svg>';
   /* Price returns over trailing windows, stock vs SPY. */
   var ret=function(arr,n){if(!arr)return null;var j1=_proPxAt(arr,end),j0=_proPxAt(arr,end-n);return j1>=0&&j0>=0&&j0<j1&&arr[j0]>0?arr[j1]/arr[j0]-1:null;};
@@ -11628,10 +11621,9 @@ function _proPeers(d){
   out=out.slice(0,7);
   if(!out.length)return'';
   var cell=function(v,f,tone){var s=_proFmt(v,f);return '<td'+(tone>0?' class="pos"':tone<0?' class="neg"':'')+'>'+(s==null?'—':esc(s))+'</td>';};
-  var h='<table class="pro-tbl"><tr><th>Ticker</th><th style="text-align:left">Company</th><th>Score</th><th>Verdict</th><th>Mkt cap</th><th>P/E</th><th>EV/EBITDA</th><th>P/FCF</th><th>ROIC</th><th>Op margin</th><th>FCF margin</th><th>Rev 5y</th><th>Div yld</th><th>MoS</th></tr>';
+  var h='<table class="pro-tbl"><tr><th>Ticker</th><th style="text-align:left">Company</th><th>Score</th><th>Mkt cap</th><th>P/E</th><th>EV/EBITDA</th><th>P/FCF</th><th>ROIC</th><th>Op margin</th><th>FCF margin</th><th>Rev 5y</th><th>Div yld</th><th>MoS</th></tr>';
   [d].concat(out).forEach(function(r,i){
-    var v=r.profile&&r.profile.v;
-    h+='<tr'+(i===0?' class="pro-self"':'')+'><td>'+esc(r.ticker)+'</td><td class="pro-name">'+esc(String(r.company_name||'').slice(0,26))+'</td><td>'+(_num(r._composite_score)!=null?Math.round(r._composite_score):'—')+'</td><td>'+esc(v?(v==='INSUFFICIENT DATA'?'n/a':v):'—')+'</td>'
+    h+='<tr'+(i===0?' class="pro-self"':'')+'><td>'+esc(r.ticker)+'</td><td class="pro-name">'+esc(String(r.company_name||'').slice(0,26))+'</td><td>'+(_num(r._composite_score)!=null?Math.round(r._composite_score):'—')+'</td>'
       +cell(r.mcap,'big')+cell(_num(r.pe)>0?r.pe:null,'x')+cell(_num(r.ev_ebitda)>0?r.ev_ebitda:null,'x')+cell(_num(r.pfcf)>0?r.pfcf:null,'x')
       +cell(r.roic,'pct',_proT(r.spread,0.07,0))+cell(r.operating_margin,'pct')+cell(r.fcf_margin,'pct',_proT(r.fcf_margin,0.10,0))
       +cell(r.rev_cagr_5y!=null?r.rev_cagr_5y:r.rev_cagr,'pct')+cell(r.div_yield,'pct')+cell(r.mos,'pct0',_proT(r.mos,0.15,0))+'</tr>';
@@ -11683,7 +11675,7 @@ function _proBalance(blocks,n){
     .forEach(function(x){var j=0;for(var k=1;k<n;k++)if(hts[k]<hts[j])j=k;cols[j].push(x);hts[j]+=x.w;});
   return cols.map(function(c){return '<div>'+c.sort(function(p,q){return p.i-q.i;}).map(function(x){return x.h;}).join('')+'</div>';}).join('');
 }
-/* The verdict band's valuation line: the fair value as a range, not one
+/* The score band's valuation line: the fair value as a range, not one
    number. Bear/bull are the Monte Carlo P10/P90. The other models' median
    (growth EPV, RIM, DDM) is shown with the DCF's gap to it, and a
    HIGH/MEDIUM/LOW confidence with its reasons (profile_verdict.
@@ -11718,23 +11710,23 @@ function _proHtml(d){
   if(desc.length>330){desc=desc.slice(0,330);cut=true;}
   if(cut&&desc.lastIndexOf(' ')>0)desc=desc.slice(0,desc.lastIndexOf(' ')).replace(/[,;:]$/,'')+'…';
   if(desc)h+='<p class="pro-desc">'+esc(desc)+'</p>';
-  /* --- Verdict band --- */
-  if(p&&p.v){
-    var conv=_num(p.conv);
-    h+='<div class="pro-verdict '+(_PRO_VCLS[p.v]||'pro-v-na')+'"><div class="pro-vcol"><span class="pro-vlabel">'+esc(p.v)+'</span>'
-      +(conv!=null?'<span class="pro-conv">Conviction '+Math.round(conv)+'/100</span><span class="pro-meter"><i style="width:'+Math.max(0,Math.min(100,conv))+'%"></i></span>':'')
-      +'<span class="pro-vsub">Composite <b>'+(_num(d._composite_score)!=null?Math.round(d._composite_score):'—')+'</b> / 100'+(isCapped(d)?' (a flag lowered its band)':'')+'<br>gates '+esc(d._gates_passed||'—')+'</span>'
+  /* --- Score band: the composite score and a neutral summary, no verdict --- */
+  var comp=_num(d._composite_score),bk=bandKey(comp);
+  if(p){
+    h+='<div class="pro-scoreband '+(_PRO_BCLS[bk]||'pro-v-na')+'"><div class="pro-vcol"><span class="pro-vlabel">'+(comp!=null?Math.round(comp):'—')+'</span>'
+      +'<span class="pro-vsub">Composite score / 100</span>'
+      +(bk?'<span class="pro-band">Band '+esc(bandLabel(bk))+'</span>':'')
+      +'<span class="pro-vsub">'+(isCapped(d)?'a flag lowered its band<br>':'')+'gates '+esc(d._gates_passed||'—')+'</span>'
       +'</div><div class="pro-headline">'+esc(p.head||'')+'</div>';
     h+=_proRangeLine(p.vc);
-    if(p.need&&p.need.length)h+='<div class="pro-need">Not an INVEST because '+esc(p.need.join('; '))+'.</div>';
     if(p.flags&&p.flags.length)h+='<div class="pro-pc pro-flags"><ul>'+p.flags.map(function(t){return'<li>'+esc(t)+'</li>';}).join('')+'</ul></div>';
     var pros=p.pros||[],cons=p.cons||[];
-    h+='<div class="pro-pc pro-pros"><h5>For</h5><ul>'+(pros.length?pros.map(function(t){return'<li>'+esc(t)+'</li>';}).join(''):'<li>Nothing stands out</li>')+'</ul></div>'
-      +'<div class="pro-pc pro-cons"><h5>Against</h5><ul>'+(cons.length?cons.map(function(t){return'<li>'+esc(t)+'</li>';}).join(''):'<li>Nothing stands out</li>')+'</ul></div>';
+    h+='<div class="pro-pc pro-pros"><h5>Strengths</h5><ul>'+(pros.length?pros.map(function(t){return'<li>'+esc(t)+'</li>';}).join(''):'<li>Nothing stands out</li>')+'</ul></div>'
+      +'<div class="pro-pc pro-cons"><h5>Weaknesses</h5><ul>'+(cons.length?cons.map(function(t){return'<li>'+esc(t)+'</li>';}).join(''):'<li>Nothing stands out</li>')+'</ul></div>';
     h+='</div>';
   }else{
-    h+='<div class="pro-verdict pro-v-na"><div class="pro-vcol"><span class="pro-vlabel">—</span></div><div class="pro-headline">'
-      +(_DETAILS_AVAILABLE&&!_DETAILS_LOADED?'Loading the verdict…':'No verdict in this report (re-render to add it).')+'</div></div>';
+    h+='<div class="pro-scoreband '+(_PRO_BCLS[bk]||'pro-v-na')+'"><div class="pro-vcol"><span class="pro-vlabel">'+(comp!=null?Math.round(comp):'—')+'</span><span class="pro-vsub">Composite score / 100</span></div><div class="pro-headline">'
+      +(_DETAILS_AVAILABLE&&!_DETAILS_LOADED?'Loading the summary…':'No summary in this report (re-render to add it).')+'</div></div>';
   }
   /* --- Key-stat tiles --- */
   var tiles=[];
@@ -11745,7 +11737,7 @@ function _proHtml(d){
   var vc=p&&p.vc;
   tile('Fair value',_proFmt(fv,'usd'),'',vc&&_num(vc.bear)!=null&&_num(vc.bull)!=null?'range '+_proFmt(vc.bear,'usd')+'\u2013'+_proFmt(vc.bull,'usd'):(d._fv_source?({dcf:'DCF',blend:'blend',consensus:'multi-model'}[d._fv_source]||d._fv_source):''));
   tile('Margin of safety',_proFmt(d.mos,'pct'),tc(_proT(d.mos,0.15,0)),fv&&px?'upside '+_proFmt(fv/px-1,'spct0'):'');
-  tile('Buy below',p?_proFmt(p.buy_below,'usd'):null,'','15% under fair value');
+  tile('Composite score',comp!=null?String(Math.round(comp)):null,'',bk?'band '+bandLabel(bk):'');
   tile('Market cap',_proFmt(mcap,'big'),'',d.shares_out?_trFmtSh(d.shares_out)+' shares':'');
   tile('Enterprise value',mcap!=null&&nd!=null?_proFmt(mcap+nd,'big'):null,'',nd!=null?(nd<0?'net cash '+_proFmt(-nd,'big'):'net debt '+_proFmt(nd,'big')):'');
   tile('P/E',_num(d.pe)>0?_proFmt(d.pe,'x'):null,tc(_proRel(d.pe,p,'pe')),_proMed(p,'pe','x'));
@@ -11862,7 +11854,9 @@ function _proHtml(d){
     +_proKv('Avg $ volume (3m)',d.avg_dollar_volume_3m,'big',_num(d.avg_dollar_volume_3m)!=null&&d.avg_dollar_volume_3m<1e6?-1:0)));
   var tgtU=_num(d.target_mean)&&px?d.target_mean/px-1:null;
   blocks.push(_proBlock('Street & model',
-    _proKv('Analyst consensus',d.analyst_rec?String(d.analyst_rec).replace(/_/g,' ').toLowerCase():null,'raw',0,_num(d.num_analysts)!=null?d.num_analysts+' analysts':'')
+    /* No sell-side buy/hold/sell consensus: the sheet relays no one's
+       recommendation, only the analysts' price targets. */
+    _proKv('Analysts',_num(d.num_analysts)!=null?String(d.num_analysts):null,'raw')
     +_proKv('Mean target',d.target_mean,'usd',_proT(tgtU,0.15,-0.05),tgtU!=null?_proFmt(tgtU,'spct0')+' vs price':'')
     +_proKv('Target range',_num(d.target_low)!=null&&_num(d.target_high)!=null?_proFmt(d.target_low,'usd')+' – '+_proFmt(d.target_high,'usd'):null,'raw')
     +_proKv('Analyst long-term growth',d.analyst_ltg,'pct')
@@ -11877,7 +11871,7 @@ function _proHtml(d){
   h+=_proBlock('Peers',_proPeers(d));
   var sc=_proBlock('Gate scorecard',_proScorecard(d)),rk=_proBlock('Risks & context',_proRisks(d,p));
   if(sc||rk)h+='<div class="pro-duo">'+(sc||'<div></div>')+(rk||'<div></div>')+'</div>';
-  h+='<div class="pro-foot">Report of '+esc(RUN_DATE)+' · fundamentals from SEC EDGAR XBRL and Yahoo Finance · prices to the report date · verdict rules: models/profile_verdict.py (score, margin of safety, red flags, weighted checks) · not investment advice.</div>';
+  h+='<div class="pro-foot">Report of '+esc(RUN_DATE)+' · fundamentals from SEC EDGAR XBRL and Yahoo Finance · prices to the report date · strengths, weaknesses and red flags from the model\u2019s checks · a composite score, not a recommendation · not investment advice.</div>';
   return h+'</div>';
 }
 /* The print document. The page is a fixed 7.5in column (it fits letter and
@@ -12199,7 +12193,9 @@ function _detIntrinsicHtml(d){
   return ivH;
 }
 function _detStreetHtml(d){
-  if(d.target_mean==null&&!d.analyst_rec&&d.num_analysts==null)return '';
+  /* No sell-side buy/hold/sell consensus row: the page relays no one's
+     recommendation, only the analysts' price targets. */
+  if(d.target_mean==null&&d.num_analysts==null)return '';
   var _fvEff=d._fv_effective!=null?d._fv_effective:d.dcf_fv;
   var _svUp=(d.target_mean!=null&&d.price)?d.target_mean/d.price-1:null;
   var _svUpC=_svUp!=null?(_svUp>0.15?'color:#1a9850;font-weight:700':(_svUp<0?'color:#de2d26':'')):'';
@@ -12207,10 +12203,9 @@ function _detStreetHtml(d){
   var _svDeltaTxt=_svDelta!=null?((_svDelta>0?'+':'')+(_svDelta*100).toFixed(1)+'%'):'N/A';
   /* Large street-vs-model disagreement is a flag either way — someone is wrong. */
   var _svDeltaC=_svDelta!=null&&Math.abs(_svDelta)>0.3?'color:#e67e22;font-weight:700':'';
-  var _svRec=d.analyst_rec?d.analyst_rec.replace(/_/g,' '):'N/A';
   var _svEarn='N/A';
   if(d.earnings_next_date){_svEarn=d.earnings_next_date+(d.earnings_date_est?' (est.)':'');}
-  return '<div class="dsec"><h3>Street View</h3><div class="dkvg">'+bkv([['Consensus',_svRec],['Analysts',d.num_analysts!=null?''+d.num_analysts:'N/A'],['Target Mean',fd(d.target_mean)],['Target Range',(d.target_low!=null&&d.target_high!=null)?fd(d.target_low)+' – '+fd(d.target_high):'N/A'],['Upside to Target',fp(_svUp),_svUpC],['Street vs Model FV',_svDeltaTxt,_svDeltaC],['Analyst Growth Est',fp(d.analyst_ltg)],['Next Earnings',_svEarn]])+'</div></div>';
+  return '<div class="dsec"><h3>Street View</h3><div class="dkvg">'+bkv([['Analysts',d.num_analysts!=null?''+d.num_analysts:'N/A'],['Target Mean',fd(d.target_mean)],['Target Range',(d.target_low!=null&&d.target_high!=null)?fd(d.target_low)+' – '+fd(d.target_high):'N/A'],['Upside to Target',fp(_svUp),_svUpC],['Street vs Model FV',_svDeltaTxt,_svDeltaC],['Analyst Growth Est',fp(d.analyst_ltg)],['Next Earnings',_svEarn]])+'</div></div>';
 }
 function _detInsiderHtml(d){
   if(d.insider_buy_ratio==null&&!(d.insider_transactions&&d.insider_transactions.length>0))return '';
@@ -20829,6 +20824,7 @@ function aiSystemPrompt(){
     +'- Always fetch data with tools before making claims about specific stocks in this report; never quote numbers from memory. Use list_fields when unsure of a field name.\n'
     +'- Ratio fields are decimals: 0.15 means 15%.\n'
     +'- Describe stocks by their composite score and the line it clears (e.g. "64, above the 57 line"). Never call a stock BUY, LEAN BUY, HOLD or PASS: this report shows scores, not ratings.\n'
+    +'- Never recommend buying, selling, holding or avoiding anything, and never give a verdict (INVEST, WATCH, AVOID), a price to buy below or a target to act on. If asked what to buy or sell, say this report gives scores and analysis, not recommendations, and describe the scores instead.\n'
     +'- Be concise and analytical. Use markdown tables for comparisons. Cite tickers.\n'
     +'- When the reader wants to see stocks on the page, use apply_filter so the table shows them; when they want a stock\'s page, use open_ticker. Say what you applied.\n'
     +'- This is research assistance on model output, not individualized financial advice; flag material risks when a stock looks attractive.';

@@ -32,7 +32,8 @@ models/          - Pure model functions: capm, dcf, ddm, epv, rim, nav,
                    data_tab_narrative (popup Data sub-tab summaries, built
                    at render time by report_html and shipped in the
                    details/ parts), profile_verdict (the Summary PDF's
-                   INVEST/WATCH/AVOID verdict, same render-time path)
+                   company summary: score, strengths, weaknesses, red flags;
+                   never a verdict or buy price, same render-time path)
 scripts/         - Entry points: analyze_stock.py (main pipeline), backtest.py,
                    report_html.py / report_excel.py, scoring.py, config.py,
                    param_set.py, replay.py, ingest_snapshots.py (backfill the

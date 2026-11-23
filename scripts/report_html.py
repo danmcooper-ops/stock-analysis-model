@@ -19,7 +19,7 @@ try:
 except Exception:
     generate_sector_profit_pool_narrative = None
 from models.data_tab_narrative import generate_data_tab_summaries
-from models.profile_verdict import profile_verdict
+from models.profile_verdict import profile_summary
 from models.sector_forces import evaluate_forces
 from models.sector_pool import (economic_pool, industry_pools, pool_structure,
                                  sector_pool_history, universe_totals)
@@ -1300,11 +1300,13 @@ def _attach_data_summaries(chart_records):
 
 
 def _attach_profiles(chart_records):
-    """Add the Profile tab's verdict (``profile``) to each record.
+    """Add the Summary PDF's company summary (``profile``) to each record:
+    score, strengths, weaknesses, red flags and the valuation range, never a
+    verdict (``models/profile_verdict.profile_summary``).
 
     Like the Data-tab summaries it is built at render time from the payload,
     so a rescore or re-render picks up a rule change without a live run, and
-    a failure on one row drops only that row's verdict.
+    a failure on one row drops only that row's summary.
     """
     stats = _sector_stats(chart_records, _PROFILE_MULTIPLE_FIELDS)
     signed = _sector_stats(chart_records, _PROFILE_SIGNED_FIELDS, positive_only=False)
@@ -1312,9 +1314,9 @@ def _attach_profiles(chart_records):
         stats.setdefault(sector, {}).update(meds)
     for rec in chart_records:
         try:
-            rec['profile'] = profile_verdict(rec, stats.get(rec.get('sector')))
+            rec['profile'] = profile_summary(rec, stats.get(rec.get('sector')))
         except Exception:
-            logger.warning('profile verdict failed for %s', rec.get('ticker'),
+            logger.warning('profile summary failed for %s', rec.get('ticker'),
                            exc_info=True)
 
 
@@ -1351,7 +1353,7 @@ def _extract_details_payload(chart_records):
         'legal_filings', 'insider_transactions',
         '_trap_components',  # per-axis trap sub-scores; popup-only detail
         'data_summaries',    # Data sub-tab narratives (_attach_data_summaries)
-        'profile',           # Profile tab verdict (_attach_profiles)
+        'profile',           # Summary PDF company summary (_attach_profiles)
         'mc_quantiles',      # DCF Monte Carlo distribution strip (21 values)
         'mc_drivers',        # DCF Monte Carlo spread drivers
     )

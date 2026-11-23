@@ -34,8 +34,11 @@ class TestBuyBelow:
         prev2 = _by(_row('A', mos=0.05), _row('B', mos=0.12), _row('C', mos=0.30))
         e = {x['ticker']: x for x in _kinds(pg.classify_changes(today, prev, '2026-10-28',
                                                                  prev2_by_tk=prev2)[0], 'buy_below')}
-        assert e['A']['level'] == 'fyi' and e['A']['into'] and 'a Watch follows' in e['A']['message']
-        assert '$17.00' in e['A']['message']                     # 20 x (1 - 15%)
+        assert e['A']['level'] == 'fyi' and e['A']['into'] and 'Notable if it holds' in e['A']['message']
+        assert 'margin of safety rose to 15% or more' in e['A']['message']
+        # Margin-of-safety terms only: no "buy below" price.
+        assert '$17.00' not in e['A']['message']
+        assert not any('buy' in x['message'].lower() for x in e.values())
         assert e['B']['level'] == 'watch' and e['B']['confirmed']
         assert e['C']['level'] == 'fyi' and not e['C']['into']
 

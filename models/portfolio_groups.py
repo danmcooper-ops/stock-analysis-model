@@ -518,16 +518,17 @@ def merge_portfolios(current, incoming, overwrite=False):
 
 RATINGS = ('BUY', 'LEAN BUY', 'HOLD', 'PASS')
 BUY_SIDE = frozenset(('BUY', 'LEAN BUY'))
-# Alert levels, most urgent first. Action = the rating crossed the buy line
-# (the model's actionable signal); Watch = worth a look; FYI = recorded but
-# quiet (moves within a side, and anything resting on missing data).
+# Alert levels, most urgent first. The keys are stored and stay; pages label
+# them "Crossed" (the score crossed the middle line, 39 as of 2026-11),
+# "Notable" (worth a look) and "FYI" (recorded but quiet: moves within a
+# side, and anything resting on missing data). No label says "action".
 LEVELS = ('action', 'watch', 'fyi')
 LEVEL_ORDER = {lv: i for i, lv in enumerate(LEVELS)}
 ALERT_MODES = ('buy_line', 'all', 'off')
 
 SCORE_DROP_PTS = 10.0
-# The model's buy margin (profile_verdict.MIN_MOS: the Summary PDF's "buy
-# below" price is fair value x (1 - 15%)). A crossing is a Watch only once
+# The margin-of-safety line (profile_verdict.MIN_MOS, 15%). Alerts name the
+# margin of safety, never a "buy below" price. A crossing is a Watch only once
 # it has held for a second run: over 29 runs (09-01..10-27) 61% of fresh
 # crossings went back out within five runs (a hysteresis band of 2-5pp did
 # not help: 60-63%), against 38% of those that held a day.
@@ -663,11 +664,12 @@ def universe_stats(by_tk, prev_by_tk):
 
 
 # ---- Score wording ---------------------------------------------------------
-# The report and the iOS app show the composite score, not the rating, so
-# every alert also carries ``display``: the same event in score terms
-# ("crossed above 39 (36.2 → 41.0)"). ``message`` is unchanged, because the
-# nightly email (scripts/email_summary.py) and the digest
-# (scripts/portfolio_digest.py) print it verbatim.
+# Nothing the model publishes may read as an investment recommendation, so
+# every alert speaks in score terms ("crossed above 39 (36.2 → 41.0)"),
+# never "buy zone", "buy line" or "buy-below price". ``display`` (read by the
+# report and the iOS app) and ``message`` (printed verbatim by the nightly
+# email and scripts/portfolio_digest.py) now say the same thing; both are
+# kept so older readers of either field keep working.
 
 def rating_lines(params=None):
     """``{rating: minimum composite}`` from the scoring thresholds (PASS 0)."""
@@ -735,20 +737,8 @@ def systemic_display(st):
 
 
 def systemic_message(st):
-    if not st or not st.get('flood'):
-        return None
-    if st['cause'] == 'data':
-        if st.get('shrink_share', 0) >= SHRINK_SHARE:
-            return (f"Data problem: today's universe has {st['n']:,} rows against "
-                    f"{st['prev_n']:,} on the prior run ({st['shrink_share']:.0%} missing), "
-                    f"and {st['changed_share']:.0%} of the rest changed rating. Rating moves "
-                    "and departures on affected rows are shown as data gaps, not signals.")
-        return (f"Data problem: {st['missing_data']:,} of {st['n']:,} rows are missing a price "
-                f"or identity, and {st['changed_share']:.0%} of the universe changed rating. "
-                "Rating moves on affected rows are shown as data gaps, not signals.")
-    return (f"Model-wide shift: {st['changed_share']:.0%} of the universe "
-            f"({st['changed']:,} stocks) changed rating in one run — usually a scoring "
-            "change rather than news about individual stocks.")
+    """Kept for older callers: the same words as ``systemic_display``."""
+    return systemic_display(st)
 
 
 def _recent_reversal(points, into_buy, day, days=REVERSAL_DAYS):
@@ -833,8 +823,9 @@ def classify_changes(by_tk, prev_by_tk, run_date=None, history=None, explain=Non
                 which = 'today' if data_missing(r) else 'the prior run'
                 out.append({'ticker': t, 'kind': 'data_gap', 'level': 'fyi', 'from': a, 'to': b,
                             'score_from': sc0, 'score_to': sc1,
-                            'message': f"{t} {a} → {b}, but {which}'s row is missing its price or "
-                                       "identity (likely a data outage), so this is not a signal",
+                            'message': f"{t} {score_move_phrase(a, b, sc0, sc1, lines)}, but "
+                                       f"{which}'s row is missing its price or identity (likely "
+                                       "a data outage), so this is not a signal",
                             'display': f"{t} {score_move_phrase(a, b, sc0, sc1, lines)}, but "
                                        f"{which}'s row is missing its price or identity (likely "
                                        "a data outage), so this is not a signal"})
@@ -845,18 +836,15 @@ def classify_changes(by_tk, prev_by_tk, run_date=None, history=None, explain=Non
             shown = f"{t} {score_move_phrase(a, b, sc0, sc1, lines)}"
             if into != was:
                 rev = _recent_reversal((history or {}).get(t), into, day)
-                verb = f"moved into the buy zone: {a} → {b}" if into else \
-                    f"fell out of the buy zone: {a} → {b}"
                 if rev:
                     e.update(kind='reversal', level='watch', reversal_of=rev,
-                             message=f"{t} {verb} (reverses the {rev} move)",
+                             message=f"{shown} (reverses the {rev} move)",
                              display=f"{shown} (reverses the {rev} move)")
                 else:
                     e.update(kind='entered_buy' if into else 'exited_buy', level='action',
-                             message=f"{t} {verb}", display=shown)
+                             message=shown, display=shown)
             else:
-                e.update(kind='same_side', level='fyi', message=f"{t} {a} → {b}",
-                         display=shown)
+                e.update(kind='same_side', level='fyi', message=shown, display=shown)
             if stats['flood']:
                 e['flood'] = True
             if explain:
@@ -891,20 +879,21 @@ def _buy_below_entry(t, r, p, p2, bar):
         return None
     m2 = None if p2 is None or data_missing(p2) else js_num(p2.get('mos'))
     fv, px = js_num(r.get('_fv_effective')), js_num(r.get('price'))
-    line = f" ${fv * (1 - bar):,.2f}" if fv else ''
+    # Margin-of-safety terms only: no "buy-below" price (see Score wording).
     at = f" at ${px:,.2f}" if px else ''
+    fvs = f" against a ${fv:,.2f} fair value" if fv else ''
     base = {'ticker': t, 'kind': 'buy_below', 'mos0': round(m0, 4), 'mos1': round(m1, 4)}
     if m2 is not None and m2 < bar <= m0 and m1 >= bar:
         return dict(base, level='watch', into=True, confirmed=True,
-                    message=f"{t} has held below its buy-below price{line} for two runs "
-                            f"(MoS {m1:.0%}{at})")
+                    message=f"{t} has held a margin of safety of {bar:.0%} or more for two runs "
+                            f"(MoS {m1:.0%}{at}{fvs})")
     if m0 < bar <= m1:
         return dict(base, level='fyi', into=True,
-                    message=f"{t} crossed below its buy-below price{line} (MoS {m1:.0%}{at}); "
-                            "a Watch follows if it holds")
+                    message=f"{t}'s margin of safety rose to {bar:.0%} or more (MoS {m1:.0%}{at}"
+                            f"{fvs}); it becomes Notable if it holds")
     if m1 < bar <= m0:
         return dict(base, level='fyi', into=False,
-                    message=f"{t} rose back above its buy-below price{line} (MoS {m1:.0%}{at})")
+                    message=f"{t}'s margin of safety fell back under {bar:.0%} (MoS {m1:.0%}{at})")
     return None
 
 
@@ -1006,7 +995,7 @@ def membership_events(portfolios, by_tk, prev_by_tk, run_date=None, stopped=None
             gap = data_missing(by_tk[t]) or (t in prev_by_tk and data_missing(prev_by_tk[t]))
             out.append({'ticker': t, 'portfolio': p['id'], 'kind': 'joined',
                         'level': 'fyi' if gap else 'watch',
-                        'message': f"{t} joined {p['name']} ({why})",
+                        'message': f"{t} joined {p['name']} ({shown})",
                         'display': f"{t} joined {p['name']} ({shown})"})
         for t in sorted(before - now):
             shown = None
@@ -1029,7 +1018,7 @@ def membership_events(portfolios, by_tk, prev_by_tk, run_date=None, stopped=None
                     why += ' (data outage: most of the universe is missing today)'
             out.append({'ticker': t, 'portfolio': p['id'], 'kind': kind,
                         'level': 'fyi' if gap else 'watch',
-                        'message': f"{t} left {p['name']} ({why})",
+                        'message': f"{t} left {p['name']} ({shown or why})",
                         'display': f"{t} left {p['name']} ({shown or why})"})
     return out
 

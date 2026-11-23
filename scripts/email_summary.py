@@ -66,10 +66,12 @@ MOMENTUM_GAP_PP = 5.0
 # no rating, only the composite; the rating is the composite's bucket alone
 # (scripts/scoring.py, rating_threshold_buy), so a BUY is a score of 57 up.
 BUY_SCORE = 57.0
+# The email names score lines, never rating names (no BUY / HOLD wording).
+LEAN_SCORE = 39.0
 
 _START = re.compile(r'^--- \[(\w+)\] \d\d:\d\d:\d\d: ')
 _END = re.compile(r'^--- \[(\w+)\] rc=')
-_EARNINGS = re.compile(r'^\s*WATCH\s+(\S+) reports earnings on \d{4}-(\d\d-\d\d)\s*$')
+_EARNINGS = re.compile(r'^\s*(?:WATCH|NOTABLE)\s+(\S+) reports earnings on \d{4}-(\d\d-\d\d)\s*$')
 _BUCKET = re.compile(r'^(BUY|LEAN BUY|HOLD|PASS)\s+(\d+)\s+(-?[\d.]+)%')
 _SPEARMAN = re.compile(r'Spearman r = ([+-]?[\d.]+)\s+\(p=([\d.]+)\)')
 _SECTOR_ROW = re.compile(r'^\s{2}(\S.*?)\s{2,}(\d+)\s+([\d.]+)%')
@@ -144,8 +146,8 @@ def momentum(lines):
         return sum(buckets[k][0] * buckets[k][1] for k in keys if k in buckets) / n if n else None
     top, bottom = _mean(('BUY', 'LEAN BUY')), _mean(('HOLD', 'PASS'))
     if top is not None and bottom is not None and top - bottom > MOMENTUM_GAP_PP:
-        flags.append(f'BUY/LEAN BUY returned {top:.1f}% over the trailing year against '
-                     f'{bottom:.1f}% for HOLD/PASS')
+        flags.append(f'Scores {LEAN_SCORE:g}+ returned {top:.1f}% over the trailing year against '
+                     f'{bottom:.1f}% for scores under {LEAN_SCORE:g}')
     return table, sp, flags
 
 
@@ -173,12 +175,12 @@ def portfolio_report(lines):
 
 
 def portfolio_alerts(lines):
-    """The alerts text, with each portfolio's earnings WATCH lines folded into one."""
+    """The alerts text, with each portfolio's earnings lines folded into one."""
     out, earn = [], []
 
     def flush():
         if earn:
-            out.append(f"  WATCH  earnings within 7 days ({len(earn)}): {', '.join(earn)}")
+            out.append(f"  NOTABLE earnings within 7 days ({len(earn)}): {', '.join(earn)}")
             earn.clear()
     for ln in lines:
         if ln.startswith('wrote ') or ln.startswith('portfolios: '):
@@ -248,7 +250,7 @@ def build(summary, log_text):
     mom_table, sp, mom_flags = momentum(sections.get('validate_ratings', []))
     flags += mom_flags
     sectors, pairs, drops = portfolio_report(sections.get('portfolio_report', []))
-    flags += [f'Sector concentration: {n} is {p:.1f}% of the BUY/LEAN BUY bucket (limit {SECTOR_LIMIT_PCT:.0f}%)'
+    flags += [f'Sector concentration: {n} is {p:.1f}% of the scores {LEAN_SCORE:g}+ (limit {SECTOR_LIMIT_PCT:.0f}%)'
               for n, p in sectors if p > SECTOR_LIMIT_PCT]
     store = sections.get('store_check', [])
     flags += [ln.strip() for ln in store if ln.startswith('PROBLEM')]
@@ -267,12 +269,12 @@ def build(summary, log_text):
         b.append(f'  Momentum: {sp}')
     if sectors:
         top = max(sectors, key=lambda s: s[1])
-        b.append(f'  Largest sector in BUY/LEAN BUY: {top[0]} {top[1]:.1f}%')
+        b.append(f'  Largest sector scoring {LEAN_SCORE:g}+: {top[0]} {top[1]:.1f}%')
     if pairs:
         b.append(f"  Correlated pairs r > {CORR_LIMIT}: {len(pairs)} — "
                  + ', '.join(f'{a}/{c}' for a, c, _ in pairs[:12]) + (' …' if len(pairs) > 12 else ''))
     if drops:
-        b.append(f'  BUYs with a 2020 drawdown worse than {DRAWDOWN_LIMIT_PCT:.0f}% ({len(drops)}): '
+        b.append(f'  Scores {BUY_SCORE:g}+ with a 2020 drawdown worse than {DRAWDOWN_LIMIT_PCT:.0f}% ({len(drops)}): '
                  + ', '.join(drops))
     if store:
         b.append(f"  Snapshot store: {next((ln.strip() for ln in store if ln.strip()), '?')}")

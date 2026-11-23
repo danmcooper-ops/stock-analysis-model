@@ -27,8 +27,29 @@ LABEL = 'portfolio-alerts'
 # alone can run to hundreds of lines.
 MAX_FYI_LINES = 60
 MAX_BODY = 60000
-LEVEL_NAMES = {'action': 'Action', 'watch': 'Watch', 'fyi': 'FYI'}
+# Shown names for the stored alert levels: score terms, never "action".
+LEVEL_NAMES = {'action': 'Crossed', 'watch': 'Notable', 'fyi': 'FYI'}
 RATINGS = ('BUY', 'LEAN BUY', 'HOLD', 'PASS')
+
+
+def _band_names():
+    """``{rating: score band}`` ("57+", "39–56", "25–38", "<25"): the digest
+    shows score bands, never rating names."""
+    from models.portfolio_groups import rating_lines
+    ln = rating_lines()
+
+    def g(x):
+        return f"{x:g}"
+    return {'BUY': f"{g(ln['BUY'])}+",
+            'LEAN BUY': f"{g(ln['LEAN BUY'])}–{g(ln['BUY'] - 1)}",
+            'HOLD': f"{g(ln['HOLD'])}–{g(ln['LEAN BUY'] - 1)}",
+            'PASS': f"<{g(ln['HOLD'])}"}
+
+
+def _mix(st, sep, kv):
+    names = _band_names()
+    return sep.join(kv.format(k=names.get(k, k), v=v)
+                    for k, v in (st.get('ratings') or {}).items() if v)
 
 
 def _pct(v, sign=True):
@@ -38,8 +59,8 @@ def _pct(v, sign=True):
 
 
 def stats_line(st):
-    """One line of portfolio stats (rating mix, medians, concentration)."""
-    mix = ' '.join(f"{k}:{v}" for k, v in (st.get('ratings') or {}).items() if v) or 'no ratings'
+    """One line of portfolio stats (score-band mix, medians, concentration)."""
+    mix = _mix(st, ' ', 'score {k}:{v}') or 'no scores'
     score = st.get('median_score')
     conc = ''
     if st.get('top_sector'):
@@ -102,7 +123,7 @@ def render_text(digest):
             if a['level'] == 'fyi':
                 fyi += 1
                 continue
-            lines.append(f"  {LEVEL_NAMES[a['level']].upper():<6} {a['message']}")
+            lines.append(f"  {LEVEL_NAMES[a['level']].upper():<7} {a['message']}")
             for w in a.get('why') or ():
                 lines.append(f"           · {w}")
         if fyi:
@@ -110,7 +131,7 @@ def render_text(digest):
         lines.append('')
     t = totals(digest)
     note = '' if digest.get('prev_date') else ' — no prior snapshot, so no change alerts'
-    lines.append(f"{t['action']} action, {t['watch']} watch, {t['fyi']} FYI{note}")
+    lines.append(f"{t['action']} crossed, {t['watch']} notable, {t['fyi']} FYI{note}")
     return '\n'.join(lines) + '\n'
 
 
@@ -126,7 +147,7 @@ def render_markdown(digest, pages_url=None):
         out += [f"> ⚠️ **{msg.split(':', 1)[0]}:**{msg.split(':', 1)[1] if ':' in msg else ''}", '']
     for pf in digest.get('portfolios') or ():
         st = pf.get('stats') or {}
-        mix = ' · '.join(f"{k} {v}" for k, v in (st.get('ratings') or {}).items())
+        mix = _mix(st, ' · ', 'score {k}: {v}')
         out += [f"### {pf['name']} — {st.get('n', 0)} stocks", f"{mix} · median MoS {_pct(st.get('median_mos'))}", '']
         fyi = [a for a in pf.get('alerts') or () if a['level'] == 'fyi']
         for lv in ('action', 'watch'):
@@ -151,8 +172,8 @@ def render_markdown(digest, pages_url=None):
             out += ['', '</details>', '']
         if not (pf.get('alerts') or ()):
             out += ['_No changes._', '']
-    out.append('<sub>Action = crossed the buy line (into or out of BUY/LEAN BUY). '
-               'Watch = reversals of a recent crossing, score drops ≥10 pts, fair-value jumps ≥50%, '
+    out.append(f"<sub>Crossed = the composite score crossed the {_band_names()['LEAN BUY'].split('–')[0]} line. "
+               'Notable = reversals of a recent crossing, score drops ≥10 pts, fair-value jumps ≥50%, '
                'portfolio joins/leaves, earnings within 7 days. FYI = moves within a side, or on missing data.</sub>')
     body = '\n'.join(out) + '\n'
     if len(body) > MAX_BODY:

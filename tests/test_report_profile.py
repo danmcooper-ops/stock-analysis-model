@@ -119,17 +119,25 @@ def _row(**over):
     return row
 
 
-def test_verdict_rides_the_details_parts(tmp_path):
+def test_summary_rides_the_details_parts_without_a_verdict(tmp_path):
     out = tmp_path / 'index.html'
     build_html([_row(), _row(ticker='NOPX', price=None, mos=None)], str(out), prices_dir=None)
     parts = json.loads((tmp_path / 'details_index.json').read_text(encoding='utf-8'))['parts']
     details = {}
     for p in parts:
         details.update(json.loads((tmp_path / 'details' / f'{p}.json').read_text(encoding='utf-8')))
-    assert details['PRO']['profile']['v'] == 'INVEST'
-    assert details['NOPX']['profile']['v'] == 'INSUFFICIENT DATA'
-    # Not inlined into the page: the verdict costs index.html nothing.
-    assert '"buy_below"' not in out.read_text(encoding='utf-8')
+    pro, nopx = details['PRO']['profile'], details['NOPX']['profile']
+    assert pro['score'] == 64.0 and pro['pros']
+    assert nopx['head'] == 'Not enough data to value it: missing price or fair value.'
+    # Nothing published reads as a recommendation.
+    for prof in (pro, nopx):
+        for gone in ('v', 'conv', 'need', 'buy_below'):
+            assert gone not in prof, gone
+        text = json.dumps(prof)
+        for word in ('INVEST', 'WATCH', 'AVOID', 'Invest:', 'Watch:', 'Avoid:', 'buy below'):
+            assert word not in text, word
+    # Not inlined into the page: the summary costs index.html nothing.
+    assert '"cons"' not in out.read_text(encoding='utf-8')
 
 
 _JS_PRELUDE = r"""
@@ -150,14 +158,14 @@ var GM={categories:[{name:'Moat',scoreKey:'_score_moat',weight:0.3}],
 
 @pytest.mark.skipif(shutil.which('node') is None, reason='node not installed')
 def test_renderer_handles_a_full_row_and_an_empty_one(tmp_path):
-    from models.profile_verdict import profile_verdict
+    from models.profile_verdict import profile_summary
     src = _tpl()
     fns = ''.join(_fn(src, n) + '\n' for n in (
         '_proFmt', '_proKv', '_proT', '_proBlock', '_proMed', '_proRel', '_proFootball',
         '_proPxAt', '_proPriceChart', '_proSpark', '_proHistHtml', '_proPeers',
         '_proScorecard', '_proRisks', '_proBalance', '_proRangeLine', '_proHtml'))
-    consts = ("var _PRO_VCLS={'INVEST':'pro-v-inv','WATCH':'pro-v-wat','AVOID':'pro-v-avo',"
-              "'INSUFFICIENT DATA':'pro-v-na'};\n")
+    consts = ("var _PRO_BCLS={'BUY':'pro-v-b1','LEAN BUY':'pro-v-b2','HOLD':'pro-v-b3',"
+              "'PASS':'pro-v-b4'};\n")
     assert consts.strip() in src
     full = _row(dcf_sens_range=[110, 150], mc_p10_fv=90, mc_p90_fv=170, target_low=80,
                 target_high=160, target_mean=125, low_52w=70, high_52w=120, epv_fv=60,
@@ -166,7 +174,7 @@ def test_renderer_handles_a_full_row_and_an_empty_one(tmp_path):
                 roic_by_year={'2023': 0.2, '2024': 0.22, '2025': 0.25},
                 epv_growth_fv=60.0, rim_fv=58.0, ddm_fv=51.0, _dcf_fv_preblend=130.0,
                 _gate_fv_dispersion=0.35)
-    full['profile'] = profile_verdict(full)
+    full['profile'] = profile_summary(full)
     hist = {'rev': {'2023-12-31': 8e9, '2024-12-31': 9e9, '2025-12-31': 10e9},
             'op': {'2023-12-31': 2e9, '2024-12-31': 2.4e9, '2025-12-31': 3e9},
             'ni': {'2023-12-31': 1e9, '2024-12-31': 1.5e9, '2025-12-31': 2e9},
@@ -193,7 +201,11 @@ def test_renderer_handles_a_full_row_and_an_empty_one(tmp_path):
     r = subprocess.run(['node', str(script)], capture_output=True, text=True, check=False)
     assert r.returncode == 0, r.stderr
     a, b, c = json.loads(r.stdout)
-    assert 'pro-v-inv' in a and '>INVEST<' in a
+    # The composite score leads the sheet; no verdict, conviction or buy price.
+    assert 'pro-v-b1' in a and 'class="pro-vlabel">64<' in a and 'Band 57+' in a
+    for gone in ('INVEST', 'WATCH', 'AVOID', 'Conviction', 'Buy below', 'Verdict', 'verdict'):
+        assert gone not in a, gone
+    assert '<h5>Strengths</h5>' in a and '<h5>Weaknesses</h5>' in a
     assert 'class="pro-ff"' in a              # fair-value range chart
     assert 'Ten-year record' in a and 'FY25' in a
     assert 'pro-g pass' in a                  # scorecard chip

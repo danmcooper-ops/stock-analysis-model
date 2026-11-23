@@ -117,7 +117,8 @@ def test_flags_follow_the_runbook_rules():
     assert '!! Systemic day (data)' in flags                       # banner leads
     assert 'Gate N/A jump' in flags and 'MoS' in flags             # ⚠ JUMP row
     assert 'Spearman r +0.210' in flags                            # r > 0.15, p < 0.05
-    assert 'BUY/LEAN BUY returned 35.0%' in flags                  # beats HOLD/PASS by > 5pp
+    assert 'Scores 39+ returned 35.0%' in flags                    # beats the rest by > 5pp
+    assert 'BUY' not in flags and 'HOLD' not in flags
     assert 'Industrials is 41.1%' in flags and 'Technology' not in flags
     assert 'PROBLEM: store holds no rows' in flags
 
@@ -125,14 +126,14 @@ def test_flags_follow_the_runbook_rules():
 def test_only_buys_count_toward_the_2020_drawdown_flag():
     # MTDR scores 54.3 (LEAN BUY); ROST's 2020 drawdown is within the limit.
     _, body = es.build(SUMMARY, LOG)
-    assert 'BUYs with a 2020 drawdown worse than -50% (1): BBW' in body
+    assert 'Scores 57+ with a 2020 drawdown worse than -50% (1): BBW' in body
 
 
 def test_earnings_watch_lines_fold_into_one_and_others_stay_verbatim():
     out = es.portfolio_alerts(es.log_sections(LOG)['portfolio_alerts'])
     text = '\n'.join(out)
     assert '  ACTION  XYZ rating BUY → HOLD' in out
-    assert 'WATCH  earnings within 7 days (2): ANET 11-03, CF 11-04' in text
+    assert 'NOTABLE earnings within 7 days (2): ANET 11-03, CF 11-04' in text
     assert 'reports earnings' not in text
     assert not any(ln.startswith(('wrote ', 'portfolios: ')) for ln in out)
     assert text.index('earnings within') < text.index('quieter change')

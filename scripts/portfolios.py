@@ -505,7 +505,8 @@ def rating_explainer():
     except Exception as e:  # the alerts still work without the bullets
         logger.warning("portfolios: rating explanations unavailable (%s)", e)
         return None
-    return lambda prev, cur: _explain_rating_change(prev, cur, gm)
+    # Score terms: no alert text names a rating (portfolio_groups, Score wording).
+    return lambda prev, cur: _explain_rating_change(prev, cur, gm, score_terms=True)
 
 
 def rating_history(results_dir, day):
@@ -643,11 +644,11 @@ def cmd_alerts_replay(doc, a):
     if rows_out:
         acts = [r[0] for r in rows_out]
         crossings = sum(r[0] + r[1] for r in rows_out)
-        print(f"\n{len(rows_out)} run(s): ACTION median {statistics.median(acts):g}/run, "
+        print(f"\n{len(rows_out)} run(s): CROSSED median {statistics.median(acts):g}/run, "
               f"max {max(acts)}; reversals {sum(r[1] for r in rows_out)} of {crossings} crossings "
               f"({sum(r[1] for r in rows_out) / max(1, crossings):.0%}); "
               f"same-side median {statistics.median(r[2] for r in rows_out):g}/run; "
-              f"confirmed buy-below crossings median {statistics.median(r[4] for r in rows_out):g}/run; "
+              f"confirmed 15%-MoS crossings median {statistics.median(r[4] for r in rows_out):g}/run; "
               f"flood runs {sum(1 for r in rows_out if r[3])}")
 
 
