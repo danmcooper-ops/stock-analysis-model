@@ -79,6 +79,33 @@ SIGNAL_SPECS = [
     # Higher = the market prices in more growth than the model expects.
     ('implied_growth_z', 'Implied Growth Gap σ (higher = more priced in)'),
 ]
+# Signals whose meaning depends on the DCF growth model's range width: they
+# are measured per model (v1 under their own key, others as `<key>_<model>`).
+MC_SIGNALS = frozenset({'mc_price_pctile', 'implied_growth_z'})
+
+
+def growth_model_of(row):
+    """The DCF growth model a row was valued under (dcf_inputs.model, which
+    may arrive as a JSON string from the store); 'v1' for every row from
+    before it was recorded."""
+    di = row.get('dcf_inputs')
+    if isinstance(di, str):
+        try:
+            di = json.loads(di)
+        except ValueError:
+            di = None
+    return (di.get('model') if isinstance(di, dict) else None) or 'v1'
+
+
+def growth_models(all_metrics):
+    """Models present among measured rows carrying Monte Carlo output, v1 first."""
+    seen = {(m.get('_source_stocks') or {}).get(d['ticker'], {}).get('dcf_growth_model') or 'v1'
+            for m in all_metrics for d in m.get('details', [])}
+    return sorted(seen, key=lambda x: (x != 'v1', x)) or ['v1']
+
+
+def model_key(key, model):
+    return key if model == 'v1' else f'{key}_{model}'
 
 # A snapshot needs at least this many stocks carrying the signal to form
 # stable cross-sectional quartiles; thinner snapshots are skipped for that
@@ -1571,6 +1598,9 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None,
                 'mc_drivers': s.get('mc_drivers'),
                 'mc_growth_sigma': s.get('mc_growth_sigma'),
                 'mc_growth_sigma_evidence': s.get('mc_growth_sigma_evidence'),
+                # The DCF growth model the row was valued under: v1 and v2
+                # ranges differ ~3x, so the MC checks never pool them.
+                'dcf_growth_model': growth_model_of(s),
             }
 
     return {
@@ -2055,8 +2085,12 @@ def build_backtest_excel(all_metrics, filename):
         cell.alignment = hdr_align
 
     ri = 5
-    for key, label in SIGNAL_SPECS:
-        sq = signal_quartile_accuracy(all_metrics, key)
+    xl_specs = [(key, label, None) for key, label in SIGNAL_SPECS if key not in MC_SIGNALS]
+    for model in growth_models(all_metrics):
+        xl_specs += [(key, label + ('' if model == 'v1' else f' — growth model {model}'), model)
+                     for key, label in SIGNAL_SPECS if key in MC_SIGNALS]
+    for key, label, model in xl_specs:
+        sq = signal_quartile_accuracy(all_metrics, key, model=model)
         if sq is None:
             ws7.cell(row=ri, column=1, value=label)
             ws7.cell(row=ri, column=2, value='not enough data yet')
@@ -2236,7 +2270,7 @@ def consensus_comparison(all_metrics):
 # ---------------------------------------------------------------------------
 
 def signal_quartile_accuracy(all_metrics, signal_key,
-                             min_per_snapshot=MIN_SIGNAL_PER_SNAPSHOT):
+                             min_per_snapshot=MIN_SIGNAL_PER_SNAPSHOT, model=None):
     """Forward EXCESS return by quartile of a continuous signal.
 
     Method (deliberately conservative about the daily-snapshot data shape):
@@ -2258,6 +2292,9 @@ def signal_quartile_accuracy(all_metrics, signal_key,
     snapshots where that correlation is positive: a sign-consistency check
     that treats each snapshot as one observation, not each stock.
 
+    `model` keeps only rows valued under that DCF growth model (the MC
+    signals' scale depends on it); None keeps every row.
+
     Returns None if no snapshot carries >= min_per_snapshot signal values,
     else a dict:
         quartiles:    {1..4: {mean_alpha, median_alpha, hit_rate, count}}
@@ -2277,6 +2314,8 @@ def signal_quartile_accuracy(all_metrics, signal_key,
         obs = []  # (signal_value, excess_return)
         for d in m['details']:
             info = stocks.get(d['ticker'], {})
+            if model is not None and (info.get('dcf_growth_model') or 'v1') != model:
+                continue
             sig = info.get(signal_key)
             ex = d['excess_return']
             # Guard against non-finite inputs: a NaN Close in a parquet file
@@ -2472,7 +2511,8 @@ def print_summary(all_metrics, perm=None, sector_ic=None):
     # --- Signal quartile spreads (does the signal predict excess return?) ---
     print_signal_tables(all_metrics,
                         'SIGNAL QUARTILE SPREADS  (forward alpha by signal quartile)')
-    print_mc_band_coverage(mc_band_coverage(all_metrics))
+    for model in growth_models(all_metrics):
+        print_mc_band_coverage(mc_band_coverage(all_metrics, model), model)
 
 
 def print_signal_tables(all_metrics, title,
@@ -2482,9 +2522,13 @@ def print_signal_tables(all_metrics, title,
     print(f"\n  {'-'*60}")
     print(f"  {title}")
     print(f"  {'-'*60}")
-    for key, label in SIGNAL_SPECS:
+    specs = [(key, label, None) for key, label in SIGNAL_SPECS if key not in MC_SIGNALS]
+    for model in growth_models(all_metrics):
+        specs += [(key, label + ('' if model == 'v1' else f' — growth model {model}'), model)
+                  for key, label in SIGNAL_SPECS if key in MC_SIGNALS]
+    for key, label, model in specs:
         sq = signal_quartile_accuracy(all_metrics, key,
-                                      min_per_snapshot=min_per_snapshot)
+                                      min_per_snapshot=min_per_snapshot, model=model)
         if sq is None:
             print(f"\n  {label}: not enough data yet "
                   f"(no snapshot has ≥{min_per_snapshot} signal "
@@ -2559,8 +2603,13 @@ def _widened(q, k):
     return [max(0.0, med + k * (v - med)) for v in q]
 
 
-def mc_band_coverage(all_metrics):
+def mc_band_coverage(all_metrics, model='v1'):
     """How the DCF Monte Carlo fair-value range lines up with later prices.
+
+    Only rows valued under DCF growth model `model` (v2's ranges are ~3x
+    v1's, so pooling them would read as a coverage change that is only a
+    model change). The evidence-sigma widening is a v1 question (v2 fits its
+    own sigma), so it is skipped for other models.
 
     Per horizon, over every measured row carrying mc_quantiles:
 
@@ -2588,6 +2637,8 @@ def mc_band_coverage(all_metrics):
         stocks = m.get('_source_stocks', {})
         for d in m['details']:
             info = stocks.get(d['ticker'], {})
+            if (info.get('dcf_growth_model') or 'v1') != model:
+                continue
             q = _as_json(info.get('mc_quantiles'))
             p0, p1 = d.get('start_price'), d.get('end_price')
             if (not isinstance(q, list) or len(q) != len(QUANTILE_LEVELS)
@@ -2605,7 +2656,7 @@ def mc_band_coverage(all_metrics):
             dist0, dist1 = abs(r0 - 0.5), abs(r1 - 0.5)
             a['toward'] += dist1 < dist0
             a['pull'] += dist0 - dist1
-            k = evidence_width_factor(info)
+            k = evidence_width_factor(info) if model == 'v1' else None
             if k is not None:
                 w = _widened(q, k)
                 a['ev_n'] += 1
@@ -2638,9 +2689,10 @@ def mc_band_coverage(all_metrics):
     return out
 
 
-def print_mc_band_coverage(cov):
+def print_mc_band_coverage(cov, model='v1'):
+    tag = '' if model == 'v1' else f' — growth model {model}'
     print(f"\n  {'-'*60}")
-    print("  DCF MONTE CARLO RANGE CHECK  (prices inside the fair-value bands)")
+    print(f"  DCF MONTE CARLO RANGE CHECK{tag}  (prices inside the fair-value bands)")
     print(f"  {'-'*60}")
     if not cov:
         print("\n  Not enough data yet (no measured row carries mc_quantiles;"
@@ -2669,10 +2721,15 @@ def print_mc_band_coverage(cov):
 def signal_summary(all_metrics):
     """signal_quartile_accuracy per SIGNAL_SPECS entry, per horizon."""
     out = {}
+    models = growth_models(all_metrics)
     for h in sorted({m['horizon'] for m in all_metrics}):
         hm = [m for m in all_metrics if m['horizon'] == h]
         out[str(h)] = {key: signal_quartile_accuracy(hm, key)
-                       for key, _ in SIGNAL_SPECS}
+                       for key, _ in SIGNAL_SPECS if key not in MC_SIGNALS}
+        for model in models:
+            for key, _ in SIGNAL_SPECS:
+                if key in MC_SIGNALS:
+                    out[str(h)][model_key(key, model)] = signal_quartile_accuracy(hm, key, model=model)
     return out
 
 
@@ -3805,6 +3862,9 @@ def build_measure_summary(all_metrics, horizons, since, stamp, readiness,
         'sector_ic': {str(h): v for h, v in sector_ic.items()},
         'signals': signal_summary(all_metrics),
         'mc_band': {str(h): v for h, v in mc_band_coverage(all_metrics).items()},
+        # Other DCF growth models' range checks, apart from v1's (mc_band_v2 …).
+        **{model_key('mc_band', mdl): {str(h): v for h, v in mc_band_coverage(all_metrics, mdl).items()}
+           for mdl in growth_models(all_metrics) if mdl != 'v1'},
         'regimes': model_regimes(all_metrics),
         'rescored_current': rescored,
     }

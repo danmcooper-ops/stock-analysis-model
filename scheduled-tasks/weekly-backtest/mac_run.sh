@@ -13,7 +13,9 @@
 #   - YF_IMPERSONATE=chrome. run.sh defaults to chrome116, which only the
 #     cloud egress proxy needed.
 #   - the keys in .env that the job needs, and only those (WEEKLY_ENV_KEYS,
-#     default TIINGO_API_KEY for step 04b). Exporting the whole file handed
+#     default TIINGO_API_KEY for step 04b and DCF_GROWTH_MODEL, so measure
+#     records the growth model the nightly runs under as the current model
+#     and its params hash). Exporting the whole file handed
 #     the Supabase service key, the Cloudflare token and the Anthropic keys to
 #     run.sh and pip's build backends, and would let a stray DRY_RUN or SMOKE
 #     line in .env silently stop the publish. Values already in the
@@ -60,7 +62,7 @@ export PATH="$(dirname "$PY3"):/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/u
 # .env, without overriding the environment: KEY=VALUE lines (an `export `
 # prefix and matching quotes are accepted), # comments, only the keys named in
 # WEEKLY_ENV_KEYS, the first occurrence of each.
-WEEKLY_ENV_KEYS="${WEEKLY_ENV_KEYS:-TIINGO_API_KEY}"
+WEEKLY_ENV_KEYS="${WEEKLY_ENV_KEYS:-TIINGO_API_KEY DCF_GROWTH_MODEL}"
 if [ -f "$REPO/.env" ]; then
   eval "$("$PY3" "$REPO/scheduled-tasks/weekly-backtest/env_keys.py" "$REPO/.env" $WEEKLY_ENV_KEYS)"
 fi
