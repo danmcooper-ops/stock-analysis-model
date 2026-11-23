@@ -1796,6 +1796,27 @@ ruff check .
   median; and the same with each band widened as the evidence sigma would
   (`evidence_width_factor`, sqrt(1 − s + s·r²) with s growth's Sobol share,
   approximate). Recorded from 2026-11-13, so first 30d readings mid-December.
+  **Growth hindcast (`scripts/growth_hindcast.py`, 2026-11-23):** tests the
+  growth sigma against realised growth, which EDGAR history already holds
+  (64% of DCF rows have 8+ years), instead of waiting for 365d prices. Per
+  ticker and past fiscal year t it rebuilds a history-only estimate (3-year
+  FCF and revenue CAGRs, reinvestment × ROIC, at production weights, clamped
+  as live), takes realised growth as the rate that makes the DCF's stage-1
+  projection sum to the FCF actually produced in t+1..t+5 (`--target
+  revenue`: the revenue CAGR), and scores N(estimate, sigma) by CRPS and PIT
+  for the ratio rule, the evidence sigma and a walk-forward fitted scale
+  (fitted only on outcomes resolved by t). Run on 2026-11-20 (DCF rows,
+  ~11k cases, origins 2009-2021): the ratio rule (median 2pp) holds only
+  7%/16% of realised FCF growth in its 50%/90% bands (revenue 13%/30%); the
+  evidence sigma 14-41% / 31-75%; the fitted scale ~50-60% / 80-91% at the
+  best CRPS (sigma ~21pp on FCF, ~7pp on revenue, rising with revenue-growth
+  volatility). The estimate barely ranks outcomes (rank IC +0.03 FCF, +0.09
+  revenue) and runs ~4-5pp low (survivorship). Much of the FCF miss is
+  base-year noise, which the simulation holds fixed and which mean-reverts,
+  so the FCF sigma must not be copied into the growth draw. Limits: no
+  point-in-time analyst signals (60% of the live blend's weight), survivors
+  only, restated XBRL, overlapping windows, and the walk-forward rules have
+  only four origins. Nothing reads it; config is unchanged.
 - **Scripts layer (`scripts/`):** `analyze_stock._main()` orchestrates
   13 `_run_*` phase functions (screen → analyze → score → narrate →
   write outputs). A run is resumable: `scripts/run_checkpoint.py`
