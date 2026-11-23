@@ -1797,6 +1797,17 @@ ruff check .
   median; and the same with each band widened as the evidence sigma would
   (`evidence_width_factor`, sqrt(1 − s + s·r²) with s growth's Sobol share,
   approximate). Recorded from 2026-11-13, so first 30d readings mid-December.
+  **Per growth model (2026-11-23):** v2's ranges are ~3x v1's, so the range
+  check and the two MC signals are measured per DCF growth model, read from
+  each row's `dcf_inputs.model` (`growth_model_of`; rows without it are
+  v1) into the row info as `dcf_growth_model`. v1 keeps the old keys
+  (`mc_band`, `signals.<h>.mc_price_pctile` / `implied_growth_z`, the
+  Excel and printed tables); other models add `mc_band_v2`,
+  `mc_price_pctile_v2`, `implied_growth_z_v2` and "— growth model v2"
+  tables. The evidence-sigma widening is v1-only (v2 fits its own sigma).
+  The weekly job (`mac_run.sh` `WEEKLY_ENV_KEYS`) loads `DCF_GROWTH_MODEL`
+  from `.env` so measure's `current_params_hash` and re-scored view name
+  the model the nightly runs under. First v2 30d readings ~2026-12-23.
   **Growth hindcast (`scripts/growth_hindcast.py`, 2026-11-23):** tests the
   growth sigma against realised growth, which EDGAR history already holds
   (64% of DCF rows have 8+ years), instead of waiting for 365d prices. Per

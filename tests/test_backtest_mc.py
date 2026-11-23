@@ -111,3 +111,61 @@ def test_summary_carries_signals_and_band(monkeypatch):
     assert band[30]['n_obs'] == 24
     bt.print_mc_band_coverage(band)       # smoke: formats without error
     bt.print_mc_band_coverage({})
+
+
+# --- DCF growth model v1 / v2 are measured apart ------------------------------
+
+def test_growth_model_of_reads_dcf_inputs_in_any_form():
+    assert bt.growth_model_of({}) == 'v1'
+    assert bt.growth_model_of({'dcf_inputs': {'model': 'v2'}}) == 'v2'
+    assert bt.growth_model_of({'dcf_inputs': json.dumps({'model': 'v2'})}) == 'v2'
+    assert bt.growth_model_of({'dcf_inputs': 'not json'}) == 'v1'
+    assert bt.growth_model_of({'dcf_inputs': {'model': None}}) == 'v1'
+
+
+def _mixed_metrics():
+    # v1 rows: price inside the band; v2 rows (same quantiles here) end far
+    # outside it, so pooling would blend the two.
+    v1 = {'mc_quantiles': Q, 'mc_price_pctile': 0.1, 'implied_growth_z': -1.0}
+    v2 = {'mc_quantiles': Q, 'mc_price_pctile': 0.9, 'implied_growth_z': 1.0,
+          'dcf_growth_model': 'v2'}
+    rows = [(f'A{i}', 100, 100, v1) for i in range(24)] + \
+           [(f'B{i}', 100, 300, v2) for i in range(24)]
+    return [_metrics(rows)]
+
+
+def test_band_coverage_is_per_model():
+    m = _mixed_metrics()
+    v1, v2 = bt.mc_band_coverage(m)[30], bt.mc_band_coverage(m, 'v2')[30]
+    assert v1['n_obs'] == 24 and v1['end_in']['50'] == 1.0
+    assert v2['n_obs'] == 24 and v2['end_in']['90'] == 0.0
+    assert bt.growth_models(m) == ['v1', 'v2']
+
+
+def test_evidence_widening_is_v1_only():
+    info = {'mc_quantiles': Q, 'mc_growth_sigma': 0.02, 'mc_growth_sigma_evidence': 0.06,
+            'mc_drivers': {'growth': 0.6}, 'dcf_growth_model': 'v2'}
+    cov = bt.mc_band_coverage([_metrics([('A', 100, 100, info)])], 'v2')
+    assert cov[30]['evidence'] is None
+
+
+def test_signals_and_summary_split_by_model():
+    m = _mixed_metrics()
+    sig = bt.signal_summary(m)['30']
+    assert {'mc_price_pctile', 'mc_price_pctile_v2', 'implied_growth_z_v2'} <= set(sig)
+    assert sig['mc_price_pctile']['n_obs'] == 24 and sig['mc_price_pctile_v2']['n_obs'] == 24
+    # v1-only history (no v2 rows): the summary keeps its old shape.
+    only_v1 = [_metrics([(f'A{i}', 100, 100, {'mc_quantiles': Q, 'mc_price_pctile': 0.5})
+                         for i in range(24)])]
+    assert 'mc_price_pctile_v2' not in bt.signal_summary(only_v1)['30']
+    bt.print_signal_tables(m, 'smoke')    # formats both models without error
+    for model in bt.growth_models(m):
+        bt.print_mc_band_coverage(bt.mc_band_coverage(m, model), model)
+
+
+def test_weekly_job_loads_the_growth_model():
+    import pathlib
+    sh = pathlib.Path(__file__).resolve().parents[1] / 'scheduled-tasks/weekly-backtest/mac_run.sh'
+    line = next(x for x in sh.read_text(encoding='utf-8').splitlines()
+                if x.startswith('WEEKLY_ENV_KEYS='))
+    assert 'DCF_GROWTH_MODEL' in line and 'TIINGO_API_KEY' in line
