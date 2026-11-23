@@ -40,7 +40,7 @@ def with_bg(*rows):
 
 
 class TestClassify:
-    def test_buy_line_crossings_are_action_same_side_is_fyi(self):
+    def test_line_crossings_are_action_same_side_is_fyi(self):
         prior = with_bg(row('UP', 'HOLD'), row('DN', 'LEAN BUY'), row('SS', 'BUY'), row('PP', 'HOLD'))
         today = with_bg(row('UP', 'LEAN BUY'), row('DN', 'PASS'), row('SS', 'LEAN BUY'), row('PP', 'PASS'))
         e, st = classify(today, prior)
@@ -48,8 +48,9 @@ class TestClassify:
                             ('SS', 'same_side', 'fyi'), ('UP', 'entered_buy', 'action')]
         assert not st['flood']
         msg = {x['ticker']: x['message'] for x in e}
-        assert msg['UP'] == 'UP moved into the buy zone: HOLD → LEAN BUY'
-        assert msg['DN'] == 'DN fell out of the buy zone: LEAN BUY → PASS'
+        assert msg['UP'].startswith('UP crossed above 39')
+        assert msg['DN'].startswith('DN fell below 39')
+        assert not any('buy' in m.lower() for m in msg.values())
 
     def test_reversal_within_window_is_watch(self):
         prior = with_bg(row('R', 'HOLD'), row('OLD', 'HOLD'))
@@ -154,20 +155,20 @@ class TestDigest:
     def test_text(self):
         t = pdg.render_text(_digest(flood=True))
         assert t.startswith('Portfolio alerts 2026-09-25 (vs 2026-09-24)\n\n!! Data problem')
-        assert 'ACTION AVGO moved into the buy zone: HOLD → BUY' in t
+        assert 'CROSSED AVGO moved into the buy zone: HOLD → BUY' in t
         assert '           · Composite crossed 60' in t
-        assert 'WATCH  TSM composite score dropped' in t
+        assert 'NOTABLE TSM composite score dropped' in t
         assert '(1 quieter change: ' in t and 'NVDA' not in t
-        assert t.rstrip().endswith('1 action, 1 watch, 1 FYI')
+        assert t.rstrip().endswith('1 crossed, 1 notable, 1 FYI')
 
     def test_markdown_and_title(self):
         md = pdg.render_markdown(_digest(flood=True), 'https://x.github.io/r/')
         assert md.startswith('## Portfolio alerts — 2026-09-25')
         assert '(https://x.github.io/r/#s=%7B%22v%22%3A%22pf%22%7D)' in md
         assert '> ⚠️ **Data problem:**' in md
-        assert '**Action**\n- **AVGO** moved into the buy zone: HOLD → BUY\n  - Composite crossed 60' in md
+        assert '**Crossed**\n- **AVGO** moved into the buy zone: HOLD → BUY\n  - Composite crossed 60' in md
         assert '<details><summary>1 quieter change</summary>' in md
-        assert pdg.title(_digest(flood=True)) == 'Portfolio alerts — 2026-09-25 (1 action, 1 watch) — systemic day'
+        assert pdg.title(_digest(flood=True)) == 'Portfolio alerts — 2026-09-25 (1 crossed, 1 notable) — systemic day'
 
     def test_markdown_stays_under_githubs_limit(self):
         fyi = [{'ticker': f'T{i}', 'kind': 'same_side', 'level': 'fyi', 'message': 'x' * 200}
@@ -209,7 +210,7 @@ class TestPost:
         verbs = [c[:2] for c in gh.calls]
         assert verbs == [['issue', 'list'], ['label', 'create'], ['issue', 'create'], ['issue', 'close']]
         create = gh.calls[2]
-        assert create[create.index('--title') + 1] == 'Portfolio alerts — 2026-09-25 (1 action, 1 watch)'
+        assert create[create.index('--title') + 1] == 'Portfolio alerts — 2026-09-25 (1 crossed, 1 notable)'
         assert gh.calls[3][2] == '5'
 
     def test_idempotent_quiet_and_dry_run(self):
@@ -248,17 +249,17 @@ class TestCli:
                   '--json', str(tmp_path / 'a.json'), '--markdown', str(tmp_path / 'a.md'),
                   '--pages-url', 'https://x/'])
         out = capsys.readouterr().out
-        assert 'ACTION AAA moved into the buy zone: HOLD → BUY' in out and '[alerts: all]' in out
+        assert 'CROSSED AAA crossed above' in out and '[alerts: all]' in out
         d = json.loads((tmp_path / 'a.json').read_text(encoding='utf-8'))
         assert d['date'] == DAY and d['prev_date'] == '2026-09-24' and not d['systemic']['flood']
         assert [(a['ticker'], a['level']) for a in d['portfolios'][0]['alerts']] == [('AAA', 'action')]
-        assert '**AAA** moved into the buy zone' in (tmp_path / 'a.md').read_text(encoding='utf-8')
+        assert '**AAA** crossed above' in (tmp_path / 'a.md').read_text(encoding='utf-8')
 
     def test_replay(self, tmp_path, capsys):
         res = self._days(tmp_path)
         cli.main(['--file', str(tmp_path / 'pf.json'), 'alerts', '--replay', '--results-dir', str(res)])
         out = capsys.readouterr().out
-        assert '2026-09-25' in out and '1 run(s): ACTION median 1/run' in out
+        assert '2026-09-25' in out and '1 run(s): CROSSED median 1/run' in out
 
 
 class TestStatsLine:

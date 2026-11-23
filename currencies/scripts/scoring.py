@@ -678,22 +678,22 @@ _UI_TIPS = {
         'apply to this currency. The denominator renormalises, so a pillar '
         'dropping out rescales the rest instead of dragging the score to zero.',
     'rating':
-        'LONG ≥ 57, LEAN LONG ≥ 39, NEUTRAL ≥ 25, otherwise AVOID — '
-        'then capped. Thresholds are provisional: they are set on the '
-        'composite’s natural scale, not yet calibrated against forward returns.',
+        'The composite’s band: 57 or more, 39–56, 25–38 or below 25 — then '
+        'capped. The lines are provisional: they are set on the composite’s '
+        'natural scale, not yet calibrated against forward returns.',
     'gates':
         'Gates passed out of gates that apply. The denominator varies by '
         'currency because structurally inapplicable gates are excluded from '
         'it — a peg is not failed for having no volatility signal.',
     'coverage':
         'The share of applicable gates that actually had data. Below 25% the '
-        'composite is an artifact of what happened to be missing, and the '
-        'rating is capped at NEUTRAL.',
+        'composite is an artifact of what happened to be missing, and its band '
+        'is capped at 25–38.',
     'regime':
         'float — freely floating, every gate applies. managed — heavily '
         'leaned against, gates still apply. peg — hard peg or currency board: '
         'valuation and market-risk gates describe the anchor, not this '
-        'currency, so they are switched off and the rating is capped.',
+        'currency, so they are switched off and the band is capped.',
     'na':
         'Grey means not applicable, and there are two kinds. Structurally '
         'inapplicable gates leave both the numerator and the denominator, so '
@@ -713,7 +713,7 @@ _UI_TIPS = {
         'reading here mixes vintages.',
     'name':
         'Click any row for the full metric breakdown: every gate with its '
-        'value and score, the ten-year price history, and any rating caps.',
+        'value and score, the ten-year price history, and any band caps.',
 }
 
 

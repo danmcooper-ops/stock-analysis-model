@@ -331,3 +331,49 @@ def test_a_pass_with_another_cap_reason_still_vetoes():
     assert v['flags'] == ['A flag puts its score in the bottom band']
     # And a PASS the model gave on its own merits.
     assert profile_verdict(_googl(rating_raw='PASS'))['v'] == AVOID
+
+
+# --- The published summary (profile_summary): score, no recommendation -----
+
+from models.profile_verdict import profile_summary  # noqa: E402
+
+_REC_WORDS = ('INVEST', 'WATCH', 'AVOID', 'Invest', 'Watch:', 'Avoid', 'buy below',
+              'Buy below', 'conviction', 'becomes a buy')
+
+
+def _no_recommendation(s):
+    import json
+    text = json.dumps(s)
+    for k in ('v', 'conv', 'need', 'buy_below'):
+        assert k not in s, k
+    for w in _REC_WORDS:
+        assert w not in text, w
+
+
+def test_summary_carries_the_score_and_reasons_not_a_verdict():
+    s = profile_summary(_good(), {'pe': 28.0})
+    _no_recommendation(s)
+    assert s['score'] == 64.0
+    assert 'Composite 64, above the 57 line (gates 9/12)' in s['pros']
+    assert s['flags'] == [] and s['med'] == {'pe': 28.0}
+    assert s['head'] == 'Trades 23% below fair value of $130; ROIC 25.0% vs WACC 9.0%.'
+
+
+def test_summary_headline_is_neutral_in_every_case():
+    for row in (_good(price=125.0, mos=0.04), _good(rating='PASS'), _googl(),
+                _good(mc_confidence='LOW (CV 55%)'), _good(price=None), {}):
+        _no_recommendation(profile_summary(row))
+    assert profile_summary(_good(beneish_m=-1.2))['head'].startswith('Red flag: Beneish M-score')
+    assert profile_summary(_googl())['head'] == (
+        'Priced 47% above its $240 fair value, but that value is low-confidence '
+        'and the price is inside its $131–$507 range.')
+    assert profile_summary({})['score'] is None
+
+
+@settings(max_examples=200, deadline=None)
+@given(st.fixed_dictionaries({}, optional={f: _num for f in _FIELDS}),
+       st.sampled_from([None, 'BUY', 'LEAN BUY', 'HOLD', 'PASS']))
+def test_summary_never_raises_and_never_recommends(row, rating):
+    s = profile_summary(dict(row, rating=rating), {'pe': 20.0})
+    assert isinstance(s['head'], str) and s['head']
+    _no_recommendation(s)

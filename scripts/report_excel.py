@@ -3,8 +3,10 @@ def build_excel(rows, filename):
     """Generate a multi-sheet Excel workbook matching the reference format.
 
     Produces three tabs — Analysis (flat), Ownership (sector-grouped),
-    Company (sector-grouped) — with full-row rating colors, sector header
-    rows, and per-sheet freeze panes.
+    Company (sector-grouped) — with sector header rows and per-sheet freeze
+    panes. It shows the composite score, never a rating name (BUY / LEAN
+    BUY / HOLD / PASS): nothing the model publishes may read as an
+    investment recommendation.
     """
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment
@@ -48,7 +50,7 @@ def build_excel(rows, filename):
         # Human-readable cap note: only populated when a cap actually
         # lowered the rating (rating != rating_raw).
         if r.get('rating_raw') and r.get('rating') != r.get('rating_raw'):
-            r['_cap_note'] = ('capped from ' + r['rating_raw'] + ': '
+            r['_cap_note'] = ('band lowered: '
                               + '; '.join(r.get('_rating_cap_reasons') or []))
         else:
             r['_cap_note'] = None
@@ -56,10 +58,8 @@ def build_excel(rows, filename):
     gate_meta_obj = gate_metadata()
     matrix_cols = [
         ('Ticker', 'ticker', '@'),
-        ('Raw Rating', 'rating_raw', '@'),
-        ('Final Rating', 'rating', '@'),
-        ('Cap Reason', '_cap_note', '@'),
         ('Composite', '_composite_score', '0"%"'),
+        ('Cap Reason', '_cap_note', '@'),
         ('Gates Passed', '_gates_passed', '@'),
         ('Sector', 'sector', '@'),
     ]
@@ -75,9 +75,8 @@ def build_excel(rows, filename):
     sheets_config = OrderedDict([
         ('Analysis', [
             ('Ticker',           'ticker',            '@'),
-            ('Rating',           'rating',            '@'),
+            ('Composite Score',  '_composite_score',  '0"%"'),
             ('Capped',           '_cap_note',         '@'),
-            ('Analyst Rec',      'analyst_rec',       '@'),
             ('Gates Passed',     '_gates_passed',     '@'),
             ('Sector',           'sector',            '@'),
             ('Mkt Cap ($B)',     '_mcap_b',           '#,##0.0'),
@@ -155,7 +154,6 @@ def build_excel(rows, filename):
             ('52W Range Pos',    'range_52w_position', '0'),
             # Portfolio
             ('Position Weight',  'position_weight',   '0.0%'),
-            ('Composite Score',  '_composite_score',  '0"%"'),
             ('WS Target Low',    'target_low',        '"$"#,##0.00'),
             ('WS Target Mean',   'target_mean',       '"$"#,##0.00'),
             ('WS Target High',   'target_high',       '"$"#,##0.00'),
@@ -163,7 +161,7 @@ def build_excel(rows, filename):
         ]),
         ('Ownership', [
             ('Ticker',            'ticker',                  '@'),
-            ('Rating',            'rating',                  '@'),
+            ('Composite Score',   '_composite_score',        '0"%"'),
             ('Sector',            'sector',                  '@'),
             ('Mkt Cap ($B)',      '_mcap_b',                 '#,##0.0'),
             ('Shares Out (M)',    '_shares_out_m',           '#,##0.0'),
@@ -233,7 +231,7 @@ def build_excel(rows, filename):
             'target_mean': 16, 'target_high': 15, 'num_analysts': 12,
         },
         'Ownership': {
-            'ticker': 8, 'rating': 9, 'sector': 22,
+            'ticker': 8, '_composite_score': 10, 'sector': 22,
             '_mcap_b': 15, '_shares_out_m': 16, '_float_m': 13,
             'insider_pct': 14, 'inst_pct': 17, '_short_m': 18,
             'short_ratio': 13, 'short_pct_float': 15,
@@ -286,9 +284,9 @@ def build_excel(rows, filename):
     }
 
     # Frozen columns per sheet (these get row-header gray styling)
-    frozen_cols = {'Analysis': 4, 'Ownership': 3, 'Company': 1, 'Matrix': 7}
+    frozen_cols = {'Analysis': 4, 'Ownership': 3, 'Company': 1, 'Matrix': 5}
 
-    freeze_config = {'Analysis': 'E2', 'Ownership': 'D2', 'Company': 'B2', 'Matrix': 'H4'}
+    freeze_config = {'Analysis': 'E2', 'Ownership': 'D2', 'Company': 'B2', 'Matrix': 'F4'}
 
     # Conditionally add Source column when validation data is present
     _has_validation = any(r.get('source_group') == 'poor' for r in rows)
@@ -299,9 +297,9 @@ def build_excel(rows, filename):
             _cols.insert(1, _src_col)  # insert after Ticker
             col_widths[_sname]['source_group'] = 10
         frozen_cols['Analysis'] = 5
-        frozen_cols['Matrix'] = 8
+        frozen_cols['Matrix'] = 6
         freeze_config['Analysis'] = 'F2'
-        freeze_config['Matrix'] = 'I4'
+        freeze_config['Matrix'] = 'G4'
 
     SECTOR_ORDER = [
         'Technology', 'Communication Services', 'Consumer Cyclical',
@@ -550,9 +548,8 @@ def build_excel(rows, filename):
     # Columns — triage order: key signals first, supporting data after, context last
     # (label, key, number_format, width)
     pp_cols = [
-        # --- Frozen identifiers (4) ---
+        # --- Frozen identifiers (3) ---
         ('Ticker',          'ticker',                   '@',            8),
-        ('Rating',          'rating',                   '@',            9),
         ('Score',           '_composite_score',         '0"%"',        10),
         ('Sector',          'sector',                   '@',           22),
         # --- Primary signals: pool dominance + margin moat ---
@@ -577,7 +574,7 @@ def build_excel(rows, filename):
         ('CR4',             'pp_sector_cr4',            '0.0%',        10),
         ('# in Sector',     'pp_sector_count',          '0',           11),
     ]
-    n_pp_frozen = 4
+    n_pp_frozen = 3
 
     # Header row
     for ci, (label, _, _, _) in enumerate(pp_cols, 1):
@@ -685,7 +682,7 @@ def build_excel(rows, filename):
     for ci, (_, _, _, w) in enumerate(pp_cols, 1):
         pp_ws.column_dimensions[get_column_letter(ci)].width = w
 
-    pp_ws.freeze_panes = 'E2'
+    pp_ws.freeze_panes = 'D2'
 
     # --- Add hyperlinks from Gates Passed cells → Matrix tab ---
     link_font = Font(color='4472C4', underline='single')  # blue underline

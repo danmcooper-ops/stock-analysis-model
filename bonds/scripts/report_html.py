@@ -141,9 +141,9 @@ COLUMNS = [
      "calibrated separately per asset class. Caps can only LOWER a rating, "
      "never raise it, so a capped BUY shows as HOLD or PASS."),
     ('_caps', 'Caps', 'caps', 200,
-     "Why this row's rating was capped. A cap does not say the bond is bad — it "
-     "says the data does not support acting on it. Most often the issuer could "
-     "not be identified, so no credit view is possible."),
+     "Why this row carries a cap flag. A flag does not say the bond is bad — it "
+     "says the data is too thin to score it with confidence. Most often the "
+     "issuer could not be identified, so no credit view is possible."),
 ]
 
 CATEGORY_SCORES = [('_score_valuation', 'Valuation'), ('_score_credit', 'Credit'),
@@ -734,7 +734,7 @@ def vintage_banner(meta):
             f'price here leans harder on the curve overlay.</p></div>')
 
 
-SECTION_TIPS = {'ratings': 'Thresholds are calibrated per asset class against each class own score distribution, so BUY means roughly the top 3% of that class rather than an absolute standard.', 'buckets': 'The model own credit view, from a six-factor scorecard. Cutpoints are matched to the mix the bond market itself prices, so the shape here should resemble the real corporate universe.', 'curve': 'Today par yield curve from home.treasury.gov, bootstrapped to zero rates and used to discount every cashflow in the model.', 'term': 'How much wider a spread should be at each maturity, as a multiple of the five-year level. Fitted from about 130,000 observed spreads; FRED published slices stop at 15 years and overstate the long end by up to 17%.', 'caps': 'Caps lower a rating when the evidence does not support acting on it. The dominant reason is an unidentified issuer, which is a coverage limit rather than a judgement on the bond.', 'categories': 'Average score in each of the five categories, over the rows where that category applied at all. A category that cannot describe an instrument drops out of its composite entirely rather than scoring zero.'}
+SECTION_TIPS = {'ratings': 'Thresholds are calibrated per asset class against each class own score distribution, so BUY means roughly the top 3% of that class rather than an absolute standard.', 'buckets': 'The model own credit view, from a six-factor scorecard. Cutpoints are matched to the mix the bond market itself prices, so the shape here should resemble the real corporate universe.', 'curve': 'Today par yield curve from home.treasury.gov, bootstrapped to zero rates and used to discount every cashflow in the model.', 'term': 'How much wider a spread should be at each maturity, as a multiple of the five-year level. Fitted from about 130,000 observed spreads; FRED published slices stop at 15 years and overstate the long end by up to 17%.', 'caps': 'A cap flag marks a row whose evidence is too thin to score with confidence. The dominant reason is an unidentified issuer, which is a coverage limit rather than a judgement on the bond.', 'categories': 'Average score in each of the five categories, over the rows where that category applied at all. A category that cannot describe an instrument drops out of its composite entirely rather than scoring zero.'}
 
 TERM_NOTE = ('Fitted from ~130,000 observed spreads. Wide credits invert — '
              'distressed risk sits in near-dated paper.')
@@ -762,8 +762,8 @@ def _caveats(mark_age, capped_pct):
          'forecast.'),
         (f'{capped_pct}% of rows carry a cap flag',
          '— mostly because the issuer could not be identified. A flag can hold '
-         "a bond below the band its score alone gives; it says the data does "
-         'not support acting on it.'),
+         "a bond below the band its score alone gives; it says the data is too "
+         'thin to score it with confidence.'),
         ('No agency ratings, no true OAS, no covenants.',
          'Z-spread stands in for OAS, so callable bonds priced above par are '
          'systematically overstated and are capped.'),
@@ -803,11 +803,10 @@ def _cards(payload, capped_pct, mark_age):
          'Bottom of the ranking, or trading far through what the model thinks '
          'fair, or flagged for default, arrears or PIK.'),
         ('Capped', f'{capped_pct}%',
-         'Share of rows whose rating was lowered because the data does not '
-         'support acting on them — overwhelmingly because the issuer could not '
-         'be identified. A capped row still shows its uncapped rating '
-         'underneath in the data; the cap is a statement about our evidence, '
-         'not about the bond.'),
+         'Share of rows carrying a cap flag because the data is too thin to '
+         'score them with confidence — overwhelmingly because the issuer could '
+         'not be identified. The flag is a statement about our evidence, not '
+         'about the bond.'),
         ('Median mark age', f'{mark_age}d',
          'How old the underlying fund price is. N-PORT data arrives quarterly '
          'with a 60-day lag, so 100 to 190 days is the normal state of this '

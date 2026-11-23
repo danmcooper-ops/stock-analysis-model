@@ -73,11 +73,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .dt td.tk{text-align:left;font-weight:600;color:#1a252f;}
 .dt tr:nth-child(even){background:#f8f9fa;}
 .dt tr:hover{background:#eaf4fd!important;}
-.rb{display:inline-block;padding:2px 8px;border-radius:4px;color:white;font-weight:700;font-size:0.82em;}
-.rb.BUY{background:#1a9850;}
-.rb.LEAN-BUY{background:#74c476;color:#333;}
-.rb.HOLD{background:#fd8d3c;}
-.rb.PASS,.rb.NOT-IN-UNIVERSE{background:#de2d26;}
 .pnl-pos{color:var(--green);font-weight:600;}
 .pnl-neg{color:var(--red);font-weight:600;}
 .alpha-pos{color:var(--green);}
@@ -176,11 +171,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     <div class="filter-bar">
       <input type="text" id="search" placeholder="Search ticker / name..." oninput="filterTable()">
       <select id="rating-filter" onchange="filterTable()">
-        <option value="">All Ratings</option>
-        <option>BUY</option>
-        <option>LEAN BUY</option>
-        <option>HOLD</option>
-        <option>NOT IN UNIVERSE</option>
+        <option value="">All scores</option>
+        <option value="BUY">Score 57+</option>
+        <option value="LEAN BUY">Score 39–56</option>
+        <option value="HOLD">Score 25–38</option>
+        <option value="PASS">Score under 25</option>
+        <option value="NOT IN UNIVERSE">Not in universe</option>
       </select>
       <select id="sort-col" onchange="sortTable(this.value)">
         <option value="">Sort by...</option>
@@ -205,7 +201,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
             <th onclick="sortTable('position_weight')">Weight <span class="arrow">↕</span></th>
             <th onclick="sortTable('unrealized_pnl_pct')">P&L % <span class="arrow">↕</span></th>
             <th onclick="sortTable('alpha')">Alpha <span class="arrow">↕</span></th>
-            <th onclick="sortTable('rating')">Rating <span class="arrow">↕</span></th>
             <th onclick="sortTable('dcf_fv')">DCF FV <span class="arrow">↕</span></th>
             <th onclick="sortTable('mos')">MoS <span class="arrow">↕</span></th>
             <th onclick="sortTable('_composite_score')">Score <span class="arrow">↕</span></th>
@@ -306,10 +301,8 @@ function alphaClass(v) {
   if (v == null) return '';
   return v >= 0 ? 'alpha-pos' : 'alpha-neg';
 }
-function ratingClass(r) {
-  if (!r) return '';
-  return r.replace(/\s+/g, '-');
-}
+// The page shows the composite score, never a rating name: the filter's
+// values are the rating keys (each score band), its labels the score lines.
 
 // ---- Holdings table ----
 let currentData = [...HOLDINGS];
@@ -332,7 +325,6 @@ function renderTable(data) {
       <td>${h.position_weight!=null ? fmtPct(h.position_weight,1) : 'N/A'}</td>
       <td class="${pnlClass(h.unrealized_pnl_pct)}">${fmtPct(h.unrealized_pnl_pct)}</td>
       <td class="${alphaClass(h.alpha)}">${fmtPct(h.alpha)}</td>
-      <td><span class="rb ${ratingClass(h.rating)}">${h.rating||'N/A'}</span></td>
       <td>${h.dcf_fv!=null ? '$'+h.dcf_fv.toFixed(2) : 'N/A'}</td>
       <td class="${pnlClass(h.mos)}">${fmtPct(h.mos)}</td>
       <td class="score-cell ${scoreClass(h._composite_score)}">${h._composite_score!=null ? h._composite_score.toFixed(1) : 'N/A'}</td>

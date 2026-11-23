@@ -1,4 +1,16 @@
-"""Invest / watch / avoid verdict for the ticker page's one-page Profile tab.
+"""The Summary PDF's company summary, and the research-only verdict behind it.
+
+Published: ``profile_summary`` (what ``scripts/report_html`` attaches as each
+row's ``profile``). It carries the composite score, the strengths, the
+weaknesses, the red flags, a neutral one-line summary and the valuation
+range. It never says what to do: the report, the Summary PDF and the iOS
+app must not read as investment recommendations, so nothing published
+carries INVEST / WATCH / AVOID, a conviction, a "buy below" price or the
+reasons a stock "is not an INVEST".
+
+Research only (never published): ``profile_verdict``, the original
+invest / watch / avoid rule table, kept so its tests pin the checks and red
+flags that ``profile_summary`` reuses.
 
 The Profile tab puts every decision-relevant number for one company on a
 single page. This module adds the conclusion: a deterministic verdict with
@@ -547,6 +559,55 @@ def profile_verdict(row, sector_medians=None):
         'need': blockers if verdict == WATCH else [],
         'buy_below': buy_below,
         # Bear/base/bull range and how far to trust it.
+        'vc': vc,
+        'med': {k: round(v, 4) for k in SECTOR_FIELDS
+                if (v := _num(med, k)) is not None},
+    }
+
+
+def _summary_head(row, pros, cons, flags, vc):
+    """One neutral sentence: what stands out, never what to do."""
+    if not _fv(row) or not _num(row, 'price', lo=0.0):
+        return 'Not enough data to value it: missing price or fair value.'
+    if flags:
+        return f'Red flag: {_lc(flags[0])}.'
+    if _mos_tempered(row, vc):
+        mos, bear, bull = _num(row, 'mos'), vc.get('bear'), vc['bull']
+        rng = (f'inside its {_price(bear)}–{_price(bull)} range' if bear is not None
+               else f'below its {_price(bull)} bull case')
+        return (f'Priced {_pct(-mos)} above its {_price(_fv(row))} fair value, '
+                f'but that value is low-confidence and the price is {rng}.')
+    # The score leads the band beside this line; the sentence says why.
+    strengths = [t for k, t in pros if k != 'rating']
+    if strengths and cons:
+        return f'{strengths[0]}; against that, {_lc(cons[0][1])}.'
+    if strengths:
+        return '; '.join([strengths[0]] + [_lc(t) for t in strengths[1:2]]) + '.'
+    if cons:
+        return f'{cons[0][1]}.'
+    return 'No strength or weakness stands out.'
+
+
+def profile_summary(row, sector_medians=None):
+    """The published ``profile`` for one report row: score, strengths,
+    weaknesses, red flags, a neutral summary line and the valuation range.
+
+    No verdict, conviction or buy-below price (see the module docstring).
+    Never raises on missing or malformed fields.
+    """
+    med = sector_medians or {}
+    fv, px = _fv(row), _num(row, 'price', lo=0.0)
+    checks = _checks(row, med) if px and fv else []
+    pros, cons = _ranked(checks, 1), _ranked(checks, -1)
+    vc = _valuation_confidence(row) if px and fv else None
+    flags = _red_flags(row, vc) if px and fv else []
+    comp = _num(row, '_composite_score')
+    return {
+        'score': round(comp, 1) if comp is not None else None,
+        'head': _summary_head(row, pros, cons, flags, vc),
+        'pros': [t for _, t in pros[:MAX_REASONS]],
+        'cons': [t for _, t in cons[:MAX_REASONS]],
+        'flags': flags,
         'vc': vc,
         'med': {k: round(v, 4) for k in SECTOR_FIELDS
                 if (v := _num(med, k)) is not None},

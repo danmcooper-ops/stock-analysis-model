@@ -426,8 +426,8 @@ class TestStatsAndAlerts:
         assert {e['level'] for e in ev} == {'watch'}
         assert set(msgs) == {('AAA', 'joined'), ('BBB', 'left'), ('CCC', 'joined'),
                              ('GONE', 'dropped_out')}
-        assert 'rating LEAN BUY → BUY' in msgs[('AAA', 'joined')]
-        assert 'rating BUY → LEAN BUY' in msgs[('BBB', 'left')]
+        assert 'score' in msgs[('AAA', 'joined')] and 'BUY' not in msgs[('AAA', 'joined')]
+        assert 'score' in msgs[('BBB', 'left')] and 'BUY' not in msgs[('BBB', 'left')]
         assert 'mos 0.32 → 0.25 (rule: ≥ 0.3)' in msgs[('BBB', 'left')]
         assert 'mos 0.28 → 0.35 (rule: ≥ 0.3)' in msgs[('CCC', 'joined')]
         assert "dropped out of today's universe" in msgs[('GONE', 'dropped_out')]
@@ -492,10 +492,11 @@ class TestPriorRowsAndCliAlerts:
         out = (tmp_path / 'a_2026-09-14.txt').read_text(encoding='utf-8')
         assert out.startswith('Portfolio alerts 2026-09-14 (vs 2026-09-11)')
         assert 'Deep [deep]: 2 stocks' in out
-        assert 'WATCH  AAA joined Deep (rating LEAN BUY → BUY)' in out
-        assert 'WATCH  BBB left Deep (rating BUY → LEAN BUY; mos 0.32 → 0.25 (rule: ≥ 0.3))' in out
-        assert 'WATCH  GONE left Deep (dropped out' in out
-        assert 'WATCH  CCC joined Deep' in out
+        assert 'NOTABLE AAA joined Deep (score ' in out
+        assert 'NOTABLE BBB left Deep (score ' in out and 'mos 0.32 → 0.25 (rule: ≥ 0.3))' in out
+        assert 'NOTABLE GONE left Deep (dropped out' in out
+        assert 'BUY' not in out.split('\n', 2)[2]
+        assert 'NOTABLE CCC joined Deep' in out
         assert out.startswith('Portfolio alerts 2026-09-14 (vs 2026-09-11)\n\n!! Model-wide shift')
 
     def test_alerts_without_portfolios_or_prior(self, tmp_path, capsys):

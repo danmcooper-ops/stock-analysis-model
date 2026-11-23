@@ -38,7 +38,7 @@ def _closes(n, swing=0.01, start='2026-01-02'):
 ROW = {'price': 100, 'mc_p10_fv': 80, 'mc_p90_fv': 180, 'dcf_fv': 130,
        'target_low': 70, 'target_mean': 110, 'target_high': 160,
        'implied_growth': -0.02, 'fcf_growth': 0.03, 'earnings_date_est': True,
-       'profile': {'buy_below': 95}}
+       'profile': {'buy_below': 95}}   # an old row's buy price: never drawn
 
 
 def _run(tmp_path, cases):
@@ -80,7 +80,8 @@ def test_cone_is_past_year_volatility_with_no_drift(tmp_path):
 @node
 def test_reads_the_rows_forward_fields(tmp_path):
     f = _run(tmp_path, [[_closes(400), dict(ROW, earnings_next_date='2027-03-15')]])[0]
-    assert (f['fv'], f['bear'], f['bull'], f['buyBelow']) == (130, 80, 180, 95)
+    assert (f['fv'], f['bear'], f['bull']) == (130, 80, 180)
+    assert f.get('buyBelow') is None                 # no "buy below" line, ever
     assert f['targets'] == {'low': 70, 'mean': 110, 'high': 160}
     assert f['earnings'] and f['est']
     assert (f['implied'], f['model']) == (-0.02, 0.03)
@@ -98,8 +99,9 @@ def test_reads_the_rows_forward_fields(tmp_path):
     assert '<dt>Next earnings</dt>' in n and '(est.)' in n
     # No text on the plot; the legend names every mark.
     assert '<text' not in f['svg'].split('<polygon')[1]
-    for lbl in ('Price', 'Value range', 'Fair value', 'Buy below', 'Likely range', 'Analyst targets', 'Earnings'):
+    for lbl in ('Price', 'Value range', 'Fair value', 'Likely range', 'Analyst targets', 'Earnings'):
         assert lbl in f['legend'], lbl
+    assert 'Buy below' not in f['legend'] and 'Buy below' not in f['svg']
 
 
 @node
