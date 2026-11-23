@@ -141,10 +141,10 @@ def base_sigma(fcf_values, params):
 
 
 def near_term_rate(analyst_signals, analyst_weights, adjustments, long_run, cap):
-    """(g0, analyst blend or None): analysts plus adjustments, else L."""
+    """(g0, analyst blend or None): the analyst blend (L when no analyst
+    covers the stock) plus the margin-trend and surprise adjustments,
+    clamped. The adjustments are near-term reads, so they move g0 only."""
     pairs = [(analyst_signals.get(k), w) for k, w in analyst_weights.items()
              if analyst_signals.get(k) is not None and math.isfinite(analyst_signals.get(k))]
-    if not pairs:
-        return long_run, None
-    a = sum(s * w for s, w in pairs) / sum(w for _, w in pairs)
-    return clamp(a + adjustments, cap), a
+    a = sum(s * w for s, w in pairs) / sum(w for _, w in pairs) if pairs else None
+    return clamp((long_run if a is None else a) + adjustments, cap), a

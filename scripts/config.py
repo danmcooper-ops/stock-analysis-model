@@ -114,9 +114,11 @@ MC_GROWTH_SIGMA_EVIDENCE = False
 DCF_GROWTH_MODEL = os.environ.get('DCF_GROWTH_MODEL', 'v1')
 # _mc_confidence_label's HIGH/MEDIUM and MEDIUM/LOW cut-offs on mc_cv, per
 # growth model. v2's bands are honest and so much wider; its cut-offs keep
-# the label a RELATIVE read (HIGH ~ the steadiest fifth), set from v2 CVs by
-# scripts/growth_hindcast.py --label-cuts.
-MC_CONFIDENCE_CUTS = {'v1': (0.20, 0.40), 'v2': (0.20, 0.40)}
+# the label a RELATIVE read (the same HIGH / MEDIUM / LOW shares as v1's
+# 20% / 40%), set by scripts/growth_hindcast.py --label-cuts (2026-11-20,
+# proxy; re-run it on the first v2 snapshot, which reads the real mc_cv).
+MC_CONFIDENCE_CUTS = {'v1': (0.20, 0.40), 'v2': (0.66, 1.19)}
+# profile_verdict.MC_SPREAD_WIDE_BY_MODEL is set by the same fit.
 MC_GROWTH_SIGMA_CAP = 0.10
 MC_GROWTH_SIGMA_HISTORY_YEARS = 5
 MC_WACC_SIGMA = 0.01            # WACC sigma = 1 percentage point (floor; see below)

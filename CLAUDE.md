@@ -1839,6 +1839,41 @@ ruff check .
   or without analysts) and its fair value can be re-derived from stored
   rows, and analyst forecasts can later be scored against reported results.
   A dict, so it lives in the database's `extra` jsonb and not in the report.
+  **DCF growth model v2 (`models/growth_v2.py`, `DCF_GROWTH_MODEL`, default
+  `v1`, 2026-11-23):** built on the growth hindcast. Under `v2`:
+  - **long-run rate L:** the history signals at v2 weights (FCF CAGR 0,
+    revenue CAGR 0.10, fundamental 0.20), shrunk 50% toward a sector base
+    rate (`shrink_lambda`), clamped as v1. Base rates are the lower of the
+    sector's median realised FCF and revenue growth, clipped to
+    `BASE_RATE_BOUNDS` (0-6%) because survivor-only medians read 6-14%;
+  - **near-term rate g0:** the haircut analyst signals (all treated as
+    near-term) plus the margin and surprise adjustments, else L plus them;
+  - **path:** g0 for years 1-2, linear to L by year 5, then v1's stage-2
+    fade. The DCF runs on L with per-year `stage1_offsets` (`models/dcf.py`:
+    `two_stage_ev*`, `dcf_sensitivity`, `reverse_dcf`, `monte_carlo_dcf`);
+    `fcf_growth` is the path's equivalent constant rate, and reverse DCF
+    solves for L with the shape fixed and reports the equivalent rate too;
+  - **growth sigma:** `k·exp(β·[1, rev vol, log revenue, |L|])` (~8pp
+    typical), fitted by CRPS on realised revenue growth;
+  - **starting-FCF sigma:** `0.15 + 0.63 × FCF volatility` (std of yearly
+    FCF changes over mean |FCF|, last 6 years), floored at 0.10 and capped at
+    0.60, a persistent log-normal level drawn on a fifth Sobol dimension
+    (driver `base_fcf`, "Starting cash flow"); EBITDA keeps its own base.
+  Parameters: `models/growth_v2_params.json`, from `python
+  scripts/growth_hindcast.py --fit-v2 models/growth_v2_params.json`
+  (walk-forward on 2012-2021: rank IC +0.20 vs v1's +0.09, five-year cash
+  error 0.375 vs 0.393, bias +0.08 vs +0.17). MC confidence cut-offs
+  (`MC_CONFIDENCE_CUTS['v2']` 0.66 / 1.19 on mc_cv) and the Summary PDF's
+  P90/P10 sign (`profile_verdict.MC_SPREAD_WIDE_BY_MODEL['v2']` 20.7x, read
+  per row from `dcf_model`) keep v1's shares of rows (`--label-cuts`, a
+  proxy until a v2 snapshot exists: re-run it on the first one). v2 bands
+  are ~3x wider (median CV ~0.8 vs ~0.26), and P10 = 0 (the "wipeout" LOW
+  sign) rises from ~1% to ~10% of DCF rows. Under v2 the fingerprint gains
+  `dcf_growth_model`, the params file's hash and the cut-offs; under v1 it
+  is unchanged. Not validated: the analyst part of the path (no
+  point-in-time analyst data); survivorship (base rates are clipped until
+  delisted filers are added). Before switching it on: the iOS app's driver
+  names need `base_fcf`. Tests: `tests/test_growth_v2.py`.
 - **Scripts layer (`scripts/`):** `analyze_stock._main()` orchestrates
   13 `_run_*` phase functions (screen → analyze → score → narrate →
   write outputs). A run is resumable: `scripts/run_checkpoint.py`

@@ -79,7 +79,12 @@ FV_DISPERSION_MAX = 0.15   # scoring fv_dispersion gate: model MAD <= 15%
 FV_DISPERSION_WIDE = 0.30  # twice the gate: the models no longer corroborate
 DCF_GAP_WIDE = 0.50        # pre-blend DCF this far from the other models' median
 DCF_GAP_TIGHT = 0.25
-MC_SPREAD_WIDE = 3.0       # Monte Carlo P90 / P10 above 3x: a 3-fold range
+MC_SPREAD_WIDE = 3.0       # Monte Carlo P90 / P10 above 3x: a 3-fold range (v1)
+# The same sign per DCF growth model (config.DCF_GROWTH_MODEL), mapped to the
+# same share of rows (~8%) by scripts/growth_hindcast.py --label-cuts. Under v2
+# the P10 is 0 (a >=10% chance the equity is worthless, which reads LOW) on
+# ~10% of DCF rows, against ~1% under v1.
+MC_SPREAD_WIDE_BY_MODEL = {'v1': MC_SPREAD_WIDE, 'v2': 20.7}
 CONFIDENCE_LEVELS = ('HIGH', 'MEDIUM', 'LOW')
 
 # Sector-median fields the Profile tab compares against (report_html feeds
@@ -439,6 +444,12 @@ def _headline(verdict, row, pros, cons, flags, buy_below, blockers, vc=None):
     return 'Watch: no strong case either way.'
 
 
+def _spread_wide(row):
+    """The P90/P10 ratio that reads LOW for the growth model the row was
+    valued under (row 'dcf_model'; v1 when absent, as every older row is)."""
+    return MC_SPREAD_WIDE_BY_MODEL.get(row.get('dcf_model') or 'v1', MC_SPREAD_WIDE)
+
+
 def _valuation_confidence(row):
     """How far to trust the fair value: a bear/base/bull range plus a level.
 
@@ -491,7 +502,7 @@ def _valuation_confidence(row):
         judged += 1
         if bear == 0:
             low.append('the bear case is a wipeout')
-        elif bull / bear > MC_SPREAD_WIDE:
+        elif bull / bear > _spread_wide(row):
             low.append(f'bull case is {bull / bear:.1f}x the bear case')
     if not judged:
         level = None

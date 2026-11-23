@@ -560,6 +560,101 @@ def fit_v2(rows, lam=V2_SHRINK_LAMBDA):
     return params
 
 
+# ---------------------------------------------------------------------------
+# v2 MC-confidence label cut-offs
+# ---------------------------------------------------------------------------
+
+V1_CUTS = (0.20, 0.40)
+V1_SPREAD_WIDE = 3.0
+
+
+def _proxy_cvs(row, params):
+    """(v1 CV, v2 CV) for a DCF row, both from the same proxy: the base FCF
+    that reproduces the row's DCF value under its v1 growth, GGM leg only,
+    a 1pp discount-rate sigma. Only the comparison between the two matters;
+    a real v2 run's mc_cv replaces it (label_cuts reads those when present).
+    """
+    import warnings as _w
+
+    from models.dcf import monte_carlo_dcf, two_stage_ev
+    from scripts.config import MC_ITERATIONS, MC_TERMINAL_GROWTH_SIGMA, MC_WACC_SIGMA
+    fv, sh, w = row.get('dcf_fv'), row.get('shares_out'), row.get('wacc')
+    g1, tg = row.get('fcf_growth'), row.get('terminal_growth') or 0.025
+    nd = row.get('net_debt') or 0.0
+    if not all(isinstance(x, (int, float)) and math.isfinite(x) for x in (fv, sh, w, g1)) or sh <= 0:
+        return None
+    with _w.catch_warnings():
+        _w.simplefilter('ignore')
+        unit = two_stage_ev(1.0, g1, w, tg)
+        if not unit or unit <= 0:
+            return None
+        base = (fv * sh + nd) / unit
+        if base <= 0:
+            return None
+        cap = _get_sector_config(row.get('sector') or '')['growth_cap']
+        sig = {'rev_cagr': row.get('rev_cagr_10y') or row.get('rev_cagr_5y'),
+               'fundamental': row.get('fundamental_growth')}
+        L = growth_v2.long_run_rate(sig, row.get('sector'), cap, params)[0]
+        path = growth_v2.stage1_path(growth_v2.clamp(g1, cap), L)
+        eh = row.get('edgar_history') if isinstance(row.get('edgar_history'), dict) else {}
+        fvals = [v for _, v in sorted(owner_fcf(eh).items())]
+        common = dict(wacc_sigma=MC_WACC_SIGMA, tg_sigma=MC_TERMINAL_GROWTH_SIGMA,
+                      n_iterations=MC_ITERATIONS, seed=1)
+        v1 = monte_carlo_dcf(base, g1, w, tg, nd, sh, growth_sigma=growth_sigma(
+            g1, MC_GROWTH_SIGMA_RATIO, MC_GROWTH_SIGMA_FLOOR), **common)
+        v2 = monte_carlo_dcf(
+            base, L, w, tg, nd, sh,
+            growth_sigma=growth_v2.growth_sigma(row.get('rev_growth_vol'), row.get('revenue'), L, params),
+            stage1_offsets=growth_v2.path_offsets(path, L),
+            base_sigma=growth_v2.base_sigma(fvals, params), **common)
+    if not v1 or not v2 or v1.get('cv') is None or v2.get('cv') is None:
+        return None
+
+    def spread(m):
+        return m['p90_fv'] / m['p10_fv'] if m['p10_fv'] > 0 else math.inf
+    return v1['cv'], v2['cv'], spread(v1), spread(v2)
+
+
+def label_cuts(rows, params=None):
+    """v2 (HIGH/MEDIUM, MEDIUM/LOW) cut-offs on mc_cv that give the same
+    shares v1's 20% / 40% give, so the label keeps its relative meaning.
+
+    Rows already run under v2 (dcf_inputs.model == 'v2') give their real
+    mc_cv and the shares come from the v1 rows of the same snapshot when
+    present; otherwise both sides come from _proxy_cvs.
+    """
+    params = params or growth_v2.load_params()
+    dcf = [r for r in rows if isinstance(r.get('mc_quantiles'), list)]
+    real = [r['mc_cv'] for r in dcf if isinstance(r.get('dcf_inputs'), dict)
+            and r['dcf_inputs'].get('model') == 'v2' and isinstance(r.get('mc_cv'), (int, float))]
+    if len(real) >= 200:
+        v2 = np.array(real)
+        v1 = np.array([r['mc_cv'] for r in dcf if isinstance(r.get('mc_cv'), (int, float))
+                       and (r.get('dcf_inputs') or {}).get('model', 'v1') == 'v1'])
+        basis = 'real v2 run'
+        if len(v1) < 200:
+            raise SystemExit('a v2 snapshot needs a v1 one beside it for the shares; '
+                             'pass a v1 snapshot to set them')
+        sp1 = sp2 = None
+    else:
+        pairs = [p for p in (_proxy_cvs(r, params) for r in dcf) if p]
+        v1, v2, sp1, sp2 = (np.array(x) for x in zip(*pairs, strict=True))
+        basis = 'proxy'
+    shares = [float(np.mean(v1 < c)) for c in V1_CUTS]
+    cuts = [float(np.quantile(v2, q)) for q in shares]
+    out = {'cuts': [round(c, 3) for c in cuts], 'shares': shares, 'basis': basis,
+           'n': int(len(v2)), 'median_cv': {'v1': float(np.median(v1)), 'v2': float(np.median(v2))}}
+    if sp1 is not None:
+        # profile_verdict's "P90 / P10 above 3x" LOW sign, mapped the same way.
+        wide = float(np.mean(sp1 > V1_SPREAD_WIDE))
+        out['spread_wide'] = round(float(np.quantile(sp2[np.isfinite(sp2)], 1 - wide)), 2) \
+            if np.isfinite(sp2).any() else None
+        out['spread_share'] = wide
+        out['wipeout_share'] = {'v1': float(np.mean(~np.isfinite(sp1))),
+                                'v2': float(np.mean(~np.isfinite(sp2)))}
+    return out
+
+
 def print_report(res):
     print(f"\n  GROWTH HINDCAST, target {res['target']}  ({res['n_cases']} cases, {res['n_tickers']} "
           f"tickers, origins {res['origin_range']}; censored "
@@ -610,6 +705,8 @@ def main(argv=None):
     ap.add_argument('--results-dir', default='output')
     ap.add_argument('--out', default='output/growth_hindcast.json')
     ap.add_argument('--target', choices=TARGETS, default='fcf')
+    ap.add_argument('--label-cuts', action='store_true',
+                    help='v2 MC-confidence cut-offs matching v1\'s label shares')
     ap.add_argument('--fit-v2', metavar='PATH',
                     help='fit the v2 growth model and write its params JSON '
                          '(models/growth_v2_params.json)')
@@ -626,6 +723,9 @@ def main(argv=None):
     rows = _load_rows(path)
     if not a.all_rows:
         rows = [r for r in rows if isinstance(r.get('mc_quantiles'), list)]
+    if a.label_cuts:
+        print(json.dumps(label_cuts(rows), indent=1))
+        return
     if a.fit_v2:
         params = fit_v2(rows)
         params['fit']['snapshot'] = os.path.basename(str(path))
