@@ -1875,6 +1875,38 @@ ruff check .
   point-in-time analyst data); survivorship (base rates are clipped until
   delisted filers are added). Before switching it on: the iOS app's driver
   names need `base_fcf`. Tests: `tests/test_growth_v2.py`.
+  **Historical valuation backtest (`scripts/valuation_backtest.py`,
+  2026-11-23):** values each company-year point in time from EDGAR history
+  as of its filing date (fiscal year end + 90 days): the live-style capped
+  owner-FCF base, history-only growth (`v1h`: v1's history signals; `v2h`:
+  v2's long-run rate with base rates from outcomes resolved by then), CAPM on
+  that day's DGS10 with a 2-year weekly beta shrunk toward 1 and the live
+  ERP, WACC clamped to the sector's bounds, and the dividend-unadjusted close
+  times split-restated shares. Outcome: 1y and 3y total return over SPY's;
+  IC and Q5−Q1 per filing year, bootstrapped over years. Run on 2026-11-20
+  (survivors, USD reporters, no Financial Services, ~16k company-years,
+  2012-2026): v1h IC +0.031 at 1y (90% CI +0.001..+0.064, 13 years, 69%
+  positive) and +0.065 at 3y (+0.036..+0.096, overlapping); Q5−Q1 +1.2% /
+  +10.3%. On the SAME company-years v2h − v1h is −0.002 (1y, 8 years) and
+  −0.004 (3y), CIs spanning zero: the growth model does not change the
+  ranking, which rests on FCF yield against price. So v2 is a calibration
+  and growth-accuracy change, not a stock-selection one. Limits: survivors
+  only (no prices for delisted companies), no analysts, a simpler WACC.
+  `scripts/fetch_delisted.py` fetches EDGAR histories for 10-K filers of
+  given years that are not listed today (`output/delisted/histories.jsonl`,
+  seeded sample, resumable); `growth_hindcast.py --extra-rows <jsonl>` adds
+  them to the hindcast and `--fit-v2`, and `--survivorship` compares them
+  with survivors. First fetch (2026-11-23): 1,500 of the 8,476 2010-13
+  10-K filers not listed today, 908 with an XBRL history, 112 with complete
+  five-year windows (347 cases, 2013-2020 origins). Their median realised
+  FCF growth was 1.9%/yr against survivors' 7.5% (8.4% in the same revenue
+  band, $42M-$5.9B), revenue 4.6% against 6.3-7.0%, lower in 7 of 8 origin
+  years; weighted up to the delisted population, the pooled medians fall
+  to 6.5% (FCF) and 6.0% (revenue). The base rate is the lower of the two,
+  so v2's 6% ceiling (`BASE_RATE_BOUNDS`) is an upper bound, not a guess;
+  windows cut short by failure are still missing, so the truth is lower.
+  Delisted rows carry no sector, so sector rates stay survivor-based.
+  Tests: `tests/test_valuation_backtest.py`.
 - **Scripts layer (`scripts/`):** `analyze_stock._main()` orchestrates
   13 `_run_*` phase functions (screen → analyze → score → narrate →
   write outputs). A run is resumable: `scripts/run_checkpoint.py`
