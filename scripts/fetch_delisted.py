@@ -13,8 +13,8 @@ XBRL facts, delisted or not. This script:
      SEC's company_tickers_exchange list);
   3. samples --limit of the rest (seeded, so a re-run extends the same set)
      and builds each one's edgar_history with the pipeline's own extractor
-     (SECXBRLClient.fetch_historical_financials, companyfacts cached as
-     usual);
+     (SECXBRLClient.fetch_historical_financials; companyfacts cached in
+     output/delisted/sec_facts, apart from the pipeline's synced cache);
   4. appends {ticker: 'CIK<cik>', cik, name, delisted: true, edgar_history}
      to output/delisted/histories.jsonl (one line per company; a CIK
      already there is skipped).
@@ -43,6 +43,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INDEX_DIR = os.path.join(ROOT, 'data', 'cache', 'edgar_index')
 OUT = os.path.join(ROOT, 'output', 'delisted', 'histories.jsonl')
+# Its own companyfacts cache: the pipeline's data/cache/sec_facts is synced to
+# Supabase Storage nightly (scripts/sec_cache.py), and delisted filers the
+# pipeline never reads would ride along every night.
+FACTS_DIR = os.path.join(ROOT, 'output', 'delisted', 'sec_facts')
 INDEX_URL = 'https://www.sec.gov/Archives/edgar/full-index/{y}/QTR{q}/form.idx'
 _LINE = re.compile(r'^10-K\s{2,}(?P<name>.+?)\s{2,}(?P<cik>\d+)\s{2,}\d{4}-\d{2}-\d{2}\s')
 
@@ -128,7 +132,7 @@ def main(argv=None):
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
     keyed = {f'CIK{c}': c for c, _ in todo}
     client = SECXBRLClient(cik_map=keyed, name_map={k: n for (k, (_, n)) in zip(keyed, todo, strict=True)},
-                           email=email, throttle=Throttle(SEC_MIN_INTERVAL), facts_cache=True)
+                           email=email, throttle=Throttle(SEC_MIN_INTERVAL), facts_cache=FACTS_DIR)
     kept = 0
     with open(a.out, 'a', encoding='utf-8') as f:
         for i, (cik, name) in enumerate(todo, 1):
