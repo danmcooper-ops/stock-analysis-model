@@ -37,7 +37,9 @@ def _band_names():
     shows score bands, never rating names."""
     from models.portfolio_groups import rating_lines
     ln = rating_lines()
-    g = lambda x: f"{x:g}"
+
+    def g(x):
+        return f"{x:g}"
     return {'BUY': f"{g(ln['BUY'])}+",
             'LEAN BUY': f"{g(ln['LEAN BUY'])}–{g(ln['BUY'] - 1)}",
             'HOLD': f"{g(ln['HOLD'])}–{g(ln['LEAN BUY'] - 1)}",
