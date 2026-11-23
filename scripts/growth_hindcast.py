@@ -693,6 +693,46 @@ def run(rows, target='fcf'):
     }
 
 
+def load_extra_rows(path):
+    """Rows from scripts/fetch_delisted.py's JSONL that carry a history."""
+    out = []
+    with open(path, encoding='utf-8') as f:
+        for line in f:
+            if line.strip():
+                r = json.loads(line)
+                if isinstance(r.get('edgar_history'), dict):
+                    out.append(r)
+    return out
+
+
+def survivorship_report(rows, extra):
+    """How far survivor-only outcomes overstate growth: median realised FCF
+    and revenue growth, survivors vs companies that later left the listed
+    universe, per origin year (complete five-year windows only), and the
+    base rates with and without them."""
+    s_cases, d_cases = build_cases(rows, 'fcf'), build_cases(extra, 'fcf')
+    per = []
+    for t in sorted({c['origin'] for c in d_cases}):
+        sv = [c for c in s_cases if c['origin'] == t]
+        dv = [c for c in d_cases if c['origin'] == t]
+        if len(dv) >= 10 and len(sv) >= 30:
+            per.append({'origin': t, 'n_survivors': len(sv), 'n_delisted': len(dv),
+                        'fcf': [float(np.median([c['realised'] for c in sv])),
+                                float(np.median([c['realised'] for c in dv]))],
+                        'revenue': [float(np.median([c['rev_realised'] for c in sv if c['rev_realised'] is not None] or [np.nan])),
+                                    float(np.median([c['rev_realised'] for c in dv if c['rev_realised'] is not None] or [np.nan]))]})
+    unclipped = (-1.0, 1.0)
+    return {
+        'n_cases': {'survivors': len(s_cases), 'delisted': len(d_cases)},
+        'n_delisted_companies': len({c['ticker'] for c in d_cases}),
+        'per_origin': per,
+        'base_rate_all': {'survivors': _base_rates(s_cases, bounds=unclipped)['_all'],
+                          'with_delisted': _base_rates(s_cases + d_cases, bounds=unclipped)['_all']},
+        'note': ('Complete windows only: a company that stopped filing inside a window '
+                 'has no outcome for it, so failures are still under-counted.'),
+    }
+
+
 def _load_rows(path):
     from data.snapshot_store import read_snapshot
     data = read_snapshot(path)
@@ -705,6 +745,10 @@ def main(argv=None):
     ap.add_argument('--results-dir', default='output')
     ap.add_argument('--out', default='output/growth_hindcast.json')
     ap.add_argument('--target', choices=TARGETS, default='fcf')
+    ap.add_argument('--extra-rows', metavar='JSONL',
+                    help='add rows from scripts/fetch_delisted.py (companies no longer listed)')
+    ap.add_argument('--survivorship', action='store_true',
+                    help='compare survivors with --extra-rows and exit')
     ap.add_argument('--label-cuts', action='store_true',
                     help='v2 MC-confidence cut-offs matching v1\'s label shares')
     ap.add_argument('--fit-v2', metavar='PATH',
@@ -723,6 +767,13 @@ def main(argv=None):
     rows = _load_rows(path)
     if not a.all_rows:
         rows = [r for r in rows if isinstance(r.get('mc_quantiles'), list)]
+    extra = load_extra_rows(a.extra_rows) if a.extra_rows else []
+    if a.survivorship:
+        if not extra:
+            raise SystemExit('--survivorship needs --extra-rows')
+        print(json.dumps(survivorship_report(rows, extra), indent=1))
+        return
+    rows = rows + extra
     if a.label_cuts:
         print(json.dumps(label_cuts(rows), indent=1))
         return
