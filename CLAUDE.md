@@ -1872,9 +1872,15 @@ ruff check .
   sign) rises from ~1% to ~10% of DCF rows. Under v2 the fingerprint gains
   `dcf_growth_model`, the params file's hash and the cut-offs; under v1 it
   is unchanged. Not validated: the analyst part of the path (no
-  point-in-time analyst data); survivorship (base rates are clipped until
-  delisted filers are added). Before switching it on: the iOS app's driver
-  names need `base_fcf`. Tests: `tests/test_growth_v2.py`.
+  point-in-time analyst data). Survivorship was checked against every
+  delisted 2010-13 filer (below): the 6% base-rate ceiling holds and the
+  remaining low centre bias is too uncertain to correct. **Live on the Mac
+  mini since 2026-11-23** via `DCF_GROWTH_MODEL=v2` in `.env` (run_daily.sh
+  exports it to every step; scoring hash f8d1e835727f, v1 ef97d73453c1);
+  delete that line to return to v1. The iOS app names the `base_fcf`
+  driver (app PR #125, build 202611230936). After the first v2 snapshot,
+  re-run `--label-cuts` on it (the shipped cut-offs come from a proxy).
+  Tests: `tests/test_growth_v2.py`.
   **Historical valuation backtest (`scripts/valuation_backtest.py`,
   2026-11-23):** values each company-year point in time from EDGAR history
   as of its filing date (fiscal year end + 90 days): the live-style capped
@@ -1894,18 +1900,33 @@ ruff check .
   only (no prices for delisted companies), no analysts, a simpler WACC.
   `scripts/fetch_delisted.py` fetches EDGAR histories for 10-K filers of
   given years that are not listed today (`output/delisted/histories.jsonl`,
-  seeded sample, resumable); `growth_hindcast.py --extra-rows <jsonl>` adds
-  them to the hindcast and `--fit-v2`, and `--survivorship` compares them
-  with survivors. First fetch (2026-11-23): 1,500 of the 8,476 2010-13
-  10-K filers not listed today, 908 with an XBRL history, 112 with complete
-  five-year windows (347 cases, 2013-2020 origins). Their median realised
-  FCF growth was 1.9%/yr against survivors' 7.5% (8.4% in the same revenue
-  band, $42M-$5.9B), revenue 4.6% against 6.3-7.0%, lower in 7 of 8 origin
-  years; weighted up to the delisted population, the pooled medians fall
-  to 6.5% (FCF) and 6.0% (revenue). The base rate is the lower of the two,
-  so v2's 6% ceiling (`BASE_RATE_BOUNDS`) is an upper bound, not a guess;
-  windows cut short by failure are still missing, so the truth is lower.
-  Delisted rows carry no sector, so sector rates stay survivor-based.
+  seeded order, resumable; companyfacts cached in `output/delisted/sec_facts`,
+  apart from the pipeline's Supabase-synced `data/cache/sec_facts`);
+  `growth_hindcast.py --extra-rows <jsonl>` adds them to the hindcast and
+  `--fit-v2`, and `--survivorship` compares them with survivors.
+  **Full fetch (2026-11-23):** all 8,476 2010-13 10-K filers not listed
+  today (~2.5 h, 417 MB); 4,195 have an XBRL history and 595 complete
+  five-year windows (1,815 cases). Median realised growth, delisted vs
+  survivors: FCF −1.3% vs +7.5% (−0.9% vs +8.3% in the same revenue band,
+  $38M-$7.1B), revenue +4.3% vs +6.3% (+6.9% in band). v2's centre (median
+  log of actual over projected five-year cash, positive = projects too
+  little): survivors +0.116 (59% above), survivors plus delisted +0.079
+  (56%), delisted alone −0.141. Counting failures removes about a third of
+  v2's low bias; windows cut short by a failure still have no outcome, so
+  the rest is likely 0 to +0.08, too uncertain to correct: no centre
+  adjustment. With everyone the unclipped base rate is 6.0%, confirming
+  `BASE_RATE_BOUNDS`' 6% ceiling. Delisted rows carry no sector, so sector
+  rates stay survivor-based.
+  **v2 width check (same day):** v2's ranges hold 36% / 72% of the realised
+  years-3-5 average FCF (nominal 50% / 90%) and 35% / 69% of years 8-10
+  (10-year windows), 49% / 80% and 56% / 82% with the centre bias removed:
+  the width is about right (tails a little thin), not too wide. Fading the
+  starting-FCF shock cut coverage to 27% / 56%, so it stays a persistent
+  level even though FCF-margin deviations are short-lived (rank
+  autocorrelation +0.29 at one year, ~0 after); a revenue x median-margin
+  base did not cut the five-year cash error (0.371 vs 0.348); the −0.59
+  correlation between fitted level and growth shocks is mostly the OLS
+  intercept/slope artefact, not an offset.
   Tests: `tests/test_valuation_backtest.py`.
 - **Scripts layer (`scripts/`):** `analyze_stock._main()` orchestrates
   13 `_run_*` phase functions (screen → analyze → score → narrate →
