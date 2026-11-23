@@ -103,6 +103,20 @@ MC_GROWTH_SIGMA_FLOOR = 0.02
 # (mc_growth_sigma_evidence, _basis, _parts) so that work needs no re-run.
 # Not in scoring_params_hash while off: it changes nothing.
 MC_GROWTH_SIGMA_EVIDENCE = False
+# DCF growth model (models/growth_v2.py, 2026-11-23). 'v1' = the six-signal
+# constant stage-1 rate with the ratio sigma above. 'v2' = no FCF-CAGR weight,
+# history signals shrunk 50% toward capped sector base rates, analysts held
+# for years 1-2 then faded to that long-run rate, a fitted growth sigma and
+# a starting-FCF level sigma, all from scripts/growth_hindcast.py --fit-v2
+# (models/growth_v2_params.json) — with MC_CONFIDENCE_CUTS['v2'] for the
+# labels. Default v1; env DCF_GROWTH_MODEL=v2 runs v2 without a code change.
+# v2 joins scoring_params_hash (with the params file's hash) only when on.
+DCF_GROWTH_MODEL = os.environ.get('DCF_GROWTH_MODEL', 'v1')
+# _mc_confidence_label's HIGH/MEDIUM and MEDIUM/LOW cut-offs on mc_cv, per
+# growth model. v2's bands are honest and so much wider; its cut-offs keep
+# the label a RELATIVE read (HIGH ~ the steadiest fifth), set from v2 CVs by
+# scripts/growth_hindcast.py --label-cuts.
+MC_CONFIDENCE_CUTS = {'v1': (0.20, 0.40), 'v2': (0.20, 0.40)}
 MC_GROWTH_SIGMA_CAP = 0.10
 MC_GROWTH_SIGMA_HISTORY_YEARS = 5
 MC_WACC_SIGMA = 0.01            # WACC sigma = 1 percentage point (floor; see below)

@@ -36,6 +36,7 @@ from scripts.config import (
     SCORE_WEIGHT_VALUATION, SCORE_WEIGHT_QUALITY,
     SCORE_WEIGHT_MOAT, SCORE_WEIGHT_GROWTH, SCORE_WEIGHT_OWNERSHIP,
     RATING_CAPS_ENABLED, NA_GATES_SCORE_ZERO, MC_PENALTY_ENABLED,
+    DCF_GROWTH_MODEL, MC_CONFIDENCE_CUTS,
 )
 
 
@@ -45,7 +46,7 @@ def default_params():
     Returns:
         dict: {param_name: default_value} for every tunable parameter.
     """
-    return {
+    params = {
         # Core valuation assumptions
         'erp': ERP,
         'terminal_growth_rate': TERMINAL_GROWTH_RATE,
@@ -134,6 +135,21 @@ def default_params():
         # config.MC_PENALTY_ENABLED); off = the simulation is display only.
         'mc_penalty_enabled': MC_PENALTY_ENABLED,
     }
+    # The v2 DCF growth model moves every DCF fair value and the MC labels,
+    # so it joins the fingerprint, with a hash of its fitted parameters;
+    # under v1 nothing is added and the hash is unchanged.
+    if DCF_GROWTH_MODEL != 'v1':
+        params['dcf_growth_model'] = DCF_GROWTH_MODEL
+        params['dcf_growth_v2_params'] = _growth_v2_params_hash()
+        params['mc_confidence_cuts'] = list(MC_CONFIDENCE_CUTS.get(DCF_GROWTH_MODEL, ()))
+    return params
+
+
+def _growth_v2_params_hash():
+    import hashlib
+    from models.growth_v2 import PARAMS_PATH
+    with open(PARAMS_PATH, 'rb') as f:
+        return hashlib.sha256(f.read()).hexdigest()[:12]
 
 
 def merge_params(overrides=None):

@@ -10,7 +10,8 @@ from scripts.config import (SCORE_WEIGHT_VALUATION, SCORE_WEIGHT_QUALITY,
                              MIN_ADV_FOR_BUY, BLEND_CONFLICT_RATIO,
                              RATING_CAPS_ENABLED, NA_GATES_SCORE_ZERO,
                              MC_PENALTY_ENABLED,
-                            MC_CLIP_RATE_DOWNGRADE, MC_INVALID_RATE_DOWNGRADE)
+                            MC_CLIP_RATE_DOWNGRADE, MC_INVALID_RATE_DOWNGRADE,
+                            MC_CONFIDENCE_CUTS, DCF_GROWTH_MODEL)
 from models.sector_pool import panel_pools, year_series
 
 # Unified gate spec — ONE entry per metric drives both the pass/fail Gate
@@ -149,13 +150,16 @@ def _mc_confidence_label(cv, clip_rate=None, invalid_rate=None):
     the most binding wall forced more than MC_CLIP_RATE_DOWNGRADE of the
     draws or more than MC_INVALID_RATE_DOWNGRADE of them wiped out equity.
     A tight CV in that state says more about the walls than the inputs.
+    The cut-offs depend on the DCF growth model (config.MC_CONFIDENCE_CUTS):
+    20% / 40% under v1; v2's honest bands are wider, so its cut-offs differ.
     """
     if cv is None:
         return None
     pct = round(cv * 100)
-    if cv < 0.20:
+    hi_cut, lo_cut = MC_CONFIDENCE_CUTS.get(DCF_GROWTH_MODEL, MC_CONFIDENCE_CUTS['v1'])
+    if cv < hi_cut:
         level = 'HIGH'
-    elif cv < 0.40:
+    elif cv < lo_cut:
         level = 'MEDIUM'
     else:
         level = 'LOW'
