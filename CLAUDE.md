@@ -1827,6 +1827,18 @@ ruff check .
   point-in-time analyst signals (60% of the live blend's weight), survivors
   only, restated XBRL, overlapping windows, four walk-forward origins.
   Nothing reads it; config is unchanged.
+  **DCF inputs on the row (`dcf_inputs`, 2026-11-23):** every DCF row
+  records its growth blend by name, `signals` (analyst ones after the
+  haircut) and `weights`, plus `analyst_raw` (st / lt / earnings before the
+  haircut), `analyst_lt_horizon` (the growth_estimates row the "long-term"
+  signal came from: `LTG`, or a one-year `+1y` / `0y` standing in for it),
+  `blend`, `margin_adj`, `surprise_adj`, `growth_cap`, `growth`,
+  `growth_sigma`, `base_fcf`, `fcf_span`, `term_g`, `wacc`, `equity_bridge`,
+  `shares`, `base_ebitda` and `exit_multiple`. `growth` = clamp(`blend` +
+  `margin_adj` + `surprise_adj`) (tests pin it), so a re-weighted blend (with
+  or without analysts) and its fair value can be re-derived from stored
+  rows, and analyst forecasts can later be scored against reported results.
+  A dict, so it lives in the database's `extra` jsonb and not in the report.
 - **Scripts layer (`scripts/`):** `analyze_stock._main()` orchestrates
   13 `_run_*` phase functions (screen → analyze → score → narrate →
   write outputs). A run is resumable: `scripts/run_checkpoint.py`

@@ -1274,22 +1274,30 @@ def _get_analyst_lt_growth(yf_data):
     LTG is often NaN in yfinance, so +1y is the practical primary signal.
     Returns decimal (e.g. 0.12 for 12%) or None.
     """
+    return _get_analyst_lt_growth_detail(yf_data)[0]
+
+
+def _get_analyst_lt_growth_detail(yf_data):
+    """(value, horizon) for _get_analyst_lt_growth: horizon is the
+    growth_estimates row the value came from ('LTG', '+1y' or '0y'), so a
+    one-year figure standing in for the long-term weight is visible on the
+    row (dcf_inputs.analyst_lt_horizon). (None, None) when absent."""
     ge = yf_data.get('growth_estimates')
     if ge is not None and hasattr(ge, 'empty') and not ge.empty:
         try:
             # yfinance column name varies across versions: 'stockTrend', 'Stock', etc.
             col = next((c for c in ('stockTrend', 'Stock') if c in ge.columns), None)
             if col is None:
-                return None
+                return None, None
             # Try LTG first, then +1y, then 0y
             for period in ['LTG', '+1y', '0y']:
                 if period in ge.index:
                     val = ge.loc[period, col]
                     if pd.notna(val) and isinstance(val, (int, float)):
-                        return float(val)
+                        return float(val), period
         except Exception as e:
             logger.debug(f"growth estimates table unusable ({e}); trying next source")
-    return None
+    return None, None
 
 
 def _get_earnings_growth(yf_data):
@@ -2218,7 +2226,7 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
                 rev_cagr = (revs[-1] / revs[0]) ** (1 / (len(revs) - 1)) - 1
 
     analyst_st = info.get('revenueGrowth')          # short-term (1yr revenue)
-    analyst_lt = _get_analyst_lt_growth(yf_data)      # long-term (~5yr)
+    analyst_lt, analyst_lt_horizon = _get_analyst_lt_growth_detail(yf_data)  # long-term (~5yr)
     earnings_g = _get_earnings_growth(yf_data)        # 1yr earnings growth
 
     # --- Sector-specific growth cap with hyper-growth override ---
@@ -2235,12 +2243,18 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     # --- 6-signal weighted average (auto-normalise when signals missing) ---
     growth_signals = []
     growth_weights = []
+    # Each signal as it entered the blend (analyst ones after the haircut)
+    # and its weight, by name, recorded on the row as dcf_inputs so the blend
+    # can be re-derived or re-weighted without a re-run.
+    signal_log = {}
     if fcf_cagr is not None:
         growth_signals.append(fcf_cagr)
         growth_weights.append(GROWTH_WEIGHT_FCF)
+        signal_log['fcf_cagr'] = (fcf_cagr, GROWTH_WEIGHT_FCF)
     if rev_cagr is not None:
         growth_signals.append(rev_cagr)
         growth_weights.append(GROWTH_WEIGHT_REV)
+        signal_log['rev_cagr'] = (rev_cagr, GROWTH_WEIGHT_REV)
     # Optimism haircut on analyst-sourced signals — the config comment
     # promised this ("Apply 20% haircut to analyst growth estimate") but only
     # the hyper-growth CAP applied it; the signals themselves (60% of nominal
@@ -2252,15 +2266,18 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     if analyst_st is not None:
         growth_signals.append(_haircut(analyst_st))
         growth_weights.append(GROWTH_WEIGHT_ANALYST_ST)
+        signal_log['analyst_st'] = (_haircut(analyst_st), GROWTH_WEIGHT_ANALYST_ST)
     # Apply macro growth weight shift: move weight from analyst LT to fundamental
     _w_analyst_lt = max(0.05, GROWTH_WEIGHT_ANALYST_LT + growth_weight_shift)
     _w_fundamental = max(0.05, GROWTH_WEIGHT_FUNDAMENTAL - growth_weight_shift)
     if analyst_lt is not None:
         growth_signals.append(_haircut(analyst_lt))
         growth_weights.append(_w_analyst_lt)
+        signal_log['analyst_lt'] = (_haircut(analyst_lt), _w_analyst_lt)
     if earnings_g is not None:
         growth_signals.append(_haircut(earnings_g))
         growth_weights.append(GROWTH_WEIGHT_EARNINGS_G)
+        signal_log['earnings_g'] = (_haircut(earnings_g), GROWTH_WEIGHT_EARNINGS_G)
 
     # Signal 6: Fundamental growth (Reinvestment Rate × ROIC)
     fund_result = calculate_fundamental_growth(yf_data,
@@ -2269,6 +2286,7 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     if fundamental_g is not None:
         growth_signals.append(fundamental_g)
         growth_weights.append(_w_fundamental)
+        signal_log['fundamental'] = (fundamental_g, _w_fundamental)
 
     if growth_signals:
         total_weight = sum(growth_weights)
@@ -2278,8 +2296,10 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
 
     # --- Margin trend adjustment ---
     margin_trend = _compute_margin_trend(yf_data)
+    margin_adj = 0.0
     if margin_trend is not None:
-        weighted_avg += margin_trend * MARGIN_TREND_SENSITIVITY
+        margin_adj = margin_trend * MARGIN_TREND_SENSITIVITY
+        weighted_avg += margin_adj
 
     # --- Earnings surprise adjustment ---
     surprise_adj, surprise_avg = _compute_surprise_adjustment(yf_data)
@@ -2373,6 +2393,7 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     # consensus that became the effective fair value (17 rows on 2026-10-22,
     # e.g. CSR: base $35 against a $0-$22 band).
     mc_result = None
+    g_sigma = None
     if fv is None:
         sens_range = None
     elif base_fcf > 0 and shares and shares > 0:
@@ -2413,7 +2434,32 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     if mc_result:
         sens_range = (mc_result['p10_fv'], mc_result['p90_fv'])
 
+    _fcf_years = [str(c)[:10] for c in fcf_series.index] if len(fcf_series) else []
+    dcf_inputs = {
+        'signals': {k: v[0] for k, v in signal_log.items()},
+        'weights': {k: v[1] for k, v in signal_log.items()},
+        'analyst_raw': {'st': analyst_st, 'lt': analyst_lt, 'earnings': earnings_g},
+        'analyst_lt_horizon': analyst_lt_horizon,
+        'analyst_haircut': ANALYST_HAIRCUT,
+        'blend': (sum(s * w for s, w in zip(growth_signals, growth_weights, strict=False))
+                  / sum(growth_weights)) if growth_signals else None,
+        'margin_adj': margin_adj,
+        'surprise_adj': surprise_adj,
+        'growth_cap': growth_cap,
+        'growth': fcf_growth,
+        'growth_sigma': g_sigma,
+        'base_fcf': base_fcf,
+        'fcf_span': [_fcf_years[0], _fcf_years[-1]] if _fcf_years else None,
+        'term_g': term_g,
+        'wacc': wacc,
+        'equity_bridge': equity_bridge,
+        'shares': shares,
+        'base_ebitda': base_ebitda,
+        'exit_multiple': exit_multiple if (base_ebitda and base_ebitda > 0) else None,
+    }
+
     growth_diag = {
+        'dcf_inputs': dcf_inputs,
         'analyst_ltg': analyst_lt,
         'earnings_growth': earnings_g,
         'margin_trend': margin_trend,
@@ -4832,6 +4878,7 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 'dcf_sens_range': dcf_sens_range,
                 'fcf_growth': fcf_growth,
                 'analyst_ltg': growth_diag.get('analyst_ltg'),
+                'dcf_inputs': growth_diag.get('dcf_inputs'),
                 'margin_trend': growth_diag.get('margin_trend'),
                 'surprise_avg': growth_diag.get('surprise_avg'),
                 'fundamental_growth': growth_diag.get('fundamental_growth'),
