@@ -1799,24 +1799,34 @@ ruff check .
   **Growth hindcast (`scripts/growth_hindcast.py`, 2026-11-23):** tests the
   growth sigma against realised growth, which EDGAR history already holds
   (64% of DCF rows have 8+ years), instead of waiting for 365d prices. Per
-  ticker and past fiscal year t it rebuilds a history-only estimate (3-year
-  FCF and revenue CAGRs, reinvestment × ROIC, at production weights, clamped
-  as live), takes realised growth as the rate that makes the DCF's stage-1
-  projection sum to the FCF actually produced in t+1..t+5 (`--target
-  revenue`: the revenue CAGR), and scores N(estimate, sigma) by CRPS and PIT
-  for the ratio rule, the evidence sigma and a walk-forward fitted scale
-  (fitted only on outcomes resolved by t). Run on 2026-11-20 (DCF rows,
-  ~11k cases, origins 2009-2021): the ratio rule (median 2pp) holds only
-  7%/16% of realised FCF growth in its 50%/90% bands (revenue 13%/30%); the
-  evidence sigma 14-41% / 31-75%; the fitted scale ~50-60% / 80-91% at the
-  best CRPS (sigma ~21pp on FCF, ~7pp on revenue, rising with revenue-growth
-  volatility). The estimate barely ranks outcomes (rank IC +0.03 FCF, +0.09
-  revenue) and runs ~4-5pp low (survivorship). Much of the FCF miss is
-  base-year noise, which the simulation holds fixed and which mean-reverts,
-  so the FCF sigma must not be copied into the growth draw. Limits: no
+  ticker and past fiscal year t it rebuilds a history-only estimate (FCF and
+  revenue CAGRs from the oldest year on file, as the live DCF reads its
+  10-17-year XBRL statements; the row's stored `rev_cagr` is a different,
+  3-year quality metric; plus reinvestment × ROIC, at production weights,
+  clamped as live), takes realised growth as the rate that makes the DCF's
+  stage-1 projection sum to the FCF actually produced in t+1..t+5
+  (`--target revenue`: the revenue CAGR), and scores N(estimate, sigma) by
+  CRPS and PIT for the ratio rule, the evidence sigma and a walk-forward
+  fitted scale (fitted only on outcomes resolved by t). Run on 2026-11-20
+  (DCF rows, ~8k cases, origins 2012-2021): the ratio rule (2pp) holds only
+  7%/18% of realised FCF growth in its 50%/90% bands (revenue 15%/35%); the
+  evidence sigma 19-39% / 40-74%; the fitted scale ~50-60% / 80-91% at the
+  best CRPS (sigma ~22pp on FCF, ~7-10pp on revenue, rising with
+  revenue-growth volatility). The estimate barely ranks FCF outcomes (rank
+  IC +0.03; revenue +0.14) and projects ~20% too little five-year cash
+  (median, survivorship inflates this). Signal by signal (rank IC vs realised
+  FCF / revenue growth): trailing FCF CAGR −0.22 / +0.10, revenue CAGR
+  +0.11 / +0.20, fundamental growth +0.19 / +0.02. The FCF CAGR's negative
+  sign is base-year mean reversion, not slower business growth, and low FCF
+  relative to operating profit predicts an FCF rebound (+0.37) but not
+  faster revenue or operating-profit growth. Normalising the base (3-year
+  average, or operating profit × median cash conversion) did NOT reduce the
+  five-year cash projection error (median |log error| 0.366 live-style vs
+  0.373 / 0.367), so base-year noise is not fixed by averaging; the FCF
+  sigma must still not be copied into the growth draw. Limits: no
   point-in-time analyst signals (60% of the live blend's weight), survivors
-  only, restated XBRL, overlapping windows, and the walk-forward rules have
-  only four origins. Nothing reads it; config is unchanged.
+  only, restated XBRL, overlapping windows, four walk-forward origins.
+  Nothing reads it; config is unchanged.
 - **Scripts layer (`scripts/`):** `analyze_stock._main()` orchestrates
   13 `_run_*` phase functions (screen → analyze → score → narrate →
   write outputs). A run is resumable: `scripts/run_checkpoint.py`

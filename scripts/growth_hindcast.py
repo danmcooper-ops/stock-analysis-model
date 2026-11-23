@@ -13,9 +13,10 @@ EDGAR history. So, for each company and each past fiscal year t:
 
   1. Slice the history to years <= t (point in time) and rebuild the growth
      estimate from the signals that history can supply: trailing FCF and
-     revenue CAGRs over a 3-year span (the ~4 annual columns the live
-     statements give) and fundamental growth (reinvestment rate x ROIC), at
-     their production weights, renormalised, clamped to [-15%, sector cap].
+     revenue CAGRs from the oldest to the newest year on file (as the live
+     DCF reads them off XBRL statements spanning 10-17 years) and fundamental
+     growth (reinvestment rate x ROIC), at their production weights,
+     renormalised, clamped to [-15%, sector cap].
   2. Realised growth: the constant rate g that makes the DCF's own stage-1
      projection, base x (1+g)^k for k = 1..5, sum to the FCF the company
      actually produced in t+1..t+5 (SBC-adjusted like the live base). That is
@@ -81,7 +82,7 @@ from scripts.config import (  # noqa: E402
 )
 
 HORIZON = 5            # DCF_STAGE1: years the single growth draw covers
-CAGR_SPAN = 3          # live trailing CAGRs span ~4 annual columns
+CAGR_SPAN = 3          # minimum look-back before an origin is scored
 G_MIN, G_MAX = -0.95, 3.0
 MIN_REV_YEARS = 4      # derive_edgar_metrics' rev_growth_vol minimum
 MIN_TRAIN = 200        # fitted rule: resolved outcomes needed to fit
@@ -120,6 +121,18 @@ def owner_fcf(eh):
         s = abs(sbc.get(y, 0.0))
         out[y] = max(f - s, 0.25 * f) if f > 0 else f
     return out
+
+
+def full_cagr(series, t):
+    """Live DCF definition: oldest to newest point at or before t, both > 0,
+    over their span in years (_run_forward_dcf's fcf_cagr / rev_cagr)."""
+    ys = sorted(y for y in series if y <= t)
+    if len(ys) < 2 or ys[-1] != t:
+        return None
+    a, b = series[ys[0]], series[t]
+    if a <= 0 or b <= 0:
+        return None
+    return (b / a) ** (1 / (t - ys[0])) - 1
 
 
 def cagr(series, t, span=CAGR_SPAN):
@@ -186,8 +199,10 @@ def estimate(eh, t, sector=None):
 
     Reads nothing after year t (tests pin this)."""
     fcf, rev = owner_fcf(eh), annual(eh.get('revenue_history'))
-    pairs = [(cagr(fcf, t), GROWTH_WEIGHT_FCF),
-             (cagr(rev, t), GROWTH_WEIGHT_REV),
+    if t - CAGR_SPAN not in fcf:
+        return None
+    pairs = [(full_cagr(fcf, t), GROWTH_WEIGHT_FCF),
+             (full_cagr(rev, t), GROWTH_WEIGHT_REV),
              (fundamental_growth(eh, t), GROWTH_WEIGHT_FUNDAMENTAL)]
     pairs = [(s, w) for s, w in pairs if s is not None and math.isfinite(s)]
     if not pairs:
