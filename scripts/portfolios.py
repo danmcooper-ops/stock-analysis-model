@@ -299,7 +299,7 @@ def cmd_show(doc, a):
                 if not any(c['key'] in r for r in rows):
                     print(f"  warning: no row has a {c['key']!r} field, so this rule matches nothing")
         from scripts.portfolio_digest import stats_line
-        print('  ' + stats_line(pg.portfolio_stats(res['members'], by_tk)))
+        print('  ' + stats_line(pg.portfolio_stats(res['members'], by_tk), pg.rating_lines()))
         for line in _analytics_lines(analytics.get(p['id']) or {}, analytics.get('_universe')):
             print('  ' + line)
         manual, ruled = set(res['manual']), set(res['ruled'])
@@ -541,8 +541,10 @@ def build_digest(portfolios, rows, prev_rows, day, prev_day, history=None, expla
                     'mode': p.get('alerts') or 'buy_line', 'missing': res['missing'],
                     'stats': pg.portfolio_stats(res['members'], by_tk, prev_by_tk),
                     'alerts': by_id.get(p['id'], [])})
+    # score_lines lets scripts/portfolio_digest.py label score bands without
+    # importing the project (it runs on a bare runner).
     return {'version': 1, 'date': day, 'prev_date': prev_day, 'systemic': systemic,
-            'portfolios': out}
+            'score_lines': pg.rating_lines(), 'portfolios': out}
 
 
 def _write(path, text):

@@ -32,11 +32,21 @@ LEVEL_NAMES = {'action': 'Crossed', 'watch': 'Notable', 'fyi': 'FYI'}
 RATINGS = ('BUY', 'LEAN BUY', 'HOLD', 'PASS')
 
 
-def _band_names():
-    """``{rating: score band}`` ("57+", "39–56", "25–38", "<25"): the digest
-    shows score bands, never rating names."""
-    from models.portfolio_groups import rating_lines
-    ln = rating_lines()
+# Shown when a digest predates ``score_lines`` (written before 2026-11-24):
+# neutral band names, never rating names.
+FALLBACK_BANDS = {'BUY': 'top band', 'LEAN BUY': '2nd band',
+                  'HOLD': '3rd band', 'PASS': 'bottom band'}
+
+
+def _band_names(lines=None):
+    """``{rating: score band}`` ("57+", "39–56", "25–38", "<25") from the
+    digest's ``score_lines`` (``{rating: minimum composite}``, written by
+    ``scripts/portfolios.py``): the digest shows score bands, never rating
+    names. Read from the JSON so this module stays standard-library only."""
+    try:
+        ln = {k: float(lines[k]) for k in ('BUY', 'LEAN BUY', 'HOLD')}
+    except (TypeError, KeyError, ValueError):
+        return dict(FALLBACK_BANDS)
 
     def g(x):
         return f"{x:g}"
@@ -46,8 +56,8 @@ def _band_names():
             'PASS': f"<{g(ln['HOLD'])}"}
 
 
-def _mix(st, sep, kv):
-    names = _band_names()
+def _mix(st, sep, kv, lines=None):
+    names = _band_names(lines)
     return sep.join(kv.format(k=names.get(k, k), v=v)
                     for k, v in (st.get('ratings') or {}).items() if v)
 
@@ -58,9 +68,10 @@ def _pct(v, sign=True):
     return f"{v:+.0%}" if sign else f"{v:.0%}"
 
 
-def stats_line(st):
-    """One line of portfolio stats (score-band mix, medians, concentration)."""
-    mix = _mix(st, ' ', 'score {k}:{v}') or 'no scores'
+def stats_line(st, lines=None):
+    """One line of portfolio stats (score-band mix, medians, concentration);
+    *lines* is the digest's ``score_lines``."""
+    mix = _mix(st, ' ', 'score {k}:{v}', lines) or 'no scores'
     score = st.get('median_score')
     conc = ''
     if st.get('top_sector'):
@@ -117,7 +128,7 @@ def render_text(digest):
                if digest.get('prev_date') else '')
         mode = '' if pf.get('mode', 'buy_line') == 'buy_line' else f"  [alerts: {pf['mode']}]"
         lines.append(f"{pf['name']} [{pf['id']}]: {st.get('n', 0)} stocks{chg}{mode}")
-        lines.append('  ' + stats_line(st))
+        lines.append('  ' + stats_line(st, digest.get('score_lines')))
         fyi = 0
         for a in pf.get('alerts') or ():
             if a['level'] == 'fyi':
@@ -147,7 +158,7 @@ def render_markdown(digest, pages_url=None):
         out += [f"> ⚠️ **{msg.split(':', 1)[0]}:**{msg.split(':', 1)[1] if ':' in msg else ''}", '']
     for pf in digest.get('portfolios') or ():
         st = pf.get('stats') or {}
-        mix = _mix(st, ' · ', 'score {k}: {v}')
+        mix = _mix(st, ' · ', 'score {k}: {v}', digest.get('score_lines'))
         out += [f"### {pf['name']} — {st.get('n', 0)} stocks", f"{mix} · median MoS {_pct(st.get('median_mos'))}", '']
         fyi = [a for a in pf.get('alerts') or () if a['level'] == 'fyi']
         for lv in ('action', 'watch'):
@@ -172,7 +183,9 @@ def render_markdown(digest, pages_url=None):
             out += ['', '</details>', '']
         if not (pf.get('alerts') or ()):
             out += ['_No changes._', '']
-    out.append(f"<sub>Crossed = the composite score crossed the {_band_names()['LEAN BUY'].split('–')[0]} line. "
+    lean = (digest.get('score_lines') or {}).get('LEAN BUY')
+    line = f"{float(lean):g} line" if isinstance(lean, (int, float)) else 'upper-band line'
+    out.append(f"<sub>Crossed = the composite score crossed the {line}. "
                'Notable = reversals of a recent crossing, score drops ≥10 pts, fair-value jumps ≥50%, '
                'portfolio joins/leaves, earnings within 7 days. FYI = moves within a side, or on missing data.</sub>')
     body = '\n'.join(out) + '\n'
