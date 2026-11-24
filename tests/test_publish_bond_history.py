@@ -78,3 +78,27 @@ def test_unreadable_table_is_best_effort(tmp_path, history):
 
 def test_bucket_is_first_two_characters():
     assert pbh.bucket('46647pdx1') == '46'
+
+
+def test_thin_weekly_keeps_last_year_daily():
+    from datetime import date, timedelta
+    start = date(2019, 1, 1)
+    pts = [[(start + timedelta(days=i)).isoformat(), 100.0 + i / 1000] for i in range(2000)]
+    out = pbh.thin_weekly(pts)
+    end = date.fromisoformat(pts[-1][0])
+    cut = (end - timedelta(days=pbh.DAILY_DAYS)).isoformat()
+    recent = [p for p in out if p[0] >= cut]
+    assert recent == [p for p in pts if p[0] >= cut]          # last year untouched
+    old = [p for p in out if p[0] < cut]
+    weeks = {date.fromisoformat(p[0]).isocalendar()[:2] for p in old}
+    assert len(old) == len(weeks)                              # one a week
+    assert out == sorted(out)                                  # oldest first
+    assert pbh.thin_weekly([]) == []
+
+
+def test_oversize_bucket_is_skipped(tmp_path, capsys):
+    dest = tmp_path / 'bond_px'
+    bonds = {'46647PDX1': {'mark': [['2026-05-31', 101.0]]}, '912828XX1': {'tsy': [['2026-11-02', 99.5]] * 50}}
+    n = pbh.write(bonds, str(dest), '2026-11-21', max_file_bytes=200)
+    assert n == 1 and sorted(p.name for p in dest.iterdir()) == ['46.json']
+    assert 'not published' in capsys.readouterr().out

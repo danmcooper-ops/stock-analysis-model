@@ -1161,8 +1161,11 @@ ruff check .
   bonds: {CUSIP: {mark|tsy|est: [[date, clean price per 100], ...]}}}`):
   ~130 files, not ~9,000 per-bond shards, because Pages refuses more than
   20,000 files and the site holds ~15,000. On 2026-11-23: 9,055 bonds,
-  680k points, 15 MB, the largest file (`91`, Treasuries) 1 MB; the
-  estimates add ~9k points a day. Best-effort: missing or unreadable
+  680k points, 15 MB, before the 2019 backfill. The daily series (`tsy`,
+  `est`) keep their last 365 days daily and one point a week before, since
+  daily FedInvest from 2019 would put the `91` file (nearly every Treasury)
+  at ~20 MiB against Pages' 25; thinned, ~7 MiB. A file over 20 MiB is
+  skipped with a warning rather than fail the deploy. Best-effort: missing or unreadable
   history removes the folder, never the night. The app's Charts › Bonds
   draws it (app PR after #130). Tests: `tests/test_publish_bond_history.py`.
 - **Charts › Stock Comparison history (2026-10-30):** the metric dropdown

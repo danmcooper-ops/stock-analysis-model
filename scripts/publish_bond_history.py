@@ -23,6 +23,14 @@ already holds ~15,000. A file::
 Dates are ISO days, prices clean per 100 face to three decimals, each series
 oldest first; a bond carries only the series it has. Display only.
 
+The daily series (``tsy``, ``est``) keep every day of their last
+``DAILY_DAYS`` (365) and one point a week (the week's last) before that: the
+FedInvest backfill from 2019 is ~1,800 days per Treasury, and nearly every
+Treasury shares the ``91`` file, which daily would approach Pages' 25 MiB
+per-file limit. A file still over ``MAX_FILE_BYTES`` (20 MiB, under the
+limit ``check_pages_limits.py`` enforces) is not written, with a warning,
+so one bucket can never fail the deploy.
+
 Best-effort like the other optional app files: missing history or a bad
 table writes nothing and removes the folder, so the app shows "no history"
 rather than a stale one; the exit code is 0 either way unless the
@@ -41,6 +49,8 @@ import sys
 from collections import defaultdict
 
 VERSION = 1
+DAILY_DAYS = 365
+MAX_FILE_BYTES = 20 * 2**20
 DEFAULT_HISTORY_DIR = os.path.expanduser('~/Projects/bond-analysis-model/output/history')
 
 
@@ -63,6 +73,23 @@ def published_cusips(bonds_json: str) -> set[str]:
         return set()
     i = keys.index('cusip')
     return {r[i] for r in data.get('rows') or [] if len(r) > i and isinstance(r[i], str) and r[i]}
+
+
+def thin_weekly(points: list, daily_days: int = DAILY_DAYS) -> list:
+    """Every point of the last *daily_days* before the series' end, and the
+    last point of each ISO week before that. *points* are ``[iso day,
+    price]`` oldest first."""
+    from datetime import date, timedelta
+    if not points:
+        return points
+    end = date.fromisoformat(points[-1][0])
+    cut = (end - timedelta(days=daily_days)).isoformat()
+    old = [p for p in points if p[0] < cut]
+    recent = [p for p in points if p[0] >= cut]
+    weekly: dict[tuple, list] = {}
+    for p in old:
+        weekly[date.fromisoformat(p[0]).isocalendar()[:2]] = p   # the week's last wins
+    return list(weekly.values()) + recent
 
 
 def _series(df, date_col: str, value_col: str, cusips: set[str]) -> dict[str, list]:
@@ -90,10 +117,12 @@ def build(src: str, cusips: set[str]) -> dict[str, dict]:
 
     marks = read('marks_monthly.parquet')
     mark_date = 'month' if marks is not None and 'month' in marks else 'report_date'
+    tsy = _series(read('treasury_daily.parquet'), 'price_date', 'end_of_day', cusips)
+    est = _series(read('estimates_daily.parquet'), 'run_date', 'clean_price_est', cusips)
     series = {
         'mark': _series(marks, mark_date, 'clean_price_marked', cusips),
-        'tsy': _series(read('treasury_daily.parquet'), 'price_date', 'end_of_day', cusips),
-        'est': _series(read('estimates_daily.parquet'), 'run_date', 'clean_price_est', cusips),
+        'tsy': {c: thin_weekly(p) for c, p in tsy.items()},
+        'est': {c: thin_weekly(p) for c, p in est.items()},
     }
     bonds: dict[str, dict] = defaultdict(dict)
     for name, by_cusip in series.items():
@@ -102,7 +131,7 @@ def build(src: str, cusips: set[str]) -> dict[str, dict]:
     return bonds
 
 
-def write(bonds: dict[str, dict], dest: str, generated: str) -> int:
+def write(bonds: dict[str, dict], dest: str, generated: str, max_file_bytes: int = MAX_FILE_BYTES) -> int:
     """One file per bucket into *dest*; removes anything else there.
     Returns the number of files written."""
     by_bucket: dict[str, dict] = defaultdict(dict)
@@ -112,9 +141,14 @@ def write(bonds: dict[str, dict], dest: str, generated: str) -> int:
     written = set()
     for b, members in sorted(by_bucket.items()):
         name = f'{b}.json'
+        body = json.dumps({'v': VERSION, 'generated': generated, 'bonds': members}, separators=(',', ':'))
+        if len(body.encode('utf-8')) > max_file_bytes:
+            print(f'[bond_px] WARNING: {name} would be {len(body) / 2**20:.1f} MiB '
+                  f'(cap {max_file_bytes / 2**20:.0f} MiB); not published')
+            continue
         tmp = os.path.join(dest, name + '.tmp')
         with open(tmp, 'w', encoding='utf-8') as f:
-            json.dump({'v': VERSION, 'generated': generated, 'bonds': members}, f, separators=(',', ':'))
+            f.write(body)
         os.replace(tmp, os.path.join(dest, name))
         written.add(name)
     for name in os.listdir(dest):
