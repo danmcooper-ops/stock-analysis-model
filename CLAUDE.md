@@ -1150,6 +1150,21 @@ ruff check .
   `DFII10`, `BAMLC0A0CMEY` and `BAMLH0A0HYM2EY` (Macro › Rates and Credit)
   came with the Bonds vs Stocks view this replaced. Tests:
   `tests/test_report_bond_tab.py`.
+- **Bond price history for the iOS app (`scripts/publish_bond_history.py`,
+  2026-11-23):** the bond repo (`~/Projects/bond-analysis-model`, its PR #4;
+  `BOND_HISTORY_DIR` overrides `output/history/`) keeps three history tables:
+  observed N-PORT fund marks (monthly, ~60 days behind), observed FedInvest
+  Treasury prices (daily) and the bond model's own modelled
+  `clean_price_est` (daily, which the app labels as estimates). `publish()`
+  writes them, for the bonds in that night's `bonds.json`, into
+  `docs/app/bond_px/<first two CUSIP characters>.json` (`{v, generated,
+  bonds: {CUSIP: {mark|tsy|est: [[date, clean price per 100], ...]}}}`):
+  ~130 files, not ~9,000 per-bond shards, because Pages refuses more than
+  20,000 files and the site holds ~15,000. On 2026-11-23: 9,055 bonds,
+  680k points, 15 MB, the largest file (`91`, Treasuries) 1 MB; the
+  estimates add ~9k points a day. Best-effort: missing or unreadable
+  history removes the folder, never the night. The app's Charts › Bonds
+  draws it (app PR after #130). Tests: `tests/test_publish_bond_history.py`.
 - **Charts › Stock Comparison history (2026-10-30):** the metric dropdown
   charts a table column over time when it can be rebuilt from filings
   (`_PH_TC2H` → `_PH_METRICS` entries with `tc:1`). Annual ratios (DuPont,
