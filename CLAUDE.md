@@ -1150,6 +1150,36 @@ ruff check .
   `DFII10`, `BAMLC0A0CMEY` and `BAMLH0A0HYM2EY` (Macro › Rates and Credit)
   came with the Bonds vs Stocks view this replaced. Tests:
   `tests/test_report_bond_tab.py`.
+- **Bond price history for the iOS app (`scripts/publish_bond_history.py`,
+  2026-11-23):** the bond repo (`~/Projects/bond-analysis-model`, its PR #4;
+  `BOND_HISTORY_DIR` overrides `output/history/`) keeps three history tables:
+  observed N-PORT fund marks (monthly, ~60 days behind), observed FedInvest
+  Treasury prices (daily) and the bond model's own modelled
+  `clean_price_est` (daily, which the app labels as estimates). `publish()`
+  writes them, for the bonds in that night's `bonds.json`, into
+  `docs/app/bond_px/<first two CUSIP characters>.json` (`{v, generated,
+  bonds: {CUSIP: {mark|tsy|est: [[date, clean price per 100], ...]}}}`):
+  ~130 files, not ~9,000 per-bond shards, because Pages refuses more than
+  20,000 files and the site holds ~15,000. On 2026-11-23: 9,055 bonds,
+  680k points, 15 MB, before the 2019 backfill. The daily series (`tsy`,
+  `est`) keep their last 365 days daily and one point a week before, since
+  daily FedInvest from 2019 would put the `91` file (nearly every Treasury)
+  at ~20 MiB against Pages' 25; thinned, ~7 MiB. A file over 20 MiB is
+  skipped with a warning rather than fail the deploy. Format v2 carries
+  the bond-history session's caveats (measured on the 2019-09..2026-07
+  backfill): marks under 5 or over 250 dropped (agency pools, defaulted
+  single-fund marks); a mark's third element 1 = one fund; an estimate's =
+  `mark_age_days`; `flags` from the latest mark (default / arrears /
+  convertible) and `real` for TIPS (real, unindexed prices); `meta.json`
+  `validation` = Treasury marks (3+ funds) vs FedInvest same day (median
+  |diff| 0.027 points, p90 0.187, n 24,880 on 2026-11-23, matching each
+  fund's own report date; the bond session's month-end-keyed 0.016 / 0.115 /
+  8,929). After both backfills (marks 2019-09.., FedInvest 2019-01..):
+  9,055 bonds, 1.04M points, 129 files, 24.4 MiB, `91.json` 4.2 MiB. Estimates
+  cannot be checked against marks until N-PORT 2026q4 (~late January 2027).
+  Best-effort: missing or unreadable
+  history removes the folder, never the night. The app's Charts › Bonds
+  draws it (app PR after #130). Tests: `tests/test_publish_bond_history.py`.
 - **Charts › Stock Comparison history (2026-10-30):** the metric dropdown
   charts a table column over time when it can be rebuilt from filings
   (`_PH_TC2H` → `_PH_METRICS` entries with `tc:1`). Annual ratios (DuPont,

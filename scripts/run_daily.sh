@@ -598,7 +598,7 @@ publish() {
   # Written every time, as the cloud publish does: the shard families are
   # tracked by manifest and conflict copies (a space in the name) never are;
   # _worker.js carries the Access config and is deployed to Cloudflare only.
-  printf 'docs/vol/* *.json\ndocs/px/* *.json\ndocs/hist/* *.json\ndocs/details/* *.json\ndocs/app/detail/* *.json\ndocs/_worker.js\n' \
+  printf 'docs/vol/* *.json\ndocs/px/* *.json\ndocs/hist/* *.json\ndocs/details/* *.json\ndocs/app/detail/* *.json\ndocs/app/bond_px/* *.json\ndocs/_worker.js\n' \
     > "$PAGES_WT/.gitignore" || return 1
   cp "$HTML" "$docs/index.html" || return 1
   cp "$PAGES_HEADERS" "$docs/_headers" || return 1   # Cloudflare headers (inert on GitHub Pages)
@@ -645,6 +645,16 @@ publish() {
       else rm -f "$docs/app/$f"; fi
     done
     cp output/app/manifest.json "$docs/app/manifest.json" || return 1
+    # Bond price history for the app's Charts › Bonds (app/bond_px/, one file
+    # per first two CUSIP characters): the bond repo's output/history/
+    # tables, for the bonds in bonds.json. Best-effort: a failure costs the
+    # history, never the night (scripts/publish_bond_history.py).
+    if [ -f output/bonds.json ]; then
+      "$VPY" scripts/publish_bond_history.py output/bonds.json "$docs/app/bond_px" \
+        || { echo "publish: bond history skipped"; rm -rf "$docs/app/bond_px"; }
+    else
+      rm -rf "$docs/app/bond_px"
+    fi
   else
     rm -rf "$docs/app"
   fi
