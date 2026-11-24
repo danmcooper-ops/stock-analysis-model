@@ -1,15 +1,15 @@
 {
  "version": 1,
- "date": "2026-11-20",
- "prev_date": "2026-11-19",
+ "date": "2026-11-23",
+ "prev_date": "2026-11-20",
  "systemic": {
-  "n": 3896,
-  "prev_n": 3899,
-  "changed": 42,
-  "changed_share": 0.0108,
+  "n": 3908,
+  "prev_n": 3896,
+  "changed": 83,
+  "changed_share": 0.0212,
   "missing_data": 0,
   "missing_share": 0.0,
-  "shrink_share": 0.0008,
+  "shrink_share": 0.0,
   "flood": false,
   "cause": null,
   "message": null,
@@ -30,9 +30,9 @@
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": -0.6115030636931331,
-    "median_score": 50.2,
-    "median_spread": 0.21637024491537635,
+    "median_mos": -1.485948794134863,
+    "median_score": 49.45,
+    "median_spread": 0.2205492302601184,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -60,9 +60,9 @@
      "HOLD": 7,
      "PASS": 5
     },
-    "median_mos": -0.20959497336819444,
-    "median_score": 49.9,
-    "median_spread": 0.24579449604944328,
+    "median_mos": -0.5751626372717579,
+    "median_score": 50.3,
+    "median_spread": 0.25004524427047514,
     "sector_weights": {
      "Technology": 0.2641509433962264,
      "Financial Services": 0.11320754716981131,
@@ -78,32 +78,26 @@
     "concentrated": false,
     "no_sector": 0,
     "upgrades": 0,
-    "downgrades": 1
+    "downgrades": 0
    },
    "alerts": [
     {
-     "ticker": "UL",
-     "from": "LEAN BUY",
-     "to": "HOLD",
-     "score_from": 39.3,
-     "score_to": 38.7,
-     "kind": "reversal",
-     "level": "watch",
-     "reversal_of": "2026-11-19",
-     "message": "UL fell out of the buy zone: LEAN BUY → HOLD (reverses the 2026-11-19 move)",
-     "display": "UL fell below 39 (39.3 → 38.7) (reverses the 2026-11-19 move)",
-     "why": [
-      "Composite score moved 39.3 → 38.7, crossing below the LEAN BUY (39) threshold."
-     ]
-    },
-    {
      "ticker": "BKNG",
      "kind": "buy_below",
-     "mos0": 0.1683,
-     "mos1": 0.1494,
+     "mos0": 0.1494,
+     "mos1": 0.2447,
      "level": "fyi",
-     "into": false,
-     "message": "BKNG rose back above its buy-below price $144.81 (MoS 15% at $144.91)"
+     "into": true,
+     "message": "BKNG's margin of safety rose to 15% or more (MoS 24% at $144.94 against a $191.89 fair value); it becomes Notable if it holds"
+    },
+    {
+     "ticker": "T",
+     "kind": "buy_below",
+     "mos0": -0.0172,
+     "mos1": 0.2261,
+     "level": "fyi",
+     "into": true,
+     "message": "T's margin of safety rose to 15% or more (MoS 23% at $22.30 against a $28.82 fair value); it becomes Notable if it holds"
     }
    ]
   },
@@ -114,31 +108,31 @@
    "mode": "buy_line",
    "missing": [],
    "stats": {
-    "n": 141,
+    "n": 137,
     "ratings": {
-     "BUY": 141,
+     "BUY": 137,
      "LEAN BUY": 0,
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": 0.2386916195868897,
-    "median_score": 60.5,
-    "median_spread": 0.19080071456616898,
+    "median_mos": 0.18925261740503724,
+    "median_score": 60.3,
+    "median_spread": 0.1930859231139803,
     "sector_weights": {
-     "Technology": 0.2836879432624115,
-     "Consumer Defensive": 0.13475177304964533,
-     "Healthcare": 0.13475177304964533,
-     "Industrials": 0.1631205673758865,
-     "Consumer Cyclical": 0.1631205673758865,
-     "Communication Services": 0.05673758865248224,
-     "Basic Materials": 0.06382978723404252
+     "Technology": 0.28467153284671526,
+     "Consumer Defensive": 0.13868613138686137,
+     "Healthcare": 0.13868613138686137,
+     "Industrials": 0.16058394160583944,
+     "Consumer Cyclical": 0.16058394160583944,
+     "Communication Services": 0.058394160583941604,
+     "Basic Materials": 0.058394160583941604
     },
     "top_sector": "Technology",
-    "top_sector_weight": 0.2836879432624115,
-    "hhi": 0.17730496453900713,
+    "top_sector_weight": 0.28467153284671526,
+    "hhi": 0.17789972827534767,
     "concentrated": false,
     "no_sector": 0,
-    "upgrades": 3,
+    "upgrades": 0,
     "downgrades": 0
    },
    "alerts": [
@@ -149,18 +143,20 @@
      "message": "ADSK reports earnings on 2026-11-24"
     },
     {
-     "ticker": "ESEA",
+     "ticker": "AZO",
      "portfolio": "paper",
-     "kind": "joined",
+     "kind": "left",
      "level": "watch",
-     "message": "ESEA joined Paper book (rating LEAN BUY → BUY)",
-     "display": "ESEA joined Paper book (score 56.9 → 57 (rule: score ≥ 57))"
+     "message": "AZO left Paper book (score 57 → 56.9 (rule: score ≥ 57))",
+     "display": "AZO left Paper book (score 57 → 56.9 (rule: score ≥ 57))"
     },
     {
-     "ticker": "IESC",
-     "kind": "earnings_soon",
+     "ticker": "GCT",
+     "portfolio": "paper",
+     "kind": "left",
      "level": "watch",
-     "message": "IESC reports earnings on 2026-11-20"
+     "message": "GCT left Paper book (score 57.4 → 56.7 (rule: score ≥ 57))",
+     "display": "GCT left Paper book (score 57.4 → 56.7 (rule: score ≥ 57))"
     },
     {
      "ticker": "ITRN",
@@ -169,38 +165,20 @@
      "message": "ITRN reports earnings on 2026-11-24"
     },
     {
-     "ticker": "JJSF",
-     "kind": "buy_below",
-     "mos0": 0.2058,
-     "mos1": 0.1797,
-     "level": "watch",
-     "into": true,
-     "confirmed": true,
-     "message": "JJSF has held below its buy-below price $97.74 for two runs (MoS 18% at $94.33)"
-    },
-    {
      "ticker": "KGC",
-     "portfolio": "paper",
-     "kind": "joined",
-     "level": "watch",
-     "message": "KGC joined Paper book (rating LEAN BUY → BUY)",
-     "display": "KGC joined Paper book (score 56.7 → 57.1 (rule: score ≥ 57))"
-    },
-    {
-     "ticker": "MMS",
      "portfolio": "paper",
      "kind": "left",
      "level": "watch",
-     "message": "MMS left Paper book (rating BUY → LEAN BUY)",
-     "display": "MMS left Paper book (score 58.7 → 54.6 (rule: score ≥ 57))"
+     "message": "KGC left Paper book (score 57.1 → 56.6 (rule: score ≥ 57))",
+     "display": "KGC left Paper book (score 57.1 → 56.6 (rule: score ≥ 57))"
     },
     {
-     "ticker": "NXT",
+     "ticker": "STRL",
      "portfolio": "paper",
-     "kind": "joined",
+     "kind": "left",
      "level": "watch",
-     "message": "NXT joined Paper book (rating LEAN BUY → BUY)",
-     "display": "NXT joined Paper book (score 56.4 → 57 (rule: score ≥ 57))"
+     "message": "STRL left Paper book (score 58.6 → 53.8 (rule: score ≥ 57))",
+     "display": "STRL left Paper book (score 58.6 → 53.8 (rule: score ≥ 57))"
     },
     {
      "ticker": "URBN",
@@ -215,65 +193,31 @@
      "message": "VIPS reports earnings on 2026-11-24"
     },
     {
-     "ticker": "ESEA",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "score_from": 56.9,
-     "score_to": 57.0,
-     "kind": "same_side",
+     "ticker": "DPZ",
+     "kind": "buy_below",
+     "mos0": 0.1552,
+     "mos1": 0.0807,
      "level": "fyi",
-     "message": "ESEA LEAN BUY → BUY",
-     "display": "ESEA crossed above 57 (56.9 → 57.0)",
-     "why": [
-      "Composite score moved 56.9 → 57.0, crossing above the BUY (57) threshold."
-     ]
+     "into": false,
+     "message": "DPZ's margin of safety fell back under 15% (MoS 8% at $355.25)"
     },
     {
-     "ticker": "KGC",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "score_from": 56.7,
-     "score_to": 57.1,
-     "kind": "same_side",
+     "ticker": "JJSF",
+     "kind": "buy_below",
+     "mos0": 0.1797,
+     "mos1": 0.1193,
      "level": "fyi",
-     "message": "KGC LEAN BUY → BUY",
-     "display": "KGC crossed above 57 (56.7 → 57.1)",
-     "why": [
-      "Composite score moved 56.7 → 57.1, crossing above the BUY (57) threshold."
-     ]
-    },
-    {
-     "ticker": "NXT",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "score_from": 56.4,
-     "score_to": 57.0,
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "NXT LEAN BUY → BUY",
-     "display": "NXT crossed above 57 (56.4 → 57.0)",
-     "why": [
-      "Composite score moved 56 → 57, crossing above the BUY (57) threshold.",
-      "Biggest category moves: Valuation 43 → 46 (+3)."
-     ]
+     "into": false,
+     "message": "JJSF's margin of safety fell back under 15% (MoS 12% at $94.56)"
     },
     {
      "ticker": "PPC",
      "kind": "buy_below",
-     "mos0": 0.1724,
-     "mos1": 0.0804,
+     "mos0": 0.0804,
+     "mos1": 0.3262,
      "level": "fyi",
-     "into": false,
-     "message": "PPC rose back above its buy-below price $26.43 (MoS 8% at $28.60)"
-    },
-    {
-     "ticker": "URBN",
-     "kind": "buy_below",
-     "mos0": 0.1683,
-     "mos1": 0.1234,
-     "level": "fyi",
-     "into": false,
-     "message": "URBN rose back above its buy-below price $82.01 (MoS 12% at $84.58)"
+     "into": true,
+     "message": "PPC's margin of safety rose to 15% or more (MoS 33% at $28.36 against a $42.09 fair value); it becomes Notable if it holds"
     }
    ]
   }
