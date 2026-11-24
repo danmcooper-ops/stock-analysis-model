@@ -2,6 +2,8 @@
 the digest (text / markdown / JSON) and the GitHub-issue poster."""
 import json
 import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -134,6 +136,7 @@ class TestClassify:
 
 def _digest(tmp_path=None, flood=False, alerts=None):
     return {'version': 1, 'date': DAY, 'prev_date': '2026-09-24',
+            'score_lines': {'BUY': 57.0, 'LEAN BUY': 39.0, 'HOLD': 25.0, 'PASS': 0.0},
             'systemic': {'flood': flood, 'cause': 'data' if flood else None,
                          'message': 'Data problem: 9 of 10 rows are missing a price' if flood else None},
             'portfolios': [{'id': 'semis', 'name': 'Semis', 'mode': 'buy_line', 'missing': [],
@@ -260,6 +263,40 @@ class TestCli:
         cli.main(['--file', str(tmp_path / 'pf.json'), 'alerts', '--replay', '--results-dir', str(res)])
         out = capsys.readouterr().out
         assert '2026-09-25' in out and '1 run(s): CROSSED median 1/run' in out
+
+
+class TestScoreLines:
+    """The digest renders score bands from the JSON's score_lines, so the
+    workflow can run it on a bare runner (no project imports)."""
+
+    def test_bands_from_digest(self):
+        md = pdg.render_markdown(_digest())
+        assert 'score 57+: 1 · score 25–38: 2' in md
+        assert 'crossed the 39 line' in md
+        assert 'BUY:' not in md and 'HOLD:' not in md
+
+    def test_older_digest_without_score_lines(self):
+        d = _digest()
+        del d['score_lines']
+        md = pdg.render_markdown(d)
+        assert 'score top band: 1 · score 3rd band: 2' in md
+        assert 'crossed the upper-band line' in md
+        assert 'BUY' not in pdg.render_text(d).split('\n')[3]
+
+    def test_build_digest_writes_score_lines(self):
+        d = cli.build_digest([], [], [], DAY, None)
+        assert d['score_lines'] == pg.rating_lines()
+
+    def test_runs_without_the_project_on_path(self, tmp_path):
+        # The workflow runs `python scripts/portfolio_digest.py` with nothing
+        # installed; -I -S keep the repo root and site-packages off sys.path.
+        f = tmp_path / 'alerts.json'
+        f.write_text(json.dumps(_digest()), encoding='utf-8')
+        script = Path(pdg.__file__).resolve()
+        r = subprocess.run([sys.executable, '-I', '-S', str(script), 'md', str(f)],
+                           capture_output=True, text=True, cwd=tmp_path)
+        assert r.returncode == 0, r.stderr
+        assert 'score 57+: 1' in r.stdout
 
 
 class TestStatsLine:
