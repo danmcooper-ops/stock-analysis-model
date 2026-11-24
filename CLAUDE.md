@@ -1172,7 +1172,10 @@ ruff check .
   `mark_age_days`; `flags` from the latest mark (default / arrears /
   convertible) and `real` for TIPS (real, unindexed prices); `meta.json`
   `validation` = Treasury marks (3+ funds) vs FedInvest same day (median
-  |diff| 0.016 points, p90 0.115, n 8,929 when first measured). Estimates
+  |diff| 0.027 points, p90 0.187, n 24,880 on 2026-11-23, matching each
+  fund's own report date; the bond session's month-end-keyed 0.016 / 0.115 /
+  8,929). After both backfills (marks 2019-09.., FedInvest 2019-01..):
+  9,055 bonds, 1.04M points, 129 files, 24.4 MiB, `91.json` 4.2 MiB. Estimates
   cannot be checked against marks until N-PORT 2026q4 (~late January 2027).
   Best-effort: missing or unreadable
   history removes the folder, never the night. The app's Charts › Bonds
