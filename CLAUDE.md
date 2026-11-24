@@ -1165,7 +1165,16 @@ ruff check .
   `est`) keep their last 365 days daily and one point a week before, since
   daily FedInvest from 2019 would put the `91` file (nearly every Treasury)
   at ~20 MiB against Pages' 25; thinned, ~7 MiB. A file over 20 MiB is
-  skipped with a warning rather than fail the deploy. Best-effort: missing or unreadable
+  skipped with a warning rather than fail the deploy. Format v2 carries
+  the bond-history session's caveats (measured on the 2019-09..2026-07
+  backfill): marks under 5 or over 250 dropped (agency pools, defaulted
+  single-fund marks); a mark's third element 1 = one fund; an estimate's =
+  `mark_age_days`; `flags` from the latest mark (default / arrears /
+  convertible) and `real` for TIPS (real, unindexed prices); `meta.json`
+  `validation` = Treasury marks (3+ funds) vs FedInvest same day (median
+  |diff| 0.016 points, p90 0.115, n 8,929 when first measured). Estimates
+  cannot be checked against marks until N-PORT 2026q4 (~late January 2027).
+  Best-effort: missing or unreadable
   history removes the folder, never the night. The app's Charts › Bonds
   draws it (app PR after #130). Tests: `tests/test_publish_bond_history.py`.
 - **Charts › Stock Comparison history (2026-10-30):** the metric dropdown

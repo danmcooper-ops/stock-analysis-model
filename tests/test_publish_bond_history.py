@@ -44,7 +44,7 @@ def test_buckets_series_and_pruning(tmp_path, history):
     (dest / 'ZZ.json').write_text('{}', encoding='utf-8')       # stale bucket
     (dest / '46 2.json').write_text('{}', encoding='utf-8')     # iCloud conflict copy
     assert pbh.main([str(bonds), str(dest), '--history-dir', str(src)]) == 0
-    assert sorted(p.name for p in dest.iterdir()) == ['46.json', '91.json']
+    assert sorted(p.name for p in dest.iterdir()) == ['46.json', '91.json', 'meta.json']
     jpm = json.loads((dest / '46.json').read_text(encoding='utf-8'))
     assert jpm['v'] == pbh.VERSION and jpm['generated'] == '2026-11-21'
     b = jpm['bonds']['46647PDX1']
@@ -100,5 +100,47 @@ def test_oversize_bucket_is_skipped(tmp_path, capsys):
     dest = tmp_path / 'bond_px'
     bonds = {'46647PDX1': {'mark': [['2026-05-31', 101.0]]}, '912828XX1': {'tsy': [['2026-11-02', 99.5]] * 50}}
     n = pbh.write(bonds, str(dest), '2026-11-21', max_file_bytes=200)
-    assert n == 1 and sorted(p.name for p in dest.iterdir()) == ['46.json']
+    assert n == 1 and sorted(p.name for p in dest.iterdir()) == ['46.json', 'meta.json']
     assert 'not published' in capsys.readouterr().out
+
+
+def test_findings_filters_flags_and_ages(tmp_path):
+    """The bond-history session's caveats: marks outside 5..250 dropped,
+    single-fund marks tagged, latest-mark flags, estimates carry their mark
+    age, TIPS flagged real."""
+    src = tmp_path / 'h'
+    src.mkdir()
+    pd.DataFrame({
+        'cusip': ['AA0000001'] * 4 + ['912810TIP'],
+        'report_date': pd.to_datetime(['2026-03-31', '2026-04-30', '2026-05-31', '2026-06-30', '2026-06-30']),
+        'month': pd.to_datetime(['2026-03-31', '2026-04-30', '2026-05-31', '2026-06-30', '2026-06-30']),
+        'clean_price_marked': [3.0, 99.0, 260.0, 98.0, 101.0],
+        'n_funds': [1, 1, 5, 4, 6],
+        'is_default': [False, False, False, True, False],
+        'in_arrears': [False] * 5,
+        'is_convertible': [False] * 5,
+    }).to_parquet(src / 'marks_monthly.parquet')
+    pd.DataFrame({'price_date': pd.to_datetime(['2026-06-30']), 'cusip': ['912810TIP'],
+                  'security_type': ['TIPS'], 'end_of_day': [101.01]}).to_parquet(src / 'treasury_daily.parquet')
+    pd.DataFrame({'run_date': pd.to_datetime(['2026-11-20']), 'cusip': ['AA0000001'],
+                  'clean_price_est': [97.5], 'mark_age_days': [143.0]}).to_parquet(src / 'estimates_daily.parquet')
+    bonds = pbh.build(str(src), {'AA0000001', '912810TIP'})
+    a = bonds['AA0000001']
+    assert a['mark'] == [['2026-04-30', 99.0, 1], ['2026-06-30', 98.0]]   # 3 and 260 dropped
+    assert a['flags'] == ['default']
+    assert a['est'] == [['2026-11-20', 97.5, 143]]
+    assert bonds['912810TIP']['flags'] == ['real']
+
+
+def test_validation_compares_same_day_treasury_marks():
+    n = 40
+    days = pd.date_range('2024-01-31', periods=n, freq='ME')
+    marks = pd.DataFrame({'cusip': ['912828AAA'] * n, 'report_date': days,
+                          'clean_price_marked': [100.0 + (0.02 if i % 2 else -0.01) for i in range(n)],
+                          'n_funds': [5] * n})
+    tsy = pd.DataFrame({'cusip': ['912828AAA'] * n, 'price_date': days, 'end_of_day': [100.0] * n})
+    v = pbh.validation(marks, tsy)
+    assert v['n'] == n and v['median_abs'] == pytest.approx(0.015, abs=0.006) and v['min_funds'] == 3
+    # Too few funds, or too few pairs: nothing to say.
+    assert pbh.validation(marks.assign(n_funds=1), tsy) is None
+    assert pbh.validation(marks.head(5), tsy) is None
