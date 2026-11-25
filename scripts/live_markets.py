@@ -24,6 +24,12 @@ Rows by source:
 The board leaves out each row's long ``hist`` (the app keeps the nightly
 one), which keeps the file around 30 KB.
 
+Each equity row also carries ``intra``: its latest session so far in
+5-minute bars from Yahoo's chart endpoint (one call per index), with the
+session's open and close times, the exchange's time zone and the previous
+close. The app draws it when a row is opened while the board is live. An
+intraday failure costs only that row's ``intra``.
+
 Each tick also uploads ``prices`` (served as ``live/prices.json``): every
 company in the app's universe (``app/manifest.json``) with Yahoo's latest
 regular-session price and day change, from the batch quote endpoint (200
@@ -40,6 +46,7 @@ import json
 import os
 import sys
 import time
+import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -66,6 +73,9 @@ INTERVAL_MINUTES = 15
 SESSION_START = (9, 30)
 SESSION_END = (16, 15)              # one tick after the close settles the day
 LIVE_PANELS = ('eq', 'fx', 'cm')    # rebuilt from Yahoo; the rest are copied
+INTRADAY_PANELS = ('eq',)           # rows that carry the session so far
+CHART_URL = 'https://query1.finance.yahoo.com/v8/finance/chart/{}'
+INTRADAY_INTERVAL = '5m'
 
 
 def fx_symbol(ccy):
@@ -103,12 +113,48 @@ def _strip(row):
     return {k: v for k, v in row.items() if k != 'hist'}
 
 
-def build_live_board(nightly, histories, fx_histories, today, updated):
+def intraday_series(result):
+    """One symbol's session so far from a Yahoo chart ``result``, or None. Pure.
+
+    {tz, open, close (epoch s), prev (previous close), t (seconds after
+    open), v}. Bars outside the session and empty bars are dropped."""
+    try:
+        meta = result.get('meta') or {}
+        period = (meta.get('tradingPeriods') or [[None]])[0][0] or \
+            (meta.get('currentTradingPeriod') or {}).get('regular') or {}
+        start, end = int(period['start']), int(period['end'])
+        ts = result.get('timestamp') or []
+        closes = result['indicators']['quote'][0]['close']
+    except (KeyError, IndexError, TypeError, ValueError, AttributeError):
+        return None
+    t, v = [], []
+    for stamp, c in zip(ts, closes):
+        if isinstance(stamp, (int, float)) and isinstance(c, (int, float)) and c > 0 \
+                and start <= stamp <= end:
+            t.append(int(stamp) - start)
+            v.append(round(float(c), 4))
+    if len(v) < 2:
+        return None
+    prev = meta.get('chartPreviousClose') or meta.get('previousClose')
+    return {'tz': meta.get('exchangeTimezoneName') or 'America/New_York',
+            'open': start, 'close': end,
+            'prev': round(float(prev), 4) if isinstance(prev, (int, float)) and prev > 0 else None,
+            't': t, 'v': v}
+
+
+def intraday_symbols(board=None):
+    """The Yahoo symbols whose rows carry ``intra``."""
+    return [m['sym'] for p in board or board_metas() if p['k'] in INTRADAY_PANELS
+            for m in p['rows'] if m['src'] == 'yf']
+
+
+def build_live_board(nightly, histories, fx_histories, today, updated, intraday=None):
     """The live board, or None when no row could be built. Pure.
 
     ``nightly`` is the published board (its rates panel is copied).
     ``histories`` maps a Yahoo symbol to {date: close} including today's bar;
-    ``fx_histories`` maps an FX currency to {date: USD per unit}."""
+    ``fx_histories`` maps an FX currency to {date: USD per unit};
+    ``intraday`` maps a Yahoo symbol to its ``intraday_series``."""
     from scripts.macro_dashboard import _board_row
     copied = {p['k']: p for p in (nightly or {}).get('panels') or []}
     panels = []
@@ -127,7 +173,10 @@ def build_live_board(nightly, histories, fx_histories, today, updated):
                 print(f'  {meta["k"]} skipped ({e})')
                 row = None
             if row:
-                rows.append(_strip(row))
+                row = _strip(row)
+                if p['k'] in INTRADAY_PANELS and (intraday or {}).get(meta['sym']):
+                    row['intra'] = intraday[meta['sym']]
+                rows.append(row)
         if rows:
             panels.append({'k': p['k'], 'l': p['l'], 'rows': rows})
     if not any(p['k'] in LIVE_PANELS for p in panels):
@@ -277,6 +326,26 @@ def fetch_quotes(symbols):
     return out
 
 
+def fetch_intraday(symbols):
+    """{symbol: intraday_series} from Yahoo's chart endpoint; a symbol that
+    fails is left out."""
+    from yfinance.data import YfData
+    from data.macro_client import _yf_session
+    data = YfData(session=_yf_session())
+    out = {}
+    for sym in symbols:
+        try:
+            j = data.get_raw_json(CHART_URL.format(urllib.parse.quote(sym)),
+                                  params={'range': '1d', 'interval': INTRADAY_INTERVAL})
+            series = intraday_series(((j.get('chart') or {}).get('result') or [None])[0] or {})
+        except Exception as e:
+            print(f'  {sym} intraday skipped ({type(e).__name__}: {e})')
+            continue
+        if series:
+            out[sym] = series
+    return out
+
+
 def upload(body, key=KV_KEY):
     acct = os.environ.get('CLOUDFLARE_ACCOUNT_ID')
     ns = os.environ.get('CF_LIVE_KV_NAMESPACE')
@@ -352,8 +421,13 @@ def board_tick(dry_run=False):
         return False
     hist = history_cache(today, yf_syms)
     histories = {s: merge_closes(hist.get(s), recent.get(s)) for s in yf_syms}
+    try:
+        intraday = fetch_intraday(intraday_symbols())
+    except Exception as e:               # the session chart never costs the board
+        print(f'{now:%H:%M} intraday failed: {type(e).__name__}: {e}')
+        intraday = {}
     board = build_live_board(nightly, histories, fx_histories(today, fx_syms, recent), today,
-                             datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))
+                             datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), intraday)
     if not board:
         print(f'{now:%H:%M} no rows built')
         return False

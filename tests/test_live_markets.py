@@ -139,3 +139,40 @@ def test_live_prices_none_when_nothing_traded_today():
     old = [{'symbol': 'AAPL', 'regularMarketPrice': 1.0, 'regularMarketTime': _ts(TODAY - timedelta(days=3), 16, 0)}]
     assert build_live_prices(old, TODAY, 'x', None) is None
     assert build_live_prices([], TODAY, 'x', None) is None
+
+
+def _chart(start=1_795_530_600, n=5, closes=None):
+    return {'meta': {'exchangeTimezoneName': 'America/New_York', 'chartPreviousClose': 7237.17,
+                     'tradingPeriods': [[{'start': start, 'end': start + 23_400}]]},
+            'timestamp': [start - 300] + [start + 300 * i for i in range(n)],
+            'indicators': {'quote': [{'close': closes or [1.0] + [7200.0 + i for i in range(n)]}]}}
+
+
+def test_intraday_series_keeps_session_bars_as_offsets():
+    from scripts.live_markets import intraday_series
+    s = intraday_series(_chart())
+    assert s['tz'] == 'America/New_York' and s['prev'] == 7237.17
+    assert s['close'] - s['open'] == 23_400
+    assert s['t'] == [0, 300, 600, 900, 1200]          # the pre-open bar is dropped
+    assert s['v'] == [7200.0, 7201.0, 7202.0, 7203.0, 7204.0]
+
+
+def test_intraday_series_drops_gaps_and_needs_two_bars():
+    from scripts.live_markets import intraday_series
+    s = intraday_series(_chart(n=3, closes=[None, 7200.0, None, 7202.0]))
+    assert s['t'] == [0, 600] and s['v'] == [7200.0, 7202.0]
+    assert intraday_series(_chart(n=1, closes=[None, 7200.0])) is None
+    assert intraday_series({}) is None
+
+
+def test_board_attaches_intraday_to_equity_rows_only():
+    from scripts.live_markets import intraday_series, intraday_symbols
+    syms = intraday_symbols()
+    assert '^GSPC' in syms and '^N225' in syms and 'CL=F' not in syms
+    spx = intraday_series(_chart())
+    board = build_live_board(_nightly(), {'^GSPC': _series(), '^DJI': _series(), 'CL=F': _series()},
+                             {}, TODAY, 'x', {'^GSPC': spx, 'CL=F': spx})
+    panels = {p['k']: p for p in board['panels']}
+    rows = {r['k']: r for r in panels['eq']['rows']}
+    assert rows['spx']['intra'] == spx and 'intra' not in rows['dji']
+    assert all('intra' not in r for r in panels['cm']['rows'])
