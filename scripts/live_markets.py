@@ -128,7 +128,7 @@ def intraday_series(result):
     except (KeyError, IndexError, TypeError, ValueError, AttributeError):
         return None
     t, v = [], []
-    for stamp, c in zip(ts, closes):
+    for stamp, c in zip(ts, closes, strict=False):
         if isinstance(stamp, (int, float)) and isinstance(c, (int, float)) and c > 0 \
                 and start <= stamp <= end:
             t.append(int(stamp) - start)
