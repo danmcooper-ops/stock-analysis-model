@@ -24,11 +24,14 @@ Rows by source:
 The board leaves out each row's long ``hist`` (the app keeps the nightly
 one), which keeps the file around 30 KB.
 
-Each equity row also carries ``intra``: its latest session so far in
-5-minute bars from Yahoo's chart endpoint (one call per index), with the
-session's open and close times, the exchange's time zone and the previous
-close. The app draws it when a row is opened while the board is live. An
-intraday failure costs only that row's ``intra``.
+Each equity, currency and commodity row also carries ``intra``: its latest
+session so far in 5-minute bars from Yahoo's chart endpoint (one call per
+row), with the session's open and close times, the exchange's time zone and
+the previous close. Futures and FX trade around the clock, so their session
+is Yahoo's day (midnight ET for futures, midnight London for FX, drawn in
+ET). Inverted FX rows (USD/JPY) use Yahoo's direct ``JPY=X`` quote, so no
+precision is lost inverting a tiny number. The app draws it when a row is
+opened in market hours. An intraday failure costs only that row's ``intra``.
 
 Each tick also uploads ``prices`` (served as ``live/prices.json``): every
 company in the app's universe (``app/manifest.json``) with Yahoo's latest
@@ -73,7 +76,7 @@ INTERVAL_MINUTES = 15
 SESSION_START = (9, 30)
 SESSION_END = (16, 15)              # one tick after the close settles the day
 LIVE_PANELS = ('eq', 'fx', 'cm')    # rebuilt from Yahoo; the rest are copied
-INTRADAY_PANELS = ('eq',)           # rows that carry the session so far
+INTRADAY_PANELS = ('eq', 'fx', 'cm')  # rows that carry the session so far
 CHART_URL = 'https://query1.finance.yahoo.com/v8/finance/chart/{}'
 INTRADAY_INTERVAL = '5m'
 
@@ -132,20 +135,29 @@ def intraday_series(result):
         if isinstance(stamp, (int, float)) and isinstance(c, (int, float)) and c > 0 \
                 and start <= stamp <= end:
             t.append(int(stamp) - start)
-            v.append(round(float(c), 4))
+            v.append(float(f'{c:.7g}'))
     if len(v) < 2:
         return None
     prev = meta.get('chartPreviousClose') or meta.get('previousClose')
     return {'tz': meta.get('exchangeTimezoneName') or 'America/New_York',
             'open': start, 'close': end,
-            'prev': round(float(prev), 4) if isinstance(prev, (int, float)) and prev > 0 else None,
+            'prev': float(f'{prev:.7g}') if isinstance(prev, (int, float)) and prev > 0 else None,
             't': t, 'v': v}
 
 
+def intraday_symbol(meta):
+    """The Yahoo chart symbol for a board row's session: its own symbol, or
+    for FX the pair as the row reads it (``EURUSD=X``, or ``JPY=X`` for an
+    inverted USD/JPY row)."""
+    if meta['src'] == 'fx':
+        return f'{meta["sym"]}=X' if meta.get('invert') else fx_symbol(meta['sym'])
+    return meta['sym']
+
+
 def intraday_symbols(board=None):
-    """The Yahoo symbols whose rows carry ``intra``."""
-    return [m['sym'] for p in board or board_metas() if p['k'] in INTRADAY_PANELS
-            for m in p['rows'] if m['src'] == 'yf']
+    """{row symbol: Yahoo chart symbol} for the rows that carry ``intra``."""
+    return {m['sym']: intraday_symbol(m) for p in board or board_metas() if p['k'] in INTRADAY_PANELS
+            for m in p['rows'] if m['src'] in ('yf', 'fx')}
 
 
 def build_live_board(nightly, histories, fx_histories, today, updated, intraday=None):
@@ -175,7 +187,10 @@ def build_live_board(nightly, histories, fx_histories, today, updated, intraday=
             if row:
                 row = _strip(row)
                 if p['k'] in INTRADAY_PANELS and (intraday or {}).get(meta['sym']):
-                    row['intra'] = intraday[meta['sym']]
+                    intra = intraday[meta['sym']]
+                    if meta['src'] == 'fx':      # London's day, read in New York time
+                        intra = dict(intra, tz='America/New_York')
+                    row['intra'] = intra
                 rows.append(row)
         if rows:
             panels.append({'k': p['k'], 'l': p['l'], 'rows': rows})
@@ -327,13 +342,13 @@ def fetch_quotes(symbols):
 
 
 def fetch_intraday(symbols):
-    """{symbol: intraday_series} from Yahoo's chart endpoint; a symbol that
-    fails is left out."""
+    """{row symbol: intraday_series} from Yahoo's chart endpoint, for
+    ``symbols`` = {row symbol: chart symbol}; a symbol that fails is left out."""
     from yfinance.data import YfData
     from data.macro_client import _yf_session
     data = YfData(session=_yf_session())
     out = {}
-    for sym in symbols:
+    for key, sym in symbols.items():
         try:
             j = data.get_raw_json(CHART_URL.format(urllib.parse.quote(sym)),
                                   params={'range': '1d', 'interval': INTRADAY_INTERVAL})
@@ -342,7 +357,7 @@ def fetch_intraday(symbols):
             print(f'  {sym} intraday skipped ({type(e).__name__}: {e})')
             continue
         if series:
-            out[sym] = series
+            out[key] = series
     return out
 
 

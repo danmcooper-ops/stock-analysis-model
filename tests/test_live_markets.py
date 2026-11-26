@@ -165,14 +165,26 @@ def test_intraday_series_drops_gaps_and_needs_two_bars():
     assert intraday_series({}) is None
 
 
-def test_board_attaches_intraday_to_equity_rows_only():
-    from scripts.live_markets import intraday_series, intraday_symbols
+def test_intraday_symbols_cover_live_panels_with_direct_fx_pairs():
+    from scripts.live_markets import intraday_symbols
     syms = intraday_symbols()
-    assert '^GSPC' in syms and '^N225' in syms and 'CL=F' not in syms
+    assert syms['^GSPC'] == '^GSPC' and syms['CL=F'] == 'CL=F' and syms['DX-Y.NYB'] == 'DX-Y.NYB'
+    assert syms['EUR'] == 'EURUSD=X'          # EUR/USD as the row reads it
+    assert syms['JPY'] == 'JPY=X'             # USD/JPY: Yahoo's direct quote, not 1/JPYUSD
+    rates = {m['sym'] for p in BOARD if p['k'] == 'rt' for m in p['rows']}
+    assert not rates & set(syms)
+
+
+def test_board_attaches_intraday_to_live_rows():
+    from scripts.live_markets import intraday_series
     spx = intraday_series(_chart())
+    london = dict(spx, tz='Europe/London')
     board = build_live_board(_nightly(), {'^GSPC': _series(), '^DJI': _series(), 'CL=F': _series()},
-                             {}, TODAY, 'x', {'^GSPC': spx, 'CL=F': spx})
-    panels = {p['k']: p for p in board['panels']}
-    rows = {r['k']: r for r in panels['eq']['rows']}
-    assert rows['spx']['intra'] == spx and 'intra' not in rows['dji']
-    assert all('intra' not in r for r in panels['cm']['rows'])
+                             {'EUR': _series(start=1.0, step=0.001)}, TODAY, 'x',
+                             {'^GSPC': spx, 'CL=F': spx, 'EUR': london})
+    panels = {p['k']: {r['k']: r for r in p['rows']} for p in board['panels']}
+    assert panels['eq']['spx']['intra'] == spx and 'intra' not in panels['eq']['dji']
+    assert panels['cm']['wti']['intra'] == spx
+    # FX's day is London's, drawn in New York time like the rest of the board.
+    assert panels['fx']['eur']['intra'] == dict(spx, tz='America/New_York')
+    assert all('intra' not in r for r in panels['rt'].values())
