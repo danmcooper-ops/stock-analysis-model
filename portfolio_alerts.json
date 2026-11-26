@@ -1,15 +1,15 @@
 {
  "version": 1,
- "date": "2026-11-24",
- "prev_date": "2026-11-23",
+ "date": "2026-11-25",
+ "prev_date": "2026-11-24",
  "systemic": {
-  "n": 3906,
-  "prev_n": 3908,
-  "changed": 21,
-  "changed_share": 0.0054,
+  "n": 3909,
+  "prev_n": 3906,
+  "changed": 17,
+  "changed_share": 0.0043,
   "missing_data": 0,
   "missing_share": 0.0,
-  "shrink_share": 0.0005,
+  "shrink_share": 0.0,
   "flood": false,
   "cause": null,
   "message": null,
@@ -36,9 +36,9 @@
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": -1.3465358681804456,
-    "median_score": 49.5,
-    "median_spread": 0.22081893980653747,
+    "median_mos": -1.355225456044348,
+    "median_score": 49.6,
+    "median_spread": 0.22131851193974988,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -62,13 +62,13 @@
     "n": 53,
     "ratings": {
      "BUY": 12,
-     "LEAN BUY": 30,
-     "HOLD": 6,
+     "LEAN BUY": 29,
+     "HOLD": 7,
      "PASS": 5
     },
-    "median_mos": -0.5369340573411814,
-    "median_score": 50.5,
-    "median_spread": 0.2502452442704751,
+    "median_mos": -0.5222796294629659,
+    "median_score": 50.2,
+    "median_spread": 0.2507452442704751,
     "sector_weights": {
      "Technology": 0.2641509433962264,
      "Financial Services": 0.11320754716981131,
@@ -83,45 +83,23 @@
     "hhi": 0.17906728373086506,
     "concentrated": false,
     "no_sector": 0,
-    "upgrades": 1,
-    "downgrades": 0
+    "upgrades": 0,
+    "downgrades": 1
    },
    "alerts": [
     {
-     "ticker": "BKNG",
-     "kind": "buy_below",
-     "mos0": 0.2447,
-     "mos1": 0.2397,
-     "level": "watch",
-     "into": true,
-     "confirmed": true,
-     "message": "BKNG has held a margin of safety of 15% or more for two runs (MoS 24% at $146.64 against a $192.88 fair value)"
-    },
-    {
-     "ticker": "T",
-     "kind": "buy_below",
-     "mos0": 0.2261,
-     "mos1": 0.2145,
-     "level": "watch",
-     "into": true,
-     "confirmed": true,
-     "message": "T has held a margin of safety of 15% or more for two runs (MoS 21% at $22.88 against a $29.13 fair value)"
-    },
-    {
      "ticker": "UL",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "score_from": 38.1,
-     "score_to": 39.4,
+     "from": "LEAN BUY",
+     "to": "HOLD",
+     "score_from": 39.4,
+     "score_to": 38.8,
      "kind": "reversal",
      "level": "watch",
-     "reversal_of": "2026-11-20",
-     "message": "UL crossed above 39 (38.1 → 39.4) (reverses the 2026-11-20 move)",
-     "display": "UL crossed above 39 (38.1 → 39.4) (reverses the 2026-11-20 move)",
+     "reversal_of": "2026-11-24",
+     "message": "UL fell below 39 (39.4 → 38.8) (reverses the 2026-11-24 move)",
+     "display": "UL fell below 39 (39.4 → 38.8) (reverses the 2026-11-24 move)",
      "why": [
-      "Composite score moved 38 → 39, crossing above the 39 line.",
-      "Biggest category moves: Valuation 31 → 37 (+6).",
-      "Largest metric swings: MoS -9.5% → 1.8% (score 1 → 24)."
+      "Composite score moved 39.4 → 38.8, crossing below the 39 line."
      ]
     }
    ]
@@ -140,32 +118,40 @@
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": 0.2151182149491506,
+    "median_mos": 0.2013826953842407,
     "median_score": 60.5,
-    "median_spread": 0.192150496361362,
+    "median_spread": 0.19433686014488366,
     "sector_weights": {
      "Technology": 0.28985507246376807,
      "Consumer Defensive": 0.13768115942028988,
-     "Healthcare": 0.13768115942028988,
+     "Healthcare": 0.1449275362318841,
      "Industrials": 0.1594202898550725,
      "Consumer Cyclical": 0.1521739130434783,
      "Communication Services": 0.05797101449275362,
-     "Basic Materials": 0.06521739130434782
+     "Basic Materials": 0.05797101449275362
     },
     "top_sector": "Technology",
     "top_sector_weight": 0.28985507246376807,
-    "hhi": 0.1781138416299097,
+    "hhi": 0.17926906112161314,
     "concentrated": false,
     "no_sector": 0,
-    "upgrades": 2,
+    "upgrades": 1,
     "downgrades": 0
    },
    "alerts": [
     {
-     "ticker": "ADSK",
+     "ticker": "BLBD",
      "kind": "earnings_soon",
      "level": "watch",
-     "message": "ADSK reports earnings on 2026-11-24"
+     "message": "BLBD reports earnings on 2026-12-02"
+    },
+    {
+     "ticker": "COR",
+     "portfolio": "paper",
+     "kind": "joined",
+     "level": "watch",
+     "message": "COR joined Paper book (score 53.3 → 57.9 (rule: score ≥ 57))",
+     "display": "COR joined Paper book (score 53.3 → 57.9 (rule: score ≥ 57))"
     },
     {
      "ticker": "CPRT",
@@ -174,56 +160,12 @@
      "message": "CPRT reports earnings on 2026-12-01"
     },
     {
-     "ticker": "GCT",
-     "portfolio": "paper",
-     "kind": "joined",
-     "level": "watch",
-     "message": "GCT joined Paper book (score 56.7 → 57.1 (rule: score ≥ 57))",
-     "display": "GCT joined Paper book (score 56.7 → 57.1 (rule: score ≥ 57))"
-    },
-    {
-     "ticker": "ITRN",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "ITRN reports earnings on 2026-11-24"
-    },
-    {
      "ticker": "KGC",
-     "portfolio": "paper",
-     "kind": "joined",
-     "level": "watch",
-     "message": "KGC joined Paper book (score 56.6 → 57 (rule: score ≥ 57))",
-     "display": "KGC joined Paper book (score 56.6 → 57 (rule: score ≥ 57))"
-    },
-    {
-     "ticker": "PPC",
-     "kind": "buy_below",
-     "mos0": 0.3262,
-     "mos1": 0.3179,
-     "level": "watch",
-     "into": true,
-     "confirmed": true,
-     "message": "PPC has held a margin of safety of 15% or more for two runs (MoS 32% at $28.79 against a $42.21 fair value)"
-    },
-    {
-     "ticker": "TPR",
      "portfolio": "paper",
      "kind": "left",
      "level": "watch",
-     "message": "TPR left Paper book (score 57.1 → 56.9 (rule: score ≥ 57))",
-     "display": "TPR left Paper book (score 57.1 → 56.9 (rule: score ≥ 57))"
-    },
-    {
-     "ticker": "URBN",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "URBN reports earnings on 2026-11-24"
-    },
-    {
-     "ticker": "VIPS",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "VIPS reports earnings on 2026-11-24"
+     "message": "KGC left Paper book (score 57 → 56.5 (rule: score ≥ 57))",
+     "display": "KGC left Paper book (score 57 → 56.5 (rule: score ≥ 57))"
     },
     {
      "ticker": "VLGEA",
@@ -232,50 +174,29 @@
      "message": "VLGEA reports earnings on 2026-12-01"
     },
     {
-     "ticker": "GCT",
+     "ticker": "COR",
      "from": "LEAN BUY",
      "to": "BUY",
-     "score_from": 56.7,
-     "score_to": 57.1,
+     "score_from": 53.3,
+     "score_to": 57.9,
      "kind": "same_side",
      "level": "fyi",
-     "message": "GCT crossed above 57 (56.7 → 57.1)",
-     "display": "GCT crossed above 57 (56.7 → 57.1)",
+     "message": "COR crossed above 57 (53.3 → 57.9)",
+     "display": "COR crossed above 57 (53.3 → 57.9)",
      "why": [
-      "Composite score moved 56.7 → 57.1, crossing above the 57 line."
+      "Composite score moved 53 → 58, crossing above the 57 line.",
+      "Biggest category moves: Valuation 30 → 46 (+15), Moat 48 → 54 (+6).",
+      "Largest metric swings: MoS 26.1% → 38.1% (score 72 → 96); Mult vs Hist 90.3% → 27.3% (score 6 → 48)."
      ]
     },
     {
-     "ticker": "KGC",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "score_from": 56.6,
-     "score_to": 57.0,
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "KGC crossed above 57 (56.6 → 57.0)",
-     "display": "KGC crossed above 57 (56.6 → 57.0)",
-     "why": [
-      "Composite score moved 56.6 → 57.0, crossing above the 57 line."
-     ]
-    },
-    {
-     "ticker": "SFM",
+     "ticker": "URBN",
      "kind": "buy_below",
-     "mos0": 0.1601,
-     "mos1": 0.144,
+     "mos0": 0.0807,
+     "mos1": 0.1817,
      "level": "fyi",
-     "into": false,
-     "message": "SFM's margin of safety fell back under 15% (MoS 14% at $51.79)"
-    },
-    {
-     "ticker": "UTHR",
-     "kind": "buy_below",
-     "mos0": 0.1542,
-     "mos1": 0.1196,
-     "level": "fyi",
-     "into": false,
-     "message": "UTHR's margin of safety fell back under 15% (MoS 12% at $585.25)"
+     "into": true,
+     "message": "URBN's margin of safety rose to 15% or more (MoS 18% at $76.74 against a $93.78 fair value); it becomes Notable if it holds"
     }
    ]
   }
