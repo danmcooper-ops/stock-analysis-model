@@ -2042,25 +2042,35 @@ by analyze_stock and gitignored):
   each row's `hist`, `summary.board`, so it paints first. It is display
   only, and its numbers are not handed to the narrative. Tests:
   `tests/test_macro_board.py`. Below it are four
-  cards read top down: The US Economy (the call, `bottom_line`, which names the
-  regime, so no separate regime name or gloss unless there is no bottom
-  line; then the regime model's inputs, Regime signals with the composite,
-  and the scoring ?), The Conditions (the three economy sections, each a
-  lead sentence and bullets ending in a Full charts link to its sub-tab,
-  which charts every number once) and What to Watch (`watch`), with The
-  International Economy second, between The US Economy and The Conditions
-  (`_macIntlHTML`, schema v9 `international`: one paragraph of 2-3
-  sentences from the same Claude call, set as the bottom line is — where
-  the world stands, the cross-border tension that matters, and what it
-  means for US equities; v8's lead, per-region points and spillover line
-  read as a list and were cut the same day). The card reads
-  the `intl` series family (sub-tab International): policy rate, 10-year
-  yield, 1-year equity return and currency per region, plus euro-area
-  HICP. FRED's OECD CPIs for the UK, Japan and China are dead (probed
+  cards read top down (schema v10, 2026-11-27): The World Economy
+  (`_macIntlHTML`, `world`: one paragraph of 3-4 sentences, set as the
+  bottom line is — where the world stands, the force that matters most
+  across borders, and what it means for the US), The US Economy (the call,
+  `bottom_line`, which names the regime, so no separate regime name or
+  gloss unless there is no bottom line; then the regime model's inputs,
+  Regime signals with the composite, and the scoring ?), The Conditions
+  (the three US economy sections, then — under "United States" / "World"
+  subheads — the three world sections, `world_paragraphs`: Global growth &
+  trade, Policy & currencies, Commodities & supply; each a lead sentence
+  and bullets ending in a Full charts link to its sub-tab) and What to
+  Watch (`watch`, then `world_watch`, grouped the same way). The world
+  fields are written narrative heavy, numbers light (one figure per
+  sentence at most) and sit apart from `paragraphs`/`watch` because shipped
+  app builds read those as exactly three each; `international` is kept as
+  a copy of `world` for pre-v10 readers. v9's `international` paragraph
+  was the second card (v8's lead, per-region points and spillover line
+  read as a list and were cut the same day). The world fields read
+  the `intl` series family (sub-tab International): a Global group (the
+  broad dollar `DTWEXBGS`, Korea's exports YoY), Germany's and China's OECD
+  leading indicators (100 = trend; the OECD-total and euro-area CLIs on
+  FRED stopped in 2022, probed 2026-11-27), China's exports YoY, and
+  policy rate, 10-year yield, 1-year equity return and currency per region,
+  plus euro-area HICP; `build_macro_facts` also copies Brent, copper and
+  the IMF food and all-commodity indices into `international.commodities`. FRED's OECD CPIs for the UK, Japan and China are dead (probed
   2026-10-27), and Yahoo's CSI 300 returns one bar, so China is MCHI.
   `build_macro_facts` hands the intl series over as their own
   `international` block, so the US sections are written from US series
-  only. Without a v9 narrative the card shows the inline summary's
+  only. Without a v9/v10 narrative the World card shows the inline summary's
   per-region grid (`summary.intl`, `_intl_of`). Display only: nothing
   international feeds the regime, a rating or a sector force. Any series
   whose last observation is further behind than `STALE_AFTER_DAYS` allows

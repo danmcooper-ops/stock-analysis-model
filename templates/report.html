@@ -2670,6 +2670,8 @@ body.wide-table .container{padding-left:0;padding-right:0;}
    as The US Economy's bottom line is, or, with no narrative, a grid of each
    region's readings. */
 .mac-intl-card .mac-lead{margin-bottom:6px;}
+.mac-group-h{font-size:0.72em;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);margin:14px 0 4px;padding-bottom:4px;border-bottom:1px solid var(--mac-line);}
+.sec-label+.mac-group-h{margin-top:0;}
 .mac-intl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:4px 24px;}
 .mac-intl-grid .mac-nar-k{margin-top:10px;}
 .mac-intl-rows{list-style:none;margin:0 0 6px;padding:0;font-size:0.9em;}
@@ -15600,7 +15602,7 @@ var _MAC_SEC_INTRO={
   credit:'Investment-grade and high-yield option-adjusted spreads are the extra yield investors demand over Treasuries to hold corporate debt: they widen when default risk is being priced in and tighten when credit is easy. The Chicago Fed NFCI folds more than a hundred money-market, debt and equity measures into one index, where a reading above zero means conditions are tighter than average. The Fed balance sheet and M2 growth track how much liquidity is in the system, and the broad dollar index shows the currency\u2019s weight on exporters and on multinationals\u2019 overseas earnings. The rating table at the bottom breaks the spreads out from AAA to CCC, where the lowest tiers move first when stress builds.',
   housing:'Housing starts count the homes builders are breaking ground on, the most rate-sensitive corner of the economy, and the 30-year mortgage rate is the cost that governs them. Case\u2013Shiller home prices, year over year, track the largest asset most households own. Consumer sentiment gauges how households feel about their finances and the year ahead, and the personal savings rate shows whether they are building a cushion or spending it down to keep consumption going. Consumer credit growth, year over year (card balances plus auto and student loans, the Fed\u2019s G.19), shows how fast households are borrowing to fund that spending. Sliding sentiment alongside a shrinking savings rate is the classic late-cycle squeeze.',
   commodities:'These are the price decks Energy and Basic Materials earn on and the input costs much of the rest of the market pays. A producer does not set them, so a move here flows almost straight to revenue and margins. Energy: WTI is the crude price US producers sell into and Brent the global benchmark most of the world\'s oil is priced off; retail gasoline is what consumers pay at the pump, and Gulf Coast jet fuel is the largest variable cost airlines carry. Henry Hub natural gas runs the other way for most of the market: it is the fuel cost of gas-fired power and the feedstock of fertilizer and chemicals makers, as well as the price gas-weighted producers sell at. European gas is the price US LNG exporters arbitrage against. Thermal coal and uranium are the fuel decks of coal miners and of nuclear power, and the average electricity price (the BLS US city average per kilowatt-hour, in cents) is the revenue line of regulated utilities and a power cost for everyone else. Metals: gold and silver are the front-month COMEX futures in dollars an ounce, the price decks of precious-metals miners and the market\'s hedge against inflation, a weak dollar and stress; copper tracks construction, grid and electrification demand worldwide; aluminum, nickel and iron ore are the decks of aluminum smelters, battery and stainless supply chains and steelmakers, and the steel PPI is what autos, machinery and builders pay for it. Farm and forest: the lumber PPI is the homebuilders\' framing cost; wheat, corn and soybeans are the crops grain traders, food makers and farm-equipment and fertilizer suppliers live on, and the IMF food price index (monthly, a few months behind) is the evidence for Consumer Defensive\'s input-cost headwind. The IMF all-commodity index sums the whole complex. Read each against its own range rather than its last move, because all of them swing far more than the economy beneath them. The IMF and PPI series are monthly and run a month or two behind. Gold and silver come from Yahoo, because FRED stopped carrying the London precious-metals prices in 2022.',
-  intl:'The world economy, region by region: the euro area, the United Kingdom, Japan, China and emerging markets. For each, the central bank\'s policy rate, the 10-year government bond yield, the stock market\'s return over the past year and the currency against the dollar. Policy rates and yields moving apart from the Fed\'s and the Treasury\'s drive the dollar, and a strong dollar shrinks the overseas earnings of US multinationals when they are converted back. The European, UK and Japanese stock indexes are in local currency; China (MSCI China, MCHI) and emerging markets (EEM) are dollar ETFs. EUR/USD and GBP/USD are dollars per euro or pound, so a rise is a weaker dollar; USD/JPY and USD/CNY are yen or yuan per dollar, so a rise is a stronger one. Euro-area HICP is the region\'s inflation; FRED no longer carries current consumer prices for the UK, Japan or China. The Japanese call rate and the German, UK and Japanese 10-year yields are monthly OECD series and land a month or two behind. A card marked not updating has fallen further behind than its schedule. None of this feeds the regime model or any rating.'
+  intl:'The world economy, globally and then region by region. The Global group is the broad trade-weighted dollar and Korea\'s exports over the past year, the earliest read on world trade. Germany\'s and China\'s OECD leading indicators read against 100, their trend, and China\'s exports show its pull on world demand. Then, for the euro area, the United Kingdom, Japan, China and emerging markets: the central bank\'s policy rate, the 10-year government bond yield, the stock market\'s return over the past year and the currency against the dollar. Policy rates and yields moving apart from the Fed\'s and the Treasury\'s drive the dollar, and a strong dollar shrinks the overseas earnings of US multinationals when they are converted back. The European, UK and Japanese stock indexes are in local currency; China (MSCI China, MCHI) and emerging markets (EEM) are dollar ETFs. EUR/USD and GBP/USD are dollars per euro or pound, so a rise is a weaker dollar; USD/JPY and USD/CNY are yen or yuan per dollar, so a rise is a stronger one. Euro-area HICP is the region\'s inflation; FRED no longer carries current consumer prices for the UK, Japan or China. The Japanese call rate and the German, UK and Japanese 10-year yields are monthly OECD series and land a month or two behind. A card marked not updating has fallen further behind than its schedule. None of this feeds the regime model or any rating.'
 };
 function _macIntroHTML(k){
   var t=_MAC_SEC_INTRO[k];
@@ -15784,29 +15786,47 @@ function _macNarrativeHTML(){
      sector influence to its name and kicker; the chevron (or a tap on the
      kicker) opens the rest (_macFold). Desktop shows everything. */
   var FOLD='<button type="button" class="mac-fold-btn" aria-expanded="false" aria-label="Show more" onclick="_macFold(this,event)"><i class="ppf-chev" aria-hidden="true"></i></button>';
-  ps.forEach(function(p,i){
-    var ss=_macSentences(p);
-    if(!ss.length)return;
-    h+='<div class="mac-fold">';
-    if(KICK[i])h+='<div class="mac-nar-k mac-fold-h" onclick="_macFold(this,event)">'+FOLD+KICK[i]+'</div>';
-    h+='<p class="mac-nar-p">'+_esc(ss[0])+'</p><div class="mac-fold-b">';
-    if(ss.length>1){
-      h+='<ul class="mac-nar-ul">';
-      ss.slice(1).forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
-      h+='</ul>';
-    }
-    if(KICK[i]&&_MAC_NAR_SEC[i])h+='<a class="mac-more" href="#" onclick="navGo(\'macro\',\''+_MAC_NAR_SEC[i]+'\');return false">Full charts ›</a>';
-    h+='</div></div>';
-  });
+  /* Schema v10 adds the world's three sections and watch items; with them
+     each card reads in two groups, the US first, each under a subhead. */
+  var wps=(nar.world_paragraphs||[]).filter(Boolean);
+  var WKICK=wps.length===3?['Global growth & trade','Policy & currencies','Commodities & supply']:[];
+  var WSEC=['intl','intl','commodities'];
+  function sections(list,kick,secs){
+    list.forEach(function(p,i){
+      var ss=_macSentences(p);
+      if(!ss.length)return;
+      h+='<div class="mac-fold">';
+      if(kick[i])h+='<div class="mac-nar-k mac-fold-h" onclick="_macFold(this,event)">'+FOLD+kick[i]+'</div>';
+      h+='<p class="mac-nar-p">'+_esc(ss[0])+'</p><div class="mac-fold-b">';
+      if(ss.length>1){
+        h+='<ul class="mac-nar-ul">';
+        ss.slice(1).forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
+        h+='</ul>';
+      }
+      if(kick[i]&&secs[i])h+='<a class="mac-more" href="#" onclick="navGo(\'macro\',\''+secs[i]+'\');return false">Full charts ›</a>';
+      h+='</div></div>';
+    });
+  }
+  var SUB=function(t){return '<div class="mac-group-h">'+t+'</div>';};
+  if(wps.length)h+=SUB('United States');
+  sections(ps,KICK,_MAC_NAR_SEC);
+  if(wps.length){h+=SUB('World');sections(wps,WKICK,WSEC);}
   /* What to watch (schema v7): the readings that would change the call.
      An older narrative has no watch list and keeps The balance, its
      economy-wide tailwinds and headwinds. */
   var watch=(nar.watch||[]).filter(Boolean);
+  var wwatch=(nar.world_watch||[]).filter(Boolean);
   var tw=(nar.tailwinds||[]).filter(Boolean),hw=(nar.headwinds||[]).filter(Boolean);
   if(watch.length){
     h+='</div><div class="mac-card mac-narrative mac-watch-card"><div class="sec-label">What to Watch</div><ul class="mac-nar-ul mac-watch">';
+    if(wwatch.length)h=h.replace(/<ul class="mac-nar-ul mac-watch">$/,SUB('United States')+'<ul class="mac-nar-ul mac-watch">');
     watch.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
     h+='</ul>';
+    if(wwatch.length){
+      h+=SUB('World')+'<ul class="mac-nar-ul mac-watch">';
+      wwatch.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
+      h+='</ul>';
+    }
   }else if(tw.length||hw.length){
     h+='<div class="mac-fold"><div class="mac-nar-k mac-fold-h" onclick="_macFold(this,event)">'+FOLD+'The balance</div><div class="mac-fold-b">';
     if(tw.length){
@@ -15825,19 +15845,21 @@ function _macNarrativeHTML(){
   h+='</div>';
   return h;
 }
-/* The International Economy card, second on the Overview. With a v9
-   narrative: one paragraph from the same Claude call as The US Economy's
-   bottom line, set the same way. Without one (no API key, an older cache):
+/* The World Economy card, first on the Overview (schema v10 `world`; a v9
+   cache's `international` paragraph reads the same way). One paragraph
+   from the same Claude call as The US Economy's bottom line, set the same
+   way. Without one (no API key, an older cache):
    each region's readings and 1-year changes from the inline summary's grid
    (macro_dashboard._intl_of), so the card never depends on Claude. Either
    way it ends in the International sub-tab's charts. Model text passes
    through _esc(). */
 function _macIntlHTML(){
   var nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
-  var para=nar&&typeof nar.international==='string'?nar.international.trim():'';
+  var one=nar&&(nar.world||nar.international);
+  var para=typeof one==='string'?one.trim():'';
   var grid=(MACRO_SUM&&MACRO_SUM.intl)||[];
   if(!para&&!grid.length)return '';
-  var h='<div class="mac-card mac-narrative mac-intl-card"><div class="sec-label">The International Economy</div>';
+  var h='<div class="mac-card mac-narrative mac-intl-card"><div class="sec-label">The World Economy</div>';
   if(para){
     h+='<p class="mac-read mac-lead">'+_esc(para)+'</p>';
   }else{
@@ -15919,11 +15941,11 @@ function _macOverviewHTML(){
      and what to watch. Every indicator's card lives once, on its section
      sub-tab (Rates & Curve, Inflation, Growth & Labor, Credit, …); the
      Overview does not repeat any of them as headline tiles. */
-  /* Four cards: The US Economy (the call and the regime signals), The
-     International Economy (the world it sits in), The Conditions (why),
-     What to Watch (what would change the call). */
+  /* Four cards: The World Economy (the world first), The US Economy (the
+     call and the regime signals), The Conditions (why: the US sections,
+     then the world's) and What to Watch (what would change either call). */
   var h='<div class="mac-overview">';
-  h+=_macBoardHTML()+_macRegimeHTML(true)+_macIntlHTML()+_macNarrativeHTML();
+  h+=_macBoardHTML()+_macIntlHTML()+_macRegimeHTML(true)+_macNarrativeHTML();
   if(!MACRO)h+=_macStatusNote();
   h+='</div>';
   return h;
