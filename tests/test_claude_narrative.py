@@ -12,7 +12,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from data.claude_narrative import (
     BOTTOM_LINE_MAX_WORDS, GICS_SECTORS, NARRATIVE_SCHEMA,
-    OVERVIEW_WORD_BUDGET, SCHEMA_VERSION, WORLD_MAX_WORDS,
+    OVERVIEW_WORD_BUDGET, SCHEMA_VERSION, SECTION_READ_KEYS,
+    SECTION_READ_MAX_WORDS, WORLD_MAX_WORDS,
     SYSTEM_PROMPT, ClaudeNarrativeClient, build_macro_facts,
     overview_word_count,
 )
@@ -160,7 +161,7 @@ class TestBuildMacroFacts:
         assert list(props)[0] == 'bottom_line', 'written before the argument'
         assert set(NARRATIVE_SCHEMA['required']) == {
             'world', 'bottom_line', 'paragraphs', 'watch',
-            'world_paragraphs', 'world_watch', 'sectors'}
+            'world_paragraphs', 'world_watch', 'sectors', 'section_reads'}
         assert 'headwinds' not in props and 'tailwinds' not in props
         p = SYSTEM_PROMPT
         assert "square with the regime model's label" in p
@@ -193,6 +194,26 @@ class TestBuildMacroFacts:
                                     'world_paragraphs': ['f g.'],
                                     'world_watch': ['h']}) == 8
         assert overview_word_count({'international': 'c d e'}) == 3
+
+    def test_v12_section_reads_one_per_factor_page(self):
+        """Each Macro Outlook factor page gets a read of its own charts,
+        interpreted rather than described, pinned by key so none is
+        missing."""
+        from scripts.macro_dashboard import SECTIONS
+        assert SCHEMA_VERSION >= 12
+        assert set(SECTION_READ_KEYS) == {s['k'] for s in SECTIONS}
+        prop = NARRATIVE_SCHEMA['properties']['section_reads']
+        assert prop['required'] == list(SECTION_READ_KEYS)
+        assert prop['additionalProperties'] is False
+        assert 'section_reads' in NARRATIVE_SCHEMA['required']
+        assert list(NARRATIVE_SCHEMA['properties'])[-1] == 'section_reads', \
+            'written last, after the argument'
+        p = SYSTEM_PROMPT
+        assert '- section_reads:' in p
+        assert 'Interpret, never describe' in p
+        assert f'{SECTION_READ_MAX_WORDS} words maximum' in p
+        assert overview_word_count({'section_reads': {'rates': 'a b c'}}) == 0, \
+            'the reads are on their own pages, not the Overview'
 
     def test_v11_economy_cards_read_three_sentences_longer(self):
         """The World Economy and The US Economy each run three sentences

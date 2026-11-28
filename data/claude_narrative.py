@@ -83,7 +83,11 @@ REQUEST_TIMEOUT_S = 900
 #      longer — world 6 or 7 sentences (140 words), bottom_line 5 or 6
 #      (120 words). Same shape; bumped so a same-day v10 cache is not
 #      replayed.
-SCHEMA_VERSION = 11
+# v12: `section_reads` — one read per Macro Outlook factor page (rates,
+#      inflation, growth, credit, housing, commodities, intl), what that
+#      page's charts say about conditions in that area alone, shown at the
+#      top of the page in place of a description of the charts.
+SCHEMA_VERSION = 12
 
 # Ceilings for the v7 and v9 fields, in words; counted post-parse, never
 # enforced.
@@ -136,6 +140,12 @@ _PARAGRAPH_SCHEMA = {
 PARAGRAPH_KEYS = ('growth_labor', 'inflation_rates', 'credit_conditions')
 WORLD_PARAGRAPH_KEYS = ('global_growth_trade', 'policy_currencies',
                         'commodities_supply')
+# The Macro Outlook factor pages, by their `sections[].k`; each page's
+# series carry the same `sec` key (the dollar index, on Credit's page, is
+# `intl`).
+SECTION_READ_KEYS = ('rates', 'inflation', 'growth', 'credit', 'housing',
+                     'commodities', 'intl')
+SECTION_READ_MAX_WORDS = 90
 
 NARRATIVE_SCHEMA = {
     'type': 'object',
@@ -190,9 +200,18 @@ NARRATIVE_SCHEMA = {
                 'additionalProperties': False,
             },
         },
+        # One read per factor page, written last; pinned keys as for
+        # paragraphs, so each page gets exactly one.
+        'section_reads': {
+            'type': 'object',
+            'properties': {k: {'type': 'string'} for k in SECTION_READ_KEYS},
+            'required': list(SECTION_READ_KEYS),
+            'additionalProperties': False,
+        },
     },
     'required': ['world', 'bottom_line', 'paragraphs', 'watch',
-                 'world_paragraphs', 'world_watch', 'sectors'],
+                 'world_paragraphs', 'world_watch', 'sectors',
+                 'section_reads'],
     'additionalProperties': False,
 }
 
@@ -314,7 +333,26 @@ SYSTEM_PROMPT = (
     "Economist's tradition (e.g. 'Banks bank the curve', 'Rates tax the "
     "growth premium'); sentence case, no terminal period.\n"
     "  stance: the net effect of today's macro backdrop on the sector, read "
-    'against its structural position — tailwind, neutral, or headwind.'
+    'against its structural position — tailwind, neutral, or headwind.\n'
+    '- section_reads: one read for each factor page of the Macro Outlook, '
+    'printed at the top of that page above its charts — rates (the '
+    'Treasury yield curve now, a month ago and a year ago, the 10-year '
+    'yield, fed funds, the 10-year real yield and the 10Y-2Y and 10Y-3M '
+    "spreads), inflation, growth (output and the labor market), credit "
+    '(spreads, financial conditions, the Fed balance sheet, M2 and the '
+    'dollar), housing (housing and the consumer), commodities (energy, '
+    "metals and food) and intl (the 'international' block). Each is "
+    "written from that page's series only — the series whose 'sec' key "
+    'matches, the curve for rates, the international block for intl — '
+    'and is a summary of conditions in that area alone: what the readings '
+    'say together, the one development that matters most, and where that '
+    'part of the economy is heading. Interpret, never describe: no '
+    "sentences about what a chart plots or how to read it ('the chart "
+    "shows', 'the cards below', 'a dip below the zero line'). 3 or 4 "
+    f'sentences, {SECTION_READ_MAX_WORDS} words maximum, at most three '
+    'figures, each explained. Each page is read on its own, so the '
+    'say-each-figure-once rule does not apply across pages or to the '
+    'Overview; still name no other page\'s indicators.'
 )
 
 # Per-series keys worth showing the model; 'hist' (hundreds of points per
@@ -617,6 +655,16 @@ class ClaudeNarrativeClient:
                 1.25 * BOTTOM_LINE_MAX_WORDS:
             logger.warning('macro narrative: bottom line runs %d words',
                            len(str(narrative.get('bottom_line')).split()))
+        reads = narrative.get('section_reads')
+        if not isinstance(reads, dict) or \
+                set(reads) != set(SECTION_READ_KEYS):
+            logger.warning('macro narrative: section reads %s',
+                           sorted(reads) if isinstance(reads, dict) else reads)
+        else:
+            long = [k for k, v in reads.items()
+                    if len(str(v or '').split()) > 1.25 * SECTION_READ_MAX_WORDS]
+            if long:
+                logger.warning('macro narrative: long section reads %s', long)
         words = overview_word_count(narrative)
         log = logger.warning if words > 1.25 * OVERVIEW_WORD_BUDGET \
             else logger.info

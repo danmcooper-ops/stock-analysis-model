@@ -2095,6 +2095,11 @@ by analyze_stock and gitignored):
   sector's own structural read, and each influence paragraph weighs
   today's macro forces against that same list (`build_macro_facts` passes
   it as the sector's `structural` facts). The narrative's
+  narrative also writes `section_reads` (schema v12, 2026-11-28): one read
+  per factor page (`SECTION_READ_KEYS` = the `SECTIONS` keys), interpreting
+  that page's charts as a summary of conditions in that area alone, 3-4
+  sentences; the app sets it at the top of each page in place of its
+  fixed description of the charts. The narrative's
   shape is versioned (`SCHEMA_VERSION` in `data/claude_narrative.py`): the
   day cache is keyed by date alone and a hit skips every post-parse check,
   so a shape change must bump it or the cache replays the old shape.
