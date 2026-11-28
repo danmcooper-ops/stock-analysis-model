@@ -11,7 +11,8 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from data.claude_narrative import (
-    GICS_SECTORS, NARRATIVE_SCHEMA, SCHEMA_VERSION,
+    BOTTOM_LINE_MAX_WORDS, GICS_SECTORS, NARRATIVE_SCHEMA,
+    OVERVIEW_WORD_BUDGET, SCHEMA_VERSION, WORLD_MAX_WORDS,
     SYSTEM_PROMPT, ClaudeNarrativeClient, build_macro_facts,
     overview_word_count,
 )
@@ -182,7 +183,7 @@ class TestBuildMacroFacts:
         assert list(props).index('world') > list(props).index('watch'), \
             'the US call is still written first'
         p = SYSTEM_PROMPT
-        assert '- world: 3 or 4 sentences' in p
+        assert '- world: 6 or 7 sentences' in p
         assert 'narrative heavy and numbers light' in p
         assert 'at most one figure per sentence' in p
         assert 'stale may be cited only with its month' in p
@@ -192,6 +193,16 @@ class TestBuildMacroFacts:
                                     'world_paragraphs': ['f g.'],
                                     'world_watch': ['h']}) == 8
         assert overview_word_count({'international': 'c d e'}) == 3
+
+    def test_v11_economy_cards_read_three_sentences_longer(self):
+        """The World Economy and The US Economy each run three sentences
+        past their v10 lengths (world 3-4, bottom line 2-3)."""
+        assert SCHEMA_VERSION >= 11
+        assert WORLD_MAX_WORDS == 140 and BOTTOM_LINE_MAX_WORDS == 120
+        assert OVERVIEW_WORD_BUDGET == 1250
+        p = SYSTEM_PROMPT
+        assert '- world: 6 or 7 sentences, 140 words maximum' in p
+        assert '- bottom_line: 5 or 6 sentences, 120 words maximum' in p
 
     def test_international_series_are_split_out_by_region(self):
         sc = _sidecar()
@@ -228,7 +239,7 @@ class TestBuildMacroFacts:
         rounding rule that keeps '1.5th percentile' off the page."""
         p = SYSTEM_PROMPT
         assert 'influence:' in p and '30 to 40 words in all' in p
-        assert 'total about 1130 words' in p
+        assert 'total about 1250 words' in p
         assert 'MECHANISM' in p, 'influence explains channels, not bullets'
         assert 'explain it rather than list it' in p
         assert 'lead: ONE sentence' in p and 'points:' in p

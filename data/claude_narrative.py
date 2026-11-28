@@ -79,14 +79,18 @@ REQUEST_TIMEOUT_S = 900
 #      narrative heavy and numbers light from the international block, which
 #      now carries global growth and trade series and a few commodities.
 #      `international` stays, a copy of `world`, for pre-v10 readers.
-SCHEMA_VERSION = 10
+# v11: The World Economy and The US Economy each read three sentences
+#      longer — world 6 or 7 sentences (140 words), bottom_line 5 or 6
+#      (120 words). Same shape; bumped so a same-day v10 cache is not
+#      replayed.
+SCHEMA_VERSION = 11
 
 # Ceilings for the v7 and v9 fields, in words; counted post-parse, never
 # enforced.
-BOTTOM_LINE_MAX_WORDS = 60
+BOTTOM_LINE_MAX_WORDS = 120
 WATCH_ITEMS = 3
 INTERNATIONAL_MAX_WORDS = 60
-WORLD_MAX_WORDS = 80
+WORLD_MAX_WORDS = 140
 
 # Advisory floor for a sector's influence paragraph, only ever counted:
 # under it the Overview is back to reading like a kicker, which is what
@@ -103,7 +107,9 @@ MIN_INFLUENCE_WORDS = 20
 # v10 adds the world paragraph (80, in place of international's 60), three
 # world factors (3 x (20 + 3 x 20)) and three world watch items (3 x 20):
 # ~810 + 20 + 240 + 60 ~= 1,130.
-OVERVIEW_WORD_BUDGET = 1130
+# v11 lengthens the world paragraph (80 -> 140) and the bottom line
+# (60 -> 120) by three sentences each: ~1,130 + 60 + 60 ~= 1,250.
+OVERVIEW_WORD_BUDGET = 1250
 
 # The 11 GICS sectors under the yfinance naming this repo uses everywhere
 # (rows, SECTOR_CONFIG, sector ETF maps). The narrative must cover all 11.
@@ -225,7 +231,7 @@ SYSTEM_PROMPT = (
     'mentions name the indicator without restating the figure. A sector '
     'influence may repeat a number only for the force that drives that '
     'sector.\n'
-    f'- bottom_line: 2 or 3 sentences, {BOTTOM_LINE_MAX_WORDS} words '
+    f'- bottom_line: 5 or 6 sentences, {BOTTOM_LINE_MAX_WORDS} words '
     'maximum, read first and alone: where the economy stands, the one '
     'tension that matters most, and what that means for equity investors. '
     "It must square with the regime model's label and composite in the "
@@ -264,7 +270,7 @@ SYSTEM_PROMPT = (
     'are 1-year changes in value, not volume; a leading indicator reads '
     'against 100, its trend; a series marked stale may be '
     'cited only with its month.\n'
-    f'- world: 3 or 4 sentences, {WORLD_MAX_WORDS} words maximum, the first '
+    f'- world: 6 or 7 sentences, {WORLD_MAX_WORDS} words maximum, the first '
     'thing on the page and read alone: where the world economy stands, '
     'the one force that matters most across borders (growth, trade, '
     'policy divergence, the dollar or commodities), and what it means for '

@@ -2042,11 +2042,12 @@ by analyze_stock and gitignored):
   each row's `hist`, `summary.board`, so it paints first. It is display
   only, and its numbers are not handed to the narrative. Tests:
   `tests/test_macro_board.py`. Below it are four
-  cards read top down (schema v10, 2026-11-27): The World Economy
-  (`_macIntlHTML`, `world`: one paragraph of 3-4 sentences, set as the
+  cards read top down (schema v10, 2026-11-27; v11 lengthened both
+  economy paragraphs by three sentences): The World Economy
+  (`_macIntlHTML`, `world`: one paragraph of 6-7 sentences, 140 words, set as the
   bottom line is — where the world stands, the force that matters most
   across borders, and what it means for the US), The US Economy (the call,
-  `bottom_line`, which names the regime, so no separate regime name or
+  `bottom_line`, 5-6 sentences and 120 words, which names the regime, so no separate regime name or
   gloss unless there is no bottom line; then the regime model's inputs,
   Regime signals with the composite, and the scoring ?), The Conditions
   (the three US economy sections, then — under "United States" / "World"
