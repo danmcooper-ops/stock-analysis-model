@@ -158,7 +158,8 @@ class TestBuildMacroFacts:
         assert SCHEMA_VERSION >= 7
         assert list(props)[0] == 'bottom_line', 'written before the argument'
         assert set(NARRATIVE_SCHEMA['required']) == {
-            'bottom_line', 'paragraphs', 'watch', 'international', 'sectors'}
+            'world', 'bottom_line', 'paragraphs', 'watch',
+            'world_paragraphs', 'world_watch', 'sectors'}
         assert 'headwinds' not in props and 'tailwinds' not in props
         p = SYSTEM_PROMPT
         assert "square with the regime model's label" in p
@@ -167,17 +168,30 @@ class TestBuildMacroFacts:
         assert overview_word_count({'bottom_line': 'a b c',
                                     'watch': ['d e']}) == 5
 
-    def test_v9_international_is_one_paragraph(self):
-        assert SCHEMA_VERSION >= 9
-        assert NARRATIVE_SCHEMA['properties']['international'] == \
-            {'type': 'string'}
+    def test_v10_world_fields(self):
+        """The World Economy: a paragraph, three pinned Market Factors and
+        what to watch, apart from the US fields so builds that read
+        paragraphs/watch as three each are untouched."""
+        assert SCHEMA_VERSION >= 10
+        props = NARRATIVE_SCHEMA['properties']
+        assert props['world'] == {'type': 'string'}
+        assert props['world_paragraphs']['required'] == \
+            ['global_growth_trade', 'policy_currencies', 'commodities_supply']
+        assert props['world_watch']['type'] == 'array'
+        assert 'international' not in props, 'copied from world post-parse'
+        assert list(props).index('world') > list(props).index('watch'), \
+            'the US call is still written first'
         p = SYSTEM_PROMPT
-        assert '- international: 2 or 3 sentences' in p
-        assert 'read alone as the bottom line is' in p
+        assert '- world: 3 or 4 sentences' in p
+        assert 'narrative heavy and numbers light' in p
+        assert 'at most one figure per sentence' in p
         assert 'stale may be cited only with its month' in p
-        assert 'spillover:' not in p and 'regions: one entry' not in p
-        assert overview_word_count({'bottom_line': 'a b',
-                                    'international': 'c d e'}) == 5
+        assert 'none repeating a US watch item' in p
+        assert overview_word_count({'bottom_line': 'a b', 'world': 'c d e',
+                                    'international': 'c d e',
+                                    'world_paragraphs': ['f g.'],
+                                    'world_watch': ['h']}) == 8
+        assert overview_word_count({'international': 'c d e'}) == 3
 
     def test_international_series_are_split_out_by_region(self):
         sc = _sidecar()
@@ -189,6 +203,12 @@ class TestBuildMacroFacts:
         f = build_macro_facts(sc)
         assert set(f['series']) == {'UNRATE'}
         assert set(f['international']) == {'ea', 'jp'}
+        sc['series']['DCOILBRENTEU'] = dict(sc['series']['UNRATE'],
+                                            l='Brent', sec='commodities')
+        f = build_macro_facts(sc)
+        assert f['international']['commodities']['DCOILBRENTEU']['l'] == \
+            'Brent'
+        assert 'DCOILBRENTEU' in f['series'], 'the sectors still read it'
         assert f['international']['ea']['ECBDFR']['l'] == 'ECB'
         assert f['international']['jp']['IRLTLT01JPM156N']['stale'] is True
         assert build_macro_facts({})['international'] == {}
@@ -208,7 +228,7 @@ class TestBuildMacroFacts:
         rounding rule that keeps '1.5th percentile' off the page."""
         p = SYSTEM_PROMPT
         assert 'influence:' in p and '30 to 40 words in all' in p
-        assert 'total about 810 words' in p
+        assert 'total about 1130 words' in p
         assert 'MECHANISM' in p, 'influence explains channels, not bullets'
         assert 'explain it rather than list it' in p
         assert 'lead: ONE sentence' in p and 'points:' in p
@@ -366,6 +386,24 @@ class TestClaudeNarrativeClient:
         out = self._client(tmp_path).generate(_sidecar())
         assert out['international'] == payload['international']
         assert out['schema_version'] == SCHEMA_VERSION
+
+    def test_world_fields_flatten_and_feed_international(self, tmp_path,
+                                                         monkeypatch):
+        payload = _narrative()
+        payload['world'] = 'Global growth is steady while trade cools.'
+        payload['world_paragraphs'] = {
+            k: {'lead': k + ' lead', 'points': ['One.', 'Two', 'Three.']}
+            for k in ('global_growth_trade', 'policy_currencies',
+                      'commodities_supply')}
+        payload['world_watch'] = ['a', 'b', 'c']
+        _install_fake_anthropic(
+            monkeypatch, response=_FakeResponse(json.dumps(payload)))
+        out = self._client(tmp_path).generate(_sidecar())
+        assert out['world_paragraphs'][0] == \
+            'global_growth_trade lead. One. Two. Three.'
+        assert len(out['world_paragraphs']) == 3
+        assert out['international'] == payload['world']
+        assert out['world_watch'] == ['a', 'b', 'c']
 
     def test_partial_sector_list_survives_dedupe(self, tmp_path, monkeypatch):
         """A short list still renders — dedupe must not invent entries."""

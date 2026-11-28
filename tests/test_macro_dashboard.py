@@ -630,3 +630,19 @@ class TestRerenderKeepsMacroTab:
         monkeypatch.setattr(fc, 'FREDClient', lambda *a, **k: Dead())
         assert rr._macro_payload_for_render(
             str(tmp_path / 'r.html'), None, self._snap()) is None
+
+
+def test_world_growth_and_trade_series():
+    """The World Economy's growth and trade reads (2026-11-27): a Global
+    group listed first on the International card, and each country's
+    leading indicator in its own region."""
+    by_id = {m['id']: m for m in MACRO_SERIES}
+    assert REGIONS[0] == {'k': 'world', 'l': 'Global'}
+    assert by_id['DTWEXBGS']['region'] == 'world'
+    assert by_id['XTEXVA01KRM664S']['region'] == 'world'
+    assert by_id['XTEXVA01KRM664S']['tr'] == 'yoy'
+    assert by_id['DEULOLITOAASTSAM']['region'] == 'ea'
+    assert by_id['CHNLOLITOAASTSAM']['region'] == 'cn'
+    assert all(by_id[i]['sec'] == 'intl' for i in (
+        'DTWEXBGS', 'XTEXVA01KRM664S', 'DEULOLITOAASTSAM',
+        'CHNLOLITOAASTSAM', 'XTEXVA01CNM664S'))

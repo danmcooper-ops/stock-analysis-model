@@ -30,7 +30,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # window for a monthly series whose full history is too long to rank on),
 # yf (optional: a Yahoo symbol fetched through the builder's ``yahoo``
 # client instead of FRED, for the few series FRED does not carry), region
-# (intl only: ea|uk|jp|cn|em, which the International card groups by).
+# (intl only: world|ea|uk|jp|cn|em, which the International card groups by).
 MACRO_SERIES = [
     # --- Rates & Curve ---
     dict(id='DGS10', l='10Y Treasury', sec='rates', freq='d', tr='level',
@@ -185,6 +185,24 @@ MACRO_SERIES = [
     # foreign inflation series. The OECD rates and yields are monthly and
     # land a month or two behind; the staleness stamp says when one falls
     # further behind than that.
+    # World growth and trade, for The World Economy (probed 2026-11-27: the
+    # OECD-total and euro-area CLIs on FRED stopped in 2022, so growth is
+    # read from the country CLIs that still update; 100 is trend). Korea's
+    # exports are the usual first read on world trade.
+    dict(id='DTWEXBGS', l='Broad Dollar Index', sec='intl', region='world',
+         freq='d', tr='level', fmt='n1', suffix='', good='none', scale=1),
+    dict(id='XTEXVA01KRM664S', l='Korea Exports (YoY, value)', sec='intl',
+         region='world', freq='m', tr='yoy', fmt='pct1', suffix='',
+         good='up', scale=1, zero_line=True),
+    dict(id='DEULOLITOAASTSAM', l='Germany Leading Indicator (100 = trend)',
+         sec='intl', region='ea', freq='m', tr='level', fmt='n1', suffix='',
+         good='up', scale=1),
+    dict(id='CHNLOLITOAASTSAM', l='China Leading Indicator (100 = trend)',
+         sec='intl', region='cn', freq='m', tr='level', fmt='n1', suffix='',
+         good='up', scale=1),
+    dict(id='XTEXVA01CNM664S', l='China Exports (YoY, value)', sec='intl',
+         region='cn', freq='m', tr='yoy', fmt='pct1', suffix='', good='up',
+         scale=1, zero_line=True),
     dict(id='ECBDFR', l='ECB Deposit Rate', sec='intl', region='ea', freq='d',
          tr='level', fmt='pct2', suffix='', good='none', scale=1),
     dict(id='IRLTLT01DEM156N', l='German 10Y Bund', sec='intl', region='ea',
@@ -240,6 +258,7 @@ SECTIONS = [
 
 # The International card's regions, in display order.
 REGIONS = [
+    {'k': 'world', 'l': 'Global'},
     {'k': 'ea', 'l': 'Euro area'},
     {'k': 'uk', 'l': 'United Kingdom'},
     {'k': 'jp', 'l': 'Japan'},

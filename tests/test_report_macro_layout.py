@@ -127,9 +127,9 @@ def test_macro_overview_reads_top_down():
     inside the regime card."""
     css = _css()
     body = re.search(r'function _macOverviewHTML\(\).*?\n\}\n', css, re.S).group(0)
-    # Four cards: The US Economy (the call), The International Economy
-    # second, then The Conditions and What to Watch.
-    assert '_macRegimeHTML(true)+_macIntlHTML()+_macNarrativeHTML()' in body
+    # Four cards: The World Economy first, The US Economy (the call), then
+    # The Conditions and What to Watch.
+    assert '_macIntlHTML()+_macRegimeHTML(true)+_macNarrativeHTML()' in body
     assert 'Key numbers' not in body and 'mac-tiles' not in body
     reg = re.search(r'function _macRegimeHTML\(full\).*?\n\}\n', css, re.S).group(0)
     assert "if(full&&_nar&&_nar.bottom_line)" in reg
@@ -144,17 +144,25 @@ def test_macro_overview_reads_top_down():
     assert 'Written by' not in css and 'min read' not in css, 'no byline captions'
     assert all(i >= 0 for i in order) and order == sorted(order)
     assert 'Broad Sector Outlook<' not in nar, 'the sector read lives on Sector Analysis only'
+    # Schema v10: the world's three sections and watch items follow the
+    # US ones, each group under a subhead, only when the narrative has them.
+    assert "(nar.world_paragraphs||[]).filter(Boolean)" in nar
+    assert "['Global growth & trade','Policy & currencies','Commodities & supply']" in nar
+    assert "(nar.world_watch||[]).filter(Boolean)" in nar
+    assert nar.find("SUB('United States')") < nar.find("SUB('World')")
+    assert 'if(wps.length)' in nar and 'if(wwatch.length)' in nar
 
 
 def test_macro_international_card():
-    """The International Economy card: the narrative's one paragraph, set as
+    """The World Economy card: the narrative's one paragraph, set as
     The US Economy's bottom line is (mac-lead) and escaped; without one, the
     inline summary's per-region readings. Both end in the International
     sub-tab's charts."""
     css = _css()
     body = re.search(r'function _macIntlHTML\(\).*?\n\}\n', css, re.S).group(0)
-    assert '<div class="sec-label">The International Economy</div>' in body
-    assert "typeof nar.international==='string'" in body
+    assert '<div class="sec-label">The World Economy</div>' in body
+    assert 'nar&&(nar.world||nar.international)' in body
+    assert "typeof one==='string'" in body
     assert '<p class="mac-read mac-lead">\'+_esc(para)+\'</p>' in body
     assert 'MACRO_SUM.intl' in body and '_mdelta(s.chg_1y' in body
     assert "navGo(\\'macro\\',\\'intl\\')" in body
@@ -348,7 +356,7 @@ def test_market_board_leads_the_overview():
     open the same zoom dialog the section cards do."""
     css = _css()
     body = re.search(r'function _macOverviewHTML\(\).*?\n\}\n', css, re.S).group(0)
-    assert '_macBoardHTML()+_macRegimeHTML(true)' in body
+    assert '_macBoardHTML()+_macIntlHTML()' in body
     board = re.search(r'function _macBoardHTML\(\).*?\n\}\n', css, re.S).group(0)
     assert '(MACRO&&MACRO.board)||(MACRO_SUM&&MACRO_SUM.board)' in board
     assert "if(!b||!b.panels||!b.panels.length)return '';" in board

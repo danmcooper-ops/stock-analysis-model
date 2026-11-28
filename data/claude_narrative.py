@@ -73,13 +73,20 @@ REQUEST_TIMEOUT_S = 900
 #     series family the facts now hand over apart from the US series.
 # v9: `international` is one paragraph, read alone as the bottom line is,
 #     in place of v8's lead, per-region points and spillover line.
-SCHEMA_VERSION = 9
+# v10: The World Economy — `world` (one paragraph, read first, ahead of
+#      the US bottom line), `world_paragraphs` (three world Market Factors)
+#      and `world_watch` (three world items for What to Watch), written
+#      narrative heavy and numbers light from the international block, which
+#      now carries global growth and trade series and a few commodities.
+#      `international` stays, a copy of `world`, for pre-v10 readers.
+SCHEMA_VERSION = 10
 
 # Ceilings for the v7 and v9 fields, in words; counted post-parse, never
 # enforced.
 BOTTOM_LINE_MAX_WORDS = 60
 WATCH_ITEMS = 3
 INTERNATIONAL_MAX_WORDS = 60
+WORLD_MAX_WORDS = 80
 
 # Advisory floor for a sector's influence paragraph, only ever counted:
 # under it the Overview is back to reading like a kicker, which is what
@@ -93,7 +100,10 @@ MIN_INFLUENCE_WORDS = 20
 # ~750 plus the international paragraph). Influences are drawn at their
 # ceiling: a 45-word one put the v6 Overview at 820 words. Counted
 # post-parse, never enforced.
-OVERVIEW_WORD_BUDGET = 810
+# v10 adds the world paragraph (80, in place of international's 60), three
+# world factors (3 x (20 + 3 x 20)) and three world watch items (3 x 20):
+# ~810 + 20 + 240 + 60 ~= 1,130.
+OVERVIEW_WORD_BUDGET = 1130
 
 # The 11 GICS sectors under the yfinance naming this repo uses everywhere
 # (rows, SECTOR_CONFIG, sector ETF maps). The narrative must cover all 11.
@@ -118,6 +128,8 @@ _PARAGRAPH_SCHEMA = {
     'additionalProperties': False,
 }
 PARAGRAPH_KEYS = ('growth_labor', 'inflation_rates', 'credit_conditions')
+WORLD_PARAGRAPH_KEYS = ('global_growth_trade', 'policy_currencies',
+                        'commodities_supply')
 
 NARRATIVE_SCHEMA = {
     'type': 'object',
@@ -142,9 +154,18 @@ NARRATIVE_SCHEMA = {
             'additionalProperties': False,
         },
         'watch': {'type': 'array', 'items': {'type': 'string'}},
-        # The International Economy card: one paragraph, set as the bottom
-        # line is.
-        'international': {'type': 'string'},
+        # The World Economy, first on the Overview: one paragraph, set as the
+        # bottom line is. Its three Market Factors and three watch items are
+        # fields of their own rather than more entries in paragraphs/watch:
+        # app builds already shipped read those as exactly three each.
+        'world': {'type': 'string'},
+        'world_paragraphs': {
+            'type': 'object',
+            'properties': {k: _PARAGRAPH_SCHEMA for k in WORLD_PARAGRAPH_KEYS},
+            'required': list(WORLD_PARAGRAPH_KEYS),
+            'additionalProperties': False,
+        },
+        'world_watch': {'type': 'array', 'items': {'type': 'string'}},
         'sectors': {
             'type': 'array',
             'items': {
@@ -164,8 +185,8 @@ NARRATIVE_SCHEMA = {
             },
         },
     },
-    'required': ['bottom_line', 'paragraphs', 'watch', 'international',
-                 'sectors'],
+    'required': ['world', 'bottom_line', 'paragraphs', 'watch',
+                 'world_paragraphs', 'world_watch', 'sectors'],
     'additionalProperties': False,
 }
 
@@ -176,7 +197,9 @@ SYSTEM_PROMPT = (
     'series with recent changes and historical percentiles, the Treasury '
     'yield curve, credit spreads by rating bucket, sector ETF momentum, and '
     "an 'international' block of foreign policy rates, yields, inflation, "
-    'equity markets and currencies grouped by region.\n'
+    'equity markets, currencies, leading indicators and exports grouped by '
+    "region, with a 'world' region (the broad dollar, world trade) and a "
+    "'commodities' group (oil, copper, food, all commodities).\n"
     'Rules:\n'
     '- Use ONLY the numbers provided, and cite specific figures inline '
     "(e.g. 'core PCE at 2.8%'). Never invent a data point.\n"
@@ -190,13 +213,15 @@ SYSTEM_PROMPT = (
     "series the way a reader knows it ('the 10-year Treasury yield', not "
     "'DGS10'). Give a percentile its window once ('71st percentile of 10 "
     "years') rather than on every mention.\n"
-    '- Length: the Overview prints the bottom line, the paragraphs, what '
-    'to watch, and every sector headline and influence, and '
+    '- Length: the Overview prints the world paragraph, the bottom line, '
+    'both sets of paragraphs, both sets of what to watch, and every sector '
+    'headline and influence, and '
     f'that read must total about {OVERVIEW_WORD_BUDGET} words. The word '
     'limits below add up to that budget; treat each as a ceiling and '
     'spend the words on meaning, not on more figures.\n'
-    '- Say each figure once. Across the bottom line, the paragraphs, '
-    'what to watch and international, cite each indicator\'s number at most once; later '
+    '- Say each figure once. Across world, the bottom line, both sets of '
+    'paragraphs and both sets of what to watch, cite each indicator\'s '
+    'number at most once; later '
     'mentions name the indicator without restating the figure. A sector '
     'influence may repeat a number only for the force that drives that '
     'sector.\n'
@@ -206,7 +231,9 @@ SYSTEM_PROMPT = (
     "It must square with the regime model's label and composite in the "
     'data: when the indicators read weaker or stronger than the label, say '
     'so and why the market signals still read as they do. At most two '
-    'figures. It is about the US: the world goes in international.\n'
+    'figures. It is about the US: the world goes in the world fields. The '
+    'page sets it directly under the world paragraph, so open on the US '
+    'without restating the world story.\n'
     '- paragraphs: three named sections — growth_labor, inflation_rates, '
     'credit_conditions — each a lead and its points. The page sets the '
     'lead as a paragraph and each point as a bullet under it.\n'
@@ -227,16 +254,30 @@ SYSTEM_PROMPT = (
     "above 250,000 would say layoffs have started, ending the labor "
     "story.' Each on a different indicator family; thresholds may be new "
     'numbers, but never restate a current reading already given.\n'
-    f'- international: 2 or 3 sentences, {INTERNATIONAL_MAX_WORDS} words '
-    'maximum, read alone as the bottom line is, written from the data\'s '
-    "'international' block only (regions: ea euro area, uk United Kingdom, "
-    'jp Japan, cn China, em emerging markets): where the world economy '
-    'stands, the one cross-border divergence or tension that matters most, '
-    'and what it means for US equity investors through the dollar, US '
-    'yields, commodity prices or overseas earnings. Name regions rather '
-    'than walking through each one. At most three figures. Equity series '
-    'are 1-year price returns; a series marked stale may be cited only '
-    'with its month.\n'
+    '- The world fields (world, world_paragraphs, world_watch) are '
+    "written from the data's 'international' block only (regions: world "
+    'global, ea euro area, uk United Kingdom, jp Japan, cn China, em '
+    "emerging markets; plus its 'commodities' group). They are narrative "
+    'heavy and numbers light: at most one figure per sentence, each '
+    'explained rather than listed, and regions named rather than walked '
+    'through one by one. Equity series are 1-year price returns; exports '
+    'are 1-year changes in value, not volume; a leading indicator reads '
+    'against 100, its trend; a series marked stale may be '
+    'cited only with its month.\n'
+    f'- world: 3 or 4 sentences, {WORLD_MAX_WORDS} words maximum, the first '
+    'thing on the page and read alone: where the world economy stands, '
+    'the one force that matters most across borders (growth, trade, '
+    'policy divergence, the dollar or commodities), and what it means for '
+    'the US economy and US equity investors. At most two figures.\n'
+    '- world_paragraphs: three named sections — global_growth_trade (the '
+    'world cycle, trade and China), policy_currencies (foreign central '
+    'banks and yields against the Fed and Treasuries, and the dollar), '
+    'commodities_supply (energy, metals and food) — each a lead and '
+    'exactly 3 points, under the same sentence rules as paragraphs. Each '
+    'point says what the world development means for the US.\n'
+    f'- world_watch: exactly {WATCH_ITEMS} items, what would change the '
+    'world call, under the same rules as watch, each on a different world '
+    'indicator family and none repeating a US watch item.\n'
     '- sectors: one entry for EVERY GICS sector listed in the data (all '
     '11, including any without ETF metrics), each written in this order:\n'
     '  influence: the read a sector\'s chip opens under the Overview\'s '
@@ -282,6 +323,12 @@ _SERIES_FACT_KEYS = ('l', 'sec', 'latest', 'chg_1m', 'chg_1y', 'pctile',
                      'pct_win', 'z', 'suffix', 'good', 'stale')
 
 
+# Commodity series the dashboard already fetches, handed to the world fields
+# as well (they stay in the US series too: the sectors read them).
+WORLD_COMMODITY_IDS = ('DCOILBRENTEU', 'PCOPPUSDM', 'PFOODINDEXM',
+                       'PALLFNFINDEXM')
+
+
 def _driver_for(sector):
     """Static macro sensitivities for a sector."""
     return _SECTOR_MACRO_DRIVERS.get(sector, {})
@@ -297,6 +344,11 @@ def build_macro_facts(sidecar):
     # the rest.
     international = {}
     for sid, s in series.items():
+        if sid in WORLD_COMMODITY_IDS:
+            entry = {k: s[k] for k in _SERIES_FACT_KEYS
+                     if s.get(k) not in (None, '')}
+            if entry:
+                international.setdefault('commodities', {})[sid] = entry
         entry = {k: s[k] for k in _SERIES_FACT_KEYS if s.get(k) not in (None, '')}
         if not entry:
             continue
@@ -347,10 +399,13 @@ def overview_word_count(narrative):
         return len(str(x).split()) if x else 0
     total = wc(n.get('bottom_line'))
     total += sum(wc(x) for k in ('paragraphs', 'watch', 'tailwinds',
-                                 'headwinds')
+                                 'headwinds', 'world_paragraphs',
+                                 'world_watch')
                  for x in (n.get(k) or []))
-    if isinstance(n.get('international'), str):
-        total += wc(n['international'])
+    # world replaces international on the page; count whichever prints.
+    one = n.get('world') or n.get('international')
+    if isinstance(one, str):
+        total += wc(one)
     for e in n.get('sectors') or []:
         if isinstance(e, dict):
             total += wc(e.get('headline')) + wc(e.get('influence'))
@@ -498,6 +553,16 @@ class ClaudeNarrativeClient:
             narrative['paragraphs'] = [t for t in (_flatten_paragraph(p.get(k))
                                                    for k in PARAGRAPH_KEYS)
                                        if t]
+        if isinstance(narrative, dict) and \
+                isinstance(narrative.get('world_paragraphs'), dict):
+            p = narrative['world_paragraphs']
+            narrative['world_paragraphs'] = [
+                t for t in (_flatten_paragraph(p.get(k))
+                            for k in WORLD_PARAGRAPH_KEYS) if t]
+        if isinstance(narrative, dict) and narrative.get('world'):
+            # Pre-v10 readers (the report's and app's old International
+            # card) read this key.
+            narrative['international'] = narrative['world']
         if not isinstance(narrative, dict) or not narrative.get('paragraphs'):
             logger.warning('macro narrative skipped: empty response')
             return None
@@ -530,10 +595,18 @@ class ClaudeNarrativeClient:
         if len(narrative.get('watch') or []) != WATCH_ITEMS:
             logger.warning('macro narrative: %d watch items (expected %d)',
                            len(narrative.get('watch') or []), WATCH_ITEMS)
-        if len(str(narrative.get('international') or '').split()) > \
-                1.25 * INTERNATIONAL_MAX_WORDS:
-            logger.warning('macro narrative: international runs %d words',
-                           len(str(narrative.get('international')).split()))
+        if len(narrative.get('world_watch') or []) != WATCH_ITEMS:
+            logger.warning('macro narrative: %d world watch items (expected '
+                           '%d)', len(narrative.get('world_watch') or []),
+                           WATCH_ITEMS)
+        if len(narrative.get('world_paragraphs') or []) != \
+                len(WORLD_PARAGRAPH_KEYS):
+            logger.warning('macro narrative: %d world paragraphs',
+                           len(narrative.get('world_paragraphs') or []))
+        if len(str(narrative.get('world') or '').split()) > \
+                1.25 * WORLD_MAX_WORDS:
+            logger.warning('macro narrative: world runs %d words',
+                           len(str(narrative.get('world')).split()))
         if len(str(narrative.get('bottom_line') or '').split()) > \
                 1.25 * BOTTOM_LINE_MAX_WORDS:
             logger.warning('macro narrative: bottom line runs %d words',
