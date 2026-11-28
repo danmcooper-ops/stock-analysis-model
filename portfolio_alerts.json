@@ -1,12 +1,12 @@
 {
  "version": 1,
- "date": "2026-11-25",
- "prev_date": "2026-11-24",
+ "date": "2026-11-27",
+ "prev_date": "2026-11-25",
  "systemic": {
-  "n": 3909,
-  "prev_n": 3906,
-  "changed": 17,
-  "changed_share": 0.0043,
+  "n": 3910,
+  "prev_n": 3905,
+  "changed": 35,
+  "changed_share": 0.009,
   "missing_data": 0,
   "missing_share": 0.0,
   "shrink_share": 0.0,
@@ -36,9 +36,9 @@
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": -1.355225456044348,
-    "median_score": 49.6,
-    "median_spread": 0.22131851193974988,
+    "median_mos": -1.2731596647982517,
+    "median_score": 49.65,
+    "median_spread": 0.224718087301863,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -66,9 +66,9 @@
      "HOLD": 7,
      "PASS": 5
     },
-    "median_mos": -0.5222796294629659,
-    "median_score": 50.2,
-    "median_spread": 0.2507452442704751,
+    "median_mos": -0.45766930086894086,
+    "median_score": 50.6,
+    "median_spread": 0.25388802732176874,
     "sector_weights": {
      "Technology": 0.2641509433962264,
      "Financial Services": 0.11320754716981131,
@@ -84,23 +84,29 @@
     "concentrated": false,
     "no_sector": 0,
     "upgrades": 0,
-    "downgrades": 1
+    "downgrades": 0
    },
    "alerts": [
     {
-     "ticker": "UL",
-     "from": "LEAN BUY",
-     "to": "HOLD",
-     "score_from": 39.4,
-     "score_to": 38.8,
-     "kind": "reversal",
+     "ticker": "AGX",
+     "kind": "earnings_soon",
      "level": "watch",
-     "reversal_of": "2026-11-24",
-     "message": "UL fell below 39 (39.4 → 38.8) (reverses the 2026-11-24 move)",
-     "display": "UL fell below 39 (39.4 → 38.8) (reverses the 2026-11-24 move)",
-     "why": [
-      "Composite score moved 39.4 → 38.8, crossing below the 39 line."
-     ]
+     "message": "AGX reports earnings on 2026-12-03"
+    },
+    {
+     "ticker": "KR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "KR reports earnings on 2026-12-03"
+    },
+    {
+     "ticker": "AGX",
+     "kind": "buy_below",
+     "mos0": 0.1673,
+     "mos1": 0.1499,
+     "level": "fyi",
+     "into": false,
+     "message": "AGX's margin of safety fell back under 15% (MoS 15% at $293.38)"
     }
    ]
   },
@@ -111,34 +117,48 @@
    "mode": "buy_line",
    "missing": [],
    "stats": {
-    "n": 138,
+    "n": 136,
     "ratings": {
-     "BUY": 138,
+     "BUY": 136,
      "LEAN BUY": 0,
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": 0.2013826953842407,
+    "median_mos": 0.23305894143007752,
     "median_score": 60.5,
-    "median_spread": 0.19433686014488366,
+    "median_spread": 0.1970942019812062,
     "sector_weights": {
-     "Technology": 0.28985507246376807,
-     "Consumer Defensive": 0.13768115942028988,
-     "Healthcare": 0.1449275362318841,
-     "Industrials": 0.1594202898550725,
-     "Consumer Cyclical": 0.1521739130434783,
-     "Communication Services": 0.05797101449275362,
-     "Basic Materials": 0.05797101449275362
+     "Technology": 0.2794117647058823,
+     "Consumer Defensive": 0.1397058823529412,
+     "Healthcare": 0.1470588235294118,
+     "Industrials": 0.1544117647058824,
+     "Consumer Cyclical": 0.16176470588235298,
+     "Communication Services": 0.05882352941176472,
+     "Basic Materials": 0.05882352941176472
     },
     "top_sector": "Technology",
-    "top_sector_weight": 0.28985507246376807,
-    "hhi": 0.17926906112161314,
+    "top_sector_weight": 0.2794117647058823,
+    "hhi": 0.17614619377162632,
     "concentrated": false,
     "no_sector": 0,
-    "upgrades": 1,
+    "upgrades": 3,
     "downgrades": 0
    },
    "alerts": [
+    {
+     "ticker": "AZO",
+     "portfolio": "paper",
+     "kind": "joined",
+     "level": "watch",
+     "message": "AZO joined Paper book (score 56.7 → 57.1 (rule: score ≥ 57))",
+     "display": "AZO joined Paper book (score 56.7 → 57.1 (rule: score ≥ 57))"
+    },
+    {
+     "ticker": "BBW",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "BBW reports earnings on 2026-12-03"
+    },
     {
      "ticker": "BLBD",
      "kind": "earnings_soon",
@@ -146,12 +166,12 @@
      "message": "BLBD reports earnings on 2026-12-02"
     },
     {
-     "ticker": "COR",
+     "ticker": "CENTA",
      "portfolio": "paper",
      "kind": "joined",
      "level": "watch",
-     "message": "COR joined Paper book (score 53.3 → 57.9 (rule: score ≥ 57))",
-     "display": "COR joined Paper book (score 53.3 → 57.9 (rule: score ≥ 57))"
+     "message": "CENTA joined Paper book (score 53.9 → 58.3 (rule: score ≥ 57))",
+     "display": "CENTA joined Paper book (score 53.9 → 58.3 (rule: score ≥ 57))"
     },
     {
      "ticker": "CPRT",
@@ -160,12 +180,74 @@
      "message": "CPRT reports earnings on 2026-12-01"
     },
     {
-     "ticker": "KGC",
+     "ticker": "CSL",
      "portfolio": "paper",
      "kind": "left",
      "level": "watch",
-     "message": "KGC left Paper book (score 57 → 56.5 (rule: score ≥ 57))",
-     "display": "KGC left Paper book (score 57 → 56.5 (rule: score ≥ 57))"
+     "message": "CSL left Paper book (score 57.3 → 56 (rule: score ≥ 57))",
+     "display": "CSL left Paper book (score 57.3 → 56 (rule: score ≥ 57))"
+    },
+    {
+     "ticker": "EXLS",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "watch",
+     "message": "EXLS left Paper book (score 57 → 56.7 (rule: score ≥ 57))",
+     "display": "EXLS left Paper book (score 57 → 56.7 (rule: score ≥ 57))"
+    },
+    {
+     "ticker": "FTDR",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "watch",
+     "message": "FTDR left Paper book (score 57 → 56.9 (rule: score ≥ 57))",
+     "display": "FTDR left Paper book (score 57 → 56.9 (rule: score ≥ 57))"
+    },
+    {
+     "ticker": "GCT",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "watch",
+     "message": "GCT left Paper book (score 57.1 → 56.4 (rule: score ≥ 57))",
+     "display": "GCT left Paper book (score 57.1 → 56.4 (rule: score ≥ 57))"
+    },
+    {
+     "ticker": "IDT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "IDT reports earnings on 2026-12-03"
+    },
+    {
+     "ticker": "JJSF",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "watch",
+     "message": "JJSF left Paper book (score 59.7 → 56.1 (rule: score ≥ 57))",
+     "display": "JJSF left Paper book (score 59.7 → 56.1 (rule: score ≥ 57))"
+    },
+    {
+     "ticker": "TPR",
+     "portfolio": "paper",
+     "kind": "joined",
+     "level": "watch",
+     "message": "TPR joined Paper book (score 56.9 → 57.6 (rule: score ≥ 57))",
+     "display": "TPR joined Paper book (score 56.9 → 57.6 (rule: score ≥ 57))"
+    },
+    {
+     "ticker": "ULTA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ULTA reports earnings on 2026-12-03"
+    },
+    {
+     "ticker": "URBN",
+     "kind": "buy_below",
+     "mos0": 0.1817,
+     "mos1": 0.1946,
+     "level": "watch",
+     "into": true,
+     "confirmed": true,
+     "message": "URBN has held a margin of safety of 15% or more for two runs (MoS 19% at $79.54 against a $98.76 fair value)"
     },
     {
      "ticker": "VLGEA",
@@ -174,29 +256,58 @@
      "message": "VLGEA reports earnings on 2026-12-01"
     },
     {
-     "ticker": "COR",
+     "ticker": "AZO",
      "from": "LEAN BUY",
      "to": "BUY",
-     "score_from": 53.3,
-     "score_to": 57.9,
+     "score_from": 56.7,
+     "score_to": 57.1,
      "kind": "same_side",
      "level": "fyi",
-     "message": "COR crossed above 57 (53.3 → 57.9)",
-     "display": "COR crossed above 57 (53.3 → 57.9)",
+     "message": "AZO crossed above 57 (56.7 → 57.1)",
+     "display": "AZO crossed above 57 (56.7 → 57.1)",
      "why": [
-      "Composite score moved 53 → 58, crossing above the 57 line.",
-      "Biggest category moves: Valuation 30 → 46 (+15), Moat 48 → 54 (+6).",
-      "Largest metric swings: MoS 26.1% → 38.1% (score 72 → 96); Mult vs Hist 90.3% → 27.3% (score 6 → 48)."
+      "Composite score moved 56.7 → 57.1, crossing above the 57 line."
      ]
     },
     {
-     "ticker": "URBN",
+     "ticker": "CENTA",
+     "from": "LEAN BUY",
+     "to": "BUY",
+     "score_from": 53.9,
+     "score_to": 58.3,
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "CENTA crossed above 57 (53.9 → 58.3)",
+     "display": "CENTA crossed above 57 (53.9 → 58.3)",
+     "why": [
+      "Composite score moved 54 → 58, crossing above the 57 line.",
+      "Biggest category moves: Growth 44 → 60 (+16), Valuation 76 → 85 (+9), Ownership 55 → 42 (-13).",
+      "Largest metric swings: Shrhldr Yld 7.6% → 1.5% (score 96 → 28); Fund Growth 1.1% → 5.6% (score 11 → 56); 5Y FCF CAGR 5.6% → 9.7% (score 53 → 74)."
+     ]
+    },
+    {
+     "ticker": "SFM",
      "kind": "buy_below",
-     "mos0": 0.0807,
-     "mos1": 0.1817,
+     "mos0": 0.1225,
+     "mos1": 0.1814,
      "level": "fyi",
      "into": true,
-     "message": "URBN's margin of safety rose to 15% or more (MoS 18% at $76.74 against a $93.78 fair value); it becomes Notable if it holds"
+     "message": "SFM's margin of safety rose to 15% or more (MoS 18% at $51.37 against a $62.76 fair value); it becomes Notable if it holds"
+    },
+    {
+     "ticker": "TPR",
+     "from": "LEAN BUY",
+     "to": "BUY",
+     "score_from": 56.9,
+     "score_to": 57.6,
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "TPR crossed above 57 (56.9 → 57.6)",
+     "display": "TPR crossed above 57 (56.9 → 57.6)",
+     "why": [
+      "Composite score moved 57 → 58, crossing above the 57 line.",
+      "Biggest category moves: Valuation 27 → 31 (+3)."
+     ]
     }
    ]
   }
